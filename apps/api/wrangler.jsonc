@@ -35,7 +35,7 @@
         "ACCESS_TEAM_DOMAIN": "",
         "ACCESS_AUD": "",
         "LLM_PROVIDER": "mock",
-        "LLM_MODEL": "claude-opus-5",
+        "LLM_MODEL": "claude-sonnet-5",
         "LLM_EFFORT": "medium",
         "CAPTURE_USER_AGENT": "EradigmCI-Capture/1.0 (+https://eradigm.com)",
         "DNS_RESOLVER_URL": "https://cloudflare-dns.com/dns-query"
