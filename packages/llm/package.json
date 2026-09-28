@@ -1,0 +1,21 @@
+{
+  "name": "@eradigm/llm",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Interchangeable LLM adapter. The only package allowed to depend on a model vendor SDK.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.128.0",
+    "@eradigm/shared": "*"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.11"
+  }
+}

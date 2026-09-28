@@ -1,0 +1,580 @@
+/**
+ * HTTP API. Every route (except /api/health) resolves the caller's identity,
+ * tenant and role, then checks the permission for the action. The tenant id
+ * used by every query comes from the verified principal, never from the body.
+ */
+import { Hono, type Context } from "hono";
+import type { z } from "zod";
+import {
+  ACTIONS,
+  AddColumnRequest,
+  AddOptionRequest,
+  ApproveRequest,
+  CONTRACT_VERSION,
+  CreateSavedViewRequest,
+  CreateSubmissionRequest,
+  CreateUserRequest,
+  DeleteOptionRequest,
+  EXPORT_FORMATS,
+  EXPORT_MIME,
+  ITEM_STATUSES,
+  RejectRequest,
+  RenameOptionRequest,
+  ReprocessRequest,
+  ReviseRequest,
+  SaveDraftRequest,
+  TrendConfigSchema,
+  UpdateColumnRequest,
+  UpdateSettingsRequest,
+  UpdateUserRequest,
+  can,
+  exportFilename,
+  filtersFromParams,
+  getColumn,
+  toCsv,
+  toJson,
+  toTable,
+  toTsv,
+  toXlsx,
+  todayIso,
+  type ExportFormat,
+  type ItemStatus,
+  type TenantSettings,
+} from "@eradigm/shared";
+import { requirePermission, resolvePrincipal, type Principal } from "./auth/context.js";
+import type { Env } from "./env.js";
+import { ApiError, badRequest, forbidden, notFound } from "./lib/errors.js";
+import { newId, nowIso } from "./lib/ids.js";
+import { log, metric } from "./lib/log.js";
+import { readSnapshot } from "./pipeline/snapshots.js";
+import { audit, listAudit, verifyChain } from "./services/audit.js";
+import { getDetail, getItemRow, listItems } from "./services/items.js";
+import { qualityMetrics } from "./services/metrics.js";
+import { dashboard, exportRows, trackerPage, trendTest } from "./services/query.js";
+import { approve, reject, reprocess, revise, saveDraft, softDelete } from "./services/review.js";
+import {
+  addColumn,
+  addOption,
+  deleteColumn,
+  deleteOption,
+  loadSchema,
+  loadSettings,
+  optionUsageMap,
+  renameOption,
+  saveSettings,
+  updateColumn,
+} from "./services/schema.js";
+import { signalDetail } from "./services/signals.js";
+import { submitFile, submitUrl } from "./services/submissions.js";
+import { createUser, listUsers, revokeSessions, updateUser } from "./services/users.js";
+
+type Vars = { principal: Principal; requestId: string };
+type C = Context<{ Bindings: Env; Variables: Vars }>;
+
+export const app = new Hono<{ Bindings: Env; Variables: Vars }>();
+
+// ---------------------------------------------------------------------------
+// Middleware
+// ---------------------------------------------------------------------------
+
+app.use("*", async (c, next) => {
+  const requestId = c.req.header("cf-ray") ?? newId("req");
+  c.set("requestId", requestId);
+  const started = Date.now();
+  await next();
+  c.header("X-Request-Id", requestId);
+  c.header("X-Contract-Version", CONTRACT_VERSION);
+  c.header("X-Content-Type-Options", "nosniff");
+  c.header("Referrer-Policy", "no-referrer");
+  if (!c.res.headers.get("Cache-Control")) c.header("Cache-Control", "no-store");
+  const p = c.get("principal") as Principal | undefined;
+  const route = c.req.routePath;
+  log("info", "request", { requestId, method: c.req.method, route, status: c.res.status, ms: Date.now() - started, tenant: p?.tenantId, user: p?.userId });
+  metric(c.env, "request_ms", Date.now() - started, { route, status: String(c.res.status), tenant: p?.tenantId ?? "" });
+});
+
+app.onError((err, c) => {
+  const requestId = c.get("requestId");
+  if (err instanceof ApiError) {
+    return c.json({ error: { code: err.code, message: err.message, fields: err.fields, requestId } }, err.status as 400);
+  }
+  log("error", "unhandled", { requestId, message: (err as Error).message, stack: (err as Error).stack?.split("\n").slice(0, 5).join(" | ") });
+  return c.json({ error: { code: "INTERNAL", message: "Something went wrong. Please try again.", requestId } }, 500);
+});
+
+app.notFound((c) => c.json({ error: { code: "NOT_FOUND", message: "Not found" } }, 404));
+
+app.get("/api/health", async (c) => {
+  let db = "ok";
+  try {
+    await c.env.DB.prepare("SELECT 1").first();
+  } catch {
+    db = "error";
+  }
+  return c.json({ ok: db === "ok", environment: c.env.ENVIRONMENT, contractVersion: CONTRACT_VERSION, checks: { db } }, db === "ok" ? 200 : 503);
+});
+
+// Authentication, tenancy and rate limiting for everything else.
+app.use("/api/*", async (c, next) => {
+  const p = await resolvePrincipal(c.req.raw, c.env);
+  c.set("principal", p);
+  if (c.env.RATE_LIMITER) {
+    const { success } = await c.env.RATE_LIMITER.limit({ key: p.userId });
+    if (!success) throw new ApiError("RATE_LIMITED", "Too many requests. Please slow down and try again shortly.");
+  }
+  await next();
+});
+
+async function body<T extends z.ZodType>(c: C, schema: T): Promise<z.infer<T>> {
+  let raw: unknown;
+  try {
+    raw = await c.req.json();
+  } catch {
+    throw badRequest("Request body must be JSON");
+  }
+  const r = schema.safeParse(raw);
+  if (!r.success) {
+    throw new ApiError(
+      "VALIDATION",
+      "Some fields are invalid",
+      r.error.issues.map((i) => ({ key: i.path.join(".") || "body", label: i.path.join(".") || "Request", code: "invalid", message: i.message })),
+    );
+  }
+  return r.data;
+}
+
+const P = (c: C) => c.get("principal");
+const ctxOf = (c: C): ExecutionContext | null => {
+  try {
+    return c.executionCtx as ExecutionContext;
+  } catch {
+    return null;
+  }
+};
+
+async function schemaFor(c: C) {
+  return loadSchema(c.env, P(c).tenantId);
+}
+
+async function todayFor(c: C): Promise<string> {
+  const s = await loadSettings(c.env, P(c).tenantId);
+  try {
+    return todayIso(new Date(), s.timezone);
+  } catch {
+    return todayIso(new Date(), "UTC");
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Identity
+// ---------------------------------------------------------------------------
+
+app.get("/api/me", async (c) => {
+  const p = P(c);
+  const s = await loadSettings(c.env, p.tenantId);
+  return c.json({
+    user: { id: p.userId, email: p.email, name: p.name },
+    tenant: { id: p.tenantId, name: p.tenantName },
+    role: p.role,
+    tenants: p.tenants,
+    permissions: ACTIONS.filter((a) => can(p.role, a)),
+    contractVersion: CONTRACT_VERSION,
+    environment: c.env.ENVIRONMENT,
+    timezone: s.timezone,
+  });
+});
+
+app.post("/api/me/sessions/revoke", async (c) => {
+  const p = P(c);
+  return c.json(await revokeSessions(c.env, p, p.userId));
+});
+
+// ---------------------------------------------------------------------------
+// Schema
+// ---------------------------------------------------------------------------
+
+app.get("/api/schema", async (c) => {
+  const schema = await schemaFor(c);
+  const p = P(c);
+  if (can(p.role, "schema:edit") && c.req.query("usage") === "1") {
+    return c.json({ ...schema, usage: await optionUsageMap(c.env, p.tenantId, schema) });
+  }
+  return c.json(schema);
+});
+
+async function schemaChanged(c: C, details: Record<string, unknown>) {
+  const p = P(c);
+  await audit(c.env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "schema.changed", targetType: "schema", details });
+  const schema = await schemaFor(c);
+  return c.json({ ...schema, usage: await optionUsageMap(c.env, p.tenantId, schema) });
+}
+
+app.post("/api/schema/columns", async (c) => {
+  requirePermission(P(c), "schema:edit");
+  const b = await body(c, AddColumnRequest);
+  const r = await addColumn(c.env, P(c).tenantId, b.label, b.type);
+  return schemaChanged(c, { op: "add_column", key: r.key, type: b.type });
+});
+
+app.patch("/api/schema/columns/:key", async (c) => {
+  requirePermission(P(c), "schema:edit");
+  const b = await body(c, UpdateColumnRequest);
+  const r = await updateColumn(c.env, P(c).tenantId, c.req.param("key"), b);
+  return schemaChanged(c, { op: "update_column", key: c.req.param("key"), renamed: r.before.label !== r.after.label, required: r.after.required });
+});
+
+app.delete("/api/schema/columns/:key", async (c) => {
+  requirePermission(P(c), "schema:edit");
+  await deleteColumn(c.env, P(c).tenantId, c.req.param("key"));
+  return schemaChanged(c, { op: "delete_column", key: c.req.param("key") });
+});
+
+app.post("/api/schema/columns/:key/options", async (c) => {
+  requirePermission(P(c), "schema:edit");
+  const b = await body(c, AddOptionRequest);
+  await addOption(c.env, P(c).tenantId, c.req.param("key"), b.value, b.parent);
+  return schemaChanged(c, { op: "add_option", key: c.req.param("key") });
+});
+
+app.patch("/api/schema/columns/:key/options", async (c) => {
+  requirePermission(P(c), "schema:edit");
+  const b = await body(c, RenameOptionRequest);
+  await renameOption(c.env, P(c).tenantId, c.req.param("key"), b.from, b.to);
+  return schemaChanged(c, { op: "rename_option", key: c.req.param("key") });
+});
+
+app.delete("/api/schema/columns/:key/options", async (c) => {
+  requirePermission(P(c), "schema:edit");
+  const b = await body(c, DeleteOptionRequest);
+  await deleteOption(c.env, P(c).tenantId, c.req.param("key"), b.value);
+  return schemaChanged(c, { op: "delete_option", key: c.req.param("key") });
+});
+
+// ---------------------------------------------------------------------------
+// Tracker, dashboard, trend test
+// ---------------------------------------------------------------------------
+
+function sortOf(c: C, schema: Awaited<ReturnType<typeof loadSchema>>) {
+  const key = c.req.query("sort") ?? "date";
+  const dir = c.req.query("dir") === "asc" ? "asc" : "desc";
+  return { key: getColumn(schema, key) ? key : "date", dir } as const;
+}
+
+app.get("/api/tracker", async (c) => {
+  requirePermission(P(c), "tracker:read");
+  const schema = await schemaFor(c);
+  const url = new URL(c.req.url);
+  const f = filtersFromParams(url.searchParams, { schema, today: await todayFor(c) });
+  const page = Math.max(0, Number.parseInt(c.req.query("page") ?? "0", 10) || 0);
+  const pageSize = Math.min(100, Math.max(1, Number.parseInt(c.req.query("pageSize") ?? "10", 10) || 10));
+  return c.json(await trackerPage(c.env, schema, P(c).tenantId, f, sortOf(c, schema), page, pageSize));
+});
+
+app.get("/api/tracker/export", async (c) => {
+  const p = P(c);
+  requirePermission(p, "tracker:export");
+  const schema = await schemaFor(c);
+  const format = (c.req.query("format") ?? "csv") as ExportFormat;
+  if (!(EXPORT_FORMATS as readonly string[]).includes(format)) throw badRequest("Unknown export format");
+  const scope = c.req.query("scope") === "all" ? "all" : "filtered";
+  const today = await todayFor(c);
+  const url = new URL(c.req.url);
+  const f = scope === "all" ? null : filtersFromParams(url.searchParams, { schema, today });
+  const rows = await exportRows(c.env, schema, p.tenantId, f, sortOf(c, schema));
+  const table = toTable(schema, rows);
+  const content: string | Uint8Array =
+    format === "csv" ? toCsv(table) : format === "tsv" ? toTsv(table) : format === "json" ? toJson(schema, rows) : toXlsx(table);
+  await audit(c.env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "export.created", targetType: "tracker", details: { format, scope, rows: rows.length } });
+  return new Response(content, {
+    headers: {
+      "Content-Type": EXPORT_MIME[format],
+      "Content-Disposition": `attachment; filename="${exportFilename(scope, format, today)}"`,
+      "X-Export-Rows": String(rows.length),
+      "Cache-Control": "no-store",
+    },
+  });
+});
+
+app.get("/api/signals/:id", async (c) => {
+  requirePermission(P(c), "tracker:read");
+  return c.json(await signalDetail(c.env, await schemaFor(c), P(c).tenantId, c.req.param("id")));
+});
+
+app.post("/api/signals/:id/revise", async (c) => {
+  requirePermission(P(c), "item:edit");
+  const b = await body(c, ReviseRequest);
+  const schema = await schemaFor(c);
+  await revise(c.env, schema, P(c), c.req.param("id"), b.values, b.note);
+  return c.json(await signalDetail(c.env, schema, P(c).tenantId, c.req.param("id")));
+});
+
+app.get("/api/dashboard", async (c) => {
+  requirePermission(P(c), "dashboard:read");
+  const schema = await schemaFor(c);
+  const f = filtersFromParams(new URL(c.req.url).searchParams, { schema, today: await todayFor(c) });
+  return c.json(await dashboard(c.env, schema, P(c).tenantId, f));
+});
+
+app.post("/api/trend-test", async (c) => {
+  requirePermission(P(c), "dashboard:read");
+  const cfg = await body(c, TrendConfigSchema);
+  if (cfg.from > cfg.to) throw badRequest("Date from must be on or before Date to");
+  return c.json(await trendTest(c.env, await schemaFor(c), P(c).tenantId, cfg));
+});
+
+// ---------------------------------------------------------------------------
+// Submissions and Inbox
+// ---------------------------------------------------------------------------
+
+app.post("/api/submissions", async (c) => {
+  const p = P(c);
+  requirePermission(p, "submission:create");
+  if (c.env.SUBMIT_LIMITER) {
+    const { success } = await c.env.SUBMIT_LIMITER.limit({ key: p.userId });
+    if (!success) throw new ApiError("RATE_LIMITED", "Too many submissions. Please wait a minute and try again.");
+  }
+  const schema = await schemaFor(c);
+  const idem = c.req.header("idempotency-key")?.slice(0, 100) ?? null;
+  const type = c.req.header("content-type") ?? "";
+  if (type.startsWith("multipart/form-data")) {
+    const len = Number(c.req.header("content-length") ?? "0");
+    if (len > 11 * 1024 * 1024) throw new ApiError("PAYLOAD_TOO_LARGE", "File exceeds the 10 MB limit");
+    const form = await c.req.formData();
+    const file = form.get("file") as unknown as File | string | null;
+    if (!file || typeof file === "string") throw badRequest("Attach an HTML file in the “file” field");
+    const r = await submitFile(c.env, ctxOf(c), schema, p, { name: file.name, bytes: await file.arrayBuffer(), type: file.type }, idem);
+    return c.json(r, r.duplicate ? 200 : 201);
+  }
+  const b = await body(c, CreateSubmissionRequest);
+  const r = await submitUrl(c.env, ctxOf(c), schema, p, b.url, idem);
+  return c.json(r, r.duplicate ? 200 : 201);
+});
+
+app.get("/api/capture-log", async (c) => {
+  requirePermission(P(c), "submission:create");
+  const res = await c.env.DB.prepare("SELECT id, at, input, final_url, outcome, ok, item_id FROM capture_log WHERE tenant_id = ?1 ORDER BY at DESC LIMIT 100")
+    .bind(P(c).tenantId)
+    .all<{ id: string; at: string; input: string; final_url: string | null; outcome: string; ok: number; item_id: string | null }>();
+  return c.json((res.results ?? []).map((r) => ({ id: r.id, at: r.at, input: r.input, finalUrl: r.final_url, outcome: r.outcome, ok: !!r.ok, itemId: r.item_id })));
+});
+
+app.get("/api/items", async (c) => {
+  requirePermission(P(c), "inbox:read");
+  const requested = (c.req.query("status") ?? "").split(",").filter(Boolean);
+  const statuses = (requested.length ? requested : ITEM_STATUSES.filter((s) => s !== "deleted")).filter((s): s is ItemStatus =>
+    (ITEM_STATUSES as readonly string[]).includes(s),
+  );
+  if (!statuses.length) throw badRequest("Unknown status");
+  return c.json(await listItems(c.env, await schemaFor(c), P(c).tenantId, statuses));
+});
+
+app.get("/api/items/:id", async (c) => {
+  requirePermission(P(c), "inbox:read");
+  return c.json(await getDetail(c.env, await schemaFor(c), P(c).tenantId, c.req.param("id")));
+});
+
+app.get("/api/items/:id/snapshot", async (c) => {
+  const p = P(c);
+  const row = await getItemRow(c.env, p.tenantId, c.req.param("id"));
+  // Clients may only see the snapshot of a published (approved) signal.
+  if (!can(p.role, "inbox:read") && row.status !== "approved") throw notFound("Item");
+  if (!row.current_snapshot_id) throw notFound("Snapshot");
+  const html = await readSnapshot(c.env, p.tenantId, row.current_snapshot_id);
+  if (html == null) throw notFound("Snapshot");
+  return new Response(html, {
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      // Inert rendering: sandboxed, no scripts, no network requests.
+      "Content-Security-Policy": "sandbox; default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:; media-src data:; frame-ancestors 'self'",
+      "X-Content-Type-Options": "nosniff",
+      "Cross-Origin-Resource-Policy": "same-origin",
+      "Cache-Control": "private, no-store",
+      "Content-Disposition": "inline",
+    },
+  });
+});
+
+app.patch("/api/items/:id/draft", async (c) => {
+  requirePermission(P(c), "item:edit");
+  const b = await body(c, SaveDraftRequest);
+  return c.json(await saveDraft(c.env, await schemaFor(c), P(c), c.req.param("id"), b.values, b.version));
+});
+
+app.post("/api/items/:id/approve", async (c) => {
+  requirePermission(P(c), "item:review");
+  const b = await body(c, ApproveRequest);
+  return c.json(await approve(c.env, await schemaFor(c), P(c), c.req.param("id"), b.values, b.version, b.note));
+});
+
+app.post("/api/items/:id/reject", async (c) => {
+  requirePermission(P(c), "item:review");
+  const b = await body(c, RejectRequest);
+  return c.json(await reject(c.env, await schemaFor(c), P(c), c.req.param("id"), b.reason, b.version));
+});
+
+app.post("/api/items/:id/reprocess", async (c) => {
+  requirePermission(P(c), "item:review");
+  const b = await body(c, ReprocessRequest);
+  return c.json(await reprocess(c.env, ctxOf(c), await schemaFor(c), P(c), c.req.param("id"), b.version));
+});
+
+app.delete("/api/items/:id", async (c) => {
+  requirePermission(P(c), "item:delete");
+  return c.json(await softDelete(c.env, await schemaFor(c), P(c), c.req.param("id")));
+});
+
+// ---------------------------------------------------------------------------
+// Saved views
+// ---------------------------------------------------------------------------
+
+app.get("/api/views", async (c) => {
+  const p = P(c);
+  const res = await c.env.DB.prepare(
+    `SELECT v.id, v.name, v.kind, v.state_json, v.created_at, v.shared, u.name AS owner FROM saved_views v JOIN users u ON u.id = v.user_id
+      WHERE v.tenant_id = ?1 AND v.deleted_at IS NULL AND (v.user_id = ?2 OR v.shared = 1) ORDER BY v.created_at DESC LIMIT 200`,
+  )
+    .bind(p.tenantId, p.userId)
+    .all<{ id: string; name: string; kind: string; state_json: string; created_at: string; shared: number; owner: string }>();
+  return c.json((res.results ?? []).map((v) => ({ id: v.id, name: v.name, kind: v.kind, state: JSON.parse(v.state_json), createdAt: v.created_at, shared: !!v.shared, owner: v.owner })));
+});
+
+app.post("/api/views", async (c) => {
+  const p = P(c);
+  requirePermission(p, "savedView:write");
+  const b = await body(c, CreateSavedViewRequest);
+  const id = newId("view");
+  const now = nowIso();
+  await c.env.DB.prepare("INSERT INTO saved_views (id, tenant_id, user_id, name, kind, state_json, shared, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)")
+    .bind(id, p.tenantId, p.userId, b.name.trim(), b.kind, JSON.stringify(b.state), b.shared ? 1 : 0, now)
+    .run();
+  await audit(c.env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "view.saved", targetType: "view", targetId: id, details: { kind: b.kind, shared: b.shared } });
+  return c.json({ id, name: b.name.trim(), kind: b.kind, state: b.state, createdAt: now, shared: b.shared, owner: p.name }, 201);
+});
+
+app.delete("/api/views/:id", async (c) => {
+  const p = P(c);
+  const r = await c.env.DB.prepare("UPDATE saved_views SET deleted_at = ?1 WHERE tenant_id = ?2 AND id = ?3 AND (user_id = ?4 OR ?5 = 1) AND deleted_at IS NULL")
+    .bind(nowIso(), p.tenantId, c.req.param("id"), p.userId, p.role === "admin" ? 1 : 0)
+    .run();
+  if (!r.meta.changes) throw notFound("Saved view");
+  await audit(c.env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "view.deleted", targetType: "view", targetId: c.req.param("id") });
+  return c.json({ ok: true });
+});
+
+// ---------------------------------------------------------------------------
+// Settings (visible to all users; editable by admins)
+// ---------------------------------------------------------------------------
+
+app.get("/api/settings", async (c) => c.json(await loadSettings(c.env, P(c).tenantId)));
+
+app.patch("/api/settings", async (c) => {
+  const p = P(c);
+  requirePermission(p, "settings:edit");
+  const b = await body(c, UpdateSettingsRequest);
+  if (b.timezone) {
+    try {
+      new Intl.DateTimeFormat("en", { timeZone: b.timezone });
+    } catch {
+      throw new ApiError("VALIDATION", "Unknown time zone");
+    }
+  }
+  const current = await loadSettings(c.env, p.tenantId);
+  const next: TenantSettings = {
+    ...current,
+    ...b,
+    trendDefaults: { ...current.trendDefaults, ...b.trendDefaults },
+    retention: { ...current.retention, ...b.retention },
+    redaction: { ...current.redaction, ...b.redaction },
+  };
+  await saveSettings(c.env, p.tenantId, next, p.userId);
+  await audit(c.env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "settings.changed", targetType: "settings", details: { sections: Object.keys(b) } });
+  return c.json(next);
+});
+
+// ---------------------------------------------------------------------------
+// Users, audit, incidents, metrics
+// ---------------------------------------------------------------------------
+
+app.get("/api/users", async (c) => {
+  requirePermission(P(c), "user:read");
+  return c.json(await listUsers(c.env, P(c).tenantId));
+});
+
+app.post("/api/users", async (c) => {
+  requirePermission(P(c), "user:create");
+  const b = await body(c, CreateUserRequest);
+  return c.json(await createUser(c.env, P(c), b), 201);
+});
+
+app.patch("/api/users/:id", async (c) => {
+  const p = P(c);
+  const b = await body(c, UpdateUserRequest);
+  if (b.role !== undefined) requirePermission(p, "user:changeRole");
+  if (b.active !== undefined) requirePermission(p, "user:deactivate");
+  if (c.req.param("id") === p.userId && (b.active === false || (b.role && b.role !== p.role))) throw forbidden("You cannot deactivate or demote yourself");
+  return c.json(await updateUser(c.env, p, c.req.param("id"), b));
+});
+
+app.post("/api/users/:id/sessions/revoke", async (c) => {
+  requirePermission(P(c), "user:endSessions");
+  return c.json(await revokeSessions(c.env, P(c), c.req.param("id")));
+});
+
+app.get("/api/audit", async (c) => {
+  requirePermission(P(c), "audit:read");
+  const before = c.req.query("before") ? Number(c.req.query("before")) : null;
+  const limit = Math.min(200, Math.max(1, Number(c.req.query("limit") ?? "50") || 50));
+  return c.json(await listAudit(c.env, P(c).tenantId, before, limit));
+});
+
+app.get("/api/audit/verify", async (c) => {
+  requirePermission(P(c), "audit:read");
+  return c.json(await verifyChain(c.env, P(c).tenantId));
+});
+
+app.get("/api/incidents", async (c) => {
+  requirePermission(P(c), "incident:read");
+  const res = await c.env.DB.prepare(
+    "SELECT n.id, n.at, n.category, n.resolved_at, i.code FROM incidents n LEFT JOIN intelligence_items i ON i.id = n.item_id WHERE n.tenant_id = ?1 ORDER BY n.at DESC LIMIT 200",
+  )
+    .bind(P(c).tenantId)
+    .all<{ id: string; at: string; category: string; resolved_at: string | null; code: string | null }>();
+  return c.json((res.results ?? []).map((r) => ({ id: r.id, at: r.at, category: r.category, itemCode: r.code, resolved: !!r.resolved_at })));
+});
+
+app.post("/api/incidents/:id/resolve", async (c) => {
+  const p = P(c);
+  requirePermission(p, "incident:read");
+  const r = await c.env.DB.prepare("UPDATE incidents SET resolved_at = ?1, resolved_by = ?2 WHERE tenant_id = ?3 AND id = ?4 AND resolved_at IS NULL").bind(nowIso(), p.userId, p.tenantId, c.req.param("id")).run();
+  if (!r.meta.changes) throw notFound("Incident");
+  await audit(c.env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "incident.resolved", targetType: "incident", targetId: c.req.param("id") });
+  return c.json({ ok: true });
+});
+
+app.get("/api/notifications", async (c) => {
+  requirePermission(P(c), "incident:read");
+  const res = await c.env.DB.prepare("SELECT id, kind, message, created_at, read_at FROM notifications WHERE tenant_id = ?1 ORDER BY created_at DESC LIMIT 50")
+    .bind(P(c).tenantId)
+    .all<{ id: string; kind: string; message: string; created_at: string; read_at: string | null }>();
+  return c.json((res.results ?? []).map((n) => ({ id: n.id, kind: n.kind, message: n.message, at: n.created_at, read: !!n.read_at })));
+});
+
+app.get("/api/admin/config-status", async (c) => {
+  requirePermission(P(c), "settings:edit");
+  const e = c.env;
+  const checks = [
+    { key: "auth", ok: e.AUTH_MODE === "access" && !!e.ACCESS_AUD && !e.ACCESS_AUD.startsWith("REPLACE_"), message: "Cloudflare Access sign-in configured" },
+    { key: "llm", ok: e.LLM_PROVIDER !== "mock" && !!e.ANTHROPIC_API_KEY, message: e.LLM_PROVIDER === "mock" ? "LLM provider is the offline mock (set LLM_PROVIDER=anthropic)" : "Claude API key configured" },
+    { key: "capture", ok: !!e.CAPTURE, message: "Isolated capture worker bound" },
+    { key: "queue", ok: !!e.JOBS, message: "Background work queue bound" },
+    { key: "encryption", ok: !!e.SNAPSHOT_ENCRYPTION_KEY, message: "Application-level snapshot encryption key set" },
+    { key: "audit", ok: !!e.AUDIT_HMAC_KEY, message: "Audit HMAC key set" },
+    { key: "alerts", ok: !!e.ALERT_WEBHOOK_URL, message: "Operational alert webhook configured" },
+  ];
+  return c.json({ environment: e.ENVIRONMENT, model: e.LLM_MODEL, provider: e.LLM_PROVIDER, checks });
+});
+
+app.get("/api/metrics/quality", async (c) => {
+  requirePermission(P(c), "metrics:read");
+  return c.json(await qualityMetrics(c.env, await schemaFor(c), P(c).tenantId));
+});

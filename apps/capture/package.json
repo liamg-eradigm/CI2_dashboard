@@ -1,0 +1,22 @@
+{
+  "name": "@eradigm/capture-worker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Isolated capture worker. Reachable only through the API's service binding; has no database, storage or application secrets.",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --env dev --port 8789",
+    "build": "wrangler deploy --dry-run --outdir dist --env production",
+    "typecheck": "tsc -p tsconfig.json",
+    "deploy:staging": "wrangler deploy --env staging",
+    "deploy:production": "wrangler deploy --env production"
+  },
+  "dependencies": {
+    "@eradigm/capture": "*",
+    "@eradigm/shared": "*"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250101.0",
+    "wrangler": "^4.142.0"
+  }
+}

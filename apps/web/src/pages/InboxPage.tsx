@@ -1,0 +1,392 @@
+import { useEffect, useMemo, useState } from "react";
+import {
+  CORE,
+  IN_PROGRESS_STATUSES,
+  LOW_CONFIDENCE,
+  STATUS_GLYPH,
+  STATUS_LABEL,
+  can,
+  normaliseValues,
+  optionsOf,
+  sortedColumns,
+  subtrendsOf,
+  validateValues,
+  type ItemStatus,
+  type ItemSummary,
+  type Me,
+  type TrackerSchema,
+} from "@eradigm/shared";
+import { api, ApiError } from "../api/client";
+import { useInvalidate, useItem, useItems, useSchema } from "../api/hooks";
+import { ModelOutputTable } from "../components/ModelOutput";
+import { SchemaEditor } from "../components/SchemaEditor";
+import { SnapshotFrame } from "../components/SnapshotFrame";
+import { localDateTime, pct } from "../lib/format";
+import { useToast } from "../state/toast";
+
+const TABS: { key: string; label: string; statuses: ItemStatus[] }[] = [
+  { key: "review", label: "Needs review", statuses: ["needs_review"] },
+  { key: "processing", label: "Processing", statuses: [...IN_PROGRESS_STATUSES] },
+  { key: "failed", label: "Failed", statuses: ["failed"] },
+  { key: "decided", label: "Approved & rejected", statuses: ["approved", "rejected"] },
+];
+const ALL_STATUSES: ItemStatus[] = ["needs_review", "queued", "fetching", "extracting", "failed", "approved", "rejected"];
+
+export function InboxPage({ me }: { me: Me }) {
+  const schema = useSchema();
+  const [tab, setTab] = useState("review");
+  const [schemaOpen, setSchemaOpen] = useState(false);
+  const all = useItems(ALL_STATUSES, true, true);
+  const items = all.data ?? [];
+  const counts = Object.fromEntries(TABS.map((t) => [t.key, items.filter((i) => t.statuses.includes(i.status)).length]));
+  const today = new Date().toISOString().slice(0, 10);
+  const approvedToday = items.filter((i) => i.status === "approved" && i.decision?.at.slice(0, 10) === today).length;
+  const shown = items.filter((i) => TABS.find((t) => t.key === tab)?.statuses.includes(i.status));
+  const s = schema.data;
+
+  return (
+    <>
+      <section className="band" aria-labelledby="page-title">
+        <div className="band-row">
+          <div>
+            <span className="eyebrow">
+              {counts.review ?? 0} awaiting review · {approvedToday} approved today
+            </span>
+            <h1 id="page-title">Inbox</h1>
+          </div>
+          <div className="band-copy">
+            Check each tracker draft against its source, edit any field, then approve. Approval validates the entry, records reviewer and time, and publishes a new revision. The source snapshot and processing history are kept.
+          </div>
+        </div>
+      </section>
+      <div className="content" style={{ gap: 14 }}>
+        {can(me.role, "schema:edit") && (
+          <section className="card flush" aria-labelledby="cols-title">
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "14px 18px", flexWrap: "wrap" }}>
+              <div>
+                <h2 className="card-title" id="cols-title">
+                  Tracker columns
+                </h2>
+                <span className="card-sub">{s ? `${s.columns.length} columns · changes apply to drafts, the Tracker, filters and exports` : ""}</span>
+              </div>
+              <button className="btn secondary" aria-expanded={schemaOpen} onClick={() => setSchemaOpen((o) => !o)} style={schemaOpen ? { background: "var(--tint)" } : undefined}>
+                {schemaOpen ? "Done" : "Edit columns"}
+              </button>
+            </div>
+            {schemaOpen && <SchemaEditor />}
+          </section>
+        )}
+
+        <div className="seg inbox-tabs" role="group" aria-label="Inbox views" style={{ alignSelf: "flex-start", display: "flex" }}>
+          {TABS.map((t) => (
+            <button key={t.key} aria-pressed={tab === t.key} onClick={() => setTab(t.key)} style={{ padding: "0 14px" }}>
+              {t.label} ({counts[t.key] ?? 0})
+            </button>
+          ))}
+        </div>
+
+        {all.isLoading && <div className="skeleton" style={{ height: 120 }} />}
+        {all.isError && (
+          <div className="banner err" role="alert">
+            {(all.error as Error).message}
+          </div>
+        )}
+        {s && shown.map((it) => <InboxCard key={it.id} item={it} schema={s} me={me} />)}
+        {s && !all.isLoading && shown.length === 0 && <div className="empty">Nothing here.</div>}
+      </div>
+    </>
+  );
+}
+
+type Draft = Record<string, string>;
+const toDraft = (schema: TrackerSchema, it: ItemSummary): Draft =>
+  Object.fromEntries(sortedColumns(schema).map((c) => [c.key, Array.isArray(it.draft[c.key]) ? (it.draft[c.key] as string[]).join(", ") : String(it.draft[c.key] ?? "")]));
+
+function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSchema; me: Me }) {
+  const [open, setOpen] = useState(false);
+  const [evidence, setEvidence] = useState(false);
+  const [draft, setDraft] = useState<Draft>(() => toDraft(schema, item));
+  const [version, setVersion] = useState(item.version);
+  const [errors, setErrors] = useState<string[]>([]);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const toast = useToast();
+  const inv = useInvalidate();
+  const detail = useItem(open ? item.id : null);
+  const pending = item.status === "needs_review";
+  const canReview = can(me.role, "item:review");
+
+  // Refresh local state when the server version moves on (e.g. schema rename, reprocess).
+  useEffect(() => {
+    if (item.version !== version) {
+      setDraft(toDraft(schema, item));
+      setVersion(item.version);
+    }
+  }, [item.version]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const cols = sortedColumns(schema);
+  const values = useMemo(() => normaliseValues(schema, draft), [schema, draft]);
+  const missingNow = new Set(pending ? validateValues(schema, values, { forApproval: true }).filter((e) => e.code === "required").map((e) => e.key) : []);
+
+  const set = (k: string, v: string) => {
+    setDraft((d) => ({ ...d, [k]: v, ...(k === CORE.macrotrend ? { [CORE.subtrend]: "" } : {}) }));
+    setErrors((e) => e.filter((x) => x !== k));
+  };
+
+  /** Persist analyst edits (recorded as a revision) when a field loses focus. */
+  const saveDraft = async () => {
+    const current = normaliseValues(schema, toDraft(schema, { ...item, draft: item.draft }));
+    if (JSON.stringify(current) === JSON.stringify(values) || !pending) return;
+    const ruleErrors = validateValues(schema, values, { forApproval: false });
+    if (ruleErrors.length) return;
+    try {
+      const r = await api<ItemSummary>(`/api/items/${item.id}/draft`, { method: "PATCH", json: { values, version } });
+      setVersion(r.version);
+      await inv("items");
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 409) {
+        setMsg(e.message);
+        await inv("items");
+      }
+    }
+  };
+
+  const act = async (path: string, json: unknown, ok: (r: ItemSummary) => string) => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const r = await api<ItemSummary>(`/api/items/${item.id}${path}`, { method: path === "" ? "DELETE" : "POST", json });
+      setVersion(r.version);
+      toast(ok(r));
+      await inv();
+    } catch (e) {
+      const err = e as ApiError;
+      if (err.fields?.length) setErrors(err.fields.map((f) => f.key));
+      setMsg(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const approve = () => {
+    const errs = validateValues(schema, values, { forApproval: true });
+    if (errs.length) {
+      setErrors(errs.map((e) => e.key));
+      setMsg(`Validation failed. Complete: ${errs.map((e) => e.label).join(", ")}`);
+      return;
+    }
+    void act("/approve", { values, version }, (r) => `${r.signalCode} published to the tracker as rev ${r.publishedRev}`);
+  };
+
+  const statusTag = item.status === "needs_review" ? "warn" : item.status === "approved" ? "ok" : item.status === "failed" || item.status === "rejected" ? "err" : "info";
+  const extraction = item.extraction;
+
+  return (
+    <section className={`inbox-card ${item.status}`} aria-labelledby={`t-${item.id}`}>
+      <div className="inbox-head">
+        <button className="icon-btn" aria-expanded={open} aria-controls={`src-${item.id}`} onClick={() => setOpen((o) => !o)} title={open ? "Hide source" : "View source HTML"} style={open ? { background: "var(--tint)" } : undefined}>
+          <span className={`chev ${open ? "open" : ""}`} aria-hidden="true">
+            ▶
+          </span>
+          <span className="sr-only">{open ? "Hide source" : "View source"}</span>
+        </button>
+        <div style={{ minWidth: 0 }}>
+          <div className="inbox-meta">
+            <span className="code">{item.code}</span>
+            <span aria-hidden="true">·</span>
+            <span>{item.outlet ?? "Unknown source"}</span>
+            <span aria-hidden="true">·</span>
+            <span>Received {localDateTime(item.receivedAt)}</span>
+            {item.submittedBy && (
+              <>
+                <span aria-hidden="true">·</span>
+                <span>by {item.submittedBy}</span>
+              </>
+            )}
+            <span className={`tag ${statusTag}`}>
+              <span aria-hidden="true">{STATUS_GLYPH[item.status]} </span>
+              {STATUS_LABEL[item.status]}
+            </span>
+            {extraction && pending && (
+              <span className="tag warn">
+                LLM draft · {item.warningsCount} warning{item.warningsCount === 1 ? "" : "s"}
+              </span>
+            )}
+            {item.attempts > 1 && <span className="tag info">Attempt {item.attempts}</span>}
+          </div>
+          <div className="inbox-title" id={`t-${item.id}`}>
+            {String(item.draft[CORE.title] ?? "") || item.title || item.url || "Untitled submission"}
+          </div>
+          {item.error && (
+            <div className="err-msg" style={{ marginTop: 4 }}>
+              <span aria-hidden="true">✕ </span>
+              {item.quarantined ? "Quarantined · " : ""}
+              {item.error.message}
+            </div>
+          )}
+        </div>
+        <div className="inbox-actions">
+          {pending && canReview && (
+            <>
+              <button className="btn secondary" disabled={busy} onClick={() => act("/reprocess", { version }, () => `${item.code} queued for another processing attempt`)}>
+                ↻ Reprocess
+              </button>
+              <button
+                className="btn danger"
+                disabled={busy}
+                onClick={() => {
+                  const reason = window.prompt("Reason for rejecting (optional)") ?? undefined;
+                  void act("/reject", { version, reason }, () => `${item.code} rejected`);
+                }}
+              >
+                ✕ Reject
+              </button>
+              <button className="btn" style={{ height: 38, padding: "0 18px", fontSize: 14 }} disabled={busy} onClick={approve}>
+                ✓ Approve
+              </button>
+            </>
+          )}
+          {(item.status === "failed" || item.status === "rejected") && canReview && !item.quarantined && (
+            <button className="btn secondary" disabled={busy} onClick={() => act("/reprocess", { version }, () => `${item.code} queued for retry`)}>
+              ↻ {item.status === "failed" ? "Retry" : "Reprocess"}
+            </button>
+          )}
+          {(item.status === "failed" || item.status === "rejected") && can(me.role, "item:delete") && (
+            <button className="btn danger" disabled={busy} onClick={() => window.confirm(`Delete ${item.code}?`) && act("", undefined, () => `${item.code} deleted`)}>
+              Delete
+            </button>
+          )}
+          {item.decision && !pending && (
+            <div className={`decided ${item.status === "approved" ? "" : "bad"}`}>
+              <b>
+                {item.status === "approved" ? `✓ Approved · ${item.signalCode} rev ${item.publishedRev}` : item.status === "rejected" ? "✕ Rejected" : ""}
+              </b>
+              <span>
+                {item.decision.by} · {localDateTime(item.decision.at)}
+              </span>
+            </div>
+          )}
+          {IN_PROGRESS_STATUSES.includes(item.status) && <span className="tag info">Processing…</span>}
+        </div>
+      </div>
+
+      {open && (
+        <div className="source-box" id={`src-${item.id}`}>
+          <div className="source-bar">
+            <span>{item.url ?? "Uploaded file"}</span>
+            <span>Snapshot captured {localDateTime(item.receivedAt)}</span>
+          </div>
+          {item.hasSnapshot ? (
+            <SnapshotFrame itemId={item.id} title={`Source snapshot for ${item.code}`} />
+          ) : (
+            <div className="source-text">
+              {detail.isLoading && <div className="skeleton" style={{ height: 80 }} />}
+              <div style={{ font: "600 11px var(--sans)", letterSpacing: ".06em", textTransform: "uppercase", color: "#777" }}>{item.outlet} · extracted text (no stored snapshot)</div>
+              <div className="h">{detail.data?.title ?? item.title}</div>
+              {(detail.data?.bodyText ?? "")
+                .split(/\n{2,}/)
+                .filter(Boolean)
+                .map((p, i) => (
+                  <p key={i}>{p}</p>
+                ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {(pending || item.status === "approved" || item.status === "rejected") && (
+        <div className="draft-wrap">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+            <div className="section-h">Tracker draft</div>
+            {extraction && (
+              <button className="link-btn" aria-expanded={evidence} onClick={() => setEvidence((e) => !e)}>
+                {evidence ? "Hide" : "Show"} evidence & confidence
+              </button>
+            )}
+          </div>
+          <div className="table-wrap" style={{ border: "1px solid var(--border)", borderRadius: 8 }}>
+            <table className="draft-table" style={{ minWidth: Math.max(1280, cols.length * 140) }}>
+              <thead>
+                <tr>
+                  {cols.map((c) => (
+                    <th key={c.key} scope="col" id={`h-${item.id}-${c.key}`}>
+                      {c.label}
+                      {c.required ? "" : " (optional)"}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  {cols.map((c) => {
+                    const v = draft[c.key] ?? "";
+                    const ex = extraction?.[c.key];
+                    const invalid = errors.includes(c.key);
+                    const missing = missingNow.has(c.key);
+                    const cls = `dcell ${invalid ? "invalid" : missing ? "missing" : ""}`;
+                    const common = {
+                      className: cls,
+                      disabled: !pending || !canReview,
+                      "aria-labelledby": `h-${item.id}-${c.key}`,
+                      "aria-invalid": invalid || undefined,
+                      "aria-describedby": `n-${item.id}-${c.key}`,
+                      onBlur: saveDraft,
+                    };
+                    const opts = c.type === "sub" ? (draft[CORE.macrotrend] ? subtrendsOf(schema, draft[CORE.macrotrend]) : []) : optionsOf(schema, c);
+                    const w = c.type === "date" ? 132 : c.type === "multi" ? 150 : c.type === "macro" ? 170 : c.type === "sub" ? 180 : c.type === "select" ? 132 : undefined;
+                    const lowConf = ex?.confidence != null && ex.confidence < LOW_CONFIDENCE;
+                    const prov = item.provenance[c.key];
+                    return (
+                      <td key={c.key} style={{ width: w }}>
+                        {c.type === "date" ? (
+                          <input type="date" {...common} value={v} onChange={(e) => set(c.key, e.target.value)} />
+                        ) : c.type === "text" || c.type === "multi" ? (
+                          <input {...common} value={v} onChange={(e) => set(c.key, e.target.value)} placeholder={c.type === "multi" ? "Comma-separated" : ""} style={{ minWidth: c.key === CORE.title ? 220 : 130 }} />
+                        ) : (
+                          <select {...common} value={v} onChange={(e) => set(c.key, e.target.value)}>
+                            <option value="">Select…</option>
+                            {opts.map((o) => (
+                              <option key={o} value={o}>
+                                {o}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                        <div className={`cell-note ${ex?.warnings.length || lowConf ? "w" : ""}`} id={`n-${item.id}-${c.key}`}>
+                          {invalid ? (
+                            <span style={{ color: "var(--error)" }}>✕ Required</span>
+                          ) : missing ? (
+                            <span>⚠ Required</span>
+                          ) : ex?.confidence != null ? (
+                            <span>
+                              {lowConf ? "⚠ " : ""}
+                              {prov === "analyst" ? "Edited · " : prov === "source" ? "Source · " : "AI · "}
+                              {pct(ex.confidence)}
+                            </span>
+                          ) : prov === "analyst" ? (
+                            <span>Edited</span>
+                          ) : null}
+                        </div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          {msg && (
+            <div className="err-msg" role="alert">
+              <b>✕ {msg}</b>
+            </div>
+          )}
+          {evidence && extraction && <ModelOutputTable schema={schema} extraction={extraction} caption={`Model evidence for ${item.code}`} />}
+          {pending && item.modelWarnings.length > 0 && (
+            <div className="cell-note w" style={{ fontSize: 12 }}>
+              ⚠ {item.modelWarnings.join(" · ")}
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}

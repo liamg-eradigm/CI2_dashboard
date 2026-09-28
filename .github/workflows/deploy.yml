@@ -1,0 +1,67 @@
+# Deploys the three independently deployable workers to Cloudflare.
+#   push to main      -> staging
+#   manual dispatch   -> production (protect the "production" GitHub environment with required reviewers)
+# Order: capture worker -> API (migrations first) -> web. Each has its own
+# wrangler config and secrets, so a dashboard change cannot expose API credentials.
+#
+# Required repository secrets: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID.
+# Alternative: connect each worker to this repo with Cloudflare Workers Builds (docs/DEPLOYMENT.md).
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        default: staging
+        type: choice
+        options: [staging, production]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.event.inputs.environment || 'staging' }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'staging' }}
+    env:
+      TARGET: ${{ github.event.inputs.environment || 'staging' }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install -g npm@11
+      - run: npm ci
+      - name: Refuse to deploy unprovisioned placeholders
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then echo "::error::CLOUDFLARE_API_TOKEN secret is not set"; exit 1; fi
+          UPPER=$(echo "$TARGET" | tr '[:lower:]' '[:upper:]')
+          if grep -q "REPLACE_WITH_${UPPER}" apps/api/wrangler.jsonc; then
+            echo "::error::apps/api/wrangler.jsonc still has REPLACE_WITH_${UPPER}_* placeholders. Run scripts/provision.sh $TARGET and set the Access values (docs/DEPLOYMENT.md)."; exit 1
+          fi
+      - name: Tests must pass before deploying
+        run: npm run test:unit && npm run test:integration
+      - name: Deploy isolated capture worker
+        run: npx wrangler deploy -c apps/capture/wrangler.jsonc --env "$TARGET"
+      - name: Apply D1 schema migrations
+        run: npx wrangler d1 migrations apply DB --remote -c apps/api/wrangler.jsonc --env "$TARGET"
+      - name: Deploy API worker
+        run: npx wrangler deploy -c apps/api/wrangler.jsonc --env "$TARGET"
+      - name: Build and deploy dashboard
+        run: |
+          npm run build -w apps/web
+          npx wrangler deploy -c apps/web/wrangler.jsonc --env "$TARGET"
+      - name: Record deployed versions (for rollback)
+        run: |
+          for c in capture api web; do npx wrangler deployments list -c apps/$c/wrangler.jsonc --env "$TARGET" | head -20; done

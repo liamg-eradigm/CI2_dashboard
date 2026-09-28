@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Lint, types, unit & integration tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install -g npm@11
+      - run: npm ci
+      - name: Lint (includes LLM/dashboard boundary rules)
+        run: npm run lint
+      - name: Type-check all workspaces
+        run: npm run typecheck
+      - name: Unit tests (taxonomy, validation, permissions, URL policy, redaction, trend test, capture, LLM adapter)
+        run: npm run test:unit
+      - name: Integration tests (Workers runtime, D1/R2/queues)
+        run: npm run test:integration
+      - name: Generated API description is up to date
+        run: npm run openapi && git diff --exit-code packages/shared/openapi.json
+      - name: Build all deployables
+        run: |
+          npm run build -w apps/web
+          npx wrangler deploy --dry-run --outdir dist -c apps/api/wrangler.jsonc --env staging
+          npx wrangler deploy --dry-run --outdir dist -c apps/capture/wrangler.jsonc --env staging
+
+  e2e:
+    name: End-to-end + accessibility (admin, analyst, client)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install -g npm@11
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            playwright-report
+            test-results
+          retention-days: 7
+
+  security:
+    name: Dependency & secret scanning
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install -g npm@11
+      - run: npm ci
+      - name: npm audit (fail on high/critical)
+        run: npm audit --audit-level=high
+      - name: Repository secret scan
+        run: npm run scan:secrets
+      - name: gitleaks (full history)
+        run: docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:latest detect --source /repo --no-banner --redact -v

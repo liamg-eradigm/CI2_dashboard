@@ -1,0 +1,23 @@
+{
+  "name": "@eradigm/shared",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Versioned contract shared by the web dashboard and the API: data formats, field types, validation rules and the generated API description.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./openapi.json": "./openapi.json"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "openapi": "tsx scripts/generate-openapi.ts"
+  },
+  "dependencies": {
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.0",
+    "vitest": "^4.1.11"
+  }
+}

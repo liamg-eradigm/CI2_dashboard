@@ -1,0 +1,286 @@
+/**
+ * Review decisions. Every state change is:
+ *   - validated server-side against the tenant's current schema,
+ *   - guarded by optimistic concurrency (`version`) and an operation token so
+ *     concurrent reviewers cannot both win,
+ *   - written atomically (D1 batch) with its revision / decision records,
+ *   - audited.
+ * Approval never overwrites the source snapshot or processing history.
+ */
+import {
+  CORE,
+  canTransition,
+  normaliseValues,
+  validateValues,
+  type ItemStatus,
+  type ItemSummary,
+  type ItemValues,
+  type TrackerSchema,
+} from "@eradigm/shared";
+import type { Principal } from "../auth/context.js";
+import type { Env } from "../env.js";
+import { ApiError, conflict } from "../lib/errors.js";
+import { newId, nowIso } from "../lib/ids.js";
+import { metric } from "../lib/log.js";
+import { enqueue } from "../pipeline/process.js";
+import { audit } from "./audit.js";
+import { getItemRow, getSummary, nextCode, type ItemRow } from "./items.js";
+import { PHYSICAL } from "./schema.js";
+
+function same(a: ItemValues[string] | undefined, b: ItemValues[string] | undefined): boolean {
+  const norm = (v: ItemValues[string] | undefined) => (v == null ? null : Array.isArray(v) ? [...v].sort().join("\u0001") : v);
+  return norm(a) === norm(b);
+}
+
+function changedKeys(schema: TrackerSchema, a: ItemValues, b: ItemValues): string[] {
+  return schema.columns.filter((c) => !same(a[c.key], b[c.key])).map((c) => c.key);
+}
+
+function assertTransition(from: ItemStatus, to: ItemStatus, what: string) {
+  if (!canTransition(from, to)) throw conflict(`This item is ${from.replace("_", " ")} and cannot be ${what}`);
+}
+
+function assertVersion(row: ItemRow, version: number | undefined) {
+  if (version !== undefined && row.version !== version) {
+    throw conflict("This item was changed by someone else. Reload to see the latest version.");
+  }
+}
+
+async function nextSeq(env: Env, itemId: string): Promise<number> {
+  const r = await env.DB.prepare("SELECT COALESCE(MAX(seq), 0) + 1 AS n FROM item_revisions WHERE item_id = ?1").bind(itemId).first<{ n: number }>();
+  return r?.n ?? 1;
+}
+
+async function aiDraft(env: Env, tenantId: string, itemId: string): Promise<ItemValues | null> {
+  const r = await env.DB.prepare("SELECT values_json FROM item_revisions WHERE tenant_id = ?1 AND item_id = ?2 AND kind = 'llm_draft' ORDER BY seq DESC LIMIT 1")
+    .bind(tenantId, itemId)
+    .first<{ values_json: string }>();
+  return r ? (JSON.parse(r.values_json) as ItemValues) : null;
+}
+
+function guard(env: Env, itemId: string, token: string) {
+  return { sql: "EXISTS (SELECT 1 FROM intelligence_items WHERE id = ? AND op_token = ?)", binds: [itemId, token] };
+}
+
+/** Statements that write the published projection (tracker columns + competitor associations). */
+function projectionStatements(env: Env, schema: TrackerSchema, tenantId: string, itemId: string, values: ItemValues, token: string): D1PreparedStatement[] {
+  const g = guard(env, itemId, token);
+  const extra: Record<string, unknown> = {};
+  for (const c of schema.columns) if (!PHYSICAL[c.key] && c.key !== CORE.competitors) extra[c.key] = values[c.key] ?? null;
+  const comps = Array.isArray(values[CORE.competitors]) ? (values[CORE.competitors] as string[]) : [];
+  return [
+    env.DB.prepare(
+      `UPDATE intelligence_items SET pub_date = ?1, title = ?2, macrotrend = ?3, subtrend = ?4, growth = ?5, impact = ?6, extra_json = ?7 WHERE id = ?8 AND tenant_id = ?9 AND op_token = ?10`,
+    ).bind(
+      values[CORE.date] ?? null,
+      values[CORE.title] ?? null,
+      values[CORE.macrotrend] ?? null,
+      values[CORE.subtrend] ?? null,
+      values[CORE.growth] ?? null,
+      values[CORE.impact] ?? null,
+      JSON.stringify(extra),
+      itemId,
+      tenantId,
+      token,
+    ),
+    env.DB.prepare(`DELETE FROM item_competitors WHERE item_id = ? AND ${g.sql}`).bind(itemId, ...g.binds),
+    ...comps.map((c) =>
+      env.DB.prepare(`INSERT INTO item_competitors (tenant_id, item_id, competitor) SELECT ?, ?, ? WHERE ${g.sql}`).bind(tenantId, itemId, c, ...g.binds),
+    ),
+  ];
+}
+
+function validationError(errors: ReturnType<typeof validateValues>): ApiError {
+  return new ApiError("VALIDATION", `Validation failed. Complete: ${errors.map((e) => e.label).join(", ")}`, errors);
+}
+
+// ---------------------------------------------------------------------------
+
+export async function saveDraft(env: Env, schema: TrackerSchema, p: Principal, id: string, raw: Record<string, unknown>, version: number): Promise<ItemSummary> {
+  const row = await getItemRow(env, p.tenantId, id);
+  if (row.status !== "needs_review") throw conflict("Only drafts awaiting review can be edited");
+  assertVersion(row, version);
+  const values = normaliseValues(schema, raw);
+  const errors = validateValues(schema, values, { forApproval: false });
+  if (errors.length) throw new ApiError("VALIDATION", errors[0]?.message ?? "Invalid value", errors);
+  const current = normaliseValues(schema, JSON.parse(row.draft_json || "{}"));
+  const changed = changedKeys(schema, current, values);
+  if (!changed.length) return getSummary(env, schema, p.tenantId, id);
+  const prov = JSON.parse(row.provenance_json || "{}") as Record<string, string | null>;
+  for (const k of changed) prov[k] = values[k] == null ? null : "analyst";
+  const token = newId("op");
+  const now = nowIso();
+  const g = guard(env, id, token);
+  const res = await env.DB.batch([
+    env.DB.prepare(
+      "UPDATE intelligence_items SET draft_json = ?1, provenance_json = ?2, version = version + 1, op_token = ?3, updated_at = ?4 WHERE tenant_id = ?5 AND id = ?6 AND version = ?7 AND status = 'needs_review'",
+    ).bind(JSON.stringify(values), JSON.stringify(prov), token, now, p.tenantId, id, version),
+    env.DB.prepare(
+      `INSERT INTO item_revisions (id, tenant_id, item_id, seq, kind, values_json, provenance_json, changed_keys, created_by, created_at, note)
+       SELECT ?, ?, ?, ?, 'analyst_edit', ?, ?, ?, ?, ?, 'Analyst edit' WHERE ${g.sql}`,
+    ).bind(newId("rev"), p.tenantId, id, await nextSeq(env, id), JSON.stringify(values), JSON.stringify(prov), JSON.stringify(changed), p.userId, now, ...g.binds),
+  ]);
+  if ((res[0]?.meta.changes ?? 0) === 0) throw conflict("This item was changed by someone else. Reload to see the latest version.");
+  await audit(env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "item.edited", targetType: "item", targetId: id, details: { changedKeys: changed } });
+  return getSummary(env, schema, p.tenantId, id);
+}
+
+export async function approve(env: Env, schema: TrackerSchema, p: Principal, id: string, raw: Record<string, unknown>, version: number, note?: string): Promise<ItemSummary> {
+  const row = await getItemRow(env, p.tenantId, id);
+  assertTransition(row.status, "approved", "approved");
+  if (row.status !== "needs_review") throw conflict("Only drafts awaiting review can be approved");
+  assertVersion(row, version);
+  const values = normaliseValues(schema, raw);
+  const errors = validateValues(schema, values, { forApproval: true });
+  if (errors.length) throw validationError(errors);
+
+  const ai = (await aiDraft(env, p.tenantId, id)) ?? {};
+  const corrected = changedKeys(schema, normaliseValues(schema, ai), values);
+  const prov = JSON.parse(row.provenance_json || "{}") as Record<string, string | null>;
+  const currentDraft = normaliseValues(schema, JSON.parse(row.draft_json || "{}"));
+  for (const k of changedKeys(schema, currentDraft, values)) prov[k] = values[k] == null ? null : "analyst";
+  for (const k of corrected) if (values[k] != null) prov[k] = "analyst";
+
+  const signalCode = row.signal_code ?? (await nextCode(env, p.tenantId, "signal"));
+  const pub = await env.DB.prepare("SELECT COALESCE(MAX(published_rev), 0) + 1 AS n FROM item_revisions WHERE item_id = ?1").bind(id).first<{ n: number }>();
+  const rev = pub?.n ?? 1;
+  const token = newId("op");
+  const now = nowIso();
+  const g = guard(env, id, token);
+  const revId = newId("rev");
+  const res = await env.DB.batch([
+    env.DB.prepare(
+      `UPDATE intelligence_items SET status = 'approved', draft_json = ?1, provenance_json = ?2, signal_code = ?3, published_rev = ?4, approved_at = ?5, approved_by = ?6,
+              version = version + 1, op_token = ?7, updated_at = ?5 WHERE tenant_id = ?8 AND id = ?9 AND version = ?10 AND status = 'needs_review'`,
+    ).bind(JSON.stringify(values), JSON.stringify(prov), signalCode, rev, now, p.userId, token, p.tenantId, id, version),
+    ...projectionStatements(env, schema, p.tenantId, id, values, token),
+    env.DB.prepare(
+      `INSERT INTO item_revisions (id, tenant_id, item_id, seq, kind, published_rev, values_json, provenance_json, changed_keys, created_by, created_at, note)
+       SELECT ?, ?, ?, ?, 'published', ?, ?, ?, ?, ?, ?, ? WHERE ${g.sql}`,
+    ).bind(revId, p.tenantId, id, await nextSeq(env, id), rev, JSON.stringify(values), JSON.stringify(prov), JSON.stringify(corrected), p.userId, now, note?.trim() || "Approved from Inbox · validation passed", ...g.binds),
+    env.DB.prepare(
+      `INSERT INTO review_decisions (id, tenant_id, item_id, revision_id, decision, reviewer_id, decided_at, note, corrected_keys)
+       SELECT ?, ?, ?, ?, 'approve', ?, ?, ?, ? WHERE ${g.sql}`,
+    ).bind(newId("dec"), p.tenantId, id, revId, p.userId, now, note ?? null, JSON.stringify(corrected), ...g.binds),
+  ]);
+  if ((res[0]?.meta.changes ?? 0) === 0) throw conflict("This item was changed by someone else. Reload to see the latest version.");
+  await audit(env, {
+    tenantId: p.tenantId,
+    actorId: p.userId,
+    actorEmail: p.email,
+    action: "item.approved",
+    targetType: "item",
+    targetId: id,
+    details: { signalCode, rev, correctedKeys: corrected },
+  });
+  metric(env, "item_approved", 1, { tenant: p.tenantId });
+  return getSummary(env, schema, p.tenantId, id);
+}
+
+export async function revise(env: Env, schema: TrackerSchema, p: Principal, id: string, raw: Record<string, unknown>, note: string): Promise<void> {
+  const row = await getItemRow(env, p.tenantId, id);
+  if (row.status !== "approved") throw conflict("Only approved signals can be revised");
+  const values = normaliseValues(schema, raw);
+  const errors = validateValues(schema, values, { forApproval: true });
+  if (errors.length) throw validationError(errors);
+  const current = normaliseValues(schema, JSON.parse(row.draft_json || "{}"));
+  const changed = changedKeys(schema, current, values);
+  if (!changed.length) throw new ApiError("BAD_REQUEST", "Nothing changed");
+  const prov = JSON.parse(row.provenance_json || "{}") as Record<string, string | null>;
+  for (const k of changed) prov[k] = values[k] == null ? null : "analyst";
+  const pub = await env.DB.prepare("SELECT COALESCE(MAX(published_rev), 0) + 1 AS n FROM item_revisions WHERE item_id = ?1").bind(id).first<{ n: number }>();
+  const rev = pub?.n ?? 2;
+  const token = newId("op");
+  const now = nowIso();
+  const g = guard(env, id, token);
+  const res = await env.DB.batch([
+    env.DB.prepare(
+      "UPDATE intelligence_items SET draft_json = ?1, provenance_json = ?2, published_rev = ?3, version = version + 1, op_token = ?4, updated_at = ?5 WHERE tenant_id = ?6 AND id = ?7 AND version = ?8 AND status = 'approved'",
+    ).bind(JSON.stringify(values), JSON.stringify(prov), rev, token, now, p.tenantId, id, row.version),
+    ...projectionStatements(env, schema, p.tenantId, id, values, token),
+    env.DB.prepare(
+      `INSERT INTO item_revisions (id, tenant_id, item_id, seq, kind, published_rev, values_json, provenance_json, changed_keys, created_by, created_at, note)
+       SELECT ?, ?, ?, ?, 'published', ?, ?, ?, ?, ?, ?, ? WHERE ${g.sql}`,
+    ).bind(newId("rev"), p.tenantId, id, await nextSeq(env, id), rev, JSON.stringify(values), JSON.stringify(prov), JSON.stringify(changed), p.userId, now, note.trim(), ...g.binds),
+  ]);
+  if ((res[0]?.meta.changes ?? 0) === 0) throw conflict("This signal was changed by someone else. Reload to see the latest version.");
+  await audit(env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "item.revised", targetType: "item", targetId: id, details: { rev, changedKeys: changed } });
+}
+
+export async function reject(env: Env, schema: TrackerSchema, p: Principal, id: string, reason: string | undefined, version: number): Promise<ItemSummary> {
+  const row = await getItemRow(env, p.tenantId, id);
+  assertTransition(row.status, "rejected", "rejected");
+  assertVersion(row, version);
+  const token = newId("op");
+  const now = nowIso();
+  const g = guard(env, id, token);
+  const res = await env.DB.batch([
+    env.DB.prepare("UPDATE intelligence_items SET status = 'rejected', version = version + 1, op_token = ?1, updated_at = ?2 WHERE tenant_id = ?3 AND id = ?4 AND version = ?5 AND status = 'needs_review'").bind(
+      token,
+      now,
+      p.tenantId,
+      id,
+      version,
+    ),
+    env.DB.prepare(`INSERT INTO review_decisions (id, tenant_id, item_id, decision, reviewer_id, decided_at, note) SELECT ?, ?, ?, 'reject', ?, ?, ? WHERE ${g.sql}`).bind(
+      newId("dec"),
+      p.tenantId,
+      id,
+      p.userId,
+      now,
+      reason?.trim() || null,
+      ...g.binds,
+    ),
+  ]);
+  if ((res[0]?.meta.changes ?? 0) === 0) throw conflict("This item was changed by someone else. Reload to see the latest version.");
+  await audit(env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "item.rejected", targetType: "item", targetId: id, details: { hasReason: !!reason } });
+  return getSummary(env, schema, p.tenantId, id);
+}
+
+export async function reprocess(env: Env, ctx: ExecutionContext | null, schema: TrackerSchema, p: Principal, id: string, version?: number): Promise<ItemSummary> {
+  const row = await getItemRow(env, p.tenantId, id);
+  assertTransition(row.status, "queued", "reprocessed");
+  if (row.quarantined) throw conflict("Quarantined items cannot be reprocessed; their content was deleted under the data policy");
+  if (row.input_type === "file" && !row.current_snapshot_id && !row.body_text) throw conflict("The uploaded file is no longer stored; upload it again");
+  assertVersion(row, version);
+  const attempt = row.attempts + 1;
+  const prev = await env.DB.prepare("SELECT steps_json FROM processing_attempts WHERE item_id = ?1 AND attempt = 1").bind(id).first<{ steps_json: string }>();
+  const prevSteps = JSON.parse(prev?.steps_json ?? "[]") as { label: string; ok: boolean; detail: string }[];
+  const steps = row.input_type === "url" ? prevSteps.slice(0, 1) : prevSteps.slice(0, 5);
+  const token = newId("op");
+  const now = nowIso();
+  const g = guard(env, id, token);
+  const res = await env.DB.batch([
+    env.DB.prepare(
+      `UPDATE intelligence_items SET status = 'queued', attempts = ?1, error_code = NULL, error_message = NULL, duplicate_of = NULL, version = version + 1, op_token = ?2, updated_at = ?3
+        WHERE tenant_id = ?4 AND id = ?5 AND attempts = ?6 AND status IN ('needs_review', 'failed', 'rejected')`,
+    ).bind(attempt, token, now, p.tenantId, id, row.attempts),
+    env.DB.prepare(
+      `INSERT INTO processing_attempts (id, tenant_id, item_id, attempt, status, stage, requested_by, started_at, steps_json) SELECT ?, ?, ?, ?, 'running', 'queued', ?, ?, ? WHERE ${g.sql}`,
+    ).bind(newId("att"), p.tenantId, id, attempt, p.userId, now, JSON.stringify(steps), ...g.binds),
+    env.DB.prepare(`INSERT INTO review_decisions (id, tenant_id, item_id, decision, reviewer_id, decided_at) SELECT ?, ?, ?, 'reprocess', ?, ? WHERE ${g.sql}`).bind(
+      newId("dec"),
+      p.tenantId,
+      id,
+      p.userId,
+      now,
+      ...g.binds,
+    ),
+  ]);
+  if ((res[0]?.meta.changes ?? 0) === 0) throw conflict("This item is already being reprocessed.");
+  await audit(env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "item.reprocess_requested", targetType: "item", targetId: id, details: { attempt } });
+  await enqueue(env, ctx, { kind: "process", tenantId: p.tenantId, itemId: id, attempt });
+  return getSummary(env, schema, p.tenantId, id);
+}
+
+export async function softDelete(env: Env, schema: TrackerSchema, p: Principal, id: string): Promise<ItemSummary> {
+  const row = await getItemRow(env, p.tenantId, id);
+  assertTransition(row.status, "deleted", "deleted");
+  const now = nowIso();
+  const res = await env.DB.prepare("UPDATE intelligence_items SET status = 'deleted', deleted_at = ?1, version = version + 1, updated_at = ?1 WHERE tenant_id = ?2 AND id = ?3 AND status = ?4")
+    .bind(now, p.tenantId, id, row.status)
+    .run();
+  if ((res.meta.changes ?? 0) === 0) throw conflict("This item was changed by someone else. Reload to see the latest version.");
+  await audit(env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "item.deleted", targetType: "item", targetId: id, details: { from: row.status, signalCode: row.signal_code } });
+  return getSummary(env, schema, p.tenantId, id);
+}
