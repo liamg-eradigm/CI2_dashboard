@@ -43,6 +43,8 @@ import {
   type TenantSettings,
 } from "@eradigm/shared";
 import { requirePermission, resolvePrincipal, type Principal } from "./auth/context.js";
+import { allowedTenants, entraConfigured } from "./auth/entra.js";
+import { registerAuthRoutes } from "./auth/routes.js";
 import type { Env } from "./env.js";
 import { ApiError, badRequest, forbidden, notFound } from "./lib/errors.js";
 import { newId, nowIso } from "./lib/ids.js";
@@ -68,7 +70,7 @@ import {
 } from "./services/schema.js";
 import { signalDetail } from "./services/signals.js";
 import { submitFile, submitUrl } from "./services/submissions.js";
-import { createUser, listUsers, revokeSessions, updateUser } from "./services/users.js";
+import { createInvite, createUser, listUsers, revokeSessions, updateUser } from "./services/users.js";
 
 type Vars = { principal: Principal; requestId: string };
 type C = Context<{ Bindings: Env; Variables: Vars }>;
@@ -116,8 +118,18 @@ app.get("/api/health", async (c) => {
   return c.json({ ok: db === "ok", environment: c.env.ENVIRONMENT, contractVersion: CONTRACT_VERSION, checks: { db } }, db === "ok" ? 200 : 503);
 });
 
+// Sign-in with Microsoft (public routes, before the authentication middleware).
+registerAuthRoutes(app);
+
 // Authentication, tenancy and rate limiting for everything else.
 app.use("/api/*", async (c, next) => {
+  // Cross-site request forgery: the session is a cookie, so every state-changing
+  // request must carry a header that a cross-site form or image cannot send
+  // (and that a cross-origin script cannot send without a CORS preflight, which
+  // this API never grants).
+  if (c.env.AUTH_MODE === "entra" && !["GET", "HEAD", "OPTIONS"].includes(c.req.method) && c.req.header("x-eci-request") !== "1") {
+    throw forbidden("Request blocked (missing X-ECI-Request header)");
+  }
   const p = await resolvePrincipal(c.req.raw, c.env);
   c.set("principal", p);
   if (c.env.RATE_LIMITER) {
@@ -522,6 +534,11 @@ app.patch("/api/users/:id", async (c) => {
   return c.json(await updateUser(c.env, p, c.req.param("id"), b));
 });
 
+app.post("/api/users/:id/invite", async (c) => {
+  requirePermission(P(c), "user:create");
+  return c.json(await createInvite(c.env, P(c), c.req.param("id")), 201);
+});
+
 app.post("/api/users/:id/sessions/revoke", async (c) => {
   requirePermission(P(c), "user:endSessions");
   return c.json(await revokeSessions(c.env, P(c), c.req.param("id")));
@@ -570,7 +587,12 @@ app.get("/api/admin/config-status", async (c) => {
   requirePermission(P(c), "settings:edit");
   const e = c.env;
   const checks = [
-    { key: "auth", ok: e.AUTH_MODE === "access" && !!e.ACCESS_AUD && !e.ACCESS_AUD.startsWith("REPLACE_"), message: "Cloudflare Access sign-in configured" },
+    (() => {
+      if (e.AUTH_MODE !== "entra") return { key: "auth", ok: false, message: "Development sign-in (AUTH_MODE=dev) — not for real users" };
+      const cfg = entraConfigured(e);
+      const scope = allowedTenants(e).length ? `${allowedTenants(e).length} allowed organisation(s)` : "any organisation";
+      return { key: "auth", ok: cfg.ok, message: cfg.ok ? `Sign in with Microsoft configured (${scope})` : `Sign in with Microsoft is missing: ${cfg.missing.join(", ")} (docs/SIGN-IN-ENTRA.md)` };
+    })(),
     prefillMode(e) === "manual"
       ? { key: "llm", ok: true, message: "Manual entry: drafts arrive with every field empty; no external AI service is used (see docs/ENABLING-AUTOFILL.md to enable pre-fill)" }
       : e.LLM_PROVIDER === "mock"

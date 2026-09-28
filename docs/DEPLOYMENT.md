@@ -9,17 +9,19 @@ Three Workers per environment, deployed in this order:
 | `eradigm-ci-web-<env>` | `apps/web/wrangler.jsonc` | static assets + API service binding |
 
 Environments: **dev** (local only), **staging**, **production** — each with its own
-database, queues, secrets and Access application. (On the Free plan you may run
+database, queues and secrets. (On the Free plan you may run
 only **production** to keep within the daily allowances; everything below
 works per environment.)
 
 ## Prerequisites
 
-- A Cloudflare account on the **Workers Free plan** (no payment method needed for
-  anything in the default configuration — see [Workers Free plan](#workers-free-plan)).
-- Cloudflare Zero Trust **Free** plan (up to 50 users) for **Cloudflare Access**.
-- A domain on Cloudflare for the dashboard, e.g. `ci.eradigm.com` and
-  `ci-staging.eradigm.com` (or use the `*.workers.dev` URL behind Access).
+- A Cloudflare account on the **Workers Free plan**. No billing account or payment
+  method is needed for anything in the default configuration; there is no
+  Cloudflare Access / Zero Trust. See [Workers Free plan](#workers-free-plan).
+- **Microsoft Entra ID** (included with Eradigm's Microsoft 365) for "Sign in with
+  Microsoft". Registering the app is free. See [SIGN-IN-ENTRA.md](SIGN-IN-ENTRA.md).
+- A web address for the dashboard: the free `*.workers.dev` address (default) or
+  optionally your own domain, e.g. `ci.eradigm.com`.
 - **No AI/LLM account or API key** — the prototype uses manual entry. To add
   automatic pre-fill later see [ENABLING-AUTOFILL.md](ENABLING-AUTOFILL.md).
 - Node 22, npm 11, and `npx wrangler login` (or `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID`).
@@ -36,7 +38,8 @@ Everything this build uses is available on the Workers Free plan:
 | Queues | background capture/processing, retries, dead-letter queue | 10,000 operations/day, 24 h message retention (set by `provision.sh`) |
 | Cron Triggers | daily retention job | 5 per account (we use 1 per environment) |
 | Rate limiting binding, Workers Analytics Engine, Workers Logs | abuse limits, metrics, logs | included |
-| Zero Trust Free | Cloudflare Access sign-in | up to 50 users |
+| Rate limiting binding | per-IP sign-in limits, per-user request limits | included |
+| Microsoft Entra ID (not Cloudflare) | sign-in, MFA, password resets | included with Microsoft 365; app registration is free |
 
 **Not used, because they need a paid plan or a payment method:** Containers
 (the optional headless-Chromium capture service was removed — JavaScript-heavy or
@@ -80,32 +83,32 @@ bash scripts/provision.sh staging
 Creates the D1 database (id written into `apps/api/wrangler.jsonc`), the job
 queue + dead-letter queue (24 h retention, the Free plan maximum) and, with
 `--with-r2`, an optional R2 bucket; and generates
-`SNAPSHOT_ENCRYPTION_KEY` and `AUDIT_HMAC_KEY` as Worker secrets. **Store both keys
-in your password manager** — losing the first makes stored snapshots unreadable,
-losing the second makes the audit chain unverifiable.
+`SNAPSHOT_ENCRYPTION_KEY`, `AUDIT_HMAC_KEY` and `SESSION_SECRET` as Worker
+secrets. **Store the first two in your password manager** — losing the first makes
+stored snapshots unreadable, losing the second makes the audit chain
+unverifiable. (`SESSION_SECRET` can be replaced at any time; sign-ins in progress
+simply restart.)
 
-## 2. Sign-in: Cloudflare Access
+## 2. Sign-in: Sign in with Microsoft (Entra ID)
 
-Passwords are never stored by this system (6_QC_&_Compliance). Cloudflare Access,
-backed by your identity provider (e.g. Microsoft Entra ID), handles sign-in, MFA,
-login-attempt limits, session length and account recovery.
+Passwords are never stored by this system (6_QC_&_Compliance). People sign in
+with their organisation's Microsoft work or school account — **any organisation**
+— and their organisation handles passwords, MFA, lockouts and account recovery.
+A person gets in only after an Eradigm admin or analyst created their account
+and they opened its one-time **invite link**.
 
-1. Zero Trust → Settings → Authentication → add your identity provider (e.g. Microsoft Entra ID).
-2. Zero Trust → Access → Applications → **Add a self-hosted application** for
-   `ci-staging.eradigm.com` (all paths). Policy: allow your Eradigm and client
-   users (e.g. by email domain or IdP group). Session duration e.g. 8–24 h.
-3. Copy the application's **AUD tag** and your team domain
-   (`<team>.cloudflareaccess.com`) into `apps/api/wrangler.jsonc`
-   (`ACCESS_AUD`, `ACCESS_TEAM_DOMAIN`) for that environment.
-4. Attach the custom domain to the web worker (uncomment `routes` in
-   `apps/web/wrangler.jsonc`, or Workers → eradigm-ci-web-staging → Settings → Domains).
-5. Optional: to let *End sessions* also revoke Access sessions at the edge, set
-   `CF_ACCOUNT_ID` (var) and `CF_ACCESS_API_TOKEN` (secret, *Access: Organizations,
-   Identity Providers, and Groups — Revoke* permission) on the API worker.
+Follow **[SIGN-IN-ENTRA.md](SIGN-IN-ENTRA.md)**, which walks through every click
+and command. In short:
+1. Register the app in Microsoft Entra ID (multitenant, redirect URI
+   `<web address>/api/auth/callback`) and create a client secret.
+2. Put the dashboard's web address in `APP_ORIGIN` in `apps/api/wrangler.jsonc`
+   (the only file edit).
+3. Enter the Microsoft values yourself as secrets — **never in files or chat**:
+   `npx wrangler secret put ENTRA_CLIENT_ID --env <env> -c apps/api/wrangler.jsonc`
+   and `... ENTRA_CLIENT_SECRET ...`.
 
-The API verifies the Access JWT signature, issuer, audience and expiry on every
-request, then maps the email to a user, tenant and role in D1. Access proves
-*who* someone is; the API decides *what* they can see.
+The API checks the session on every request and maps it to a user, tenant and
+role in D1. Microsoft proves *who* someone is; the API decides *what* they can see.
 
 ## 3. Secrets
 
@@ -119,7 +122,9 @@ application secrets.
 
 ### Option A — GitHub Actions (included)
 Add repository secrets `CLOUDFLARE_API_TOKEN` (Workers Scripts/Routes, D1,
-Queues edit; R2 only if you enabled it) and `CLOUDFLARE_ACCOUNT_ID`, and create GitHub environments
+Queues edit; R2 only if you enabled it) — the Microsoft values are **not** GitHub
+secrets; they live in Cloudflare (step 2) and the workflow only checks that they
+exist — and `CLOUDFLARE_ACCOUNT_ID`, and create GitHub environments
 `staging` and `production` (add required reviewers to `production`).
 `.github/workflows/deploy.yml` deploys **staging on every push to `main`** and
 **production on manual dispatch**, in the order capture → migrations → API → web.
@@ -150,21 +155,31 @@ after that (more users, roles, deactivation) is done in the app under
 Administration.
 
 ```bash
-npx tsx scripts/create-tenant.ts --name "Acme Pharma" --slug acme --admin jane@eradigm.com --admin-name "Jane Doe" > /tmp/tenant.sql
+npx tsx scripts/create-tenant.ts --name "Acme Pharma" --slug acme --admin jane@eradigm.com --admin-name "Jane Doe" \
+  --origin <web address> > /tmp/tenant.sql
 npx wrangler d1 execute DB --remote --env production -c apps/api/wrangler.jsonc --file /tmp/tenant.sql
 ```
-The admin's email must match the identity Cloudflare Access reports. For
-**staging** you may instead load the non-confidential demo seed (generate it
-with the staging audit key so the audit chain verifies):
+The terminal prints the first admin's **invite link**; send it to them privately.
+They open it and sign in with Microsoft to activate the account.
+
+For **staging** you may also load the non-confidential demo seed (generate it
+with the staging audit key so the audit chain verifies), then let yourself into
+the demo workspace with a break-glass invite:
 ```bash
 AUDIT_HMAC_KEY=<staging key> npm run seed:generate -w apps/api
 npx wrangler d1 execute DB --remote --env staging -c apps/api/wrangler.jsonc --file apps/api/seed/seed.sql
+npx tsx scripts/create-invite.ts --tenant t_demo --email you@eradigm.com --name "You" --role admin --origin <staging web address> > /tmp/invite.sql
+npx wrangler d1 execute DB --remote --env staging -c apps/api/wrangler.jsonc --file /tmp/invite.sql
 ```
+`scripts/create-invite.ts` is also the recovery path if every admin of a
+workspace loses access.
 **Never load the demo seed into production.**
 
 ## 6. Smoke test
-- Sign in through Access; the sidebar shows your name, role and workspace.
-- Administration → **Deployment status** should be all ✓ (Access, "Manual entry:
+- Open the invite link, **Accept and sign in with Microsoft**; the sidebar shows
+  your name, role and workspace. **Sign out** returns you to the sign-in page.
+- Administration → **Deployment status** should be all ✓ ("Sign in with Microsoft
+  configured (any organisation)", "Manual entry:
   … no external AI service", capture worker bound, queue bound, snapshots in D1,
   encryption key, audit key, alerts).
 - Input → submit a public article URL → watch the 7-step pipeline → Inbox: the

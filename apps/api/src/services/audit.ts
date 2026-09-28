@@ -20,6 +20,10 @@ export const GENESIS = "genesis";
 export type AuditAction =
   | "auth.sign_in"
   | "auth.sessions_revoked"
+  | "auth.sign_in_failed"
+  | "auth.sign_out"
+  | "user.invite_created"
+  | "user.identity_linked"
   | "user.created"
   | "user.role_changed"
   | "user.deactivated"

@@ -1,7 +1,10 @@
 // Dashboard (frontend) — Cloudflare Worker with static assets.
 // Independently deployable: it only needs a service binding to the API worker
-// of the same environment. Attach a custom domain (e.g. ci.eradigm.com) in the
-// Cloudflare dashboard and protect it with a Cloudflare Access application.
+// of the same environment. It is served on its free workers.dev address
+// (https://eradigm-ci-web-<env>.<your-subdomain>.workers.dev); a custom domain
+// (e.g. ci.eradigm.com) is optional — uncomment "routes". Sign-in is enforced by
+// the API ("Sign in with Microsoft", docs/SIGN-IN-ENTRA.md), so no Cloudflare
+// Access / Zero Trust is needed. The API and capture workers stay private.
 {
   "$schema": "../../node_modules/wrangler/config-schema.json",
   "name": "eradigm-ci-web",
@@ -23,11 +26,13 @@
     },
     "staging": {
       "name": "eradigm-ci-web-staging",
+      "workers_dev": true,
       "services": [{ "binding": "API", "service": "eradigm-ci-api-staging" }]
       // "routes": [{ "pattern": "ci-staging.eradigm.com", "custom_domain": true }]
     },
     "production": {
       "name": "eradigm-ci-web-production",
+      "workers_dev": true,
       "services": [{ "binding": "API", "service": "eradigm-ci-api-production" }]
       // "routes": [{ "pattern": "ci.eradigm.com", "custom_domain": true }]
     }

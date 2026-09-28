@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ROLES, ROLE_LABEL, canCreateUserWithRole, type Me, type Role, type TenantSettings } from "@eradigm/shared";
+import { ROLES, ROLE_LABEL, canCreateUserWithRole, type Invite, type Me, type Role, type TenantSettings, type UserWithInvite } from "@eradigm/shared";
 import { api } from "../api/client";
 import { useAudit, useConfigStatus, useIncidents, useInvalidate, useNotifications, useQuality, useSettings, useUsers } from "../api/hooks";
 import { localDateTime, pct } from "../lib/format";
@@ -15,7 +15,7 @@ export function AdminPage({ me }: { me: Me }) {
             <span className="eyebrow">{me.tenant.name}</span>
             <h1 id="page-title">Administration</h1>
           </div>
-          <div className="band-copy">Accounts, roles, retention and data policy, extraction quality and the tamper-evident audit record. Sign-in, MFA and account recovery are handled by the organisation’s identity provider through Cloudflare Access.</div>
+          <div className="band-copy">Accounts, roles, invite links, retention and data policy, extraction quality and the tamper-evident audit record. People sign in with their organisation’s Microsoft work account, so passwords, MFA and account recovery stay with their organisation.</div>
         </div>
       </section>
       <div className="content">
@@ -64,8 +64,19 @@ function Users({ me }: { me: Me }) {
   const inv = useInvalidate();
   const toast = useToast();
   const [form, setForm] = useState({ email: "", name: "", role: "client" as Role });
+  const [link, setLink] = useState<{ name: string; url: string; expiresAt: string; relink: boolean } | null>(null);
   const isAdmin = me.role === "admin";
   const allowed = ROLES.filter((r) => canCreateUserWithRole(me.role, r));
+  const newLink = async (u: { id: string; name: string; signIn: string }) => {
+    if (u.signIn === "linked" && !window.confirm(`${u.name} already signs in with Microsoft. A new link lets them attach a different Microsoft account (their current one stops working once they use it). Continue?`)) return;
+    try {
+      const r = await api<Invite>(`/api/users/${u.id}/invite`, { method: "POST" });
+      setLink({ name: u.name, url: r.url, expiresAt: r.expiresAt, relink: u.signIn === "linked" });
+      await inv("users");
+    } catch (e) {
+      toast((e as Error).message, false);
+    }
+  };
   const call = async (path: string, method: string, json: unknown, ok: string) => {
     try {
       await api(path, { method, json });
@@ -83,14 +94,56 @@ function Users({ me }: { me: Me }) {
         <h2 className="card-title" id="users-title">
           Users and roles
         </h2>
-        <span className="card-sub">{isAdmin ? "Admins can create any account, change roles, deactivate accounts and end sessions." : "Analysts can create analyst and client accounts for this workspace."}</span>
+        <span className="card-sub">
+          {isAdmin ? "Admins can create any account, change roles, deactivate accounts and end sessions." : "Analysts can create analyst and client accounts for this workspace."} People sign in with
+          their organisation’s Microsoft work account: each new account gets a one-time invite link to send them.
+        </span>
       </div>
+      {link && (
+        <div className="invite-box" role="status">
+          <b>
+            {link.relink ? "New sign-in link" : "Invite link"} for {link.name}
+          </b>
+          <span>
+            Send this link to {link.name} (e.g. by email or Teams). They open it and sign in with their Microsoft work or school account to {link.relink ? "attach that account" : "activate access"}. It works once and expires on{" "}
+            {localDateTime(link.expiresAt)}. It is shown only now.
+          </span>
+          <div className="row">
+            <label className="sr-only" htmlFor="invite-url">
+              Invite link
+            </label>
+            <input id="invite-url" className="control" readOnly value={link.url} onFocus={(e) => e.currentTarget.select()} />
+            <button
+              className="btn small"
+              onClick={() => {
+                void navigator.clipboard?.writeText(link.url).then(
+                  () => toast("Link copied"),
+                  () => toast("Copy failed — select the link and copy it", false),
+                );
+              }}
+            >
+              Copy link
+            </button>
+            <button className="btn secondary small" onClick={() => setLink(null)}>
+              Done
+            </button>
+          </div>
+        </div>
+      )}
       <form
         className="add-col"
         style={{ borderTop: 0 }}
         onSubmit={async (e) => {
           e.preventDefault();
-          if (await call("/api/users", "POST", form, `Created ${ROLE_LABEL[form.role].toLowerCase()} account for ${form.email}`)) setForm({ email: "", name: "", role: "client" });
+          try {
+            const u = await api<UserWithInvite>("/api/users", { method: "POST", json: form });
+            await inv("users");
+            toast(`Created ${ROLE_LABEL[form.role].toLowerCase()} account for ${form.email}`);
+            setLink({ name: u.name, url: u.invite.url, expiresAt: u.invite.expiresAt, relink: false });
+            setForm({ email: "", name: "", role: "client" });
+          } catch (err) {
+            toast((err as Error).message, false);
+          }
         }}
       >
         <label className="field">
@@ -116,7 +169,7 @@ function Users({ me }: { me: Me }) {
         </button>
       </form>
       <div className="table-wrap">
-        <table className="data">
+        <table className="data" style={{ minWidth: 1080 }}>
           <caption className="sr-only">Users in this workspace</caption>
           <thead>
             <tr>
@@ -124,8 +177,9 @@ function Users({ me }: { me: Me }) {
               <th scope="col">Email</th>
               <th scope="col">Role</th>
               <th scope="col">Status</th>
+              <th scope="col">Microsoft sign-in</th>
               <th scope="col">Last seen</th>
-              {isAdmin && <th scope="col">Actions</th>}
+              <th scope="col">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -137,7 +191,7 @@ function Users({ me }: { me: Me }) {
                 </td>
                 <td>
                   {isAdmin && u.id !== me.user.id ? (
-                    <select className="control" aria-label={`Role for ${u.name}`} value={u.role} onChange={(e) => call(`/api/users/${u.id}`, "PATCH", { role: e.target.value }, `${u.name} is now ${ROLE_LABEL[e.target.value as Role]}`)}>
+                    <select className="control" style={{ minWidth: 110 }} aria-label={`Role for ${u.name}`} value={u.role} onChange={(e) => call(`/api/users/${u.id}`, "PATCH", { role: e.target.value }, `${u.name} is now ${ROLE_LABEL[e.target.value as Role]}`)}>
                       {ROLES.map((r) => (
                         <option key={r} value={r}>
                           {ROLE_LABEL[r]}
@@ -151,9 +205,26 @@ function Users({ me }: { me: Me }) {
                 <td>
                   <span className={`tag ${u.active ? "ok" : "err"}`}>{u.active ? "● Active" : "○ Deactivated"}</span>
                 </td>
+                <td>
+                  {u.signIn === "linked" ? (
+                    <span className="tag ok">✓ Linked</span>
+                  ) : u.signIn === "invited" ? (
+                    <span className="tag warn">◷ Invite pending</span>
+                  ) : (
+                    <span className="tag info">○ Not invited</span>
+                  )}
+                </td>
                 <td>{u.lastSeenAt ? localDateTime(u.lastSeenAt) : "—"}</td>
-                {isAdmin && (
-                  <td style={{ whiteSpace: "nowrap" }}>
+                <td style={{ whiteSpace: "nowrap" }}>
+                  {u.id !== me.user.id && u.active && canCreateUserWithRole(me.role, u.role) && (
+                    <>
+                      <button className="btn secondary small" onClick={() => void newLink(u)}>
+                        {u.signIn === "linked" ? "New sign-in link" : u.signIn === "invited" ? "New invite link" : "Create invite link"}
+                      </button>{" "}
+                    </>
+                  )}
+                  {isAdmin && (
+                    <>
                     {u.id !== me.user.id && (
                       <>
                         <button className="btn secondary small" onClick={() => call(`/api/users/${u.id}`, "PATCH", { active: !u.active }, `${u.name} ${u.active ? "deactivated" : "reactivated"}`)}>
@@ -164,8 +235,9 @@ function Users({ me }: { me: Me }) {
                         </button>
                       </>
                     )}
-                  </td>
-                )}
+                    </>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>

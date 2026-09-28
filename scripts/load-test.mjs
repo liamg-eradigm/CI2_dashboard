@@ -3,7 +3,7 @@
  * Dashboard-query load test (6_QC_&_Compliance: "dashboard-query load tests").
  *
  *   BASE_URL=http://127.0.0.1:8787 DEV_USER=client@example.com node scripts/load-test.mjs
- *   BASE_URL=https://ci-staging.eradigm.com ACCESS_JWT=<CF_Authorization cookie> node scripts/load-test.mjs
+ *   BASE_URL=https://ci-staging.eradigm.com SESSION=<value of the __Host-eci_session cookie after signing in> node scripts/load-test.mjs
  *
  * Options (env): CONCURRENCY (default 20), DURATION_S (30), P95_MS (800), MAX_ERROR_RATE (0.01).
  * Exits non-zero when the p95 latency or error-rate budget is exceeded.
@@ -15,7 +15,7 @@ const P95 = Number(process.env.P95_MS ?? 800);
 const MAX_ERR = Number(process.env.MAX_ERROR_RATE ?? 0.01);
 const headers = {};
 if (process.env.DEV_USER) headers["x-dev-user"] = process.env.DEV_USER;
-if (process.env.ACCESS_JWT) headers["cf-access-jwt-assertion"] = process.env.ACCESS_JWT;
+if (process.env.SESSION) headers.cookie = `__Host-eci_session=${process.env.SESSION}`;
 
 const MACROS = ["All", "AI Investment in R&D", "Direct-to-Patient (DTP) Strategy", "Portfolio Restructuring", "Geopolitics"];
 const COMPS = ["All", "Pfizer", "Novartis", "Roche", "Sanofi", "AstraZeneca"];

@@ -13,7 +13,8 @@
 
 Each Worker has its own `wrangler.jsonc`, environments and secrets, so a
 dashboard change cannot reveal API credentials or bypass permission checks —
-the API independently verifies the Cloudflare Access JWT.
+the API independently checks the sign-in session (Sign in with Microsoft,
+`apps/api/src/auth/`).
 
 ## Storage
 - **D1** (managed SQLite): tenants, users, role assignments, tenant settings,

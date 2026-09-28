@@ -51,6 +51,8 @@ export const getContractWarning = () => contractWarning;
 
 export async function request(path: string, init: RequestInit & { json?: unknown } = {}): Promise<Response> {
   const headers = new Headers(init.headers);
+  // Required by the API on every state-changing request (cross-site request forgery protection).
+  headers.set("x-eci-request", "1");
   const t = tenantStore.get();
   if (t) headers.set("x-tenant-id", t);
   const dev = devUserStore.get();
@@ -65,9 +67,9 @@ export async function request(path: string, init: RequestInit & { json?: unknown
   if (v && !isContractCompatible(v, CONTRACT_VERSION)) {
     contractWarning = `This dashboard (contract ${CONTRACT_VERSION}) is out of date with the service (${v}). Please reload.`;
   }
-  if (res.status === 401 && !DEV_AUTH) {
-    // Cloudflare Access session missing or ended: reload to re-authenticate.
-    window.location.reload();
+  if (res.status === 401 && !DEV_AUTH && path !== "/api/me") {
+    // Session missing or ended: go to the sign-in page and come back here afterwards.
+    window.location.assign(signInUrl());
   }
   if (!res.ok) {
     let parsed: Partial<ApiErrorBody> | null = null;
@@ -79,6 +81,22 @@ export async function request(path: string, init: RequestInit & { json?: unknown
     throw new ApiError(res.status, parsed);
   }
   return res;
+}
+
+/** The dashboard's sign-in page, returning to the current page afterwards. */
+export function signInUrl(): string {
+  const here = window.location.pathname + window.location.search;
+  return `/signin?returnTo=${encodeURIComponent(here.startsWith("/signin") ? "/dashboard" : here)}`;
+}
+
+/** Ends the session here and at Microsoft. */
+export async function signOut(): Promise<void> {
+  try {
+    const r = await api<{ redirect: string }>("/api/auth/logout", { method: "POST" });
+    window.location.assign(r.redirect);
+  } catch {
+    window.location.assign("/signin?signed_out=1");
+  }
 }
 
 export async function api<T>(path: string, init: RequestInit & { json?: unknown } = {}): Promise<T> {

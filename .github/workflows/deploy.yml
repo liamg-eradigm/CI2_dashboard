@@ -48,7 +48,17 @@ jobs:
           if [ -z "$CLOUDFLARE_API_TOKEN" ]; then echo "::error::CLOUDFLARE_API_TOKEN secret is not set"; exit 1; fi
           UPPER=$(echo "$TARGET" | tr '[:lower:]' '[:upper:]')
           if grep -q "REPLACE_WITH_${UPPER}" apps/api/wrangler.jsonc; then
-            echo "::error::apps/api/wrangler.jsonc still has REPLACE_WITH_${UPPER}_* placeholders. Run scripts/provision.sh $TARGET and set the Access values (docs/DEPLOYMENT.md)."; exit 1
+            echo "::error::apps/api/wrangler.jsonc still has REPLACE_WITH_${UPPER}_* placeholders. Run scripts/provision.sh $TARGET and set APP_ORIGIN (docs/SIGN-IN-ENTRA.md)."; exit 1
+          fi
+      - name: Refuse to deploy without the sign-in secrets
+        run: |
+          LIST=$(npx wrangler secret list -c apps/api/wrangler.jsonc --env "$TARGET" --format json 2>/dev/null || echo "[]")
+          MISSING=""
+          for S in ENTRA_CLIENT_ID ENTRA_CLIENT_SECRET SESSION_SECRET; do
+            echo "$LIST" | grep -q "\"$S\"" || MISSING="$MISSING $S"
+          done
+          if [ -n "$MISSING" ]; then
+            echo "::error::Missing API worker secret(s) for $TARGET:$MISSING. Set them with 'npx wrangler secret put <NAME> --env $TARGET -c apps/api/wrangler.jsonc' (docs/SIGN-IN-ENTRA.md)."; exit 1
           fi
       - name: Tests must pass before deploying
         run: npm run test:unit && npm run test:integration
