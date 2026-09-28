@@ -1,6 +1,9 @@
 # Deploys the three independently deployable workers to Cloudflare.
-#   push to main      -> staging
-#   manual dispatch   -> production (protect the "production" GitHub environment with required reviewers)
+#   push to main      -> staging, but only once staging is set up (Cloudflare token
+#                        added and no REPLACE_WITH_STAGING placeholders); otherwise
+#                        the run is skipped with a notice instead of failing
+#   manual dispatch   -> the environment you pick (protect the "production" GitHub
+#                        environment with required reviewers); fails loudly if not ready
 # Order: capture worker -> API (migrations first) -> web. Each has its own
 # wrangler config and secrets, so a dashboard change cannot expose API credentials.
 #
@@ -37,20 +40,38 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Is this environment set up?
+        id: gate
+        run: |
+          UPPER=$(echo "$TARGET" | tr '[:lower:]' '[:upper:]')
+          REASON=""
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then REASON="the CLOUDFLARE_API_TOKEN repository secret is not set"; fi
+          if [ -z "$REASON" ] && grep -q "REPLACE_WITH_${UPPER}" apps/api/wrangler.jsonc; then REASON="apps/api/wrangler.jsonc still has REPLACE_WITH_${UPPER}_* placeholders"; fi
+          if [ -n "$REASON" ] && [ "${{ github.event_name }}" = "push" ]; then
+            echo "::notice::Skipping automatic $TARGET deploy: $REASON. See docs/DEPLOYMENT.md."
+            echo "go=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.gate.outputs.go == 'true'
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - run: npm install -g npm@11
-      - run: npm ci
-      - name: Refuse to deploy unprovisioned placeholders
+      - if: steps.gate.outputs.go == 'true'
+        run: npm install -g npm@11
+      - if: steps.gate.outputs.go == 'true'
+        run: npm ci
+      - if: steps.gate.outputs.go == 'true'
+        name: Refuse to deploy unprovisioned placeholders
         run: |
           if [ -z "$CLOUDFLARE_API_TOKEN" ]; then echo "::error::CLOUDFLARE_API_TOKEN secret is not set"; exit 1; fi
           UPPER=$(echo "$TARGET" | tr '[:lower:]' '[:upper:]')
           if grep -q "REPLACE_WITH_${UPPER}" apps/api/wrangler.jsonc; then
             echo "::error::apps/api/wrangler.jsonc still has REPLACE_WITH_${UPPER}_* placeholders. Run scripts/provision.sh $TARGET and set APP_ORIGIN (docs/SIGN-IN-ENTRA.md)."; exit 1
           fi
-      - name: Refuse to deploy without the sign-in secrets
+      - if: steps.gate.outputs.go == 'true'
+        name: Refuse to deploy without the sign-in secrets
         run: |
           LIST=$(npx wrangler secret list -c apps/api/wrangler.jsonc --env "$TARGET" --format json 2>/dev/null || echo "[]")
           MISSING=""
@@ -60,18 +81,24 @@ jobs:
           if [ -n "$MISSING" ]; then
             echo "::error::Missing API worker secret(s) for $TARGET:$MISSING. Set them with 'npx wrangler secret put <NAME> --env $TARGET -c apps/api/wrangler.jsonc' (docs/SIGN-IN-ENTRA.md)."; exit 1
           fi
-      - name: Tests must pass before deploying
+      - if: steps.gate.outputs.go == 'true'
+        name: Tests must pass before deploying
         run: npm run test:unit && npm run test:integration
-      - name: Deploy isolated capture worker
+      - if: steps.gate.outputs.go == 'true'
+        name: Deploy isolated capture worker
         run: npx wrangler deploy -c apps/capture/wrangler.jsonc --env "$TARGET"
-      - name: Apply D1 schema migrations
+      - if: steps.gate.outputs.go == 'true'
+        name: Apply D1 schema migrations
         run: npx wrangler d1 migrations apply DB --remote -c apps/api/wrangler.jsonc --env "$TARGET"
-      - name: Deploy API worker
+      - if: steps.gate.outputs.go == 'true'
+        name: Deploy API worker
         run: npx wrangler deploy -c apps/api/wrangler.jsonc --env "$TARGET"
-      - name: Build and deploy dashboard
+      - if: steps.gate.outputs.go == 'true'
+        name: Build and deploy dashboard
         run: |
           npm run build -w apps/web
           npx wrangler deploy -c apps/web/wrangler.jsonc --env "$TARGET"
-      - name: Record deployed versions (for rollback)
+      - if: steps.gate.outputs.go == 'true'
+        name: Record deployed versions (for rollback)
         run: |
           for c in capture api web; do npx wrangler deployments list -c apps/$c/wrangler.jsonc --env "$TARGET" | head -20; done

@@ -101,7 +101,8 @@ Workers Builds.
 
 ## Documentation
 - [Architecture](docs/ARCHITECTURE.md)
-- [Deployment](docs/DEPLOYMENT.md)
+- **[Step-by-step deployment guide for beginners](docs/DEPLOY-STEP-BY-STEP.md)** ← start here
+- [Deployment (reference)](docs/DEPLOYMENT.md)
 - [Sign in with Microsoft — setup (where to enter the Entra values)](docs/SIGN-IN-ENTRA.md)
 - [Operations: monitoring, alerts, backup/restore, rollback, retention](docs/OPERATIONS.md)
 - [Security, tenancy & compliance](docs/SECURITY-COMPLIANCE.md)
