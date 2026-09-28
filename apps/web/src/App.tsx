@@ -9,12 +9,26 @@ import { TrackerPage } from "./pages/TrackerPage";
 import { InboxPage } from "./pages/InboxPage";
 import { InputPage } from "./pages/InputPage";
 import { AdminPage } from "./pages/AdminPage";
-import { SignInProblem } from "./pages/SignInProblem";
+import { InvitePage, SignInPage } from "./pages/SignInPage";
 import { SourcePage } from "./pages/SourcePage";
 
 const TITLES: Record<string, string> = { "/dashboard": "Dashboard", "/tracker": "Tracker", "/inbox": "Inbox", "/input": "Input", "/admin": "Administration" };
 
 export function App() {
+  const loc = useLocation();
+  // Public pages: sign-in and invite acceptance (no session needed).
+  if (loc.pathname === "/signin") return <SignInPage />;
+  if (loc.pathname.startsWith("/invite/")) {
+    return (
+      <Routes>
+        <Route path="/invite/:token" element={<InvitePage />} />
+      </Routes>
+    );
+  }
+  return <SignedIn />;
+}
+
+function SignedIn() {
   const me = useMe();
   const loc = useLocation();
   useEffect(() => {
@@ -22,7 +36,11 @@ export function App() {
   }, [loc.pathname]);
 
   if (me.isLoading) return <div className="empty" role="status">Loading…</div>;
-  if (me.isError || !me.data) return <SignInProblem error={me.error} />;
+  if (me.isError || !me.data) {
+    const e = me.error as { status?: number } | null;
+    if (e?.status === 401) return <Navigate to={`/signin?returnTo=${encodeURIComponent(loc.pathname + loc.search)}`} replace />;
+    return <SignInPage problem={me.error} />;
+  }
   const role = me.data.role;
   const staff = can(role, "inbox:read");
   const warning = getContractWarning();

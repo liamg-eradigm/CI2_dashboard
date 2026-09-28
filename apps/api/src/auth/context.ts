@@ -8,7 +8,8 @@ import type { Env } from "../env.js";
 import { ApiError, forbidden } from "../lib/errors.js";
 import { nowIso } from "../lib/ids.js";
 import { audit } from "../services/audit.js";
-import { AccessVerificationError, verifyAccessJwt } from "./access.js";
+import { requireEntra } from "./entra.js";
+import { SESSION_COOKIE, lookupSession, readCookie } from "./sessions.js";
 
 export interface Principal {
   userId: string;
@@ -20,18 +21,12 @@ export interface Principal {
   tenants: { id: string; name: string; role: Role }[];
 }
 
-function readCookie(header: string | null, name: string): string | null {
-  if (!header) return null;
-  for (const part of header.split(/;\s*/)) {
-    const i = part.indexOf("=");
-    if (i > 0 && part.slice(0, i) === name) return decodeURIComponent(part.slice(i + 1));
-  }
-  return null;
-}
-
 const DEV_SESSION_START = Math.floor(Date.now() / 1000);
 
-async function identify(req: Request, env: Env): Promise<{ email: string; issuedAt: number }> {
+/** Who is calling: a user id (Microsoft sign-in session) or, in dev only, an email. */
+type Identity = { userId: string; email?: undefined; issuedAt: number } | { email: string; userId?: undefined; issuedAt: number };
+
+async function identify(req: Request, env: Env): Promise<Identity> {
   if (env.AUTH_MODE === "dev") {
     // Development-only identity header. Fails closed outside dev/test.
     if (env.ENVIRONMENT !== "dev" && env.ENVIRONMENT !== "test") {
@@ -42,22 +37,18 @@ async function identify(req: Request, env: Env): Promise<{ email: string; issued
     const iat = Number(req.headers.get("x-dev-iat"));
     return { email, issuedAt: Number.isFinite(iat) && iat > 0 ? iat : DEV_SESSION_START };
   }
-  if (!env.ACCESS_TEAM_DOMAIN || !env.ACCESS_AUD || env.ACCESS_AUD.startsWith("REPLACE_")) {
-    throw new ApiError("MISCONFIGURED", "Sign-in service is not configured for this environment");
-  }
-  const token = req.headers.get("cf-access-jwt-assertion") ?? readCookie(req.headers.get("cookie"), "CF_Authorization");
+  if (env.AUTH_MODE !== "entra") throw new ApiError("MISCONFIGURED", "Sign-in is not configured for this environment (AUTH_MODE)");
+  requireEntra(env);
+  const token = readCookie(req.headers.get("cookie"), SESSION_COOKIE);
   if (!token) throw new ApiError("UNAUTHENTICATED", "Sign in required");
-  try {
-    const id = await verifyAccessJwt(token, { teamDomain: env.ACCESS_TEAM_DOMAIN, audience: env.ACCESS_AUD });
-    return { email: id.email, issuedAt: id.issuedAt };
-  } catch (err) {
-    if (err instanceof AccessVerificationError) throw new ApiError("UNAUTHENTICATED", "Your session is not valid. Please sign in again.");
-    throw err;
-  }
+  const session = await lookupSession(env, token);
+  if (!session) throw new ApiError("UNAUTHENTICATED", "Your session has ended. Please sign in again.");
+  return { userId: session.user_id, issuedAt: Math.floor(Date.parse(session.created_at) / 1000) };
 }
 
 interface MembershipRow {
   user_id: string;
+  email: string;
   name: string;
   sessions_valid_after: string | null;
   last_sign_in_at: string | null;
@@ -67,21 +58,23 @@ interface MembershipRow {
 }
 
 export async function resolvePrincipal(req: Request, env: Env): Promise<Principal> {
-  const { email, issuedAt } = await identify(req, env);
+  const id = await identify(req, env);
   const rows = await env.DB.prepare(
-    `SELECT u.id AS user_id, u.name, u.sessions_valid_after, u.last_sign_in_at, t.id AS tenant_id, t.name AS tenant_name, r.role
+    `SELECT u.id AS user_id, u.email, u.name, u.sessions_valid_after, u.last_sign_in_at, t.id AS tenant_id, t.name AS tenant_name, r.role
        FROM users u
        JOIN role_assignments r ON r.user_id = u.id AND r.revoked_at IS NULL AND r.active = 1
        JOIN tenants t ON t.id = r.tenant_id AND t.active = 1
-      WHERE u.email = ?1
+      WHERE ${id.userId ? "u.id = ?1" : "u.email = ?1"}
       ORDER BY t.name`,
   )
-    .bind(email)
+    .bind(id.userId ?? id.email)
     .all<MembershipRow>();
+  const issuedAt = id.issuedAt;
   const memberships = rows.results ?? [];
   if (!memberships.length) throw forbidden("Your account does not have access to any workspace. Ask an administrator for access.");
 
   const first = memberships[0] as MembershipRow;
+  const email = first.email;
   if (first.sessions_valid_after && issuedAt * 1000 < Date.parse(first.sessions_valid_after)) {
     throw new ApiError("UNAUTHENTICATED", "This session was ended. Please sign in again.");
   }
@@ -91,9 +84,10 @@ export async function resolvePrincipal(req: Request, env: Env): Promise<Principa
   // Unknown or unauthorised tenant ids are indistinguishable from each other.
   if (!chosen) throw forbidden("You do not have access to this workspace");
 
-  // Audit each new sign-in (a new identity token) once.
+  // Dev sign-ins are audited here once per identity token; Microsoft sign-ins
+  // are audited by the callback when the session is created.
   const iatIso = new Date(issuedAt * 1000).toISOString();
-  if (!first.last_sign_in_at || first.last_sign_in_at < iatIso) {
+  if (env.AUTH_MODE === "dev" && (!first.last_sign_in_at || first.last_sign_in_at < iatIso)) {
     const upd = await env.DB.prepare("UPDATE users SET last_sign_in_at = ?1 WHERE id = ?2 AND (last_sign_in_at IS NULL OR last_sign_in_at < ?1)").bind(iatIso, first.user_id).run();
     if ((upd.meta.changes ?? 0) > 0) {
       await audit(env, { tenantId: chosen.tenant_id, actorId: first.user_id, actorEmail: email, action: "auth.sign_in", targetType: "user", targetId: first.user_id, details: { method: env.AUTH_MODE } });

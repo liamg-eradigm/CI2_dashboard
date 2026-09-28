@@ -70,7 +70,7 @@ appear in the tracker).
 
 ## Not verifiable in this environment (action required)
 1. **Live Claude API calls** — not used by the prototype; needed only before enabling pre-fill (no Eradigm API key available; see [CLAUDE-API.md](CLAUDE-API.md)).
-2. **Cloudflare Access JWT verification against a real Access application** — logic unit-covered; confirm on staging.
+2. **Sign in with Microsoft against the real Entra ID** — the full OpenID Connect flow is integration-tested against a fake Microsoft (token + key endpoints, test RSA key); confirm once on staging after [SIGN-IN-ENTRA.md](SIGN-IN-ENTRA.md).
 3. **Remote Queues / rate limiting / Analytics Engine / D1 Time Travel** — configured and dry-run bundled; confirm on staging.
 4. **Real-internet URL capture** — outbound DNS-over-HTTPS is blocked in the build sandbox; capture logic is tested with a simulated network (redirects, DNS rebinding, robots, login walls, limits).
 5. **Production CPU time on the Workers Free plan** — measured locally only (see above).

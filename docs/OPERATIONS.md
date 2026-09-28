@@ -4,7 +4,7 @@
 | | dev | staging | production |
 |---|---|---|---|
 | Where | local (`npm run dev`) | Cloudflare | Cloudflare |
-| Sign-in | dev header (refused elsewhere — fails closed) | Cloudflare Access | Cloudflare Access |
+| Sign-in | dev header (refused elsewhere — fails closed) | Sign in with Microsoft | Sign in with Microsoft |
 | Draft pre-fill | manual entry (`LLM_PROVIDER=none`) | manual entry | manual entry — see [ENABLING-AUTOFILL.md](ENABLING-AUTOFILL.md) |
 | Plan | — | Workers Free | Workers Free |
 | Data | synthetic seed | synthetic seed or test tenants | real |
@@ -32,12 +32,17 @@
     quarantines, items stuck in processing, and (once pre-fill is enabled)
     Claude API auth/permission failures. Admins also see them under Administration.
   - Configure Cloudflare Notifications for: Workers error rate / exceeded CPU,
-    Queue backlog and DLQ activity, D1 storage, Access login anomalies.
+    Queue backlog and DLQ activity, D1 storage. Watch the audit log for bursts of
+    `auth.sign_in_failed`; Microsoft's own sign-in logs (Entra → Monitoring) show
+    Eradigm users' sign-ins.
   - Suggested thresholds: 5xx > 2 % for 5 min; `item_failed` > 10/h (code
     `PROCESSING_LIMIT` = pages too large for the Free plan CPU limit); any
     `item_quarantined`; DLQ messages > 0; dashboard p95 > 1 s.
-- **Health**: `GET /api/health` (no auth; checks D1). Configure an Access bypass
-  policy for `/api/health` if an external uptime monitor needs it.
+- **Health**: `GET /api/health` (no auth; checks D1) — usable by any external
+  uptime monitor.
+- **Microsoft client secret expiry**: renew before the date shown in Entra
+  (see [SIGN-IN-ENTRA.md § Renewing the client secret](SIGN-IN-ENTRA.md#renewing-the-client-secret));
+  after expiry new sign-ins fail with a clear message.
 
 ## Backups and restore
 - **D1 Time Travel** gives point-in-time recovery for the last 7 days on the

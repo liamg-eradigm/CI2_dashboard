@@ -80,7 +80,12 @@ export const UserSchema = z.object({
   active: z.boolean(),
   createdAt: isoDateTime,
   lastSeenAt: isoDateTime.nullable(),
+  /** Microsoft sign-in status: linked to a Microsoft account, invite link pending, or neither. Added in contract 1.2. */
+  signIn: z.enum(["linked", "invited", "not_invited"]).default("not_invited"),
 });
+/** One-time invite / sign-in link (shown once to the person who created it). */
+export const InviteSchema = z.object({ url: z.string(), expiresAt: isoDateTime });
+export const UserWithInviteSchema = UserSchema.extend({ invite: InviteSchema });
 export const CreateUserRequest = z.object({
   email: z.email().max(254),
   name: z.string().min(1).max(120),
@@ -410,6 +415,8 @@ export const ErrorSchema = z.object({
 });
 
 export type Me = z.infer<typeof MeSchema>;
+export type Invite = z.infer<typeof InviteSchema>;
+export type UserWithInvite = z.infer<typeof UserWithInviteSchema>;
 export type User = z.infer<typeof UserSchema>;
 export type ItemSummary = z.infer<typeof ItemSummarySchema>;
 export type ItemDetail = z.infer<typeof ItemDetailSchema>;
@@ -453,6 +460,11 @@ const ADMIN = ["admin"] as const;
 
 export const ENDPOINTS: EndpointDef[] = [
   { method: "get", path: "/api/health", summary: "Liveness probe (no authentication)", roles: [] },
+  { method: "get", path: "/api/auth/login", summary: "Start Sign in with Microsoft (redirect to Entra ID; optional invite token)", roles: [], query: ["returnTo", "invite"] },
+  { method: "get", path: "/api/auth/callback", summary: "Microsoft redirect target: validates the ID token and creates the session", roles: [], query: ["code", "state"] },
+  { method: "post", path: "/api/auth/logout", summary: "End the session; returns Microsoft's sign-out URL", roles: [] },
+  { method: "get", path: "/api/auth/signed-out", summary: "Post-sign-out / front-channel logout landing", roles: [] },
+  { method: "get", path: "/api/auth/invite/{token}", summary: "Whether an invite link is valid, and for whom", roles: [] },
   { method: "get", path: "/api/me", summary: "Current user, tenant, role and permissions", roles: ALL_ROLES, response: MeSchema },
   { method: "post", path: "/api/me/sessions/revoke", summary: "End all of my active sessions", roles: ALL_ROLES },
   { method: "get", path: "/api/schema", summary: "Tracker columns and taxonomy", roles: ALL_ROLES, response: TrackerSchemaSchema },
@@ -484,7 +496,8 @@ export const ENDPOINTS: EndpointDef[] = [
   { method: "get", path: "/api/settings", summary: "Tenant settings (visible to all users)", roles: ALL_ROLES, response: TenantSettingsSchema },
   { method: "patch", path: "/api/settings", summary: "Update tenant settings", roles: ADMIN, request: UpdateSettingsRequest, response: TenantSettingsSchema },
   { method: "get", path: "/api/users", summary: "Users in this tenant", roles: STAFF, response: z.array(UserSchema) },
-  { method: "post", path: "/api/users", summary: "Create a user (analysts: analyst/client only)", roles: STAFF, request: CreateUserRequest, response: UserSchema },
+  { method: "post", path: "/api/users", summary: "Create a user and a one-time Microsoft sign-in invite link (analysts: analyst/client only)", roles: STAFF, request: CreateUserRequest, response: UserWithInviteSchema },
+  { method: "post", path: "/api/users/{id}/invite", summary: "Issue a new one-time sign-in link (also re-links a changed Microsoft account)", roles: STAFF, response: InviteSchema },
   { method: "patch", path: "/api/users/{id}", summary: "Change role or deactivate (admin only)", roles: ADMIN, request: UpdateUserRequest, response: UserSchema },
   { method: "post", path: "/api/users/{id}/sessions/revoke", summary: "End a user's active sessions", roles: ADMIN },
   { method: "get", path: "/api/audit", summary: "Tamper-evident audit log", roles: ADMIN, query: ["before", "limit"], response: z.array(AuditEventSchema) },

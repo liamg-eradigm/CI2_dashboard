@@ -416,3 +416,22 @@ a.link-btn { text-decoration: none; }
   .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .active-filters { margin-bottom: -40px; }
 }
+
+/* Sign-in and invite pages */
+.signin-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px 16px; background: var(--navy-900); }
+.signin-card { width: 100%; max-width: 460px; background: var(--surface); border-radius: 12px; padding: 28px 28px 24px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25); }
+.signin-card h1 { margin: 4px 0 0; font-size: 22px; color: var(--ink); }
+.signin-brand { display: flex; align-items: center; gap: 12px; }
+.signin-brand .logo-tile { width: 44px; height: 44px; }
+.signin-brand .wordmark b { color: var(--navy-900); }
+.signin-brand .wordmark span { color: var(--muted); }
+.signin-copy { margin: 0; font-size: 14px; line-height: 1.5; color: var(--ink-2); }
+.signin-small { margin: 0; font-size: 12.5px; color: var(--muted); }
+.signin-note { margin: 0; font-size: 13px; color: var(--success-2); font-weight: 700; }
+.signin-dev { display: flex; gap: 8px; align-items: end; border-top: 1px solid var(--rule); padding-top: 12px; }
+/* Microsoft sign-in button (Microsoft identity branding: light theme). */
+.ms-btn { display: inline-flex; align-items: center; justify-content: center; gap: 12px; height: 41px; padding: 0 16px; border: 1px solid #8c8c8c; background: #fff; color: #5e5e5e; font: 600 15px "Segoe UI", system-ui, sans-serif; text-decoration: none; border-radius: 2px; }
+.ms-btn:hover { background: #f3f3f3; color: #3b3b3b; }
+.invite-box { margin: 0 20px 14px; padding: 12px 14px; border: 1px solid var(--dashed); background: var(--tint-3); border-radius: 8px; display: grid; gap: 8px; font-size: 13px; }
+.invite-box .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.invite-box input { flex: 1 1 320px; font-family: var(--mono); font-size: 12px; }

@@ -3,7 +3,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { ROLE_LABEL, can, type Me } from "@eradigm/shared";
 import { useItems } from "../api/hooks";
-import { DEV_AUTH, devUserStore, tenantStore } from "../api/client";
+import { DEV_AUTH, devUserStore, signOut, tenantStore } from "../api/client";
 
 const DEV_USERS = [
   ["l.griffith@example.com", "L. Griffith · Analyst"],
@@ -113,7 +113,9 @@ export function Sidebar({ me }: { me: Me }) {
             </select>
           </label>
         ) : (
-          <a href="/cdn-cgi/access/logout">Sign out</a>
+          <button className="link" onClick={() => void signOut()}>
+            Sign out
+          </button>
         )}
         {me.environment !== "production" && <div className="role">Environment: {me.environment}</div>}
       </div>

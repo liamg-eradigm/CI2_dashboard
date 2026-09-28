@@ -57,8 +57,8 @@ Estimated usage is about 12–16k tokens per 10-page article: about 10–11k inp
 
 | Model (ID) | Price per 1M tokens (input / output) | ≈ per article | ≈ per 500 articles |
 |---|---|---|---|
-| Claude Opus 5 (`claude-opus-5`, the configured default) | $5 / $25 | $0.10–0.18 | $50–90 |
-| Claude Sonnet 5 (`claude-sonnet-5`) | $2 / $10 | $0.04–0.07 | $20–35 |
+| Claude Sonnet 5 (`claude-sonnet-5`, the configured model) | $2 / $10 | $0.04–0.07 | $20–35 |
+| Claude Opus 5 (`claude-opus-5`, most capable) | $5 / $25 | $0.10–0.18 | $50–90 |
 
 These are first-party API list prices at the time of writing; check the current price list before budgeting. Once live, the exact counts are recorded per attempt (`input_tokens`, `output_tokens`).
 
@@ -69,7 +69,7 @@ npx wrangler secret put ANTHROPIC_API_KEY --env staging -c apps/api/wrangler.jso
 In `apps/api/wrangler.jsonc`, set the following in `env.staging.vars`:
 ```jsonc
 "LLM_PROVIDER": "anthropic",
-"LLM_MODEL": "claude-opus-5",   // or the model chosen in step 3
+"LLM_MODEL": "claude-sonnet-5", // already set; or the model chosen in step 3
 "LLM_EFFORT": "medium"           // low | medium | high
 ```
 Deploy the API worker: push to `main`, or run `npm run deploy:staging -w apps/api`. The web and capture workers do not change.

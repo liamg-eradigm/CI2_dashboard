@@ -14,8 +14,14 @@ can be switched on later by configuration. See
 [docs/CLAUDE-API.md](docs/CLAUDE-API.md) for the organisational permissions that
 step needs.
 
-**Hosting: Cloudflare Workers Free plan.** No paid products or payment method
-are needed in the default configuration; see
+**Sign-in: "Sign in with Microsoft"** — any organisation's work account, after an
+admin sends the person a one-time invite link. No passwords are stored. Setup,
+including exactly where to enter the Microsoft IDs (never in files or chat):
+**[docs/SIGN-IN-ENTRA.md](docs/SIGN-IN-ENTRA.md)**.
+
+**Hosting: Cloudflare Workers Free plan.** No paid products, billing account or
+payment method are needed in the default configuration (no Cloudflare Access /
+Zero Trust); see
 [DEPLOYMENT.md § Workers Free plan](docs/DEPLOYMENT.md#workers-free-plan).
 
 The requirement documents and the Claude Design prototype live in
@@ -24,7 +30,7 @@ The requirement documents and the Claude Design prototype live in
 ## Architecture at a glance
 
 ```
-                      Cloudflare Access (SSO via your identity provider)
+                      Sign in with Microsoft (Entra ID, any organisation)
                                          │
  Browser ──HTTPS──▶  eradigm-ci-web  (Worker + static React build)
                         │  /api/* over a service binding (same origin, no public API route)
@@ -77,7 +83,7 @@ npm run typecheck
 npm run test:unit         # shared contract, capture library (in workerd), LLM adapter
 npm run test:integration  # API in the Workers runtime with local D1/queues (manual entry + the optional LLM path)
 npm run test:e2e          # Playwright + axe (starts its own seeded servers)
-npm run test:load         # dashboard-query load test (BASE_URL, DEV_USER / ACCESS_JWT)
+npm run test:load         # dashboard-query load test (BASE_URL, DEV_USER / SESSION)
 npm run eval [file.jsonl] # extraction/classification evaluation against labelled examples
 node scripts/export-eval-set.mjs --env <env> > eval/labelled.jsonl   # labelled set from approved manual entries
 npm run audit:deps && npm run scan:secrets
@@ -87,7 +93,8 @@ bash scripts/verify-restore.sh   # backup + restore drill
 ## Deploying to Cloudflare
 
 See **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** — in short:
-`scripts/provision.sh staging` → configure Cloudflare Access → (optional) alert webhook →
+`scripts/provision.sh staging` → register the app in Microsoft Entra ID and enter its
+values as secrets ([docs/SIGN-IN-ENTRA.md](docs/SIGN-IN-ENTRA.md)) → (optional) alert webhook →
 deploy capture → API (migrations run first) → web, either via the included GitHub
 Actions workflow or by connecting each Worker to this repository with Cloudflare
 Workers Builds.
@@ -95,6 +102,7 @@ Workers Builds.
 ## Documentation
 - [Architecture](docs/ARCHITECTURE.md)
 - [Deployment](docs/DEPLOYMENT.md)
+- [Sign in with Microsoft — setup (where to enter the Entra values)](docs/SIGN-IN-ENTRA.md)
 - [Operations: monitoring, alerts, backup/restore, rollback, retention](docs/OPERATIONS.md)
 - [Security, tenancy & compliance](docs/SECURITY-COMPLIANCE.md)
 - [Enabling automatic pre-fill with an AI API — next steps](docs/ENABLING-AUTOFILL.md)

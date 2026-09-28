@@ -40,10 +40,14 @@ npx wrangler queues create "eradigm-ci-jobs-dlq-$ENV" --message-retention-period
 echo "▸ Secrets (generated locally, never printed)"
 openssl rand -base64 32 | npx wrangler secret put SNAPSHOT_ENCRYPTION_KEY --env "$ENV" -c apps/api/wrangler.jsonc
 openssl rand -base64 32 | npx wrangler secret put AUDIT_HMAC_KEY --env "$ENV" -c apps/api/wrangler.jsonc
+openssl rand -base64 48 | npx wrangler secret put SESSION_SECRET --env "$ENV" -c apps/api/wrangler.jsonc
 echo
-echo "Next steps:"
-echo "  1. Set ACCESS_TEAM_DOMAIN and ACCESS_AUD for $ENV in apps/api/wrangler.jsonc (see docs/DEPLOYMENT.md)"
-echo "  2. Deploy: capture worker → API (runs migrations) → web. See docs/DEPLOYMENT.md."
+echo "Next steps (docs/SIGN-IN-ENTRA.md has every click and command):"
+echo "  1. Set APP_ORIGIN for $ENV in apps/api/wrangler.jsonc (the dashboard's web address)."
+echo "  2. Register the app in Microsoft Entra ID, then enter its values yourself (they are never stored in files):"
+echo "       npx wrangler secret put ENTRA_CLIENT_ID     --env $ENV -c apps/api/wrangler.jsonc"
+echo "       npx wrangler secret put ENTRA_CLIENT_SECRET --env $ENV -c apps/api/wrangler.jsonc"
+echo "  3. Deploy: capture worker → API (runs migrations) → web. See docs/DEPLOYMENT.md."
 echo "  No AI/LLM key is needed: drafts reach the Inbox with every field empty (manual entry)."
 echo "  To add automatic pre-fill later, follow docs/ENABLING-AUTOFILL.md."
 echo "  Keep SNAPSHOT_ENCRYPTION_KEY and AUDIT_HMAC_KEY in your password manager: losing them makes snapshots unreadable / the audit chain unverifiable."

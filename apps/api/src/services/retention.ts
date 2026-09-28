@@ -9,6 +9,7 @@
 import type { Env } from "../env.js";
 import { nowIso } from "../lib/ids.js";
 import { alert, log } from "../lib/log.js";
+import { purgeExpiredSessions } from "../auth/sessions.js";
 import { deleteObjects, deleteSnapshots } from "../pipeline/snapshots.js";
 import { audit } from "./audit.js";
 import { loadSettings } from "./schema.js";
@@ -25,7 +26,7 @@ async function purgeContent(env: Env, tenantId: string, itemId: string) {
 }
 
 export async function runRetention(env: Env): Promise<Record<string, number>> {
-  const totals = { snapshotsExpired: 0, itemsPurged: 0, stuckFailed: 0 };
+  const totals = { snapshotsExpired: 0, itemsPurged: 0, stuckFailed: 0, sessionsPurged: await purgeExpiredSessions(env) };
   const tenants = await env.DB.prepare("SELECT id FROM tenants WHERE active = 1").all<{ id: string }>();
   const now = nowIso();
   for (const { id: tenantId } of tenants.results ?? []) {

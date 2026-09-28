@@ -62,8 +62,8 @@ Before transmission the **data classification & redaction policy**
 `packages/llm/src/providers/claude.ts` (the only file that imports
 `@anthropic-ai/sdk`, enforced by ESLint):
 
-- model: `LLM_MODEL` (default `claude-opus-5`; change per environment in
-  `apps/api/wrangler.jsonc`, e.g. `claude-sonnet-5` to reduce cost)
+- model: `LLM_MODEL` (configured as `claude-sonnet-5`; change per environment in
+  `apps/api/wrangler.jsonc`, e.g. `claude-opus-5` for the most capable model)
 - adaptive thinking, `output_config.effort` = `LLM_EFFORT` (default `medium`)
 - **structured outputs**: `output_config.format = { type: "json_schema", schema }`.
   The schema is generated from the tenant's live taxonomy with `enum`s, so the

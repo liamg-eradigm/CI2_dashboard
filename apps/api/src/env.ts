@@ -8,12 +8,18 @@ export interface Env {
   CAPTURE?: Fetcher;
   RATE_LIMITER?: RateLimit;
   SUBMIT_LIMITER?: RateLimit;
+  /** Per-IP limit on the sign-in endpoints. */
+  AUTH_LIMITER?: RateLimit;
   METRICS?: AnalyticsEngineDataset;
 
   ENVIRONMENT: "dev" | "test" | "staging" | "production";
-  AUTH_MODE: "access" | "dev";
-  ACCESS_TEAM_DOMAIN: string;
-  ACCESS_AUD: string;
+  /** "entra" (Sign in with Microsoft, staging/production) or "dev" (local only). */
+  AUTH_MODE: "entra" | "dev";
+  /** Public address of the dashboard, e.g. https://ci.eradigm.com (no trailing slash). Used for the Microsoft redirect URI. */
+  APP_ORIGIN: string;
+  /** Idle and absolute session limits (defaults 480 minutes / 24 hours). */
+  SESSION_IDLE_MINUTES?: string;
+  SESSION_MAX_HOURS?: string;
   /** "none" (manual entry, default) or an LLM adapter name such as "anthropic". See docs/ENABLING-AUTOFILL.md. */
   LLM_PROVIDER: string;
   LLM_MODEL: string;
@@ -28,9 +34,13 @@ export interface Env {
   SNAPSHOT_ENCRYPTION_KEY?: string;
   AUDIT_HMAC_KEY?: string;
   ALERT_WEBHOOK_URL?: string;
-  /** Optional: lets "end sessions" also revoke the user's Cloudflare Access sessions. */
-  CF_ACCOUNT_ID?: string;
-  CF_ACCESS_API_TOKEN?: string;
+  /** Microsoft Entra ID app registration — set with `wrangler secret put` (docs/SIGN-IN-ENTRA.md). */
+  ENTRA_CLIENT_ID?: string;
+  ENTRA_CLIENT_SECRET?: string;
+  /** Optional: comma-separated Directory (tenant) IDs allowed to sign in. Empty = any organisation. */
+  ENTRA_ALLOWED_TENANTS?: string;
+  /** Random string (≥ 32 characters) that signs the short-lived sign-in state cookie. */
+  SESSION_SECRET?: string;
 }
 
 export interface JobMessage {

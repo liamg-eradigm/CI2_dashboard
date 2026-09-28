@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Eradigm Competitive Intelligence API",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "description": "Generated from packages/shared/src/api.ts. Every request is checked for both role and tenant server-side. Send X-Tenant-Id to select a tenant when the user belongs to more than one."
   },
   "components": {
@@ -20,6 +20,419 @@
         "summary": "Liveness probe (no authentication)",
         "description": "Public",
         "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "get": {
+        "summary": "Start Sign in with Microsoft (redirect to Entra ID; optional invite token)",
+        "description": "Public",
+        "parameters": [
+          {
+            "name": "returnTo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "invite",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/callback": {
+      "get": {
+        "summary": "Microsoft redirect target: validates the ID token and creates the session",
+        "description": "Public",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "summary": "End the session; returns Microsoft's sign-out URL",
+        "description": "Public",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/signed-out": {
+      "get": {
+        "summary": "Post-sign-out / front-channel logout landing",
+        "description": "Public",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/invite/{token}": {
+      "get": {
+        "summary": "Whether an invite link is valid, and for whom",
+        "description": "Public",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK"
@@ -8547,6 +8960,15 @@
                       "lastSeenAt": {
                         "nullable": true,
                         "type": "string"
+                      },
+                      "signIn": {
+                        "default": "not_invited",
+                        "type": "string",
+                        "enum": [
+                          "linked",
+                          "invited",
+                          "not_invited"
+                        ]
                       }
                     },
                     "required": [
@@ -8556,7 +8978,8 @@
                       "role",
                       "active",
                       "createdAt",
-                      "lastSeenAt"
+                      "lastSeenAt",
+                      "signIn"
                     ],
                     "additionalProperties": false
                   }
@@ -8634,7 +9057,7 @@
         ]
       },
       "post": {
-        "summary": "Create a user (analysts: analyst/client only)",
+        "summary": "Create a user and a one-time Microsoft sign-in invite link (analysts: analyst/client only)",
         "description": "Roles: admin, analyst",
         "parameters": [],
         "responses": {
@@ -8671,6 +9094,31 @@
                     "lastSeenAt": {
                       "nullable": true,
                       "type": "string"
+                    },
+                    "signIn": {
+                      "default": "not_invited",
+                      "type": "string",
+                      "enum": [
+                        "linked",
+                        "invited",
+                        "not_invited"
+                      ]
+                    },
+                    "invite": {
+                      "type": "object",
+                      "properties": {
+                        "url": {
+                          "type": "string"
+                        },
+                        "expiresAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "url",
+                        "expiresAt"
+                      ],
+                      "additionalProperties": false
                     }
                   },
                   "required": [
@@ -8680,7 +9128,9 @@
                     "role",
                     "active",
                     "createdAt",
-                    "lastSeenAt"
+                    "lastSeenAt",
+                    "signIn",
+                    "invite"
                   ],
                   "additionalProperties": false
                 }
@@ -8794,6 +9244,114 @@
         ]
       }
     },
+    "/api/users/{id}/invite": {
+      "post": {
+        "summary": "Issue a new one-time sign-in link (also re-links a changed Microsoft account)",
+        "description": "Roles: admin, analyst",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string"
+                    },
+                    "expiresAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "url",
+                    "expiresAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
     "/api/users/{id}": {
       "patch": {
         "summary": "Change role or deactivate (admin only)",
@@ -8842,6 +9400,15 @@
                     "lastSeenAt": {
                       "nullable": true,
                       "type": "string"
+                    },
+                    "signIn": {
+                      "default": "not_invited",
+                      "type": "string",
+                      "enum": [
+                        "linked",
+                        "invited",
+                        "not_invited"
+                      ]
                     }
                   },
                   "required": [
@@ -8851,7 +9418,8 @@
                     "role",
                     "active",
                     "createdAt",
-                    "lastSeenAt"
+                    "lastSeenAt",
+                    "signIn"
                   ],
                   "additionalProperties": false
                 }
