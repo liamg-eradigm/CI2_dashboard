@@ -1,5 +1,7 @@
 # Nightly encrypted D1 export (in addition to D1 Time Travel point-in-time recovery).
 # Required secrets: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, BACKUP_PASSPHRASE.
+# Until they are set (and production is provisioned) the nightly run is skipped
+# with a notice instead of failing.
 name: Backup
 
 on:
@@ -17,22 +19,36 @@ jobs:
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Is backup set up?
+        id: gate
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$BACKUP_PASSPHRASE" ] || grep -q "REPLACE_WITH_PRODUCTION_D1_ID" apps/api/wrangler.jsonc; then
+            if [ "${{ github.event_name }}" = "schedule" ]; then
+              echo "::notice::Skipping backup: set CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID and BACKUP_PASSPHRASE and provision production (docs/OPERATIONS.md)."
+              echo "go=false" >> "$GITHUB_OUTPUT"; exit 0
+            fi
+          fi
+          echo "go=true" >> "$GITHUB_OUTPUT"
+      - if: steps.gate.outputs.go == 'true'
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - run: npm install -g npm@11 && npm ci
-      - name: Export production D1
+      - if: steps.gate.outputs.go == 'true'
+        run: npm install -g npm@11 && npm ci
+      - if: steps.gate.outputs.go == 'true'
+        name: Export production D1
         run: bash scripts/backup-d1.sh production
-      - name: Encrypt (the export contains confidential data)
-        env:
-          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+      - if: steps.gate.outputs.go == 'true'
+        name: Encrypt (the export contains confidential data)
         run: |
           test -n "$BACKUP_PASSPHRASE" || { echo "::error::BACKUP_PASSPHRASE not set"; exit 1; }
           for f in backups/*.sql; do gpg --batch --yes --symmetric --cipher-algo AES256 --passphrase "$BACKUP_PASSPHRASE" -o "$f.gpg" "$f" && rm "$f"; done
-      - uses: actions/upload-artifact@v4
+      - if: steps.gate.outputs.go == 'true'
+        uses: actions/upload-artifact@v4
         with:
           name: d1-production-${{ github.run_id }}
           path: backups/

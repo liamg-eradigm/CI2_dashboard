@@ -37,10 +37,28 @@ echo "▸ Queues (24 h message retention: the Workers Free plan maximum)"
 npx wrangler queues create "eradigm-ci-jobs-$ENV" --message-retention-period-secs 86400 || true
 npx wrangler queues create "eradigm-ci-jobs-dlq-$ENV" --message-retention-period-secs 86400 || true
 
-echo "▸ Secrets (generated locally, never printed)"
-openssl rand -base64 32 | npx wrangler secret put SNAPSHOT_ENCRYPTION_KEY --env "$ENV" -c apps/api/wrangler.jsonc
-openssl rand -base64 32 | npx wrangler secret put AUDIT_HMAC_KEY --env "$ENV" -c apps/api/wrangler.jsonc
-openssl rand -base64 48 | npx wrangler secret put SESSION_SECRET --env "$ENV" -c apps/api/wrangler.jsonc
+echo "▸ Secrets"
+# Safe to re-run: a secret that already exists is never replaced (replacing the
+# encryption or audit key would make saved pages unreadable / the audit chain unverifiable).
+EXISTING=$(npx wrangler secret list --env "$ENV" -c apps/api/wrangler.jsonc --format json 2>/dev/null || echo "[]")
+has() { echo "$EXISTING" | grep -q "\"$1\""; }
+SHOWN=""
+for NAME in SNAPSHOT_ENCRYPTION_KEY AUDIT_HMAC_KEY SESSION_SECRET; do
+  if has "$NAME"; then
+    echo "  $NAME already set · kept"
+    continue
+  fi
+  if [[ "$NAME" == "SESSION_SECRET" ]]; then VALUE=$(openssl rand -base64 48); else VALUE=$(openssl rand -base64 32); fi
+  printf '%s' "$VALUE" | npx wrangler secret put "$NAME" --env "$ENV" -c apps/api/wrangler.jsonc >/dev/null
+  echo "  $NAME set"
+  if [[ "$NAME" != "SESSION_SECRET" ]]; then SHOWN="$SHOWN\n    $NAME = $VALUE"; fi
+done
+if [[ -n "$SHOWN" ]]; then
+  echo
+  echo "  ┌─ SAVE THESE NOW in your password manager (shown only once) ──────────────"
+  printf "$SHOWN\n"
+  echo "  └─ Needed only to restore a backup into a new Worker. Do not share them. ─"
+fi
 echo
 echo "Next steps (docs/SIGN-IN-ENTRA.md has every click and command):"
 echo "  1. Set APP_ORIGIN for $ENV in apps/api/wrangler.jsonc (the dashboard's web address)."

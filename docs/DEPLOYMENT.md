@@ -1,5 +1,8 @@
 # Deploying to Cloudflare
 
+> New to this? Follow **[DEPLOY-STEP-BY-STEP.md](DEPLOY-STEP-BY-STEP.md)**, a click-by-click
+> guide from an empty Cloudflare account to your first sign-in. This page is the reference.
+
 Three Workers per environment, deployed in this order:
 
 | Worker | Config | Needs |
