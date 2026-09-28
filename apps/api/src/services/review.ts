@@ -134,8 +134,9 @@ export async function approve(env: Env, schema: TrackerSchema, p: Principal, id:
   const errors = validateValues(schema, values, { forApproval: true });
   if (errors.length) throw validationError(errors);
 
-  const ai = (await aiDraft(env, p.tenantId, id)) ?? {};
-  const corrected = changedKeys(schema, normaliseValues(schema, ai), values);
+  // Corrections are measured against the AI draft; manually entered drafts have none.
+  const ai = await aiDraft(env, p.tenantId, id);
+  const corrected = ai ? changedKeys(schema, normaliseValues(schema, ai), values) : [];
   const prov = JSON.parse(row.provenance_json || "{}") as Record<string, string | null>;
   const currentDraft = normaliseValues(schema, JSON.parse(row.draft_json || "{}"));
   for (const k of changedKeys(schema, currentDraft, values)) prov[k] = values[k] == null ? null : "analyst";

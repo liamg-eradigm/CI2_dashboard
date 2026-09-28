@@ -171,7 +171,10 @@ export async function attempts(env: Env, tenantId: string, itemId: string): Prom
     extraction_version: string | null;
     prompt_version: string | null;
     schema_version: string | null;
+    provider: string | null;
     model: string | null;
+    input_tokens: number | null;
+    output_tokens: number | null;
     steps_json: string;
   }>();
   return (res.results ?? []).map((a) => ({
@@ -185,6 +188,9 @@ export async function attempts(env: Env, tenantId: string, itemId: string): Prom
     extractionVersion: a.extraction_version,
     promptVersion: a.prompt_version,
     schemaVersion: a.schema_version,
+    provider: a.provider,
+    inputTokens: a.input_tokens,
+    outputTokens: a.output_tokens,
     model: a.model,
     steps: JSON.parse(a.steps_json || "[]"),
   }));

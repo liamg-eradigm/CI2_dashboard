@@ -11,8 +11,23 @@ test.describe("client role", () => {
     await expect(nav.getByRole("link", { name: "Tracker" })).toBeVisible();
     await expect(nav.getByRole("link", { name: /Inbox/ })).toHaveCount(0);
     await expect(nav.getByRole("link", { name: "Input" })).toHaveCount(0);
-    await page.goto("/input");
-    await expect(page.getByText("Input is available to analysts and admins")).toBeVisible();
+    // The Inbox and Input pages do not exist for clients: direct links go to the dashboard.
+    for (const path of ["/input", "/inbox", "/admin"]) {
+      await page.goto(path);
+      await expect(page).toHaveURL(/\/dashboard/);
+      await expect(page.getByRole("heading", { name: "Intelligence Dashboard" })).toBeVisible();
+    }
+    await expect(nav.getByRole("link", { name: /Inbox/ })).toHaveCount(0);
+    await expect(nav.getByRole("link", { name: "Input" })).toHaveCount(0);
+    // And the API refuses them regardless of the UI.
+    const res = await page.evaluate(async () => {
+      const h = { "x-dev-user": "client@example.com" };
+      const inbox = await fetch("/api/items?status=needs_review", { headers: h });
+      const capture = await fetch("/api/capture-log", { headers: h });
+      const submit = await fetch("/api/submissions", { method: "POST", headers: { ...h, "content-type": "application/json" }, body: JSON.stringify({ url: "https://example.com/a" }) });
+      return [inbox.status, capture.status, submit.status];
+    });
+    expect(res).toEqual([403, 403, 403]);
   });
 
   test("dashboard defaults to the last three months and reconciles with the tracker", async ({ page }) => {

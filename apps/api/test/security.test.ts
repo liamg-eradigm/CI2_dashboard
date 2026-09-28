@@ -1,3 +1,4 @@
+import { CONTRACT_VERSION } from "@eradigm/shared";
 import { beforeAll, describe, expect, it } from "vitest";
 import { call, env, ingest, approveWith, json, seedWorld, type World } from "./helpers";
 
@@ -10,7 +11,7 @@ describe("authentication", () => {
   it("serves health without authentication", async () => {
     const r = await call(null, "GET", "/api/health");
     expect(r.status).toBe(200);
-    expect(r.headers.get("x-contract-version")).toBe("1.0.0");
+    expect(r.headers.get("x-contract-version")).toBe(CONTRACT_VERSION);
   });
 
   it("rejects anonymous and unknown users", async () => {

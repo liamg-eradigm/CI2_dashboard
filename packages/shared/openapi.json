@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Eradigm Competitive Intelligence API",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": "Generated from packages/shared/src/api.ts. Every request is checked for both role and tenant server-side. Send X-Tenant-Id to select a tenant when the user belongs to more than one."
   },
   "components": {
@@ -209,6 +209,25 @@
                     },
                     "timezone": {
                       "type": "string"
+                    },
+                    "features": {
+                      "default": {
+                        "prefill": "manual"
+                      },
+                      "type": "object",
+                      "properties": {
+                        "prefill": {
+                          "type": "string",
+                          "enum": [
+                            "manual",
+                            "llm"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "prefill"
+                      ],
+                      "additionalProperties": false
                     }
                   },
                   "required": [
@@ -219,7 +238,8 @@
                     "permissions",
                     "contractVersion",
                     "environment",
-                    "timezone"
+                    "timezone",
+                    "features"
                   ],
                   "additionalProperties": false
                 }
@@ -5006,9 +5026,28 @@
                             "nullable": true,
                             "type": "string"
                           },
+                          "provider": {
+                            "default": null,
+                            "nullable": true,
+                            "type": "string"
+                          },
                           "model": {
                             "nullable": true,
                             "type": "string"
+                          },
+                          "inputTokens": {
+                            "default": null,
+                            "nullable": true,
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "outputTokens": {
+                            "default": null,
+                            "nullable": true,
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
                           },
                           "steps": {
                             "type": "array",
@@ -5045,7 +5084,10 @@
                           "extractionVersion",
                           "promptVersion",
                           "schemaVersion",
+                          "provider",
                           "model",
+                          "inputTokens",
+                          "outputTokens",
                           "steps"
                         ],
                         "additionalProperties": false
@@ -9462,6 +9504,12 @@
                       "minimum": -9007199254740991,
                       "maximum": 9007199254740991
                     },
+                    "aiDrafted": {
+                      "default": 0,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
                     "correctionRate": {
                       "nullable": true,
                       "type": "number"
@@ -9525,6 +9573,7 @@
                     "approved",
                     "rejected",
                     "approvedWithCorrections",
+                    "aiDrafted",
                     "correctionRate",
                     "fieldCorrectionRates",
                     "requiredFieldCompletion",

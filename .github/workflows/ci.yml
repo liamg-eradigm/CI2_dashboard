@@ -30,7 +30,7 @@ jobs:
         run: npm run typecheck
       - name: Unit tests (taxonomy, validation, permissions, URL policy, redaction, trend test, capture, LLM adapter)
         run: npm run test:unit
-      - name: Integration tests (Workers runtime, D1/R2/queues)
+      - name: Integration tests (Workers runtime, D1/queues)
         run: npm run test:integration
       - name: Generated API description is up to date
         run: npm run openapi && git diff --exit-code packages/shared/openapi.json

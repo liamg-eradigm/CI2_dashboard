@@ -1,6 +1,8 @@
 # QC report (against 6_QC_&_Compliance)
 
-Build date: 2026-09-28. Status key: ✅ verified in this build · 🟡 implemented, needs
+Build date: 2026-09-28 (revised the same day for the **manual-entry prototype
+on the Workers Free plan**: no AI API, empty drafts, client role without Inbox
+or Input). Status key: ✅ verified in this build · 🟡 implemented, needs
 verification on the deployed Cloudflare environment / with Eradigm credentials ·
 ⏭ skipped (as permitted by the brief).
 
@@ -15,10 +17,10 @@ verification on the deployed Cloudflare environment / with Eradigm credentials �
 ## Tests
 | Item | Status | Evidence |
 |---|---|---|
-| Unit: taxonomy, validation, permission rules | ✅ 71 + 14 + 9 tests | `packages/shared/test`, `packages/capture/test`, `packages/llm/test` |
-| Integration: ingestion, retries, review-state transitions | ✅ 54 tests | `apps/api/test` in the Workers runtime (D1/R2/queues) |
-| E2E: admin, analyst, client | ✅ 15 tests | `e2e/*.spec.ts` (Playwright, Chromium) |
-| Accessibility checks | ✅ | axe WCAG 2.1 A/AA (serious/critical = fail) on Dashboard, Tracker, record drawer, Inbox, Input, Administration; phone-width layout checked (no horizontal scroll at 390 px). Manual screen-reader pass recommended. |
+| Unit: taxonomy, validation, permission rules, capture/sanitisation | ✅ 71 + 25 + 9 tests | `packages/shared/test`, `packages/capture/test` (now in the Workers runtime, because parsing uses `HTMLRewriter`), `packages/llm/test` |
+| Integration: ingestion, retries, review-state transitions, snapshot store | ✅ 60 tests | `apps/api/test` in the Workers runtime (D1/queues). Covers manual entry (every field empty, **no outbound request**, re-capture keeps entered values, no AI "corrections"), the optional LLM path (mock adapter), D1 chunked/encrypted snapshots, R2 fallback, capture-worker CPU-limit failures |
+| E2E: admin, analyst, client | ✅ 16 tests | `e2e/*.spec.ts` (Playwright, Chromium): analyst completes an empty draft from the saved page and approves; SingleFile upload → *Sent to the Inbox*; saved page opens full-window in a new tab; client has no Inbox/Input links, `/inbox`, `/input`, `/admin` redirect to the Dashboard and the API returns 403 |
+| Accessibility checks | ✅ | axe WCAG 2.1 A/AA (serious/critical = fail) on Dashboard, Tracker, record drawer, Inbox, Input, saved-source viewer, Administration; phone-width layout checked (no horizontal scroll at 390 px). Manual screen-reader pass recommended. |
 | Dashboard-query load tests | ✅ local / 🟡 staging | `scripts/load-test.mjs`: 20 concurrent, 0 errors, dashboard p95 ≈ 480 ms, tracker p95 ≈ 530 ms on the local simulator. Re-run against staging. |
 | Dependency scanning | ✅ | `npm audit`: 0 vulnerabilities (prod + dev); Dependabot + CodeQL configured. The only high finding encountered (`@cloudflare/puppeteer` → `extract-zip`, no fix) was removed by design. |
 | Secret scanning | ✅ | `npm run scan:secrets` passes; gitleaks runs in CI on full history. |
@@ -53,9 +55,22 @@ drafts can only become *Approved* via the approve endpoint (validated again
 server-side); no code path publishes automatically (tested: new drafts never
 appear in the tracker).
 
+## Workers Free plan
+| Item | Status | Evidence |
+|---|---|---|
+| No paid-only configuration | ✅ | `limits.cpu_ms`, R2 (default), Containers, Logpush removed; queues created with 24 h retention; see [DEPLOYMENT.md § Workers Free plan](DEPLOYMENT.md#workers-free-plan) |
+| Script size ≤ 3 MB compressed | ✅ | dry-run bundles: API ≈ 303 KB, capture ≈ 138 KB gzipped; web worker < 1 KB + static assets |
+| CPU ≤ 10 ms per invocation | 🟡 | HTML parsing moved from a JavaScript DOM (100–400 ms/page) to one native `HTMLRewriter` pass with targeted handlers: ≈ 3 ms (150 KB page), ≈ 12 ms (560 KB), ≈ 44 ms (3.4 MB SingleFile) in the local runtime. Confirm on staging (Workers → Metrics → CPU time). Oversized pages fail with a clear `PROCESSING_LIMIT` message; Workers Paid removes the limit without changes |
+
+## Transition to automatic pre-fill
+| Item | Status | Evidence |
+|---|---|---|
+| Designed for a configuration-only switch | ✅ | Single seam `apps/api/src/pipeline/prefill.ts`; `LLM_PROVIDER` per environment; UI adapts via `/api/me` `features.prefill`; LLM path kept under test with the mock adapter |
+| Next-step documentation | ✅ | [ENABLING-AUTOFILL.md](ENABLING-AUTOFILL.md): approvals, labelled set from approved manual entries (`scripts/export-eval-set.mjs`), evaluation, cost estimate, staging → production, rollback, other providers |
+
 ## Not verifiable in this environment (action required)
-1. **Live Claude API calls** — no Eradigm API key; see [CLAUDE-API.md](CLAUDE-API.md) (organisational permission flag).
+1. **Live Claude API calls** — not used by the prototype; needed only before enabling pre-fill (no Eradigm API key available; see [CLAUDE-API.md](CLAUDE-API.md)).
 2. **Cloudflare Access JWT verification against a real Access application** — logic unit-covered; confirm on staging.
 3. **Remote Queues / rate limiting / Analytics Engine / D1 Time Travel** — configured and dry-run bundled; confirm on staging.
 4. **Real-internet URL capture** — outbound DNS-over-HTTPS is blocked in the build sandbox; capture logic is tested with a simulated network (redirects, DNS rebinding, robots, login walls, limits).
-5. **Container capture service** — Dockerfile and server written; not built here (no Docker).
+5. **Production CPU time on the Workers Free plan** — measured locally only (see above).

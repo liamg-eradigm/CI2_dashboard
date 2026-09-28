@@ -72,7 +72,7 @@ export const useQuality = (enabled: boolean) => useQuery({ queryKey: ["quality"]
 export const useConfigStatus = (enabled: boolean) =>
   useQuery({
     queryKey: ["config-status"],
-    queryFn: () => api<{ environment: string; model: string; provider: string; checks: { key: string; ok: boolean; message: string }[] }>("/api/admin/config-status"),
+    queryFn: () => api<{ environment: string; model: string; provider: string; prefill: "manual" | "llm"; checks: { key: string; ok: boolean; message: string }[] }>("/api/admin/config-status"),
     enabled,
   });
 

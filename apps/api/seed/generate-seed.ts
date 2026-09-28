@@ -3,6 +3,10 @@
  * Mirrors the Claude Design prototype (78 approved signals, 4 Inbox drafts,
  * capture log) plus a second tenant used to demonstrate tenant isolation.
  *
+ * Matches the manual-entry prototype: Inbox drafts arrive with every tracker
+ * field empty (with a saved copy of the page to read) and published signals
+ * were entered by analysts. No AI/LLM output is seeded.
+ *
  * Dates are SQL expressions relative to the moment the seed is applied, so the
  * default "last 3 months" dashboard view always has data.
  *
@@ -12,7 +16,7 @@
  * Never run against production.
  */
 import { writeFileSync } from "node:fs";
-import { CORE, DEFAULT_KEYS, defaultSchema, type ItemValues } from "@eradigm/shared";
+import { DEFAULT_KEYS, defaultSchema } from "@eradigm/shared";
 import { canonicalJson } from "../src/lib/crypto.js";
 import { createHash, createHmac } from "node:crypto";
 
@@ -180,13 +184,13 @@ function gen(tenant: string, count: number, seed: number, codeStart: number, rev
     const id = `itm_seed_${tenant}_${i}`;
     const sid = `sub_seed_${tenant}_${i}`;
     const who = pick(reviewers);
-    const text = `${title}. Captured from ${source} and summarised by the extraction model; the analyst confirmed the classification against the original source before publishing.`;
+    const text = `${title}. Captured from ${source}; the analyst entered the tracker fields from the saved source before publishing.`;
     const url = `https://${source === "LinkedIn" ? "www.linkedin.com/posts" : source === "PR" ? "newsroom.example.com" : "source.example.com"}/${code.toLowerCase()}`;
     const revised = i % 5 === 0;
     const originalImpact = revised ? (IMPACT[(IMPACT.indexOf(impact) + 1) % 3] as string) : impact;
     const values = (imp: string): string =>
       `json_object('date', ${daysAgo(ago)}, 'competitors', json(${q(JSON.stringify(comps))}), 'macrotrend', ${q(macro)}, 'subtrend', ${q(sub)}, 'title', ${q(title)}, 'growth', ${q(growth)}, 'impact', ${q(imp)}, 'source', ${q(source)}, 'action', ${q(action)})`;
-    const prov = JSON.stringify({ date: "source", competitors: "ai", macrotrend: "ai", subtrend: "ai", title: "source", growth: "ai", impact: revised ? "analyst" : "ai", source: "ai", action: "analyst" });
+    const prov = JSON.stringify(Object.fromEntries(schema.columns.map((c) => [c.key, "analyst"])));
     const extra = JSON.stringify({ [DEFAULT_KEYS.source]: source, [DEFAULT_KEYS.action]: action });
     out.push(
       `INSERT INTO submissions (id, tenant_id, submitted_by, input_type, submitted_url, normalized_url, created_at) VALUES (${q(sid)}, ${q(tenant)}, ${q(who.id)}, 'url', ${q(url)}, ${q(url)}, ${tsAgo(ago, -60)});`,
@@ -199,13 +203,10 @@ function gen(tenant: string, count: number, seed: number, codeStart: number, rev
     );
     for (const c of comps) out.push(`INSERT INTO item_competitors (tenant_id, item_id, competitor) VALUES (${q(tenant)}, ${q(id)}, ${q(c)});`);
     out.push(
-      `INSERT INTO processing_attempts (id, tenant_id, item_id, attempt, status, stage, started_at, finished_at, extraction_version, prompt_version, schema_version, provider, model, steps_json) VALUES ('att_${id}', ${q(tenant)}, ${q(id)}, 1, 'succeeded', 'needs_review', ${tsAgo(ago, -60)}, ${tsAgo(ago, -61)}, 'extract/1.0.0', 'seed', 'extraction-schema/1.0.0', 'seed', 'seed-data', '[]');`,
+      `INSERT INTO processing_attempts (id, tenant_id, item_id, attempt, status, stage, started_at, finished_at, extraction_version, prompt_version, schema_version, provider, model, steps_json) VALUES ('att_${id}', ${q(tenant)}, ${q(id)}, 1, 'succeeded', 'needs_review', ${tsAgo(ago, -60)}, ${tsAgo(ago, -61)}, 'extract/2.0.0', NULL, NULL, 'none', NULL, '[]');`,
     );
     out.push(
-      `INSERT INTO item_revisions (id, tenant_id, item_id, seq, kind, values_json, provenance_json, changed_keys, created_by, created_at, note) VALUES ('rev_${id}_1', ${q(tenant)}, ${q(id)}, 1, 'llm_draft', ${values(originalImpact)}, '{}', '[]', NULL, ${tsAgo(ago, -61)}, 'LLM draft · attempt 1 · seed-data');`,
-    );
-    out.push(
-      `INSERT INTO item_revisions (id, tenant_id, item_id, seq, kind, published_rev, values_json, provenance_json, changed_keys, created_by, created_at, note) VALUES ('rev_${id}_2', ${q(tenant)}, ${q(id)}, 2, 'published', 1, ${values(originalImpact)}, ${q(prov)}, '[]', ${q(who.id)}, ${tsAgo(ago - 1)}, 'Approved from Inbox · validation passed');`,
+      `INSERT INTO item_revisions (id, tenant_id, item_id, seq, kind, published_rev, values_json, provenance_json, changed_keys, created_by, created_at, note) VALUES ('rev_${id}_2', ${q(tenant)}, ${q(id)}, 1, 'published', 1, ${values(originalImpact)}, ${q(prov)}, '[]', ${q(who.id)}, ${tsAgo(ago - 1)}, 'Approved from Inbox · validation passed');`,
     );
     out.push(
       `INSERT INTO review_decisions (id, tenant_id, item_id, revision_id, decision, reviewer_id, decided_at, corrected_keys) VALUES ('dec_${id}', ${q(tenant)}, ${q(id)}, 'rev_${id}_2', 'approve', ${q(who.id)}, ${tsAgo(ago - 1)}, '[]');`,
@@ -213,7 +214,7 @@ function gen(tenant: string, count: number, seed: number, codeStart: number, rev
     auditEvent(tenant, who, "item.approved", "item", id, { signalCode: code, rev: 1, correctedKeys: [], seed: true });
     if (revised) {
       out.push(
-        `INSERT INTO item_revisions (id, tenant_id, item_id, seq, kind, published_rev, values_json, provenance_json, changed_keys, created_by, created_at, note) VALUES ('rev_${id}_3', ${q(tenant)}, ${q(id)}, 3, 'published', 2, ${values(impact)}, ${q(prov)}, '["impact"]', 'u_jm', ${tsAgo(Math.max(0, ago - 4))}, 'Impact reclassified after client call');`,
+        `INSERT INTO item_revisions (id, tenant_id, item_id, seq, kind, published_rev, values_json, provenance_json, changed_keys, created_by, created_at, note) VALUES ('rev_${id}_3', ${q(tenant)}, ${q(id)}, 2, 'published', 2, ${values(impact)}, ${q(prov)}, '["impact"]', 'u_jm', ${tsAgo(Math.max(0, ago - 4))}, 'Impact reclassified after client call');`,
       );
       auditEvent(tenant, { id: "u_jm", email: "j.morgan@example.com" }, "item.revised", "item", id, { rev: 2, changedKeys: ["impact"], seed: true });
     }
@@ -227,82 +228,68 @@ gen("t_north", 12, 29, 1100, [USERS.find((u) => u.id === "u_north_an") as (typeo
 // ---------------------------------------------------------------------------
 // Inbox drafts (Needs review) — from the prototype
 // ---------------------------------------------------------------------------
-type Draft = { code: string; hoursAgo: number; outlet: string; url: string; kicker: string; headline: string; byline: string; paras: string[]; d: ItemValues; conf: Record<string, number | null>; ev: Record<string, string | null>; why: Record<string, string> };
+type Draft = { code: string; hoursAgo: number; outlet: string; url: string; kicker: string; headline: string; byline: string; paras: string[] };
 const INBOX: Draft[] = [
   {
     code: "INB-2207", hoursAgo: 3, outlet: "LinkedIn", url: "https://www.linkedin.com/posts/sanofi-employer-health", kicker: "LinkedIn post",
     headline: "Partnering with employers to widen access to specialty care", byline: "Sanofi",
     paras: ["Today we are announcing an agreement with a coalition of large US employers to offer selected medicines directly to covered employees, alongside a digital support program.", "The arrangement bypasses traditional benefit intermediaries and sets a single transparent price for participating employers."],
-    d: { date: null, competitors: ["Sanofi"], macrotrend: "Direct-to-Patient (DTP) Strategy", subtrend: "Direct-to-Employer (DTE)", title: "Sanofi signs direct-to-employer agreement with US employer coalition", growth: "Slight Increase", impact: "High", source: "LinkedIn", action: null },
-    conf: { date: 0.9, competitors: 0.97, macrotrend: 0.93, subtrend: 0.9, title: 0.88, growth: 0.62, impact: 0.7, source: 0.95 },
-    ev: { date: "Page metadata", competitors: "“Today we are announcing an agreement”", macrotrend: "“offer selected medicines directly to covered employees”", subtrend: "“a coalition of large US employers”", title: "Article headline", growth: "“alongside a digital support program”", impact: "“bypasses traditional benefit intermediaries”", source: "LinkedIn post" },
-    why: { action: "Null · analyst-owned field, not inferred" },
   },
   {
     code: "INB-2206", hoursAgo: 4, outlet: "Press release", url: "https://newsroom.example.com/az-roche-ai-alliance", kicker: "Press release",
     headline: "AstraZeneca and Roche form pre-competitive AI alliance for target discovery", byline: "Business Wire",
     paras: ["The companies will pool de-identified screening data to train shared models for early target identification.", "Each partner retains rights to assets it develops independently using the shared models."],
-    d: { date: null, competitors: ["AstraZeneca", "Roche"], macrotrend: "AI Investment in R&D", subtrend: "External Partnerships to Accelerate AI", title: "AstraZeneca and Roche form pre-competitive AI alliance for target discovery", growth: "Strong Increase", impact: null, source: "PR", action: null },
-    conf: { date: 0.92, competitors: 0.95, macrotrend: 0.9, subtrend: 0.86, title: 0.96, growth: 0.71, impact: null, source: 0.93 },
-    ev: { date: "Page metadata", competitors: "“The companies will pool de-identified screening data”", macrotrend: "“train shared models for early target identification”", subtrend: "“pre-competitive AI alliance”", title: "Article headline", growth: "“pool de-identified screening data to train shared models”", impact: null, source: "Page marked as press release" },
-    why: { impact: "Null · insufficient evidence of competitive impact", action: "Null · analyst-owned field, not inferred" },
   },
   {
     code: "INB-2205", hoursAgo: 18, outlet: "Publication", url: "https://source.example.com/novartis-ai-academy", kicker: "Industry news",
     headline: "Novartis opens AI academy with three-tier certification", byline: "Pharma Technology Review",
     paras: ["All employees will be required to complete the foundation tier by the end of 2027.", "Advanced tiers are aimed at data scientists and functional AI leads."],
-    d: { date: null, competitors: ["Novartis"], macrotrend: "Workforce AI Upskilling", subtrend: null, title: "Novartis opens AI academy with three-tier certification", growth: "Slight Increase", impact: "Medium", source: "Publication", action: null },
-    conf: { date: 0.85, competitors: 0.96, macrotrend: 0.88, subtrend: null, title: 0.94, growth: 0.58, impact: 0.6, source: 0.9 },
-    ev: { date: "Page metadata", competitors: "“Novartis opens AI academy”", macrotrend: "“three-tier certification”", subtrend: null, title: "Article headline", growth: "“required to complete the foundation tier by the end of 2027”", impact: "“All employees will be required”", source: "Trade publication byline" },
-    why: { subtrend: "Proposed “AI Academy Launch” is not in the taxonomy · set to null", action: "Null · analyst-owned field, not inferred" },
   },
   {
     code: "INB-2204", hoursAgo: 24, outlet: "Client signal", url: "https://client-portal.example.com/field-note-0924", kicker: "Client signal",
     headline: "Field team reports Pfizer piloting AI next-best-action in oncology", byline: "Submitted by client",
     paras: ["Account managers report that Pfizer representatives are using an AI assistant to prioritise HCP visits in two US regions."],
-    d: { date: null, competitors: ["Pfizer"], macrotrend: "Integrated Digital Pharma Innovation", subtrend: "Tools for Salesforce Effectiveness", title: "Pfizer pilots AI next-best-action for oncology field teams", growth: "Stable", impact: "Low", source: "Client Signals", action: null },
-    conf: { date: 0.8, competitors: 0.94, macrotrend: 0.82, subtrend: 0.84, title: 0.8, growth: 0.55, impact: 0.63, source: 0.88 },
-    ev: { date: "Page metadata", competitors: "“Pfizer representatives are using an AI assistant”", macrotrend: "“AI assistant to prioritise HCP visits”", subtrend: "“prioritise HCP visits in two US regions”", title: "Article headline", growth: "“in two US regions”", impact: "“Account managers report”", source: "Client signal" },
-    why: { action: "Null · analyst-owned field, not inferred" },
   },
 ];
+const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const STEPS = JSON.stringify([
+  { label: "Validate and normalise", ok: true, detail: "Normalised · seed data" },
+  { label: "Destination check", ok: true, detail: "Public host · seed data" },
+  { label: "Isolated capture worker", ok: true, detail: "Seed data (no network fetch)" },
+  { label: "Access restrictions", ok: true, detail: "Seed data" },
+  { label: "Content scan before storage", ok: true, detail: "Seed data · snapshot stored" },
+  { label: "Data policy check", ok: true, detail: "Checked against the data policy · nothing sent to any external service (automatic pre-fill is off)" },
+  { label: "Routed to Needs review", ok: true, detail: "Created in Inbox · every tracker field empty · analyst enters values from the saved source" },
+]);
 INBOX.forEach((it, i) => {
   const id = `itm_inbox_${i}`;
   const sid = `sub_inbox_${i}`;
   const who = USERS[1] as (typeof USERS)[number];
   const pubAgo = it.hoursAgo < 12 ? 1 : 2;
-  const extraction: Record<string, unknown> = {};
-  const provenance: Record<string, string | null> = {};
-  let warned = 0;
-  for (const c of schema.columns) {
-    const v = c.key === CORE.date ? "__DATE__" : (it.d[c.key] ?? null);
-    const conf = it.conf[c.key] ?? null;
-    const w: string[] = [];
-    if (it.why[c.key]) w.push(it.why[c.key] as string);
-    if (v != null && conf != null && conf < 0.65) w.push("Low confidence · verify against source");
-    if (w.length) warned++;
-    extraction[c.key] = { value: v, confidence: v == null ? null : conf, evidence: it.ev[c.key] ?? null, nullReason: v == null ? (it.why[c.key] ?? "No value proposed") : null, warnings: w };
-    provenance[c.key] = v == null ? null : c.key === CORE.date ? "source" : "ai";
-  }
-  const draftSql = `json_object('date', ${daysAgo(pubAgo)}, 'competitors', json(${q(JSON.stringify(it.d.competitors))}), 'macrotrend', ${q(it.d.macrotrend)}, 'subtrend', ${q(it.d.subtrend)}, 'title', ${q(it.d.title)}, 'growth', ${q(it.d.growth)}, 'impact', ${q(it.d.impact)}, 'source', ${q(it.d.source)}, 'action', NULL)`;
-  const extractionSql = `replace(${q(JSON.stringify(extraction))}, '__DATE__', ${daysAgo(pubAgo)})`;
   const body = it.paras.join("\n\n");
   const received = `strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-${it.hoursAgo} hours')`;
+  // A saved, sanitised copy of the page, as the capture pipeline would store it (D1 snapshot store).
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(it.headline)}</title><style>body{font:16px/1.6 Georgia,serif;max-width:720px;margin:32px auto;padding:0 16px;color:#222}.k{font:600 12px Arial,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#777}</style></head><body><article><div class="k">${esc(it.kicker)}</div><h1>${esc(it.headline)}</h1><p><em>${esc(it.byline)}</em></p>${it.paras.map((p) => `<p>${esc(p)}</p>`).join("")}</article></body></html>`;
+  const sha = createHash("sha256").update(html).digest("hex");
+  const key = `d1:t_demo/${id}/${sha}`;
   out.push(`INSERT INTO submissions (id, tenant_id, submitted_by, input_type, submitted_url, normalized_url, created_at) VALUES (${q(sid)}, 't_demo', ${q(who.id)}, 'url', ${q(it.url)}, ${q(it.url)}, ${received});`);
   out.push(
     `INSERT INTO intelligence_items (id, tenant_id, submission_id, code, status, version, attempts, input_type, url_key, outlet, submitted_url, final_url, received_at, submitted_by, headline, body_text, publication_date,
       draft_json, provenance_json, extraction_json, model_warnings_json, warnings_count, created_at, updated_at)
      VALUES (${q(id)}, 't_demo', ${q(sid)}, ${q(it.code)}, 'needs_review', 2, 1, 'url', ${q(it.url.replace(/^https:\/\/(www\.)?/, ""))}, ${q(it.outlet)}, ${q(it.url)}, ${q(it.url)}, ${received}, ${q(who.id)}, ${q(it.headline)}, ${q(body)}, ${daysAgo(pubAgo)},
-      ${draftSql}, ${q(JSON.stringify(provenance))}, ${extractionSql}, '[]', ${warned}, ${received}, ${received});`,
+      '{}', '{}', NULL, '[]', 0, ${received}, ${received});`,
   );
+  out.push(`INSERT INTO snapshot_blobs (storage_key, seq, tenant_id, data) VALUES (${q(key)}, 0, 't_demo', ${q(html)});`);
   out.push(
-    `INSERT INTO processing_attempts (id, tenant_id, item_id, attempt, status, stage, started_at, finished_at, extraction_version, prompt_version, schema_version, provider, model, steps_json) VALUES ('att_${id}', 't_demo', ${q(id)}, 1, 'succeeded', 'needs_review', ${received}, ${received}, 'extract/1.0.0', 'seed', 'extraction-schema/1.0.0', 'seed', 'seed-data', '[]');`,
+    `INSERT INTO source_snapshots (id, tenant_id, item_id, attempt, r2_key, sha256, raw_sha256, bytes, content_type, http_status, final_url, redirects, capture_method, single_file, encrypted, retain_until, retrieved_at)
+     VALUES ('snap_${id}', 't_demo', ${q(id)}, 1, ${q(key)}, ${q(sha)}, NULL, ${Buffer.byteLength(html)}, 'text/html', 200, ${q(it.url)}, 0, 'fetch', 0, 0, NULL, ${received});`,
   );
+  out.push(`UPDATE intelligence_items SET current_snapshot_id = 'snap_${id}' WHERE id = ${q(id)};`);
   out.push(
-    `INSERT INTO item_revisions (id, tenant_id, item_id, seq, kind, values_json, provenance_json, changed_keys, created_at, note) VALUES ('rev_${id}_1', 't_demo', ${q(id)}, 1, 'llm_draft', ${draftSql}, ${q(JSON.stringify(provenance))}, '[]', ${received}, 'LLM draft · attempt 1 · seed-data');`,
+    `INSERT INTO processing_attempts (id, tenant_id, item_id, attempt, status, stage, started_at, finished_at, extraction_version, prompt_version, schema_version, provider, model, steps_json) VALUES ('att_${id}', 't_demo', ${q(id)}, 1, 'succeeded', 'needs_review', ${received}, ${received}, 'extract/2.0.0', NULL, NULL, 'none', NULL, ${q(STEPS)});`,
   );
   auditEvent("t_demo", who, "submission.created", "item", id, { code: it.code, inputType: "url", seed: true });
-  auditEvent("t_demo", null, "item.classified", "item", id, { attempt: 1, provider: "seed", model: "seed-data", seed: true });
+  auditEvent("t_demo", null, "item.routed", "item", id, { attempt: 1, prefill: "manual", seed: true });
 });
 
 // Capture log (prototype examples).

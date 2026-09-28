@@ -2,12 +2,17 @@
 # One-time Cloudflare resource provisioning for an environment (staging|production).
 #
 #   npx wrangler login            # or export CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID
-#   bash scripts/provision.sh staging
+#   bash scripts/provision.sh staging            # Workers Free plan (default)
+#   bash scripts/provision.sh production --with-r2   # also create an R2 bucket for snapshots
 #
-# Creates the D1 database, R2 bucket and queues, writes the D1 id into
-# apps/api/wrangler.jsonc, and generates the encryption/audit secrets.
+# Creates the D1 database and queues (24 h retention, the Free plan maximum),
+# writes the D1 id into apps/api/wrangler.jsonc, and generates the
+# encryption/audit secrets. Everything created here is on the Workers Free plan;
+# R2 is optional (it has a free tier but Cloudflare asks for a payment method
+# before enabling it), so by default snapshots are stored in D1.
 set -euo pipefail
-ENV="${1:?usage: provision.sh staging|production}"
+ENV="${1:?usage: provision.sh staging|production [--with-r2]}"
+WITH_R2="${2:-}"
 [[ "$ENV" == "staging" || "$ENV" == "production" ]] || { echo "env must be staging or production"; exit 1; }
 cd "$(dirname "$0")/.."
 UPPER=$(echo "$ENV" | tr '[:lower:]' '[:upper:]')
@@ -23,18 +28,22 @@ fi
 sed -i.bak "s/REPLACE_WITH_${UPPER}_D1_ID/$ID/" apps/api/wrangler.jsonc && rm -f apps/api/wrangler.jsonc.bak
 echo "  database_id = $ID (written to apps/api/wrangler.jsonc)"
 
-echo "▸ R2 bucket eradigm-ci-snapshots-$ENV"
-npx wrangler r2 bucket create "eradigm-ci-snapshots-$ENV" || true
-echo "▸ Queues"
-npx wrangler queues create "eradigm-ci-jobs-$ENV" || true
-npx wrangler queues create "eradigm-ci-jobs-dlq-$ENV" || true
+if [[ "$WITH_R2" == "--with-r2" ]]; then
+  echo "▸ R2 bucket eradigm-ci-snapshots-$ENV (optional)"
+  npx wrangler r2 bucket create "eradigm-ci-snapshots-$ENV" || true
+  echo "  Uncomment the r2_buckets line for $ENV in apps/api/wrangler.jsonc to store new snapshots in R2."
+fi
+echo "▸ Queues (24 h message retention: the Workers Free plan maximum)"
+npx wrangler queues create "eradigm-ci-jobs-$ENV" --message-retention-period-secs 86400 || true
+npx wrangler queues create "eradigm-ci-jobs-dlq-$ENV" --message-retention-period-secs 86400 || true
 
 echo "▸ Secrets (generated locally, never printed)"
 openssl rand -base64 32 | npx wrangler secret put SNAPSHOT_ENCRYPTION_KEY --env "$ENV" -c apps/api/wrangler.jsonc
 openssl rand -base64 32 | npx wrangler secret put AUDIT_HMAC_KEY --env "$ENV" -c apps/api/wrangler.jsonc
 echo
 echo "Next steps:"
-echo "  1. npx wrangler secret put ANTHROPIC_API_KEY --env $ENV -c apps/api/wrangler.jsonc"
-echo "  2. Set ACCESS_TEAM_DOMAIN and ACCESS_AUD for $ENV in apps/api/wrangler.jsonc (see docs/DEPLOYMENT.md)"
-echo "  3. Deploy: capture worker → API (runs migrations) → web. See docs/DEPLOYMENT.md."
+echo "  1. Set ACCESS_TEAM_DOMAIN and ACCESS_AUD for $ENV in apps/api/wrangler.jsonc (see docs/DEPLOYMENT.md)"
+echo "  2. Deploy: capture worker → API (runs migrations) → web. See docs/DEPLOYMENT.md."
+echo "  No AI/LLM key is needed: drafts reach the Inbox with every field empty (manual entry)."
+echo "  To add automatic pre-fill later, follow docs/ENABLING-AUTOFILL.md."
 echo "  Keep SNAPSHOT_ENCRYPTION_KEY and AUDIT_HMAC_KEY in your password manager: losing them makes snapshots unreadable / the audit chain unverifiable."

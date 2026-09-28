@@ -5,29 +5,81 @@ Three Workers per environment, deployed in this order:
 | Worker | Config | Needs |
 |---|---|---|
 | `eradigm-ci-capture-<env>` | `apps/capture/wrangler.jsonc` | nothing (deliberately no bindings) |
-| `eradigm-ci-api-<env>` | `apps/api/wrangler.jsonc` | D1, R2, Queues, CAPTURE service binding, secrets |
+| `eradigm-ci-api-<env>` | `apps/api/wrangler.jsonc` | D1, Queues, CAPTURE service binding, secrets (R2 optional) |
 | `eradigm-ci-web-<env>` | `apps/web/wrangler.jsonc` | static assets + API service binding |
 
 Environments: **dev** (local only), **staging**, **production** — each with its own
-database, bucket, queues, secrets and Access application.
+database, queues, secrets and Access application. (On the Free plan you may run
+only **production** to keep within the daily allowances; everything below
+works per environment.)
 
 ## Prerequisites
 
-- A Cloudflare account on the **Workers Paid** plan (needed for the CPU time used
-  by HTML parsing, Queues at this volume, rate limiting and Analytics Engine).
-- Cloudflare Zero Trust (free tier is fine) for **Cloudflare Access**.
+- A Cloudflare account on the **Workers Free plan** (no payment method needed for
+  anything in the default configuration — see [Workers Free plan](#workers-free-plan)).
+- Cloudflare Zero Trust **Free** plan (up to 50 users) for **Cloudflare Access**.
 - A domain on Cloudflare for the dashboard, e.g. `ci.eradigm.com` and
-  `ci-staging.eradigm.com`.
-- An Anthropic API key per environment — see [CLAUDE-API.md](CLAUDE-API.md).
+  `ci-staging.eradigm.com` (or use the `*.workers.dev` URL behind Access).
+- **No AI/LLM account or API key** — the prototype uses manual entry. To add
+  automatic pre-fill later see [ENABLING-AUTOFILL.md](ENABLING-AUTOFILL.md).
 - Node 22, npm 11, and `npx wrangler login` (or `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID`).
+
+## Workers Free plan
+
+Everything this build uses is available on the Workers Free plan:
+
+| Product | Used for | Free allowance (Cloudflare's published limits at the time of writing — re-check) |
+|---|---|---|
+| Workers (3) | web, API, capture | 100,000 requests/day, **10 ms CPU per invocation**, 3 MB compressed script size (ours: web < 1 KB + static assets, API ≈ 300 KB, capture ≈ 140 KB gzipped) |
+| Static assets | the React dashboard | free, unlimited requests |
+| D1 | all records **and** the saved page copies (`snapshot_blobs`) | 500 MB per database, 5 GB per account, 5 M rows read / 100 k rows written per day, Time Travel 7 days |
+| Queues | background capture/processing, retries, dead-letter queue | 10,000 operations/day, 24 h message retention (set by `provision.sh`) |
+| Cron Triggers | daily retention job | 5 per account (we use 1 per environment) |
+| Rate limiting binding, Workers Analytics Engine, Workers Logs | abuse limits, metrics, logs | included |
+| Zero Trust Free | Cloudflare Access sign-in | up to 50 users |
+
+**Not used, because they need a paid plan or a payment method:** Containers
+(the optional headless-Chromium capture service was removed — JavaScript-heavy or
+login-protected pages are saved with SingleFile and uploaded), `limits.cpu_ms`,
+Logpush, Tail Workers. **R2** has a free tier but Cloudflare asks for a payment
+method before enabling it, so snapshots are stored in D1 by default; R2 is
+optional (`scripts/provision.sh <env> --with-r2`, then uncomment the
+`r2_buckets` line) and new snapshots then go to R2 automatically while existing
+ones stay readable.
+
+**Capacity on the Free plan (rough):** a sanitised article is typically
+100–500 KB, so a 500 MB D1 database holds roughly 1,000–4,000 saved pages next to
+the records. Each submission uses ~4 queue operations, so ~2,500 submissions a
+day fit the queue allowance. The retention job deletes saved pages after the
+tenant's retention period (Administration).
+
+**CPU (10 ms per invocation).** HTML is sanitised and parsed with the Workers
+runtime's native streaming parser (`HTMLRewriter`) with handlers attached only
+to the few elements that matter; the earlier JavaScript DOM approach took
+100–400 ms per page and would not fit. Measured in the local Workers runtime
+(an upper bound; confirm in production under Workers → Metrics → CPU time):
+
+| Page | Size | Parse + sanitise + extract |
+|---|---|---|
+| Short article | 150 KB | ≈ 3 ms |
+| Large news page (heavy navigation, inline scripts) | 560 KB | ≈ 12 ms |
+| SingleFile save with a 3 MB embedded image | 3.4 MB | ≈ 44 ms |
+
+Cloudflare does not always stop a Worker exactly at 10 ms, but very large pages
+can exceed the limit. When the capture worker fails for that reason the item
+ends **Failed · PROCESSING_LIMIT** with the message *"save it with SingleFile,
+ideally without embedded images, and upload the HTML file"* (the upload limit is
+5 MB). If this becomes common, **Workers Paid ($5/month)** raises the CPU limit
+to 30 s with no code or configuration change.
 
 ## 1. Provision resources (once per environment)
 
 ```bash
 bash scripts/provision.sh staging
 ```
-Creates the D1 database (id written into `apps/api/wrangler.jsonc`), the R2
-bucket, the job queue + dead-letter queue, and generates
+Creates the D1 database (id written into `apps/api/wrangler.jsonc`), the job
+queue + dead-letter queue (24 h retention, the Free plan maximum) and, with
+`--with-r2`, an optional R2 bucket; and generates
 `SNAPSHOT_ENCRYPTION_KEY` and `AUDIT_HMAC_KEY` as Worker secrets. **Store both keys
 in your password manager** — losing the first makes stored snapshots unreadable,
 losing the second makes the audit chain unverifiable.
@@ -58,16 +110,16 @@ request, then maps the email to a user, tenant and role in D1. Access proves
 ## 3. Secrets
 
 ```bash
-npx wrangler secret put ANTHROPIC_API_KEY  --env staging -c apps/api/wrangler.jsonc
 npx wrangler secret put ALERT_WEBHOOK_URL  --env staging -c apps/api/wrangler.jsonc   # optional (Slack/Teams incoming webhook)
 ```
-The web and capture workers hold no application secrets.
+No AI API key is needed (manual entry). The web and capture workers hold no
+application secrets.
 
 ## 4. Deploy
 
 ### Option A — GitHub Actions (included)
-Add repository secrets `CLOUDFLARE_API_TOKEN` (Workers Scripts/Routes, D1, R2,
-Queues edit) and `CLOUDFLARE_ACCOUNT_ID`, and create GitHub environments
+Add repository secrets `CLOUDFLARE_API_TOKEN` (Workers Scripts/Routes, D1,
+Queues edit; R2 only if you enabled it) and `CLOUDFLARE_ACCOUNT_ID`, and create GitHub environments
 `staging` and `production` (add required reviewers to `production`).
 `.github/workflows/deploy.yml` deploys **staging on every push to `main`** and
 **production on manual dispatch**, in the order capture → migrations → API → web.
@@ -112,11 +164,15 @@ npx wrangler d1 execute DB --remote --env staging -c apps/api/wrangler.jsonc --f
 
 ## 6. Smoke test
 - Sign in through Access; the sidebar shows your name, role and workspace.
-- Administration → **Deployment status** should be all ✓ (Access, Claude key,
-  capture worker bound, queue bound, encryption key, audit key, alerts).
-- Input → submit a public article URL → watch the 8-step pipeline → review in Inbox → approve → see it on the Dashboard.
+- Administration → **Deployment status** should be all ✓ (Access, "Manual entry:
+  … no external AI service", capture worker bound, queue bound, snapshots in D1,
+  encryption key, audit key, alerts).
+- Input → submit a public article URL → watch the 7-step pipeline → Inbox: the
+  item says *Awaiting analyst entry* → **View saved page** / **Open saved page in
+  new tab** → enter the fields → approve → see it on the Dashboard.
+- Sign in as a client user: the sidebar shows only Dashboard and Tracker, and
+  `/inbox`, `/input` and `/admin` redirect to the Dashboard.
 
-## Optional: containerised SingleFile capture
-If sources need full browser rendering, deploy `services/capture-container`
-(see its README) and set `CAPTURE_MODE=container`, `CONTAINER_URL` and the
-`CONTAINER_TOKEN` secret on the capture worker.
+## Adding automatic pre-fill later
+See [ENABLING-AUTOFILL.md](ENABLING-AUTOFILL.md): set the API key secret and
+`LLM_PROVIDER` for the environment and redeploy the API worker.

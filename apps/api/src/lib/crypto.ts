@@ -14,7 +14,23 @@ export async function sha256Hex(data: string | ArrayBuffer | Uint8Array): Promis
   return toHex(await crypto.subtle.digest("SHA-256", bytes));
 }
 
-function b64ToBytes(b64: string): Bytes {
+// Native base64 (Uint8Array.prototype.toBase64 / Uint8Array.fromBase64) is
+// ~80x faster than a JavaScript loop — it matters for multi-MB snapshots under
+// the Workers Free plan CPU limit. The loops are fallbacks for older runtimes.
+type NativeB64 = { toBase64?: () => string };
+type NativeFromB64 = { fromBase64?: (s: string) => Uint8Array<ArrayBuffer> };
+
+export function bytesToB64(b: Uint8Array): string {
+  const native = (b as unknown as NativeB64).toBase64;
+  if (typeof native === "function") return native.call(b);
+  let bin = "";
+  for (let i = 0; i < b.length; i += 0x8000) bin += String.fromCharCode(...b.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+
+export function b64ToBytes(b64: string): Bytes {
+  const native = (Uint8Array as unknown as NativeFromB64).fromBase64;
+  if (typeof native === "function") return native(b64.trim());
   const bin = atob(b64.trim());
   const out = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);

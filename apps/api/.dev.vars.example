@@ -1,6 +1,7 @@
 # Copy to apps/api/.dev.vars for local development (never commit .dev.vars).
-# With LLM_PROVIDER=mock (the dev default) no API key is needed.
-# To try real classification locally, set LLM_PROVIDER=anthropic in wrangler.jsonc (dev env) and:
+# The prototype uses manual entry (LLM_PROVIDER=none): no API key is needed.
+# To try the offline pre-fill heuristics, set LLM_PROVIDER=mock in wrangler.jsonc (dev env).
+# To try real LLM pre-fill locally (see docs/ENABLING-AUTOFILL.md), set LLM_PROVIDER=anthropic and:
 ANTHROPIC_API_KEY=
 # Optional locally:
 SNAPSHOT_ENCRYPTION_KEY=

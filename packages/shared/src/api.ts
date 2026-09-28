@@ -68,6 +68,8 @@ export const MeSchema = z.object({
   contractVersion: z.string(),
   environment: z.string(),
   timezone: z.string(),
+  /** How drafts are pre-filled: "manual" (all fields empty, no external service) or "llm". Added in contract 1.1. */
+  features: z.object({ prefill: z.enum(["manual", "llm"]) }).default({ prefill: "manual" }),
 });
 
 export const UserSchema = z.object({
@@ -155,7 +157,12 @@ export const AttemptSchema = z.object({
   extractionVersion: z.string().nullable(),
   promptVersion: z.string().nullable(),
   schemaVersion: z.string().nullable(),
+  /** "none" for manual entry, else the LLM adapter used. Added in contract 1.1. */
+  provider: z.string().nullable().default(null),
   model: z.string().nullable(),
+  /** Token usage reported by the LLM (null for manual entry). Added in contract 1.1. */
+  inputTokens: z.number().int().nullable().default(null),
+  outputTokens: z.number().int().nullable().default(null),
   steps: z.array(z.object({ label: z.string(), ok: z.boolean(), detail: z.string() })),
 });
 
@@ -382,6 +389,8 @@ export const QualityMetricsSchema = z.object({
   approved: z.number().int(),
   rejected: z.number().int(),
   approvedWithCorrections: z.number().int(),
+  /** Approvals whose draft was pre-filled by the LLM (correction rates are measured against these). Added in contract 1.1. */
+  aiDrafted: z.number().int().default(0),
   correctionRate: z.number().nullable(),
   fieldCorrectionRates: z.array(z.object({ key: z.string(), label: z.string(), corrected: z.number().int(), rate: z.number().nullable() })),
   requiredFieldCompletion: z.number().nullable(),

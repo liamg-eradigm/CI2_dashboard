@@ -14,3 +14,5 @@ test-results/
 !.env.example
 /backups/
 eval/report-*.json
+eval/*.jsonl
+!eval/examples.sample.jsonl

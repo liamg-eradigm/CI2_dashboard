@@ -1,9 +1,16 @@
 # Claude API integration and organisational permissions
 
-## ⚠️ Flag: organisational permissions are required before go-live
+> **The current prototype does not use the Claude API (or any AI service).**
+> `LLM_PROVIDER` is `"none"` in every environment: captured sources reach the
+> Inbox with every field empty and analysts enter them. The integration below is
+> built but switched off. To switch it on, follow
+> [ENABLING-AUTOFILL.md](ENABLING-AUTOFILL.md). The permission items below are
+> prerequisites for that step; none of them block the prototype.
 
-The platform calls the Claude API for every submission. The code is complete,
-but these items need someone with the right authority at Eradigm:
+## ⚠️ Flag: organisational permissions are required before enabling pre-fill
+
+When enabled, the platform calls the Claude API once for every new submission.
+The code is complete, but these items need someone with the right authority at Eradigm:
 
 1. **An Anthropic Console (API) organisation and API key.** A claude.ai
    Team/Enterprise subscription does not by itself provide API access; API usage
@@ -22,7 +29,7 @@ but these items need someone with the right authority at Eradigm:
 4. **Deletion claims.** The platform never claims that data was removed from the
    provider. Deleting or quarantining an item removes *our* copies only.
 
-**How problems show up in the product:** if the key is missing, invalid or lacks
+**How problems show up in the product (only once pre-fill is enabled):** if the key is missing, invalid or lacks
 permission, items end in **Failed** with `LLM_NOT_CONFIGURED`, `LLM_AUTH` or
 `LLM_PERMISSION`, admins get an in-app notification plus a webhook alert
 (`ALERT_WEBHOOK_URL`), and the Administration → Deployment status panel shows the
@@ -90,8 +97,8 @@ provider-agnostic `ExtractionInput` / `ExtractionOutput` contract in
 npx wrangler secret put ANTHROPIC_API_KEY --env staging    -c apps/api/wrangler.jsonc
 npx wrangler secret put ANTHROPIC_API_KEY --env production -c apps/api/wrangler.jsonc
 ```
-Vars (per environment, `apps/api/wrangler.jsonc`): `LLM_PROVIDER` (`anthropic` |
-`mock`), `LLM_MODEL`, `LLM_EFFORT`.
+Vars (per environment, `apps/api/wrangler.jsonc`): `LLM_PROVIDER` (`none` — the
+prototype default, manual entry | `anthropic` | `mock`), `LLM_MODEL`, `LLM_EFFORT`.
 
 Bump `PROMPT_VERSION` in `packages/llm/src/types.ts` whenever the prompt or
 request shape changes, and re-run the evaluation (`npm run eval`).

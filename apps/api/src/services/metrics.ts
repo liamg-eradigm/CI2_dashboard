@@ -1,20 +1,26 @@
 /**
  * Extraction quality metrics from real review decisions (6_QC_&_Compliance:
  * completion of required fields, correct categories, evidence support,
- * duplicates and how often analysts need to make corrections).
+ * duplicates and how often analysts need to make corrections). Correction and
+ * evidence metrics only cover drafts pre-filled by the LLM; with manual entry
+ * (the prototype default) they stay empty.
  */
 import type { QualityMetrics, TrackerSchema } from "@eradigm/shared";
 import type { Env } from "../env.js";
 
 export async function qualityMetrics(env: Env, schema: TrackerSchema, tenantId: string): Promise<QualityMetrics> {
   const [decisions, drafts, dups, failed] = await env.DB.batch([
-    env.DB.prepare("SELECT decision, corrected_keys FROM review_decisions WHERE tenant_id = ?1 AND decision IN ('approve', 'reject')").bind(tenantId),
+    env.DB.prepare(
+      `SELECT d.decision, d.corrected_keys, EXISTS (SELECT 1 FROM item_revisions r WHERE r.item_id = d.item_id AND r.kind = 'llm_draft') AS ai
+         FROM review_decisions d WHERE d.tenant_id = ?1 AND d.decision IN ('approve', 'reject')`,
+    ).bind(tenantId),
     env.DB.prepare("SELECT extraction_json FROM intelligence_items WHERE tenant_id = ?1 AND extraction_json IS NOT NULL AND status <> 'deleted' LIMIT 5000").bind(tenantId),
     env.DB.prepare("SELECT COUNT(*) AS n FROM audit_events WHERE chain = ?1 AND action = 'submission.duplicate'").bind(tenantId),
     env.DB.prepare("SELECT SUM(CASE WHEN quarantined = 1 THEN 0 ELSE 1 END) AS failed, SUM(quarantined) AS quarantined FROM intelligence_items WHERE tenant_id = ?1 AND status = 'failed'").bind(tenantId),
   ]);
-  const ds = (decisions?.results ?? []) as { decision: string; corrected_keys: string }[];
-  const approvedList = ds.filter((d) => d.decision === "approve");
+  const ds = (decisions?.results ?? []) as { decision: string; corrected_keys: string; ai: number }[];
+  // Correction rates only make sense for drafts the AI pre-filled (manual entries have nothing to correct).
+  const approvedList = ds.filter((d) => d.decision === "approve" && d.ai);
   const corrections = new Map<string, number>();
   let withCorrections = 0;
   for (const d of approvedList) {
@@ -40,12 +46,14 @@ export async function qualityMetrics(env: Env, schema: TrackerSchema, tenantId: 
     }
   }
   const n = approvedList.length;
+  const approvedAll = ds.filter((d) => d.decision === "approve").length;
   const f = (failed?.results ?? [])[0] as { failed: number | null; quarantined: number | null } | undefined;
   return {
     reviewed: ds.length,
-    approved: n,
-    rejected: ds.length - n,
+    approved: approvedAll,
+    rejected: ds.length - approvedAll,
     approvedWithCorrections: withCorrections,
+    aiDrafted: n,
     correctionRate: n ? withCorrections / n : null,
     fieldCorrectionRates: schema.columns.map((c) => ({ key: c.key, label: c.label, corrected: corrections.get(c.key) ?? 0, rate: n ? (corrections.get(c.key) ?? 0) / n : null })),
     requiredFieldCompletion: reqTotal ? reqFilled / reqTotal : null,
