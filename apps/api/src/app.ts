@@ -591,7 +591,7 @@ app.get("/api/admin/config-status", async (c) => {
       if (e.AUTH_MODE !== "entra") return { key: "auth", ok: false, message: "Development sign-in (AUTH_MODE=dev) — not for real users" };
       const cfg = entraConfigured(e);
       const scope = allowedTenants(e).length ? `${allowedTenants(e).length} allowed organisation(s)` : "any organisation";
-      return { key: "auth", ok: cfg.ok, message: cfg.ok ? `Sign in with Microsoft configured (${scope})` : `Sign in with Microsoft is missing: ${cfg.missing.join(", ")} (docs/SIGN-IN-ENTRA.md)` };
+      return { key: "auth", ok: cfg.ok, message: cfg.ok ? `Sign in with Microsoft configured (${scope})` : `Sign in with Microsoft needs attention: ${[...cfg.missing.map((m) => `${m} missing`), ...cfg.problems].join("; ")} (docs/SIGN-IN-ENTRA.md)` };
     })(),
     prefillMode(e) === "manual"
       ? { key: "llm", ok: true, message: "Manual entry: drafts arrive with every field empty; no external AI service is used (see docs/ENABLING-AUTOFILL.md to enable pre-fill)" }

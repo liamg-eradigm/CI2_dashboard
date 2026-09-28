@@ -45,21 +45,42 @@ function placeholder(v: string | undefined): boolean {
   return !v || /^(REPLACE|PASTE|YOUR)_/i.test(v.trim());
 }
 
-export function entraConfigured(env: Env): { ok: boolean; missing: string[] } {
+/**
+ * The dashboard's public address from APP_ORIGIN, forgiving the usual slips:
+ * surrounding spaces, trailing slashes and a missing "https://".
+ * Returns null when it still isn't a plain https address (no path).
+ */
+export function appOrigin(env: Pick<Env, "APP_ORIGIN">): string | null {
+  let v = (env.APP_ORIGIN ?? "").trim().replace(/\/+$/, "");
+  if (!v || placeholder(v)) return null;
+  if (!/^https?:\/\//i.test(v)) v = `https://${v}`;
+  return /^https?:\/\/[a-z0-9.-]+(:\d+)?$/i.test(v) ? v.toLowerCase() : null;
+}
+
+export function entraConfigured(env: Env): { ok: boolean; missing: string[]; problems: string[] } {
   const missing: string[] = [];
+  const problems: string[] = [];
   if (placeholder(env.ENTRA_CLIENT_ID)) missing.push("ENTRA_CLIENT_ID");
   if (placeholder(env.ENTRA_CLIENT_SECRET)) missing.push("ENTRA_CLIENT_SECRET");
   if (placeholder(env.SESSION_SECRET)) missing.push("SESSION_SECRET");
-  if (placeholder(env.APP_ORIGIN) || !/^https?:\/\/[^/]+$/.test(env.APP_ORIGIN ?? "")) missing.push("APP_ORIGIN");
-  return { ok: missing.length === 0, missing };
+  else if ((env.SESSION_SECRET ?? "").length < 32) problems.push("SESSION_SECRET is shorter than 32 characters");
+  if (!appOrigin(env)) {
+    missing.push("APP_ORIGIN");
+    const shown = (env.APP_ORIGIN ?? "").slice(0, 80);
+    problems.push(`APP_ORIGIN must be the dashboard address like https://eradigm-ci-web-production.<subdomain>.workers.dev (currently "${shown}")`);
+  }
+  return { ok: missing.length === 0 && problems.length === 0, missing, problems };
 }
 
 export function requireEntra(env: Env): void {
   const c = entraConfigured(env);
-  if (!c.ok) throw new ApiError("MISCONFIGURED", `Microsoft sign-in is not configured for this environment (missing: ${c.missing.join(", ")}). See docs/SIGN-IN-ENTRA.md.`);
+  if (!c.ok) {
+    const parts = [c.missing.length ? `missing: ${c.missing.join(", ")}` : "", ...c.problems].filter(Boolean);
+    throw new ApiError("MISCONFIGURED", `Microsoft sign-in is not configured for this environment (${parts.join("; ")}). See docs/SIGN-IN-ENTRA.md.`);
+  }
 }
 
-export const redirectUri = (env: Env) => `${env.APP_ORIGIN.replace(/\/$/, "")}/api/auth/callback`;
+export const redirectUri = (env: Env) => `${appOrigin(env) ?? ""}/api/auth/callback`;
 
 export function allowedTenants(env: Env): string[] {
   return (env.ENTRA_ALLOWED_TENANTS ?? "")
@@ -85,7 +106,7 @@ export function authorizeUrl(env: Env, p: { state: string; nonce: string; codeCh
 
 export function logoutUrl(env: Env): string {
   const u = new URL(LOGOUT_URL);
-  u.searchParams.set("post_logout_redirect_uri", `${env.APP_ORIGIN.replace(/\/$/, "")}/api/auth/signed-out`);
+  u.searchParams.set("post_logout_redirect_uri", `${appOrigin(env) ?? ""}/api/auth/signed-out`);
   return u.toString();
 }
 
