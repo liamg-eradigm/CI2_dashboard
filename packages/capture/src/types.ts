@@ -18,7 +18,8 @@ export type CaptureFailureCode =
   | "ROBOTS_DISALLOWED"
   | "MALICIOUS_CONTENT"
   | "NETWORK"
-  | "BROWSER_UNAVAILABLE";
+  /** The capture worker failed or ran out of CPU (e.g. a very large page on the Workers Free plan). */
+  | "PROCESSING_LIMIT";
 
 export interface CaptureFailure {
   ok: false;
@@ -59,15 +60,15 @@ export interface ScanResult {
 
 export interface CaptureSuccess {
   ok: true;
-  /** Sanitised snapshot HTML (scripts, trackers, forms and handlers stripped). */
-  html: string;
+  /** Sanitised snapshot HTML, UTF-8 (scripts, trackers, forms and handlers stripped). */
+  html: Uint8Array;
   rawSha256: string;
   rawBytes: number;
   contentType: string;
   httpStatus: number | null;
   finalUrl: string | null;
   redirects: number;
-  method: "fetch" | "container" | "upload";
+  method: "fetch" | "upload";
   article: Article;
   singleFile: SingleFileInfo;
   scan: ScanResult;

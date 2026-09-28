@@ -6,6 +6,7 @@
 import { Hono, type Context } from "hono";
 import type { z } from "zod";
 import {
+  CAPTURE_LIMITS,
   ACTIONS,
   AddColumnRequest,
   AddOptionRequest,
@@ -46,7 +47,8 @@ import type { Env } from "./env.js";
 import { ApiError, badRequest, forbidden, notFound } from "./lib/errors.js";
 import { newId, nowIso } from "./lib/ids.js";
 import { log, metric } from "./lib/log.js";
-import { readSnapshot } from "./pipeline/snapshots.js";
+import { prefillMode } from "./pipeline/prefill.js";
+import { readSnapshot, snapshotBackend } from "./pipeline/snapshots.js";
 import { audit, listAudit, verifyChain } from "./services/audit.js";
 import { getDetail, getItemRow, listItems } from "./services/items.js";
 import { qualityMetrics } from "./services/metrics.js";
@@ -181,6 +183,7 @@ app.get("/api/me", async (c) => {
     contractVersion: CONTRACT_VERSION,
     environment: c.env.ENVIRONMENT,
     timezone: s.timezone,
+    features: { prefill: prefillMode(c.env) },
   });
 });
 
@@ -338,7 +341,7 @@ app.post("/api/submissions", async (c) => {
   const type = c.req.header("content-type") ?? "";
   if (type.startsWith("multipart/form-data")) {
     const len = Number(c.req.header("content-length") ?? "0");
-    if (len > 11 * 1024 * 1024) throw new ApiError("PAYLOAD_TOO_LARGE", "File exceeds the 10 MB limit");
+    if (len > CAPTURE_LIMITS.maxBytes + 64 * 1024) throw new ApiError("PAYLOAD_TOO_LARGE", `File exceeds the ${CAPTURE_LIMITS.maxBytes / 1048576} MB limit`);
     const form = await c.req.formData();
     const file = form.get("file") as unknown as File | string | null;
     if (!file || typeof file === "string") throw badRequest("Attach an HTML file in the “file” field");
@@ -381,6 +384,10 @@ app.get("/api/items/:id/snapshot", async (c) => {
   if (!row.current_snapshot_id) throw notFound("Snapshot");
   const html = await readSnapshot(c.env, p.tenantId, row.current_snapshot_id);
   if (html == null) throw notFound("Snapshot");
+  const download = c.req.query("download") === "1";
+  if (download) {
+    await audit(c.env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "snapshot.downloaded", targetType: "item", targetId: row.id, details: { code: row.code } });
+  }
   return new Response(html, {
     headers: {
       "Content-Type": "text/html; charset=utf-8",
@@ -389,7 +396,7 @@ app.get("/api/items/:id/snapshot", async (c) => {
       "X-Content-Type-Options": "nosniff",
       "Cross-Origin-Resource-Policy": "same-origin",
       "Cache-Control": "private, no-store",
-      "Content-Disposition": "inline",
+      "Content-Disposition": download ? `attachment; filename="${row.code}-source.html"` : "inline",
     },
   });
 });
@@ -564,14 +571,19 @@ app.get("/api/admin/config-status", async (c) => {
   const e = c.env;
   const checks = [
     { key: "auth", ok: e.AUTH_MODE === "access" && !!e.ACCESS_AUD && !e.ACCESS_AUD.startsWith("REPLACE_"), message: "Cloudflare Access sign-in configured" },
-    { key: "llm", ok: e.LLM_PROVIDER !== "mock" && !!e.ANTHROPIC_API_KEY, message: e.LLM_PROVIDER === "mock" ? "LLM provider is the offline mock (set LLM_PROVIDER=anthropic)" : "Claude API key configured" },
+    prefillMode(e) === "manual"
+      ? { key: "llm", ok: true, message: "Manual entry: drafts arrive with every field empty; no external AI service is used (see docs/ENABLING-AUTOFILL.md to enable pre-fill)" }
+      : e.LLM_PROVIDER === "mock"
+        ? { key: "llm", ok: false, message: "Pre-fill uses the offline mock heuristics (set LLM_PROVIDER=anthropic or none)" }
+        : { key: "llm", ok: !!e.ANTHROPIC_API_KEY, message: e.ANTHROPIC_API_KEY ? "LLM pre-fill: Claude API key configured" : "LLM pre-fill enabled but ANTHROPIC_API_KEY is not set" },
     { key: "capture", ok: !!e.CAPTURE, message: "Isolated capture worker bound" },
     { key: "queue", ok: !!e.JOBS, message: "Background work queue bound" },
+    { key: "snapshots", ok: true, message: snapshotBackend(e) === "r2" ? "Snapshots stored in R2" : "Snapshots stored in D1 (Workers Free plan)" },
     { key: "encryption", ok: !!e.SNAPSHOT_ENCRYPTION_KEY, message: "Application-level snapshot encryption key set" },
     { key: "audit", ok: !!e.AUDIT_HMAC_KEY, message: "Audit HMAC key set" },
     { key: "alerts", ok: !!e.ALERT_WEBHOOK_URL, message: "Operational alert webhook configured" },
   ];
-  return c.json({ environment: e.ENVIRONMENT, model: e.LLM_MODEL, provider: e.LLM_PROVIDER, checks });
+  return c.json({ environment: e.ENVIRONMENT, model: e.LLM_MODEL, provider: e.LLM_PROVIDER, prefill: prefillMode(e), checks });
 });
 
 app.get("/api/metrics/quality", async (c) => {

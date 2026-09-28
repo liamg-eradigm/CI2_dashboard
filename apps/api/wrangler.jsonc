@@ -1,4 +1,5 @@
-// Processing service (API) — Cloudflare Worker with D1, R2 and Queues.
+// Processing service (API) — Cloudflare Worker with D1 and Queues, on the
+// Workers Free plan (no paid-only settings; see docs/DEPLOYMENT.md § Free plan).
 //
 // Source capture runs in the separate, isolated `eradigm-ci-capture-<env>`
 // worker (apps/capture) reached through the CAPTURE service binding; deploy it
@@ -7,14 +8,22 @@
 //
 // Three environments: dev (local, `npm run dev`), staging and production.
 // Bindings are NOT inherited between environments, so each block is complete.
-// Run scripts/provision.sh once per environment to create the D1 database,
-// R2 bucket and queues, then paste the D1 database_id values below.
+// Run scripts/provision.sh once per environment to create the D1 database and
+// queues; it writes the D1 database_id values below.
+//
+// Draft pre-fill: LLM_PROVIDER = "none" (manual entry — drafts reach the Inbox
+// with every tracker field empty; no external AI service, no API key). To
+// enable automatic pre-fill later see docs/ENABLING-AUTOFILL.md.
+//
+// Snapshots are stored in D1 by default. To use R2 instead (free tier, but
+// Cloudflare asks for a payment method to enable R2), create the bucket with
+// `scripts/provision.sh <env> --with-r2` and uncomment the r2_buckets line.
 //
 // Secrets (never committed; set with `wrangler secret put <NAME> --env <env>`):
-//   ANTHROPIC_API_KEY        Claude API key for the LLM adapter
 //   SNAPSHOT_ENCRYPTION_KEY  base64 32-byte key, AES-GCM encryption of stored snapshots
 //   AUDIT_HMAC_KEY           base64 key for the tamper-evident audit hash chain
 //   ALERT_WEBHOOK_URL        optional incoming-webhook URL for operational alerts
+//   ANTHROPIC_API_KEY        only when LLM_PROVIDER = "anthropic" (not used by the prototype)
 {
   "$schema": "../../node_modules/wrangler/config-schema.json",
   "name": "eradigm-ci-api",
@@ -23,7 +32,6 @@
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": false,
   "observability": { "enabled": true, "head_sampling_rate": 1 },
-  "limits": { "cpu_ms": 60000 },
 
   "env": {
     "dev": {
@@ -34,7 +42,7 @@
         "AUTH_MODE": "dev",
         "ACCESS_TEAM_DOMAIN": "",
         "ACCESS_AUD": "",
-        "LLM_PROVIDER": "mock",
+        "LLM_PROVIDER": "none",
         "LLM_MODEL": "claude-opus-5",
         "LLM_EFFORT": "medium",
         "CAPTURE_USER_AGENT": "EradigmCI-Capture/1.0 (+https://eradigm.com)",
@@ -43,7 +51,7 @@
       "d1_databases": [
         { "binding": "DB", "database_name": "eradigm-ci-dev", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }
       ],
-      "r2_buckets": [{ "binding": "SNAPSHOTS", "bucket_name": "eradigm-ci-snapshots-dev" }],
+      // "r2_buckets": [{ "binding": "SNAPSHOTS", "bucket_name": "eradigm-ci-snapshots-dev" }],
       "services": [{ "binding": "CAPTURE", "service": "eradigm-ci-capture-dev" }],
       "queues": {
         "producers": [{ "binding": "JOBS", "queue": "eradigm-ci-jobs-dev" }],
@@ -62,7 +70,7 @@
         "AUTH_MODE": "access",
         "ACCESS_TEAM_DOMAIN": "REPLACE_WITH_TEAM.cloudflareaccess.com",
         "ACCESS_AUD": "REPLACE_WITH_STAGING_ACCESS_AUD_TAG",
-        "LLM_PROVIDER": "anthropic",
+        "LLM_PROVIDER": "none",
         "LLM_MODEL": "claude-opus-5",
         "LLM_EFFORT": "medium",
         "CAPTURE_USER_AGENT": "EradigmCI-Capture/1.0 (+https://eradigm.com)",
@@ -71,7 +79,7 @@
       "d1_databases": [
         { "binding": "DB", "database_name": "eradigm-ci-staging", "database_id": "REPLACE_WITH_STAGING_D1_ID", "migrations_dir": "migrations" }
       ],
-      "r2_buckets": [{ "binding": "SNAPSHOTS", "bucket_name": "eradigm-ci-snapshots-staging" }],
+      // "r2_buckets": [{ "binding": "SNAPSHOTS", "bucket_name": "eradigm-ci-snapshots-staging" }],
       "services": [{ "binding": "CAPTURE", "service": "eradigm-ci-capture-staging" }],
       "queues": {
         "producers": [{ "binding": "JOBS", "queue": "eradigm-ci-jobs-staging" }],
@@ -95,7 +103,7 @@
         "AUTH_MODE": "access",
         "ACCESS_TEAM_DOMAIN": "REPLACE_WITH_TEAM.cloudflareaccess.com",
         "ACCESS_AUD": "REPLACE_WITH_PRODUCTION_ACCESS_AUD_TAG",
-        "LLM_PROVIDER": "anthropic",
+        "LLM_PROVIDER": "none",
         "LLM_MODEL": "claude-opus-5",
         "LLM_EFFORT": "medium",
         "CAPTURE_USER_AGENT": "EradigmCI-Capture/1.0 (+https://eradigm.com)",
@@ -104,7 +112,7 @@
       "d1_databases": [
         { "binding": "DB", "database_name": "eradigm-ci-production", "database_id": "REPLACE_WITH_PRODUCTION_D1_ID", "migrations_dir": "migrations" }
       ],
-      "r2_buckets": [{ "binding": "SNAPSHOTS", "bucket_name": "eradigm-ci-snapshots-production" }],
+      // "r2_buckets": [{ "binding": "SNAPSHOTS", "bucket_name": "eradigm-ci-snapshots-production" }],
       "services": [{ "binding": "CAPTURE", "service": "eradigm-ci-capture-production" }],
       "queues": {
         "producers": [{ "binding": "JOBS", "queue": "eradigm-ci-jobs-production" }],

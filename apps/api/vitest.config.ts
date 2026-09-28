@@ -1,8 +1,10 @@
 import { cloudflareTest, readD1Migrations } from "@cloudflare/vitest-pool-workers";
 import { defineConfig } from "vitest/config";
 
-// Integration tests run inside the Workers runtime (workerd) with local D1, R2
-// and queue bindings from wrangler.jsonc (dev environment).
+// Integration tests run inside the Workers runtime (workerd) with local D1 and
+// queue bindings from wrangler.jsonc (dev environment). The default is manual
+// entry (LLM_PROVIDER = none); tests of the optional LLM pre-fill path override
+// LLM_PROVIDER = mock per call.
 export default defineConfig(async () => {
   const migrations = await readD1Migrations("./migrations");
   return {
@@ -11,7 +13,7 @@ export default defineConfig(async () => {
         main: "./src/index.ts",
         wrangler: { configPath: "./wrangler.jsonc", environment: "dev" },
         miniflare: {
-          bindings: { ENVIRONMENT: "test", LLM_PROVIDER: "mock", TEST_MIGRATIONS: migrations },
+          bindings: { ENVIRONMENT: "test", LLM_PROVIDER: "none", TEST_MIGRATIONS: migrations },
           // The isolated capture worker is not started in tests; the API falls
           // back to the same capture library inline (dev/test only).
           serviceBindings: { CAPTURE: () => new Response("capture worker not running in tests", { status: 503 }) },

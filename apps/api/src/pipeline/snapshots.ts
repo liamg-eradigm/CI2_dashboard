@@ -1,19 +1,52 @@
 /**
- * Saved source copies live in R2 (large objects); D1 holds only the reference,
- * fingerprint, descriptive details, retention status and access scope.
+ * Saved source copies. D1 holds the reference, fingerprint, descriptive
+ * details, retention status and access scope in `source_snapshots`; the HTML
+ * itself lives in one of two stores, chosen per snapshot by its storage key:
+ *
+ *   d1:<tenant>/<item>/<sha256>   D1 table `snapshot_blobs` (default). Works on
+ *                                 the Workers Free plan with no extra product to
+ *                                 enable. Stored as text in ≤ 600k-character
+ *                                 chunks (D1 rows are limited to 2 MB).
+ *   t/<tenant>/items/<item>/<sha256>.html
+ *                                 R2 bucket bound as SNAPSHOTS (optional; used
+ *                                 automatically for new snapshots when bound).
+ *
  * Objects are content-addressed (sha256 in the key) and never overwritten.
+ * Existing snapshots stay readable after switching stores.
  */
 import type { Env } from "../env.js";
-import { decryptBytes, encryptBytes, sha256Hex } from "../lib/crypto.js";
+import { b64ToBytes, bytesToB64, decryptBytes, encryptBytes, sha256Hex } from "../lib/crypto.js";
 import { newId, nowIso } from "../lib/ids.js";
 import { log } from "../lib/log.js";
 
-const enc = new TextEncoder();
+const dec = new TextDecoder();
+const CHUNK_CHARS = 600_000;
+const D1_PREFIX = "d1:";
 
 export interface StoredSnapshot {
   id: string;
   sha256: string;
   bytes: number;
+}
+
+export function snapshotBackend(env: Env): "r2" | "d1" {
+  return env.SNAPSHOTS ? "r2" : "d1";
+}
+
+async function d1Put(env: Env, tenantId: string, key: string, text: string): Promise<void> {
+  const exists = await env.DB.prepare("SELECT 1 AS x FROM snapshot_blobs WHERE storage_key = ?1 LIMIT 1").bind(key).first();
+  if (exists) return;
+  const stmts = [];
+  for (let i = 0, seq = 0; i < text.length || seq === 0; i += CHUNK_CHARS, seq++) {
+    stmts.push(env.DB.prepare("INSERT OR IGNORE INTO snapshot_blobs (storage_key, seq, tenant_id, data) VALUES (?1, ?2, ?3, ?4)").bind(key, seq, tenantId, text.slice(i, i + CHUNK_CHARS)));
+  }
+  await env.DB.batch(stmts);
+}
+
+async function d1Get(env: Env, key: string): Promise<string | null> {
+  const rows = await env.DB.prepare("SELECT data FROM snapshot_blobs WHERE storage_key = ?1 ORDER BY seq").bind(key).all<{ data: string }>();
+  const list = rows.results ?? [];
+  return list.length ? list.map((r) => r.data).join("") : null;
 }
 
 export async function storeSnapshot(
@@ -22,7 +55,8 @@ export async function storeSnapshot(
     tenantId: string;
     itemId: string;
     attempt: number;
-    html: string;
+    /** Sanitised HTML, UTF-8. */
+    html: Uint8Array;
     rawSha256: string | null;
     contentType: string;
     httpStatus: number | null;
@@ -33,20 +67,28 @@ export async function storeSnapshot(
     retentionDays: number;
   },
 ): Promise<StoredSnapshot> {
-  const plain = enc.encode(p.html);
+  const plain = p.html;
   const sha = await sha256Hex(plain);
-  const key = `t/${p.tenantId}/items/${p.itemId}/${sha}.html`;
   const encrypted = !!env.SNAPSHOT_ENCRYPTION_KEY;
   if (!encrypted && (env.ENVIRONMENT === "production" || env.ENVIRONMENT === "staging")) {
-    log("warn", "snapshot_unencrypted", { reason: "SNAPSHOT_ENCRYPTION_KEY not set; relying on R2 encryption at rest" });
+    log("warn", "snapshot_unencrypted", { reason: "SNAPSHOT_ENCRYPTION_KEY not set; relying on Cloudflare encryption at rest" });
   }
-  const existing = await env.SNAPSHOTS.head(key);
-  if (!existing) {
-    const body = encrypted ? await encryptBytes(env.SNAPSHOT_ENCRYPTION_KEY as string, plain) : plain;
-    await env.SNAPSHOTS.put(key, body, {
-      httpMetadata: { contentType: encrypted ? "application/octet-stream" : "text/html; charset=utf-8" },
-      customMetadata: { tenant: p.tenantId, item: p.itemId, encrypted: encrypted ? "aes-256-gcm" : "none", sha256: sha },
-    });
+  const backend = snapshotBackend(env);
+  let key: string;
+  if (backend === "r2" && env.SNAPSHOTS) {
+    key = `t/${p.tenantId}/items/${p.itemId}/${sha}.html`;
+    const bucket = env.SNAPSHOTS;
+    if (!(await bucket.head(key))) {
+      const body = encrypted ? await encryptBytes(env.SNAPSHOT_ENCRYPTION_KEY as string, plain) : plain;
+      await bucket.put(key, body, {
+        httpMetadata: { contentType: encrypted ? "application/octet-stream" : "text/html; charset=utf-8" },
+        customMetadata: { tenant: p.tenantId, item: p.itemId, encrypted: encrypted ? "aes-256-gcm" : "none", sha256: sha },
+      });
+    }
+  } else {
+    key = `${D1_PREFIX}${p.tenantId}/${p.itemId}/${sha}`;
+    const text = encrypted ? bytesToB64(await encryptBytes(env.SNAPSHOT_ENCRYPTION_KEY as string, plain)) : dec.decode(plain);
+    await d1Put(env, p.tenantId, key, text);
   }
   const id = newId("snap");
   const retrievedAt = nowIso();
@@ -67,14 +109,31 @@ export async function readSnapshot(env: Env, tenantId: string, snapshotId: strin
     .bind(tenantId, snapshotId)
     .first<{ r2_key: string; encrypted: number; retention_status: string }>();
   if (!s || s.retention_status !== "active") return null;
+  const needKey = () => {
+    if (!env.SNAPSHOT_ENCRYPTION_KEY) throw new Error("Snapshot is encrypted but SNAPSHOT_ENCRYPTION_KEY is not configured");
+    return env.SNAPSHOT_ENCRYPTION_KEY;
+  };
+  if (s.r2_key.startsWith(D1_PREFIX)) {
+    const text = await d1Get(env, s.r2_key);
+    if (text == null) return null;
+    return s.encrypted ? dec.decode(await decryptBytes(needKey(), b64ToBytes(text))) : text;
+  }
+  if (!env.SNAPSHOTS) {
+    log("error", "snapshot_store_missing", { reason: "Snapshot is in R2 but no SNAPSHOTS bucket is bound" });
+    return null;
+  }
   const obj = await env.SNAPSHOTS.get(s.r2_key);
   if (!obj) return null;
-  let bytes: Uint8Array<ArrayBufferLike> = new Uint8Array(await obj.arrayBuffer());
-  if (s.encrypted) {
-    if (!env.SNAPSHOT_ENCRYPTION_KEY) throw new Error("Snapshot is encrypted but SNAPSHOT_ENCRYPTION_KEY is not configured");
-    bytes = await decryptBytes(env.SNAPSHOT_ENCRYPTION_KEY, bytes);
-  }
-  return new TextDecoder().decode(bytes);
+  const bytes = new Uint8Array(await obj.arrayBuffer());
+  return dec.decode(s.encrypted ? await decryptBytes(needKey(), bytes) : bytes);
+}
+
+/** Remove stored objects by storage key (both stores). */
+export async function deleteObjects(env: Env, keys: string[]): Promise<void> {
+  const d1 = keys.filter((k) => k.startsWith(D1_PREFIX));
+  const r2 = keys.filter((k) => !k.startsWith(D1_PREFIX));
+  if (d1.length) await env.DB.batch(d1.map((k) => env.DB.prepare("DELETE FROM snapshot_blobs WHERE storage_key = ?1").bind(k)));
+  if (r2.length && env.SNAPSHOTS) await env.SNAPSHOTS.delete(r2);
 }
 
 /** Delete stored copies for an item (retention / quarantine). Returns how many objects were removed. */
@@ -84,7 +143,7 @@ export async function deleteSnapshots(env: Env, tenantId: string, itemId: string
     .all<{ id: string; r2_key: string }>();
   const list = rows.results ?? [];
   if (!list.length) return 0;
-  await env.SNAPSHOTS.delete(list.map((r) => r.r2_key));
+  await deleteObjects(env, list.map((r) => r.r2_key));
   const now = nowIso();
   await env.DB.batch(list.map((r) => env.DB.prepare("UPDATE source_snapshots SET retention_status = 'deleted', deleted_at = ?1 WHERE id = ?2").bind(now, r.id)));
   return list.length;

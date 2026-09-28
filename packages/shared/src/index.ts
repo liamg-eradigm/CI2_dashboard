@@ -8,5 +8,6 @@ export * from "./trend.js";
 export * from "./url.js";
 export * from "./redaction.js";
 export * from "./extraction.js";
+export * from "./pipeline.js";
 export * from "./export.js";
 export * from "./api.js";

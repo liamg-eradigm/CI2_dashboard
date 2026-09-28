@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { setInlineCaptureFetcher } from "../src/pipeline/capture-client";
+import { captureUrlIsolated, parseUploadIsolated, setInlineCaptureFetcher } from "../src/pipeline/capture-client";
 import { peekTestQueue, runJob } from "../src/pipeline/process";
-import { approveWith, articleHtml, call, drain, env, ingest, json, seedWorld, upload, type World } from "./helpers";
+import { COMPLETE, WITH_LLM, approveWith, articleHtml, call, drain, env, ingest, json, seedWorld, upload, type World } from "./helpers";
 
 let w: World;
 beforeAll(async () => {
@@ -92,20 +92,31 @@ describe("URL submissions", () => {
         "Isolated capture worker",
         "Access restrictions",
         "Content scan before storage",
-        "Minimum extraction to LLM",
-        "Schema-constrained classification",
+        "Data policy check",
         "Routed to Needs review",
       ]);
+      expect(item.attemptsDetail[0].provider).toBe("none");
 
       // Replaying the stale attempt-1 message is a no-op.
       expect(await runJob(env, job!, 1, 3)).toBe("skipped");
       const revs = await env.DB.prepare("SELECT COUNT(*) AS n FROM item_revisions WHERE item_id = ?1").bind(sub.item.id).first<{ n: number }>();
-      expect(revs?.n).toBe(1);
+      expect(revs?.n).toBe(0);
       const snaps = await env.DB.prepare("SELECT COUNT(*) AS n FROM source_snapshots WHERE item_id = ?1").bind(sub.item.id).first<{ n: number }>();
       expect(snaps?.n).toBe(1);
     } finally {
       setInlineCaptureFetcher(null);
     }
+  });
+});
+
+describe("capture worker failures", () => {
+  it("turns a capture-worker crash or CPU-limit error into a clear, non-retryable failure", async () => {
+    const e = { ...env, ENVIRONMENT: "staging" as const, CAPTURE: { fetch: async () => new Response("Worker exceeded resource limits", { status: 503 }) } as unknown as Fetcher };
+    const r = await captureUrlIsolated(e, "https://news.example.com/huge");
+    expect(r).toMatchObject({ ok: false, code: "PROCESSING_LIMIT", retryable: false });
+    expect(!r.ok && r.message).toMatch(/SingleFile/);
+    const u = await parseUploadIsolated(e, new TextEncoder().encode("<html></html>").buffer as ArrayBuffer, "a.html");
+    expect(u).toMatchObject({ ok: false, code: "PROCESSING_LIMIT" });
   });
 });
 
@@ -122,8 +133,60 @@ describe("file submissions and the review lifecycle", () => {
     expect((await call(w.a.client, "GET", `/api/items/${item.id}/snapshot`)).status).toBe(404);
   });
 
-  it("stores LLM output as a Needs review draft with evidence, confidence and taxonomy enforcement", async () => {
-    const item = await ingest(w.a.analyst, "Roche opens robotics-enabled autonomous lab", "Roche has opened an autonomous laboratory in Basel where robotics-enabled labs run design-make-test cycles.\nThe company said the lab will double experimental throughput by 2027.");
+  it("manual entry (default): sends the capture to the Inbox with every tracker field empty and calls no external service", async () => {
+    const outbound: string[] = [];
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+      outbound.push(String(input instanceof Request ? input.url : input));
+      return realFetch(input, init);
+    }) as typeof fetch;
+    let item;
+    try {
+      item = await ingest(w.a.analyst, "Merck launches AI upskilling hub", "Merck has launched a central AI enablement hub for all employees.\nThe hub offers role-based learning paths.");
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+    expect(outbound).toEqual([]);
+    expect(item.status).toBe("needs_review");
+    const schema = await json(call(w.a.analyst, "GET", "/api/schema"));
+    for (const c of schema.columns) expect(item.draft[c.key] ?? null).toBeNull();
+    expect(item.extraction).toBeNull();
+    expect(item.warningsCount).toBe(0);
+    expect(item.revisions).toEqual([]);
+    expect(item.attemptsDetail[0]).toMatchObject({ provider: "none", model: null });
+    expect(item.attemptsDetail[0].steps.slice(-2).map((s: any) => s.label)).toEqual(["Data policy check", "Routed to Needs review"]);
+    expect(item.attemptsDetail[0].steps.at(-1).detail).toMatch(/every tracker field empty/);
+    // The captured page is kept for the analyst to read.
+    expect(item.hasSnapshot).toBe(true);
+    expect(item.title).toBe("Merck launches AI upskilling hub");
+    const me = await json(call(w.a.analyst, "GET", "/api/me"));
+    expect(me.features).toEqual({ prefill: "manual" });
+
+    // The analyst fills the fields; the edits are provenance "analyst" and the approval has no "AI corrections".
+    const saved = await json(call(w.a.analyst, "PATCH", `/api/items/${item.id}/draft`, { body: { values: { ...COMPLETE, title: "Merck launches AI hub" }, version: item.version } }));
+    expect(saved.provenance.title).toBe("analyst");
+    const ok = await approveWith(w.a.analyst, saved, { title: "Merck launches AI hub" });
+    expect(ok.status).toBe(200);
+    const dec = await env.DB.prepare("SELECT corrected_keys FROM review_decisions WHERE item_id = ?1 AND decision = 'approve'").bind(item.id).first<{ corrected_keys: string }>();
+    expect(JSON.parse(dec?.corrected_keys ?? "null")).toEqual([]);
+    const events = await env.DB.prepare("SELECT action FROM audit_events WHERE chain = ?1 AND target_id = ?2 ORDER BY seq").bind(w.a.id, item.id).all<{ action: string }>();
+    expect(events.results?.map((e) => e.action)).toEqual(["submission.created", "item.routed", "item.edited", "item.approved"]);
+  });
+
+  it("a reprocess in manual mode keeps the values the analyst already entered", async () => {
+    const item = await ingest(w.a.analyst, "GSK expands DTP pilot", "GSK is expanding its direct-to-patient pilot to three new markets.\nThe company cited strong patient uptake.");
+    const saved = await json(call(w.a.analyst, "PATCH", `/api/items/${item.id}/draft`, { body: { values: { impact: "High", title: "GSK expands DTP" }, version: item.version } }));
+    await call(w.a.analyst, "POST", `/api/items/${item.id}/reprocess`, { body: { version: saved.version } });
+    await drain();
+    const again = await json(call(w.a.analyst, "GET", `/api/items/${item.id}`));
+    expect(again.status).toBe("needs_review");
+    expect(again.attempts).toBe(2);
+    expect(again.draft).toMatchObject({ impact: "High", title: "GSK expands DTP" });
+    expect(again.provenance).toMatchObject({ impact: "analyst", title: "analyst" });
+  });
+
+  it("optional LLM pre-fill: stores output as a Needs review draft with evidence, confidence and taxonomy enforcement", async () => {
+    const item = await ingest(w.a.analyst, "Roche opens robotics-enabled autonomous lab", "Roche has opened an autonomous laboratory in Basel where robotics-enabled labs run design-make-test cycles.\nThe company said the lab will double experimental throughput by 2027.", undefined, WITH_LLM);
     expect(item.status).toBe("needs_review");
     expect(item.draft.competitors).toEqual(["Roche"]);
     expect(item.extraction.competitors.evidence).toBeTruthy();
@@ -136,7 +199,7 @@ describe("file submissions and the review lifecycle", () => {
   });
 
   it("enforces review-state transitions and server-side validation", async () => {
-    const item = await ingest(w.a.analyst, "Sanofi signs direct-to-employer agreement", "Sanofi announced an agreement with a coalition of large US employers to offer selected medicines directly to covered employees.\nThe arrangement bypasses traditional benefit intermediaries.");
+    const item = await ingest(w.a.analyst, "Sanofi signs direct-to-employer agreement", "Sanofi announced an agreement with a coalition of large US employers to offer selected medicines directly to covered employees.\nThe arrangement bypasses traditional benefit intermediaries.", undefined, WITH_LLM);
     // Missing required fields -> 422 listing them.
     const bad = await call(w.a.analyst, "POST", `/api/items/${item.id}/approve`, { body: { values: { ...item.draft, impact: null, action: null }, version: item.version } });
     expect(bad.status).toBe(422);
@@ -212,7 +275,7 @@ describe("file submissions and the review lifecycle", () => {
 
   it("rejects non-HTML and oversized uploads", async () => {
     expect((await upload(w.a.analyst, "%PDF-1.7", "report.pdf")).status).toBe(415);
-    const big = "<html><body>" + "x".repeat(11 * 1024 * 1024) + "</body></html>";
+    const big = "<html><body>" + "x".repeat(6 * 1024 * 1024) + "</body></html>";
     expect([413, 422]).toContain((await upload(w.a.analyst, big, "big.html")).status);
   });
 });

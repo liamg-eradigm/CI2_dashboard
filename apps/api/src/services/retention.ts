@@ -1,6 +1,6 @@
 /**
  * Retention and deletion rules (run daily by the cron trigger):
- *   - snapshots past their retention date are deleted from R2 (metadata kept, marked expired);
+ *   - snapshots past their retention date are deleted from the snapshot store (metadata kept, marked expired);
  *   - rejected / failed items lose their stored content after `rejectedDays`;
  *   - Deleted items lose all stored content after `deletedDays`;
  *   - items stuck in processing for over 30 minutes are marked Failed so they can be retried.
@@ -9,7 +9,7 @@
 import type { Env } from "../env.js";
 import { nowIso } from "../lib/ids.js";
 import { alert, log } from "../lib/log.js";
-import { deleteSnapshots } from "../pipeline/snapshots.js";
+import { deleteObjects, deleteSnapshots } from "../pipeline/snapshots.js";
 import { audit } from "./audit.js";
 import { loadSettings } from "./schema.js";
 
@@ -37,7 +37,7 @@ export async function runRetention(env: Env): Promise<Record<string, number>> {
       .bind(tenantId, now)
       .all<{ id: string; r2_key: string }>();
     for (const snap of expired.results ?? []) {
-      await env.SNAPSHOTS.delete(snap.r2_key);
+      await deleteObjects(env, [snap.r2_key]);
       await env.DB.prepare("UPDATE source_snapshots SET retention_status = 'expired', deleted_at = ?1 WHERE id = ?2").bind(now, snap.id).run();
       snapshots++;
     }

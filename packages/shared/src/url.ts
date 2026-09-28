@@ -12,7 +12,8 @@
 
 export const CAPTURE_LIMITS = {
   maxRedirects: 5,
-  maxBytes: 10 * 1024 * 1024,
+  // 5 MB keeps parsing within the Workers Free plan CPU budget.
+  maxBytes: 5 * 1024 * 1024,
   pageLoadMs: 20_000,
   jobMs: 30_000,
   acceptedContentTypes: ["text/html", "application/xhtml+xml"],

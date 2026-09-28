@@ -4,6 +4,9 @@
  *   Queued → Fetching → Extracting → Needs review        (success)
  *                    ↘            ↘ Failed              (error, quarantine, duplicate)
  *
+ * The draft's tracker fields are filled by prefill.ts: empty for manual entry
+ * (the default, no external service) or proposed by the optional LLM adapter.
+ *
  * Every job message carries the attempt number. A message whose attempt no
  * longer matches the item (a newer reprocess was requested) or whose item is
  * no longer in progress is acknowledged and skipped, so redelivered or
@@ -11,19 +14,7 @@
  * item creates a new attempt; nothing from an earlier attempt is overwritten
  * except the item's current draft.
  */
-import {
-  CORE,
-  EXTRACTION_VERSION,
-  LOW_CONFIDENCE,
-  applyRedactionPolicy,
-  buildExtractionInput,
-  enforceTaxonomy,
-  REDACTION_POLICY_VERSION,
-  validateValues,
-  type ExtractedFieldView,
-  type ItemValues,
-} from "@eradigm/shared";
-import { createLlmProvider, LlmError } from "@eradigm/llm";
+import { EXTRACTION_VERSION, LLM_DRAFT_STEPS, MANUAL_DRAFT_STEPS, applyRedactionPolicy, REDACTION_POLICY_VERSION, type PrefillMode } from "@eradigm/shared";
 import type { CaptureStep } from "@eradigm/capture";
 import type { Env, JobMessage } from "../env.js";
 import { sha256Hex } from "../lib/crypto.js";
@@ -33,6 +24,7 @@ import { audit } from "../services/audit.js";
 import { getItemRow, type ItemRow } from "../services/items.js";
 import { loadSchema, loadSettings } from "../services/schema.js";
 import { captureUrlIsolated } from "./capture-client.js";
+import { prefillDraft, prefillMode } from "./prefill.js";
 import { deleteSnapshots, storeSnapshot } from "./snapshots.js";
 
 export class RetryableError extends Error {
@@ -140,29 +132,6 @@ export async function failItem(env: Env, msg: JobMessage, code: string, message:
   metric(env, "item_failed", 1, { tenant: msg.tenantId, code });
 }
 
-function llmFromEnv(env: Env) {
-  return createLlmProvider({
-    provider: env.LLM_PROVIDER,
-    apiKey: env.ANTHROPIC_API_KEY,
-    model: env.LLM_MODEL,
-    effort: env.LLM_EFFORT,
-    timeoutMs: 60_000,
-  });
-}
-
-/** Does the evidence excerpt actually appear in the source text? */
-function evidenceSupported(evidence: string | null, text: string): boolean {
-  if (!evidence) return false;
-  if (/^(article headline|page metadata|trade publication byline|page marked as press release)$/i.test(evidence.trim())) return true;
-  const clean = (s: string) => s.toLowerCase().replace(/[“”"‘’'…]/g, "").replace(/\s+/g, " ").trim();
-  const e = clean(evidence);
-  if (e.length < 6) return false;
-  const t = clean(text);
-  if (t.includes(e)) return true;
-  // Accept excerpts that were lightly trimmed: require the first 40 chars to match.
-  return e.length > 40 && t.includes(e.slice(0, 40));
-}
-
 // ---------------------------------------------------------------------------
 // The job
 // ---------------------------------------------------------------------------
@@ -179,6 +148,7 @@ export async function processJob(env: Env, msg: JobMessage): Promise<"done" | "s
     return "skipped";
   }
   const [schema, settings] = await Promise.all([loadSchema(env, msg.tenantId), loadSettings(env, msg.tenantId)]);
+  const mode = prefillMode(env);
   const att = await env.DB.prepare("SELECT steps_json FROM processing_attempts WHERE tenant_id = ?1 AND item_id = ?2 AND attempt = ?3")
     .bind(msg.tenantId, msg.itemId, msg.attempt)
     .first<{ steps_json: string }>();
@@ -196,7 +166,7 @@ export async function processJob(env: Env, msg: JobMessage): Promise<"done" | "s
         throw new RetryableError(result.code, result.message);
       }
       await logCapture(env, msg.tenantId, msg.itemId, item.submitted_url ?? "", result.finalUrl, outcome, false);
-      await failItem(env, msg, result.code, result.message, result.steps);
+      await failItem(env, msg, result.code, result.message, result.steps.length ? result.steps : steps);
       return "done";
     }
     steps = result.steps;
@@ -250,138 +220,85 @@ export async function processJob(env: Env, msg: JobMessage): Promise<"done" | "s
   const redB = applyRedactionPolicy(body, policy);
   if (redH.quarantine || redB.quarantine) {
     const category = redH.incidentCategory ?? redB.incidentCategory ?? "confidentiality_marking";
-    await quarantine(env, msg, item, category, steps);
+    await quarantine(env, msg, item, category, steps, mode);
     return "done";
   }
   const redactedCount = [...redH.findings, ...redB.findings].reduce((a, f) => a + f.count, 0);
-  const words = body ? body.split(/\s+/).length : 0;
-  steps.push({
-    label: "Minimum extraction to LLM",
-    ok: true,
-    detail: `Sent: headline, body text (${words} words), publication date, current taxonomy lists · Not sent: raw HTML, images, cookies, URL query${redactedCount ? ` · ${redactedCount} contact detail(s) redacted by policy` : ""}`,
-  });
-  await saveSteps(env, msg, "extracting", steps);
 
-  let llm;
-  try {
-    llm = llmFromEnv(env);
-  } catch (err) {
-    const m = err instanceof LlmError ? err.message : "LLM provider not configured";
-    steps.push({ label: "Schema-constrained classification", ok: false, detail: m });
-    await failItem(env, msg, "LLM_NOT_CONFIGURED", m, steps);
-    await alert(env, `LLM not configured: ${m}`, { tenant: msg.tenantId });
+  // ---- Stage 3: draft pre-fill (manual entry or optional LLM) -------------
+  const outcome = await prefillDraft(env, { schema, item, headline: redH.text, body: redB.text, sourceText: `${headline}\n${body}`, redactedCount });
+  if (!outcome.ok) {
+    steps.push(...outcome.steps);
+    if (outcome.retryable) {
+      await saveSteps(env, msg, "extracting", steps);
+      throw new RetryableError(outcome.code, outcome.message);
+    }
+    await failItem(env, msg, outcome.code, outcome.message, steps);
+    if (outcome.notifyAdmins) {
+      await alert(env, `LLM pre-fill ${outcome.code}: ${outcome.message}`, { tenant: msg.tenantId });
+      await notifyAdmins(env, msg.tenantId, "llm_permission", `Automatic pre-fill is failing: ${outcome.message}`);
+    }
     return "done";
   }
-  const input = buildExtractionInput(schema, { headline: redH.text, bodyText: redB.text, publicationDate: item.publication_date });
-  let result;
-  try {
-    result = await llm.extract(input);
-  } catch (err) {
-    if (err instanceof LlmError) {
-      if (err.retryable) throw new RetryableError(`LLM_${err.code}`, err.message);
-      steps.push({ label: "Schema-constrained classification", ok: false, detail: err.message });
-      await failItem(env, msg, `LLM_${err.code}`, err.message, steps);
-      if (err.code === "AUTH" || err.code === "PERMISSION" || err.code === "NOT_CONFIGURED") {
-        await alert(env, `Claude API ${err.code}: ${err.message}`, { tenant: msg.tenantId });
-        await notifyAdmins(env, msg.tenantId, "llm_permission", `AI classification is failing: ${err.message}`);
-      }
-      return "done";
-    }
-    throw err;
-  }
-
-  // Check the AI response against the approved categories and data rules.
-  const proposed: ItemValues = {};
-  for (const [k, f] of Object.entries(result.output.fields)) proposed[k] = f.value;
-  const { values, warnings: taxWarnings } = enforceTaxonomy(schema, proposed);
-  const sourceText = `${headline}\n${body}`;
-  const extraction: Record<string, ExtractedFieldView> = {};
-  const provenance: Record<string, "source" | "ai" | "analyst" | null> = {};
-  let fieldsWithWarnings = 0;
-  for (const col of schema.columns) {
-    const f = result.output.fields[col.key];
-    const w: string[] = taxWarnings.filter((t) => t.key === col.key).map((t) => t.message);
-    const v = values[col.key] ?? null;
-    if (!col.aiAssist) {
-      w.push("Null · analyst-owned field, not inferred");
-    } else if (!f) {
-      w.push("Not in extraction schema · analyst to complete");
-    } else {
-      if (v == null && f.nullReason && !w.length) w.push(`Null · ${f.nullReason}`);
-      if (v != null && f.confidence != null && f.confidence < LOW_CONFIDENCE) w.push("Low confidence · verify against source");
-      if (v != null && !evidenceSupported(f.evidence, sourceText)) w.push("Evidence excerpt not found in source · verify");
-    }
-    if (w.length) fieldsWithWarnings++;
-    extraction[col.key] = {
-      value: v,
-      confidence: v == null ? null : (f?.confidence ?? null),
-      evidence: f?.evidence ?? null,
-      nullReason: v == null ? (f?.nullReason ?? null) : null,
-      warnings: w,
-    };
-    provenance[col.key] =
-      v == null
-        ? null
-        : col.key === CORE.date && item.publication_date === v
-          ? "source"
-          : col.key === CORE.title && v === headline
-            ? "source"
-            : "ai";
-  }
-  // Server-side data rules (non-approval mode: values must be valid, required-ness is checked at approval).
-  const ruleErrors = validateValues(schema, values, { forApproval: false });
-  for (const e of ruleErrors) {
-    values[e.key] = null;
-    const ex = extraction[e.key];
-    if (ex) {
-      ex.warnings.push(`${e.message} · set to null`);
-      ex.value = null;
-    }
-  }
-  const dropped = taxWarnings.length + ruleErrors.length;
-  const nulls = schema.columns.filter((c) => values[c.key] == null).length;
-  steps.push({
-    label: "Schema-constrained classification",
-    ok: true,
-    detail: `Valid JSON against tracker schema · explicit nulls · evidence and confidence per field · ${dropped ? `${dropped} value(s) outside the taxonomy set to null` : "model cannot add taxonomy values"} · ${result.meta.model}`,
-  });
-  steps.push({ label: "Routed to Needs review", ok: true, detail: `${item.code} created in Inbox · never auto-published` });
+  const draft = outcome.draft;
+  steps.push(...draft.steps);
 
   const now = nowIso();
-  const modelWarnings = [...JSON.parse(item.model_warnings_json || "[]"), ...result.output.warnings].slice(0, 20);
-  const seq = await env.DB.prepare("SELECT COALESCE(MAX(seq), 0) + 1 AS n FROM item_revisions WHERE item_id = ?1").bind(item.id).first<{ n: number }>();
-  const batch = await env.DB.batch([
+  const modelWarnings = [...JSON.parse(item.model_warnings_json || "[]"), ...draft.warnings].slice(0, 20);
+  const stmts = [
     env.DB.prepare(
       `UPDATE intelligence_items SET status = 'needs_review', draft_json = ?1, provenance_json = ?2, extraction_json = ?3, model_warnings_json = ?4, warnings_count = ?5,
               error_code = NULL, error_message = NULL, version = version + 1, updated_at = ?6
         WHERE tenant_id = ?7 AND id = ?8 AND attempts = ?9 AND status = 'extracting'`,
-    ).bind(JSON.stringify(values), JSON.stringify(provenance), JSON.stringify(extraction), JSON.stringify(modelWarnings), fieldsWithWarnings, now, msg.tenantId, msg.itemId, msg.attempt),
+    ).bind(
+      JSON.stringify(draft.values),
+      JSON.stringify(draft.provenance),
+      draft.extraction ? JSON.stringify(draft.extraction) : null,
+      JSON.stringify(modelWarnings),
+      draft.fieldsWithWarnings,
+      now,
+      msg.tenantId,
+      msg.itemId,
+      msg.attempt,
+    ),
     env.DB.prepare(
       `UPDATE processing_attempts SET status = 'succeeded', stage = 'needs_review', finished_at = ?1, steps_json = ?2, extraction_version = ?3, prompt_version = ?4, schema_version = ?5,
               redaction_version = ?6, provider = ?7, model = ?8, input_tokens = ?9, output_tokens = ?10
         WHERE tenant_id = ?11 AND item_id = ?12 AND attempt = ?13`,
-    ).bind(now, JSON.stringify(steps), EXTRACTION_VERSION, result.meta.promptVersion, result.meta.schemaVersion, redB.policyVersion, result.meta.provider, result.meta.model, result.meta.inputTokens ?? null, result.meta.outputTokens ?? null, msg.tenantId, msg.itemId, msg.attempt),
-    env.DB.prepare(
-      `INSERT INTO item_revisions (id, tenant_id, item_id, seq, kind, values_json, provenance_json, changed_keys, created_by, created_at, note)
-       SELECT ?1, ?2, ?3, ?4, 'llm_draft', ?5, ?6, '[]', NULL, ?7, ?8
-        WHERE EXISTS (SELECT 1 FROM intelligence_items WHERE id = ?3 AND status = 'needs_review' AND attempts = ?9)`,
-    ).bind(newId("rev"), msg.tenantId, item.id, seq?.n ?? 1, JSON.stringify(values), JSON.stringify(provenance), now, `LLM draft · attempt ${msg.attempt} · ${result.meta.model}`, msg.attempt),
-  ]);
+    ).bind(
+      now,
+      JSON.stringify(steps),
+      EXTRACTION_VERSION,
+      draft.meta.promptVersion,
+      draft.meta.schemaVersion ?? `tracker-schema/rev-${schema.revision}`,
+      redB.policyVersion,
+      draft.meta.provider,
+      draft.meta.model,
+      draft.meta.inputTokens,
+      draft.meta.outputTokens,
+      msg.tenantId,
+      msg.itemId,
+      msg.attempt,
+    ),
+  ];
+  if (draft.revisionNote) {
+    const seq = await env.DB.prepare("SELECT COALESCE(MAX(seq), 0) + 1 AS n FROM item_revisions WHERE item_id = ?1").bind(item.id).first<{ n: number }>();
+    stmts.push(
+      env.DB.prepare(
+        `INSERT INTO item_revisions (id, tenant_id, item_id, seq, kind, values_json, provenance_json, changed_keys, created_by, created_at, note)
+         SELECT ?1, ?2, ?3, ?4, 'llm_draft', ?5, ?6, '[]', NULL, ?7, ?8
+          WHERE EXISTS (SELECT 1 FROM intelligence_items WHERE id = ?3 AND status = 'needs_review' AND attempts = ?9)`,
+      ).bind(newId("rev"), msg.tenantId, item.id, seq?.n ?? 1, JSON.stringify(draft.values), JSON.stringify(draft.provenance), now, `${draft.revisionNote} · attempt ${msg.attempt}`, msg.attempt),
+    );
+  }
+  const batch = await env.DB.batch(stmts);
   if ((batch[0]?.meta.changes ?? 0) === 0) {
     log("info", "job_superseded", { item: item.id, attempt: msg.attempt });
     return "skipped";
   }
-  await audit(env, {
-    tenantId: msg.tenantId,
-    actorId: null,
-    actorEmail: "system",
-    action: "item.classified",
-    targetType: "item",
-    targetId: item.id,
-    details: { attempt: msg.attempt, provider: result.meta.provider, model: result.meta.model, promptVersion: result.meta.promptVersion, nulls, fieldsWithWarnings, dropped },
-  });
-  metric(env, "item_classified", 1, { tenant: msg.tenantId });
-  if (result.meta.latencyMs) metric(env, "llm_latency_ms", result.meta.latencyMs, { tenant: msg.tenantId });
+  await audit(env, { tenantId: msg.tenantId, actorId: null, actorEmail: "system", action: draft.audit.action, targetType: "item", targetId: item.id, details: { attempt: msg.attempt, ...draft.audit.details } });
+  metric(env, draft.audit.action === "item.classified" ? "item_classified" : "item_routed", 1, { tenant: msg.tenantId });
+  if (draft.meta.latencyMs) metric(env, "llm_latency_ms", draft.meta.latencyMs, { tenant: msg.tenantId });
   return "done";
 }
 
@@ -406,9 +323,9 @@ const CATEGORY_LABEL: Record<string, string> = {
  * record only a non-sensitive incident category + timestamp, notify admins
  * and apply the deletion procedure (stored copy and extracted text removed).
  */
-async function quarantine(env: Env, msg: JobMessage, item: ItemRow, category: string, steps: CaptureStep[]) {
+async function quarantine(env: Env, msg: JobMessage, item: ItemRow, category: string, steps: CaptureStep[], mode: PrefillMode) {
   const now = nowIso();
-  steps.push({ label: "Minimum extraction to LLM", ok: false, detail: `Quarantined by data policy (${CATEGORY_LABEL[category] ?? category}) · nothing sent externally` });
+  steps.push({ label: mode === "llm" ? LLM_DRAFT_STEPS[0] : MANUAL_DRAFT_STEPS[0], ok: false, detail: `Quarantined by data policy (${CATEGORY_LABEL[category] ?? category}) · nothing sent externally` });
   await env.DB.batch([
     env.DB.prepare(
       `UPDATE intelligence_items SET status = 'failed', quarantined = 1, error_code = 'QUARANTINED', error_message = ?1, headline = NULL, body_text = NULL,

@@ -19,7 +19,9 @@ export async function signInAs(page: Page, who: keyof typeof USERS) {
 
 /** Fails on serious or critical WCAG 2.1 A/AA violations. */
 export async function expectAccessible(page: Page, label: string) {
-  const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+  // The only iframes are sandboxed, script-less source snapshots (third-party
+  // page content, not our UI); axe cannot run inside them, so skip frames.
+  const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).options({ iframes: false }).analyze();
   const bad = results.violations.filter((v) => v.impact === "serious" || v.impact === "critical");
   const summary = bad.map((v) => `${v.id} (${v.impact}): ${v.help} → ${v.nodes.slice(0, 3).map((n) => n.target.join(" ")).join(" | ")}`);
   expect(summary, `Accessibility violations on ${label}`).toEqual([]);

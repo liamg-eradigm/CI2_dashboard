@@ -6,13 +6,30 @@ import { expect, expectAccessible, signInAs, test } from "./fixtures";
 test.describe("analyst role", () => {
   test.beforeEach(async ({ page }) => signInAs(page, "analyst"));
 
-  test("reviews an Inbox draft: validation, edit and approve", async ({ page }) => {
+  test("completes an empty Inbox draft from the saved page: validation, manual entry and approve", async ({ page }) => {
     await page.goto("/inbox");
     await expect(page.getByRole("heading", { name: "Inbox" })).toBeVisible();
     const card = page.locator(".inbox-card", { hasText: "AstraZeneca and Roche form pre-competitive AI alliance" });
+    // Manual entry: every tracker field starts empty and no AI output is shown.
+    await expect(card.getByText("Awaiting analyst entry")).toBeVisible();
+    await expect(card.getByText(/LLM draft/)).toHaveCount(0);
+    await expect(card.getByRole("textbox", { name: "News title", exact: true })).toHaveValue("");
+    await expect(card.getByRole("combobox", { name: "Macrotrend", exact: true })).toHaveValue("");
+    // The analyst opens the saved page to read the source.
+    await expect(card.getByRole("link", { name: /Open saved page in new tab/ })).toHaveAttribute("href", /^\/source\/itm_/);
+    await card.getByRole("button", { name: "View saved page" }).click();
+    await expect(card.frameLocator("iframe.snapshot-frame").getByText("pool de-identified screening data")).toBeVisible();
+
     await card.getByRole("button", { name: "✓ Approve" }).click();
-    await expect(card.getByText(/Validation failed\. Complete: .*Impact/)).toBeVisible();
+    await expect(card.getByText(/Validation failed\. Complete: Date, Competitor, Macrotrend, Subtrend, News title/)).toBeVisible();
+    await card.getByLabel("Date", { exact: true }).fill("2026-09-24");
+    await card.getByRole("textbox", { name: "Competitor", exact: true }).fill("AstraZeneca, Roche");
+    await card.getByRole("combobox", { name: "Macrotrend", exact: true }).selectOption("AI Investment in R&D");
+    await card.getByRole("combobox", { name: "Subtrend", exact: true }).selectOption("External Partnerships to Accelerate AI");
+    await card.getByRole("textbox", { name: "News title", exact: true }).fill("AstraZeneca and Roche form pre-competitive AI alliance");
+    await card.getByRole("combobox", { name: "Growth intensity", exact: true }).selectOption("Strong Increase");
     await card.getByRole("combobox", { name: "Impact", exact: true }).selectOption("High");
+    await card.getByRole("combobox", { name: "Source", exact: true }).selectOption("PR");
     await card.getByRole("combobox", { name: "Action", exact: true }).selectOption("Not Actioned");
     await card.getByRole("button", { name: "✓ Approve" }).click();
     await expect(page.getByText(/SIG-\d+ published to the tracker as rev 1/).first()).toBeVisible();
@@ -45,10 +62,28 @@ test.describe("analyst role", () => {
     await page.getByRole("button", { name: "Process file" }).click();
     await expect(page.getByText("Complete · sent to Needs review")).toBeVisible({ timeout: 30_000 });
     await expect(page.locator(".step", { hasText: "Content scan before storage" })).toContainText("script(s) stripped");
-    await expect(page.getByRole("heading", { name: "Model output" })).toBeVisible();
+    await expect(page.locator(".step", { hasText: "Data policy check" })).toContainText("nothing sent to any external service");
+    await expect(page.locator(".step", { hasText: "Routed to Needs review" })).toContainText("every tracker field empty");
+    await expect(page.getByRole("heading", { name: "Model output" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Sent to the Inbox" })).toBeVisible();
     await expectAccessible(page, "/input with results");
-    await page.getByRole("button", { name: "Review in Inbox →" }).click();
-    await expect(page.locator(".inbox-card", { hasText: "Roche opens robotics-enabled" }).first()).toBeVisible();
+    await page.getByRole("button", { name: "Complete in Inbox →" }).click();
+    const card = page.locator(".inbox-card", { hasText: "Roche opens robotics-enabled" }).first();
+    await expect(card).toBeVisible();
+    await expect(card.getByText("Awaiting analyst entry")).toBeVisible();
+  });
+
+  test("opens the saved page full-window in a new tab", async ({ page, context }) => {
+    await context.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
+    await page.goto("/inbox");
+    const card = page.locator(".inbox-card", { hasText: "Novartis opens AI academy" });
+    const [tab] = await Promise.all([context.waitForEvent("page"), card.getByRole("link", { name: /Open saved page in new tab/ }).click()]);
+    await tab.waitForLoadState();
+    await expect(tab.getByRole("heading", { name: "Novartis opens AI academy with three-tier certification" })).toBeVisible();
+    await expect(tab.frameLocator("iframe.snapshot-frame").getByText("foundation tier by the end of 2027")).toBeVisible();
+    await expect(tab.getByRole("navigation")).toHaveCount(0);
+    await expectAccessible(tab, "/source/:id");
+    await tab.close();
   });
 
   test("edits dropdown options from the Inbox column editor", async ({ page }) => {

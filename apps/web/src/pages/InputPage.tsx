@@ -1,14 +1,12 @@
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CAPTURE_LIMITS, IN_PROGRESS_STATUSES, checkAndNormaliseUrl, type ItemSummary, type Me } from "@eradigm/shared";
+import { CAPTURE_LIMITS, IN_PROGRESS_STATUSES, checkAndNormaliseUrl, pipelineSteps, type ItemSummary, type Me } from "@eradigm/shared";
 import type { ApiError } from "../api/client";
 import { api } from "../api/client";
 import { useCaptureLog, useInvalidate, useItem, useSchema } from "../api/hooks";
 import { ModelOutputTable } from "../components/ModelOutput";
 import { localDateTime } from "../lib/format";
 
-const URL_STEPS = ["Validate and normalise", "Destination check", "Isolated capture worker", "Access restrictions", "Content scan before storage", "Minimum extraction to LLM", "Schema-constrained classification", "Routed to Needs review"];
-const FILE_STEPS = ["File check", "Source URL", "Isolated parse worker", "Access restrictions", "Content scan before storage", "Minimum extraction to LLM", "Schema-constrained classification", "Routed to Needs review"];
 
 const SAMPLES: [string, string][] = [
   ["Public article", "newsroom.example.com/roche-autonomous-lab?utm_source=li#top"],
@@ -31,7 +29,7 @@ interface LocalRun {
 }
 
 export function InputPage({ me }: { me: Me }) {
-  void me;
+  const manual = me.features.prefill === "manual";
   const [mode, setMode] = useState<"url" | "file">("url");
   const [url, setUrl] = useState("");
   const [file, setFile] = useState<File | null>(null);
@@ -82,7 +80,7 @@ export function InputPage({ me }: { me: Me }) {
     }
   };
 
-  const labels = (run?.mode ?? mode) === "url" ? URL_STEPS : FILE_STEPS;
+  const labels = pipelineSteps(run?.mode ?? mode, me.features.prefill);
   const serverSteps = d?.attemptsDetail[0]?.steps ?? [];
   const failedIdx = run?.failAt ?? (d?.status === "failed" ? serverSteps.findIndex((s) => !s.ok) : -1);
   const doneAll = d?.status === "needs_review" || d?.status === "approved";
@@ -128,7 +126,11 @@ export function InputPage({ me }: { me: Me }) {
             <span className="eyebrow">Analysts and admins only</span>
             <h1 id="page-title">Input</h1>
           </div>
-          <div className="band-copy">Paste the URL of a news update, or upload an HTML file saved with SingleFile when a login portal blocks capture. Every extracted draft goes to the Inbox for review and is never published automatically.</div>
+          <div className="band-copy">
+            {manual
+              ? "Paste the URL of a news update, or upload an HTML file saved with SingleFile when a login portal blocks capture. The page is saved and sent to the Inbox with every tracker field empty for an analyst to complete. Nothing is published automatically."
+              : "Paste the URL of a news update, or upload an HTML file saved with SingleFile when a login portal blocks capture. Every extracted draft goes to the Inbox for review and is never published automatically."}
+          </div>
         </div>
       </section>
       <div className="content">
@@ -199,7 +201,7 @@ export function InputPage({ me }: { me: Me }) {
           <section className="card" aria-labelledby="pipe-title">
             <div className="card-head" style={{ alignItems: "baseline" }}>
               <h2 className="card-title" id="pipe-title">
-                Capture and extraction {d ? <span className="mono" style={{ fontSize: 12, color: "var(--muted)" }}>· {d.code}</span> : null}
+                {manual ? "Capture" : "Capture and extraction"} {d ? <span className="mono" style={{ fontSize: 12, color: "var(--muted)" }}>· {d.code}</span> : null}
               </h2>
               <span style={{ fontSize: 12.5, fontWeight: 700, color: runColor }} role="status">
                 {runStatus}
@@ -224,6 +226,24 @@ export function InputPage({ me }: { me: Me }) {
                 );
               })}
             </ol>
+          </section>
+        )}
+
+        {d && !d.extraction && schema.data && (d.status === "needs_review" || d.status === "approved") && (
+          <section className="card" aria-labelledby="sent-title">
+            <div className="card-head" style={{ alignItems: "center" }}>
+              <div>
+                <h2 className="card-title" id="sent-title">
+                  Sent to the Inbox
+                </h2>
+                <span className="card-sub">
+                  {d.code} · saved page stored · {schema.data.columns.length} tracker fields left empty for the analyst · nothing sent to any external service
+                </span>
+              </div>
+              <button className="btn" onClick={() => nav("/inbox")}>
+                Complete in Inbox →
+              </button>
+            </div>
           </section>
         )}
 

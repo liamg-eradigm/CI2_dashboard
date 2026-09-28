@@ -155,8 +155,12 @@ export function RecordDrawer({ id, schema, me, onClose, onOpen }: { id: string; 
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <div className="section-h">Provenance</div>
               <dl className="kv">
-                <dt>Inbox item</dt>
-                <dd className="mono">{s.inboxCode}</dd>
+                {can(me.role, "inbox:read") && (
+                  <>
+                    <dt>Inbox item</dt>
+                    <dd className="mono">{s.inboxCode}</dd>
+                  </>
+                )}
                 <dt>Received</dt>
                 <dd>{localDateTime(s.receivedAt)}</dd>
                 <dt>Submitted URL</dt>
@@ -173,8 +177,8 @@ export function RecordDrawer({ id, schema, me, onClose, onOpen }: { id: string; 
                 <dd>
                   {s.extraction.promptVersion ?? "—"} · {s.extraction.schemaVersion ?? "—"}
                 </dd>
-                <dt>AI model</dt>
-                <dd>{s.extraction.model ?? "—"}</dd>
+                <dt>Draft pre-fill</dt>
+                <dd>{s.extraction.model ? `AI model ${s.extraction.model}` : "Manual entry by analyst"}</dd>
                 <dt>Validation</dt>
                 <dd>Passed (server-side)</dd>
                 <dt>Approved by</dt>

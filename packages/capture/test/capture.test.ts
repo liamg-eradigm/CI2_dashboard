@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { captureUrl, detectSingleFile, extractArticle, isAllowed, parseUpload, sanitizeHtml, toIsoDate } from "../src/index.js";
+import { captureUrl, decodeCaptureResult, decodeEntities, detectSingleFile, encodeCaptureResult, extractArticle, isAllowed, parseUpload, processHtml, sanitizeHtml, toIsoDate } from "../src/index.js";
+
+const enc = new TextEncoder();
+const text = (b: Uint8Array) => new TextDecoder().decode(b);
 
 const ARTICLE = `<!doctype html><html><head>
 <title>Roche opens autonomous lab | Roche newsroom</title>
@@ -22,8 +25,8 @@ const ARTICLE = `<!doctype html><html><head>
 </body></html>`;
 
 describe("sanitisation and content scan", () => {
-  it("strips scripts, forms, frames, handlers and javascript: URLs", () => {
-    const { html, scan } = sanitizeHtml(ARTICLE);
+  it("strips scripts, forms, frames, handlers and javascript: URLs", async () => {
+    const { html, scan } = await sanitizeHtml(ARTICLE);
     expect(html).not.toMatch(/<script|<form|<iframe|onload=|javascript:|google-analytics|<link/i);
     expect(html).toContain("autonomous laboratory");
     expect(scan.malicious).toBe(false);
@@ -31,22 +34,90 @@ describe("sanitisation and content scan", () => {
     expect(scan.formsRemoved).toBeGreaterThanOrEqual(1);
   });
 
-  it("flags malware markers", () => {
+  it("flags malware markers", async () => {
     const eicar = "X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*";
-    expect(sanitizeHtml(`<p>${eicar}</p>`).scan.malicious).toBe(true);
-    expect(sanitizeHtml('<a href="data:application/x-msdownload;base64,TVqQAAMAAAAEAAAA">x</a>').scan.malicious).toBe(true);
+    expect((await sanitizeHtml(`<p>${eicar}</p>`)).scan.malicious).toBe(true);
+    expect((await sanitizeHtml(`<!-- ${eicar} -->`)).scan.malicious).toBe(true);
+    expect((await sanitizeHtml('<a href="data:application/x-msdownload;base64,TVqQAAMAAAAEAAAA">x</a>')).scan.malicious).toBe(true);
+    expect((await sanitizeHtml('<img src="data:image/png;base64,iVBORw0KGgo=">')).scan.malicious).toBe(false);
+  });
+
+  it("decodes entity-obfuscated javascript: URLs before checking them", async () => {
+    const { html, scan } = await sanitizeHtml('<p><a href="java&#115;cript:alert(1)">a</a><a href="&#x6A;avascript&colon;x">b</a><a href=" JAVASCRIPT:x">c</a><a href="https://ok.example/">d</a></p>');
+    expect(html).not.toMatch(/java&#115;cript|&#x6A;avascript|JAVASCRIPT/);
+    expect(html).toContain('href="https://ok.example/"');
+    expect(scan.handlersRemoved).toBeGreaterThanOrEqual(2);
+  });
+
+  it("keeps the content of page-wide forms, removes meta refresh and base", async () => {
+    const { html } = await sanitizeHtml('<html><head><meta http-equiv="refresh" content="0;url=https://evil.example"><base href="https://evil.example/"></head><body><form action="/x"><p>Whole page inside a form</p><input name=q></form></body></html>');
+    expect(html).toContain("Whole page inside a form");
+    expect(html).not.toMatch(/<form|<input|refresh|evil\.example|<base/i);
+    expect(html.startsWith("<!doctype html>")).toBe(true);
+  });
+
+  it("adds a strict Content-Security-Policy so a downloaded copy stays inert", async () => {
+    const csp = /<meta http-equiv="Content-Security-Policy" content="default-src 'none';[^"]*">/;
+    const withHead = (await sanitizeHtml("<!doctype html><html><head><title>x</title></head><body><p>a</p></body></html>")).html;
+    expect(withHead).toMatch(/^<!doctype html><html><head><meta http-equiv="Content-Security-Policy"/);
+    const noHead = (await sanitizeHtml("<p>fragment</p>")).html;
+    expect(noHead).toMatch(new RegExp(`^<!doctype html>\\n${csp.source}<p>fragment</p>$`));
+    const doctypeNoHead = (await sanitizeHtml("<!DOCTYPE html><body><p>b</p></body>")).html;
+    expect(doctypeNoHead).toMatch(new RegExp(`^<!DOCTYPE html>\\n${csp.source}<body>`));
+  });
+
+  it("only attaches handlers to the elements that need them (Free plan CPU budget)", async () => {
+    // A navigation-heavy page: thousands of links and list items outside the article.
+    const nav = '<li class="menu"><a href="/s">Section</a></li>'.repeat(3000);
+    const page = `<html><head><title>t</title></head><body><nav><ul>${nav}</ul></nav><article><p>${"Article text. ".repeat(30)}</p></article></body></html>`;
+    const p = await processHtml(enc.encode(page), null);
+    expect(p.article.bodyText.startsWith("Article text.")).toBe(true);
+    expect(p.article.bodyText).not.toContain("Section");
   });
 });
 
 describe("article extraction", () => {
-  it("extracts headline, body, publication date and outlet, dropping navigation noise", () => {
-    const a = extractArticle(ARTICLE, "https://www.roche.com/news/lab");
+  it("extracts headline, body, publication date and outlet, dropping navigation noise", async () => {
+    const a = await extractArticle(ARTICLE, "https://www.roche.com/news/lab");
     expect(a.headline).toBe("Roche opens robotics-enabled autonomous lab for early discovery");
     expect(a.publicationDate).toBe("2026-09-24");
     expect(a.siteName).toBe("Roche newsroom");
     expect(a.bodyText).toContain("double experimental throughput");
     expect(a.bodyText).not.toContain("Home | About");
     expect(a.wordCount).toBeGreaterThan(40);
+  });
+
+  it("keeps text after removed elements and ignores script, style and furniture text", async () => {
+    const page = `<html><head><title>T &amp; U</title><style>.x{}</style><script>var s = "<p>fake paragraph</p>";</script></head><body>
+      <header><nav>Home | About</nav></header><div class="cookie-banner">We use cookies</div>
+      <main><h1>Big &ldquo;news&rdquo;</h1><p>${"Real article text with plenty of words. ".repeat(4)}</p>
+      <iframe src="https://ads.example">frame text</iframe><noscript>Enable JS</noscript>
+      <p>After the frame &amp; the noscript block, the article continues with more detail.</p>
+      <div class="share-bar">Share this</div></main><footer>Footer links</footer></body></html>`;
+    const a = await extractArticle(page, "https://www.example.com/x");
+    expect(a.headline).toBe("Big “news”");
+    expect(a.bodyText).toContain("Real article text");
+    expect(a.bodyText).toContain("After the frame & the noscript block");
+    expect(a.bodyText).not.toMatch(/fake paragraph|Home \| About|cookies|frame text|Enable JS|Share this|Footer links/);
+    expect(a.siteName).toBe("example.com");
+  });
+
+  it("falls back to long paragraphs when there is no main content element", async () => {
+    const page = `<body><div><div>Menu</div><div><p>${"A long paragraph of news text about a product launch. ".repeat(3)}</p><p>${"Another long paragraph with details of the partnership. ".repeat(3)}</p></div></div></body>`;
+    const a = await extractArticle(page, null);
+    expect(a.bodyText).toContain("product launch");
+    expect(a.bodyText).toContain("partnership");
+    expect(a.bodyText.split("\n\n")).toHaveLength(2);
+  });
+
+  it("reads JSON-LD dates, authors and publishers", async () => {
+    const page = `<head><script type="application/ld+json">{"@graph":[{"@type":"NewsArticle","datePublished":"2026-08-01T09:00:00Z","author":[{"name":"J. Doe"}],"publisher":{"name":"Pharma Times"}}]}</script></head><body><p>x</p></body>`;
+    const a = await extractArticle(page, "https://pharmatimes.example/a");
+    expect(a).toMatchObject({ publicationDate: "2026-08-01", byline: "J. Doe", siteName: "Pharma Times" });
+  });
+
+  it("decodes entities", () => {
+    expect(decodeEntities("R&amp;D &ndash; &#8220;AI&#x201D; &unknown; caf&eacute;")).toBe("R&D – “AI” &unknown; café");
   });
 
   it("normalises dates", () => {
@@ -111,7 +182,7 @@ describe("captureUrl", () => {
     expect(r.redirects).toBe(1);
     expect(r.steps.map((s) => s.label)).toEqual(["Validate and normalise", "Destination check", "Isolated capture worker", "Access restrictions", "Content scan before storage"]);
     expect(r.steps[0]?.detail).toContain("tracking parameter");
-    expect(r.html).not.toContain("<script");
+    expect(text(r.html)).not.toContain("<script");
     expect(r.article.publicationDate).toBe("2026-09-24");
   });
 
@@ -165,7 +236,7 @@ describe("captureUrl", () => {
 describe("parseUpload", () => {
   it("parses SingleFile uploads without network access", async () => {
     const file = `<!--\n Page saved with SingleFile \n url: https://news.example.com/sanofi-dte?utm_source=x \n saved date: Wed Sep 24 2026\n-->${ARTICLE}`;
-    const r = await parseUpload(file, "sanofi-dte.html", file.length);
+    const r = await parseUpload(enc.encode(file), "sanofi-dte.html");
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.finalUrl).toBe("https://news.example.com/sanofi-dte");
@@ -174,6 +245,33 @@ describe("parseUpload", () => {
   });
 
   it("rejects non-HTML files", async () => {
-    expect(await parseUpload("%PDF-1.7", "a.pdf", 8)).toMatchObject({ ok: false, code: "CONTENT_TYPE", stepIndex: 0 });
+    expect(await parseUpload(enc.encode("%PDF-1.7"), "a.pdf")).toMatchObject({ ok: false, code: "CONTENT_TYPE", stepIndex: 0 });
+    expect(await parseUpload(enc.encode("just some text"), "a.html")).toMatchObject({ ok: false, code: "CONTENT_TYPE", stepIndex: 0 });
+  });
+
+  it("decodes non-UTF-8 files declared by a meta charset", async () => {
+    const latin1 = Uint8Array.from([...'<html><head><meta charset="iso-8859-1"></head><body><p>Caf'].map((c) => c.charCodeAt(0)).concat([0xe9], [..."</p></body></html>"].map((c) => c.charCodeAt(0))));
+    const r = await parseUpload(latin1, "a.html");
+    expect(r.ok && r.article.bodyText).toBe("Café");
+  });
+});
+
+describe("capture worker framing", () => {
+  it("round-trips a success with the snapshot as raw bytes and a failure", async () => {
+    const r = await parseUpload(enc.encode(ARTICLE), "a.html");
+    expect(r.ok).toBe(true);
+    const back = decodeCaptureResult(encodeCaptureResult(r).slice().buffer);
+    expect(back.ok && text(back.html)).toBe(r.ok && text(r.html));
+    expect(back.ok && back.article).toEqual(r.ok && r.article);
+    const fail = { ok: false as const, code: "TOO_LARGE" as const, message: "big", retryable: false, stepIndex: 0, steps: [], finalUrl: null };
+    expect(decodeCaptureResult(encodeCaptureResult(fail))).toEqual(fail);
+  });
+
+  it("processes a large page in one pass", async () => {
+    const big = `<html><body><nav>${'<a href="/s">Section</a>'.repeat(2000)}</nav><article>${"<p>Paragraph of competitive-intelligence text about a launch.</p>".repeat(5000)}</article>${"<script>var x=1;</script>".repeat(500)}</body></html>`;
+    const p = await processHtml(enc.encode(big), null);
+    expect(p.article.wordCount).toBeGreaterThan(5_000);
+    expect(p.article.truncated).toBe(true);
+    expect(text(p.html)).not.toContain("<script");
   });
 });

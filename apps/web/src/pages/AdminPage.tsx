@@ -21,7 +21,7 @@ export function AdminPage({ me }: { me: Me }) {
       <div className="content">
         {isAdmin && <ConfigStatus />}
         <Users me={me} />
-        <Quality />
+        <Quality manual={me.features.prefill === "manual"} />
         {isAdmin && <Settings />}
         {isAdmin && <Incidents />}
         {isAdmin && <Audit />}
@@ -42,7 +42,8 @@ function ConfigStatus() {
             Deployment status
           </h2>
           <span className="card-sub">
-            Environment {q.data.environment} · LLM provider {q.data.provider} · model {q.data.model}
+            Environment {q.data.environment} ·{" "}
+            {q.data.prefill === "manual" ? "Draft pre-fill: manual entry (no AI service)" : `Draft pre-fill: LLM provider ${q.data.provider} · model ${q.data.model}`}
           </span>
         </div>
         <span className={`tag ${bad.length ? "warn" : "ok"}`}>{bad.length ? `${bad.length} item(s) need attention` : "All checks passed"}</span>
@@ -174,7 +175,7 @@ function Users({ me }: { me: Me }) {
   );
 }
 
-function Quality() {
+function Quality({ manual }: { manual: boolean }) {
   const q = useQuality(true);
   const d = q.data;
   return (
@@ -183,7 +184,11 @@ function Quality() {
         <h2 className="card-title" id="q-title">
           Extraction quality
         </h2>
-        <span className="card-sub">From real review decisions: how often analysts correct the AI draft, required-field completion and evidence support. Re-check after changing the AI instructions, categories or model.</span>
+        <span className="card-sub">
+          {manual
+            ? "From real review decisions. Automatic pre-fill is off (manual entry), so AI correction and evidence metrics stay empty until it is enabled (docs/ENABLING-AUTOFILL.md)."
+            : "From real review decisions: how often analysts correct the AI draft, required-field completion and evidence support. Re-check after changing the AI instructions, categories or model."}
+        </span>
       </div>
       {d && (
         <>
@@ -192,7 +197,7 @@ function Quality() {
               ["Reviewed", d.reviewed],
               ["Approved", d.approved],
               ["Rejected", d.rejected],
-              ["Correction rate", pct(d.correctionRate)],
+              ["AI drafts corrected", d.aiDrafted ? `${pct(d.correctionRate)} of ${d.aiDrafted}` : "—"],
               ["Required fields completed", pct(d.requiredFieldCompletion)],
               ["Values with verified evidence", pct(d.evidenceCoverage)],
               ["Duplicates handled", d.duplicatesDetected],
@@ -276,7 +281,7 @@ function Settings() {
         </label>
       </div>
       <fieldset style={{ border: 0, padding: 0, margin: 0, display: "grid", gap: 8 }}>
-        <legend className="section-h">Data classification and redaction (applied before anything is sent to the AI service)</legend>
+        <legend className="section-h">Data classification and redaction (checked for every capture; redaction applies to anything sent to an AI service if pre-fill is enabled)</legend>
         <label style={{ fontSize: 13 }}>
           <input type="checkbox" checked={draft.redaction.redactEmails} onChange={(e) => setDraft({ ...draft, redaction: { ...draft.redaction, redactEmails: e.target.checked } })} /> Redact email addresses
         </label>

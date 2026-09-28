@@ -1,7 +1,8 @@
 /** Bindings and configuration for the API worker (see wrangler.jsonc). */
 export interface Env {
   DB: D1Database;
-  SNAPSHOTS: R2Bucket;
+  /** Optional R2 bucket for snapshots. When absent, snapshots are stored in D1 (Workers Free plan default). */
+  SNAPSHOTS?: R2Bucket;
   JOBS?: Queue<JobMessage>;
   /** Service binding to the isolated capture worker (apps/capture). */
   CAPTURE?: Fetcher;
@@ -13,6 +14,7 @@ export interface Env {
   AUTH_MODE: "access" | "dev";
   ACCESS_TEAM_DOMAIN: string;
   ACCESS_AUD: string;
+  /** "none" (manual entry, default) or an LLM adapter name such as "anthropic". See docs/ENABLING-AUTOFILL.md. */
   LLM_PROVIDER: string;
   LLM_MODEL: string;
   LLM_EFFORT: string;
@@ -21,6 +23,7 @@ export interface Env {
   DNS_RESOLVER_URL: string;
 
   // Secrets
+  /** Only needed when LLM_PROVIDER = "anthropic". */
   ANTHROPIC_API_KEY?: string;
   SNAPSHOT_ENCRYPTION_KEY?: string;
   AUDIT_HMAC_KEY?: string;

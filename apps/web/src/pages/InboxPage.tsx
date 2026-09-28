@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CORE,
   IN_PROGRESS_STATUSES,
@@ -20,7 +20,7 @@ import { api, ApiError } from "../api/client";
 import { useInvalidate, useItem, useItems, useSchema } from "../api/hooks";
 import { ModelOutputTable } from "../components/ModelOutput";
 import { SchemaEditor } from "../components/SchemaEditor";
-import { SnapshotFrame } from "../components/SnapshotFrame";
+import { SnapshotActions, SnapshotFrame } from "../components/SnapshotFrame";
 import { localDateTime, pct } from "../lib/format";
 import { useToast } from "../state/toast";
 
@@ -43,6 +43,7 @@ export function InboxPage({ me }: { me: Me }) {
   const approvedToday = items.filter((i) => i.status === "approved" && i.decision?.at.slice(0, 10) === today).length;
   const shown = items.filter((i) => TABS.find((t) => t.key === tab)?.statuses.includes(i.status));
   const s = schema.data;
+  const manual = me.features.prefill === "manual";
 
   return (
     <>
@@ -55,7 +56,9 @@ export function InboxPage({ me }: { me: Me }) {
             <h1 id="page-title">Inbox</h1>
           </div>
           <div className="band-copy">
-            Check each tracker draft against its source, edit any field, then approve. Approval validates the entry, records reviewer and time, and publishes a new revision. The source snapshot and processing history are kept.
+            {manual
+              ? "Each captured source arrives with its tracker fields empty. Open the saved page, enter every field, then approve. Approval validates the entry, records reviewer and time, and publishes a new revision. The saved page and processing history are kept."
+              : "Check each tracker draft against its source, edit any field, then approve. Approval validates the entry, records reviewer and time, and publishes a new revision. The source snapshot and processing history are kept."}
           </div>
         </div>
       </section>
@@ -106,7 +109,6 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
   const [open, setOpen] = useState(false);
   const [evidence, setEvidence] = useState(false);
   const [draft, setDraft] = useState<Draft>(() => toDraft(schema, item));
-  const [version, setVersion] = useState(item.version);
   const [errors, setErrors] = useState<string[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -115,17 +117,32 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
   const detail = useItem(open ? item.id : null);
   const pending = item.status === "needs_review";
   const canReview = can(me.role, "item:review");
+  const manual = me.features.prefill === "manual";
+  const emptyDraft = pending && sortedColumns(schema).every((c) => item.draft[c.key] == null || item.draft[c.key] === "" || (Array.isArray(item.draft[c.key]) && (item.draft[c.key] as unknown[]).length === 0));
 
-  // Refresh local state when the server version moves on (e.g. schema rename, reprocess).
+  // Latest version this card knows about, and the values last persisted. Saves
+  // are queued so fast data entry never races itself into a version conflict.
+  const versionRef = useRef(item.version);
+  const savedRef = useRef(JSON.stringify(normaliseValues(schema, item.draft)));
+  const chainRef = useRef<Promise<void>>(Promise.resolve());
+  const bump = (v: number) => {
+    versionRef.current = Math.max(versionRef.current, v);
+  };
+
+  // Refresh local state only when the server moved beyond what this card saved
+  // (another user, a schema rename or a reprocess) — never for our own saves.
   useEffect(() => {
-    if (item.version !== version) {
+    if (item.version > versionRef.current) {
       setDraft(toDraft(schema, item));
-      setVersion(item.version);
+      savedRef.current = JSON.stringify(normaliseValues(schema, item.draft));
+      bump(item.version);
     }
   }, [item.version]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const cols = sortedColumns(schema);
   const values = useMemo(() => normaliseValues(schema, draft), [schema, draft]);
+  const valuesRef = useRef(values);
+  valuesRef.current = values;
   const missingNow = new Set(pending ? validateValues(schema, values, { forApproval: true }).filter((e) => e.code === "required").map((e) => e.key) : []);
 
   const set = (k: string, v: string) => {
@@ -134,15 +151,16 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
   };
 
   /** Persist analyst edits (recorded as a revision) when a field loses focus. */
-  const saveDraft = async () => {
-    const current = normaliseValues(schema, toDraft(schema, { ...item, draft: item.draft }));
-    if (JSON.stringify(current) === JSON.stringify(values) || !pending) return;
-    const ruleErrors = validateValues(schema, values, { forApproval: false });
-    if (ruleErrors.length) return;
+  const persist = async () => {
+    const v = valuesRef.current;
+    const json = JSON.stringify(v);
+    if (json === savedRef.current || !pending) return;
+    if (validateValues(schema, v, { forApproval: false }).length) return;
     try {
-      const r = await api<ItemSummary>(`/api/items/${item.id}/draft`, { method: "PATCH", json: { values, version } });
-      setVersion(r.version);
-      await inv("items");
+      const r = await api<ItemSummary>(`/api/items/${item.id}/draft`, { method: "PATCH", json: { values: v, version: versionRef.current } });
+      savedRef.current = json;
+      bump(r.version);
+      void inv("items");
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) {
         setMsg(e.message);
@@ -150,13 +168,17 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
       }
     }
   };
+  const saveDraft = () => {
+    chainRef.current = chainRef.current.then(persist);
+    return chainRef.current;
+  };
 
   const act = async (path: string, json: unknown, ok: (r: ItemSummary) => string) => {
     setBusy(true);
     setMsg(null);
     try {
       const r = await api<ItemSummary>(`/api/items/${item.id}${path}`, { method: path === "" ? "DELETE" : "POST", json });
-      setVersion(r.version);
+      bump(r.version);
       toast(ok(r));
       await inv();
     } catch (e) {
@@ -168,14 +190,16 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
     }
   };
 
-  const approve = () => {
+  const approve = async () => {
     const errs = validateValues(schema, values, { forApproval: true });
     if (errs.length) {
       setErrors(errs.map((e) => e.key));
       setMsg(`Validation failed. Complete: ${errs.map((e) => e.label).join(", ")}`);
       return;
     }
-    void act("/approve", { values, version }, (r) => `${r.signalCode} published to the tracker as rev ${r.publishedRev}`);
+    // Let any queued draft save finish first so approval uses the latest version.
+    await chainRef.current;
+    void act("/approve", { values: valuesRef.current, version: versionRef.current }, (r) => `${r.signalCode} published to the tracker as rev ${r.publishedRev}`);
   };
 
   const statusTag = item.status === "needs_review" ? "warn" : item.status === "approved" ? "ok" : item.status === "failed" || item.status === "rejected" ? "err" : "info";
@@ -212,6 +236,7 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
                 LLM draft · {item.warningsCount} warning{item.warningsCount === 1 ? "" : "s"}
               </span>
             )}
+            {!extraction && emptyDraft && <span className="tag info">Awaiting analyst entry</span>}
             {item.attempts > 1 && <span className="tag info">Attempt {item.attempts}</span>}
           </div>
           <div className="inbox-title" id={`t-${item.id}`}>
@@ -228,15 +253,20 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
         <div className="inbox-actions">
           {pending && canReview && (
             <>
-              <button className="btn secondary" disabled={busy} onClick={() => act("/reprocess", { version }, () => `${item.code} queued for another processing attempt`)}>
-                ↻ Reprocess
+              <button
+                className="btn secondary"
+                disabled={busy}
+                title={manual ? "Capture the source again · values you entered are kept" : "Run capture and AI pre-fill again"}
+                onClick={() => act("/reprocess", { version: versionRef.current }, () => `${item.code} queued for another processing attempt`)}
+              >
+                ↻ {manual ? "Re-capture" : "Reprocess"}
               </button>
               <button
                 className="btn danger"
                 disabled={busy}
                 onClick={() => {
                   const reason = window.prompt("Reason for rejecting (optional)") ?? undefined;
-                  void act("/reject", { version, reason }, () => `${item.code} rejected`);
+                  void chainRef.current.then(() => act("/reject", { version: versionRef.current, reason }, () => `${item.code} rejected`));
                 }}
               >
                 ✕ Reject
@@ -247,7 +277,7 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
             </>
           )}
           {(item.status === "failed" || item.status === "rejected") && canReview && !item.quarantined && (
-            <button className="btn secondary" disabled={busy} onClick={() => act("/reprocess", { version }, () => `${item.code} queued for retry`)}>
+            <button className="btn secondary" disabled={busy} onClick={() => act("/reprocess", { version: versionRef.current }, () => `${item.code} queued for retry`)}>
               ↻ {item.status === "failed" ? "Retry" : "Reprocess"}
             </button>
           )}
@@ -270,14 +300,27 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
         </div>
       </div>
 
+      {item.hasSnapshot && !open && pending && (
+        <div className="source-hint">
+          <button className="link-btn" aria-controls={`src-${item.id}`} aria-expanded={false} onClick={() => setOpen(true)}>
+            View saved page
+          </button>
+          <SnapshotActions itemId={item.id} code={item.code} />
+        </div>
+      )}
+
       {open && (
         <div className="source-box" id={`src-${item.id}`}>
           <div className="source-bar">
             <span>{item.url ?? "Uploaded file"}</span>
-            <span>Snapshot captured {localDateTime(item.receivedAt)}</span>
+            <span>
+              Saved {localDateTime(item.receivedAt)}
+              {detail.data?.publicationDate ? ` · page publication date ${detail.data.publicationDate}` : ""}
+            </span>
+            {item.hasSnapshot && <SnapshotActions itemId={item.id} code={item.code} />}
           </div>
           {item.hasSnapshot ? (
-            <SnapshotFrame itemId={item.id} title={`Source snapshot for ${item.code}`} />
+            <SnapshotFrame itemId={item.id} title={`Saved source for ${item.code}`} height={520} />
           ) : (
             <div className="source-text">
               {detail.isLoading && <div className="skeleton" style={{ height: 80 }} />}
@@ -297,7 +340,10 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
       {(pending || item.status === "approved" || item.status === "rejected") && (
         <div className="draft-wrap">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-            <div className="section-h">Tracker draft</div>
+            <div className="section-h">
+              Tracker draft
+              {pending && !extraction && <span className="section-note"> · enter every required field from the saved page</span>}
+            </div>
             {extraction && (
               <button className="link-btn" aria-expanded={evidence} onClick={() => setEvidence((e) => !e)}>
                 {evidence ? "Hide" : "Show"} evidence & confidence
@@ -327,7 +373,8 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
                     const common = {
                       className: cls,
                       disabled: !pending || !canReview,
-                      "aria-labelledby": `h-${item.id}-${c.key}`,
+                      // Explicit name: the column header can be scrolled out of view in the wide draft table.
+                      "aria-label": c.label,
                       "aria-invalid": invalid || undefined,
                       "aria-describedby": `n-${item.id}-${c.key}`,
                       onBlur: saveDraft,

@@ -70,7 +70,10 @@ export async function json<T = any>(res: Response | Promise<Response>): Promise<
   return (await r.json()) as T;
 }
 
-export const drain = () => drainTestQueue(env);
+export const drain = (overrides: Partial<typeof env> = {}) => drainTestQueue({ ...env, ...overrides });
+
+/** Environment with the optional LLM pre-fill switched on (offline mock adapter). */
+export const WITH_LLM = { LLM_PROVIDER: "mock" } as const;
 
 export function articleHtml(opts: { url?: string; title: string; body: string; date?: string }) {
   const sf = opts.url ? `<!--\n Page saved with SingleFile \n url: ${opts.url} \n saved date: Wed Sep 24 2026\n-->` : "";
@@ -89,11 +92,11 @@ export async function upload(userEmail: string, html: string, name = "page.html"
 }
 
 /** Upload an article, run the pipeline and return the Needs-review item. */
-export async function ingest(userEmail: string, title: string, body: string, url?: string) {
+export async function ingest(userEmail: string, title: string, body: string, url?: string, overrides: Partial<typeof env> = {}) {
   const res = await upload(userEmail, articleHtml({ title, body, url }), `${title.slice(0, 20).replace(/\W+/g, "-")}.html`);
   if (res.status !== 201) throw new Error(`upload failed ${res.status}: ${await res.text()}`);
   const { item } = await res.json<{ item: { id: string } }>();
-  await drain();
+  await drain(overrides);
   const detail = await json(call(userEmail, "GET", `/api/items/${item.id}`));
   return detail;
 }

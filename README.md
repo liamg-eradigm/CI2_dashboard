@@ -2,17 +2,21 @@
 
 A Cloudflare-hosted platform for pharma competitive-intelligence news tracking.
 Analysts submit a news **URL** or a saved **HTML file**; an isolated capture
-worker retrieves and sanitises the page, the **Claude API** pre-fills a tracker
-entry (schema-constrained, with evidence and confidence per field), and every
-draft waits in the **Inbox** for human review. Only approved items reach the
-client-facing **Tracker** and **Dashboard**.
+worker retrieves, sanitises and saves the page, and the item goes to the
+**Inbox** with **every tracker field empty**. An analyst opens the saved page,
+enters the fields and approves. Only approved items reach the client-facing
+**Tracker** and **Dashboard**. Clients never see the Inbox or Input pages.
 
-> ⚠️ **Before production:** read [docs/CLAUDE-API.md](docs/CLAUDE-API.md). Using
-> the Claude API needs an Anthropic Console organisation, an API key and an
-> organisational decision about sending client-confidential article text to a
-> third-party AI provider. Until a key is configured the platform runs with an
-> offline mock classifier (dev) or marks items *Failed · LLM not configured*
-> (staging/production) — nothing is ever auto-published.
+**Prototype: no AI API.** Nothing is sent to any AI service and no API key is
+needed. The build is designed so automatic pre-fill (Claude or another LLM)
+can be switched on later by configuration. See
+**[docs/ENABLING-AUTOFILL.md](docs/ENABLING-AUTOFILL.md)** for the next steps and
+[docs/CLAUDE-API.md](docs/CLAUDE-API.md) for the organisational permissions that
+step needs.
+
+**Hosting: Cloudflare Workers Free plan.** No paid products or payment method
+are needed in the default configuration; see
+[DEPLOYMENT.md § Workers Free plan](docs/DEPLOYMENT.md#workers-free-plan).
 
 The requirement documents and the Claude Design prototype live in
 [`docs/requirements/`](docs/requirements).
@@ -27,13 +31,13 @@ The requirement documents and the Claude Design prototype live in
                         ▼
                      eradigm-ci-api  (Worker: auth + tenancy + roles, validation, review, audit)
                         │        │          │             │
-                        │        │          │             └──▶ @eradigm/llm  ──▶ Claude API
+                        │        │          │             └╌╌▶ prefill.ts ╌╌▶ @eradigm/llm ╌╌▶ LLM API
+                        │        │          │                  (off in the prototype: empty drafts)
                         │        │          └── Queue (background jobs, retries, DLQ)
-                        │        └── R2 (encrypted, content-addressed page snapshots)
+                        │        └── saved page copies (encrypted; D1 by default, R2 optional)
                         └── D1 (relational records, audit hash chain)
                         │
                         └─service binding─▶ eradigm-ci-capture (Worker, NO db/storage/secrets)
-                                               └─optional─▶ SingleFile + Chromium container
 ```
 
 Three **independently deployable** Workers, each with its own config and secrets,
@@ -46,9 +50,8 @@ rules, taxonomy defaults and a generated OpenAPI description).
 | `apps/api` | Processing service: sign-in verification, tenant/role checks, submissions, pipeline, review, schema editing, queries, exports, audit, retention cron |
 | `apps/capture` | Isolated capture worker: SSRF-safe retrieval, robots/login/paywall checks, content scan + sanitisation, article extraction |
 | `packages/shared` | Versioned contract (`CONTRACT_VERSION`), taxonomy, validation, filters, trend test, URL policy, redaction policy, export writers, `openapi.json` |
-| `packages/llm` | The LLM "container": provider interface + Claude provider (the **only** code allowed to import a model SDK — lint-enforced) + offline mock |
-| `packages/capture` | Capture library used by the capture worker |
-| `services/capture-container` | Optional Docker service: headless Chromium + SingleFile |
+| `packages/llm` | The LLM "container" (switched off in the prototype): provider interface + Claude provider (the **only** code allowed to import a model SDK — lint-enforced) + offline mock |
+| `packages/capture` | Capture library used by the capture worker (native `HTMLRewriter` pass: scan, sanitise, extract) |
 | `e2e/` | Playwright end-to-end + axe accessibility tests (admin, analyst, client) |
 | `scripts/` | dev runner, provisioning, backup/restore drill, load test, evaluation harness, secret scan |
 | `docs/` | Architecture, deployment, operations, security & compliance, QC report |
@@ -71,11 +74,12 @@ Seed data is synthetic and non-confidential.
 ```bash
 npm run lint              # includes architectural boundary rules
 npm run typecheck
-npm run test:unit         # shared contract, capture library, LLM adapter
-npm run test:integration  # API in the Workers runtime with local D1/R2/queues
+npm run test:unit         # shared contract, capture library (in workerd), LLM adapter
+npm run test:integration  # API in the Workers runtime with local D1/queues (manual entry + the optional LLM path)
 npm run test:e2e          # Playwright + axe (starts its own seeded servers)
 npm run test:load         # dashboard-query load test (BASE_URL, DEV_USER / ACCESS_JWT)
 npm run eval [file.jsonl] # extraction/classification evaluation against labelled examples
+node scripts/export-eval-set.mjs --env <env> > eval/labelled.jsonl   # labelled set from approved manual entries
 npm run audit:deps && npm run scan:secrets
 bash scripts/verify-restore.sh   # backup + restore drill
 ```
@@ -83,7 +87,7 @@ bash scripts/verify-restore.sh   # backup + restore drill
 ## Deploying to Cloudflare
 
 See **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** — in short:
-`scripts/provision.sh staging` → configure Cloudflare Access → set secrets →
+`scripts/provision.sh staging` → configure Cloudflare Access → (optional) alert webhook →
 deploy capture → API (migrations run first) → web, either via the included GitHub
 Actions workflow or by connecting each Worker to this repository with Cloudflare
 Workers Builds.
@@ -93,5 +97,6 @@ Workers Builds.
 - [Deployment](docs/DEPLOYMENT.md)
 - [Operations: monitoring, alerts, backup/restore, rollback, retention](docs/OPERATIONS.md)
 - [Security, tenancy & compliance](docs/SECURITY-COMPLIANCE.md)
+- [Enabling automatic pre-fill with an AI API — next steps](docs/ENABLING-AUTOFILL.md)
 - [Claude API integration & organisational permissions](docs/CLAUDE-API.md)
 - [QC report against 6_QC_&_Compliance](docs/QC-REPORT.md)

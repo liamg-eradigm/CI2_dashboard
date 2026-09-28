@@ -2,7 +2,7 @@
   "name": "@eradigm/api",
   "version": "1.0.0",
   "private": true,
-  "description": "Processing service: auth, submissions, capture, extraction, AI analysis, validation, storage, audit and admin (Cloudflare Worker + D1 + R2 + Queues).",
+  "description": "Processing service: auth, submissions, capture, manual-entry drafts (optional LLM pre-fill), validation, storage, audit and admin (Cloudflare Worker + D1 + Queues).",
   "type": "module",
   "scripts": {
     "dev": "wrangler dev --env dev --port 8787 --persist-to ../../.wrangler/state",
@@ -22,9 +22,7 @@
     "@eradigm/capture": "*",
     "@eradigm/llm": "*",
     "@eradigm/shared": "*",
-    "@mozilla/readability": "^0.6.0",
     "hono": "^4.13.0",
-    "linkedom": "^0.18.13",
     "zod": "^4.1.0"
   },
   "devDependencies": {
