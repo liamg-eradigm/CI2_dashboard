@@ -1,0 +1,37 @@
+{
+  "name": "@eradigm/api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Processing service: auth, submissions, capture, extraction, AI analysis, validation, storage, audit and admin (Cloudflare Worker + D1 + R2 + Queues).",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --env dev --port 8787 --persist-to ../../.wrangler/state",
+    "build": "wrangler deploy --dry-run --outdir dist --env production",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "cf-typegen": "wrangler types --env-interface CloudflareBindings",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local --env dev --persist-to ../../.wrangler/state",
+    "db:seed:local": "wrangler d1 execute DB --local --env dev --persist-to ../../.wrangler/state --file seed/seed.sql",
+    "db:migrate:staging": "wrangler d1 migrations apply DB --remote --env staging",
+    "db:migrate:production": "wrangler d1 migrations apply DB --remote --env production",
+    "seed:generate": "tsx seed/generate-seed.ts",
+    "deploy:staging": "npm run db:migrate:staging && wrangler deploy --env staging",
+    "deploy:production": "npm run db:migrate:production && wrangler deploy --env production"
+  },
+  "dependencies": {
+    "@eradigm/capture": "*",
+    "@eradigm/llm": "*",
+    "@eradigm/shared": "*",
+    "@mozilla/readability": "^0.6.0",
+    "hono": "^4.13.0",
+    "linkedom": "^0.18.13",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.22.0",
+    "@cloudflare/workers-types": "^4.20250101.0",
+    "tsx": "^4.20.0",
+    "vitest": "^4.1.11",
+    "wrangler": "^4.142.0"
+  }
+}

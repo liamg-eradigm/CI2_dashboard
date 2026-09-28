@@ -1,0 +1,39 @@
+# Nightly encrypted D1 export (in addition to D1 Time Travel point-in-time recovery).
+# Required secrets: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, BACKUP_PASSPHRASE.
+name: Backup
+
+on:
+  schedule:
+    - cron: "41 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install -g npm@11 && npm ci
+      - name: Export production D1
+        run: bash scripts/backup-d1.sh production
+      - name: Encrypt (the export contains confidential data)
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          test -n "$BACKUP_PASSPHRASE" || { echo "::error::BACKUP_PASSPHRASE not set"; exit 1; }
+          for f in backups/*.sql; do gpg --batch --yes --symmetric --cipher-algo AES256 --passphrase "$BACKUP_PASSPHRASE" -o "$f.gpg" "$f" && rm "$f"; done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: d1-production-${{ github.run_id }}
+          path: backups/
+          retention-days: 30

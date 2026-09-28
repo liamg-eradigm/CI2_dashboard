@@ -1,0 +1,35 @@
+// Dashboard (frontend) — Cloudflare Worker with static assets.
+// Independently deployable: it only needs a service binding to the API worker
+// of the same environment. Attach a custom domain (e.g. ci.eradigm.com) in the
+// Cloudflare dashboard and protect it with a Cloudflare Access application.
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "eradigm-ci-web",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-08-15",
+  "workers_dev": false,
+  "observability": { "enabled": true },
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "env": {
+    "dev": {
+      "name": "eradigm-ci-web-dev",
+      "workers_dev": true,
+      "services": [{ "binding": "API", "service": "eradigm-ci-api-dev" }]
+    },
+    "staging": {
+      "name": "eradigm-ci-web-staging",
+      "services": [{ "binding": "API", "service": "eradigm-ci-api-staging" }]
+      // "routes": [{ "pattern": "ci-staging.eradigm.com", "custom_domain": true }]
+    },
+    "production": {
+      "name": "eradigm-ci-web-production",
+      "services": [{ "binding": "API", "service": "eradigm-ci-api-production" }]
+      // "routes": [{ "pattern": "ci.eradigm.com", "custom_domain": true }]
+    }
+  }
+}

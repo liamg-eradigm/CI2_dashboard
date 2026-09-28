@@ -1,0 +1,7 @@
+# Copy to apps/api/.dev.vars for local development (never commit .dev.vars).
+# With LLM_PROVIDER=mock (the dev default) no API key is needed.
+# To try real classification locally, set LLM_PROVIDER=anthropic in wrangler.jsonc (dev env) and:
+ANTHROPIC_API_KEY=
+# Optional locally:
+SNAPSHOT_ENCRYPTION_KEY=
+AUDIT_HMAC_KEY=

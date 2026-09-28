@@ -1,0 +1,55 @@
+{
+  "name": "eradigm-ci-platform",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Eradigm competitive-intelligence news tracking platform (Cloudflare: independent web + API workers)",
+  "type": "module",
+  "workspaces": [
+    "packages/shared",
+    "packages/llm",
+    "packages/capture",
+    "apps/api",
+    "apps/capture",
+    "apps/web"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:api": "npm run dev -w apps/api",
+    "dev:web": "npm run dev -w apps/web",
+    "build": "npm run build -w apps/web && npm run build -w apps/api",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "eslint .",
+    "test": "npm run test --workspaces --if-present",
+    "test:unit": "npm run test -w packages/shared -w packages/llm -w packages/capture",
+    "test:integration": "npm run test -w apps/api",
+    "test:e2e": "playwright test",
+    "test:load": "node scripts/load-test.mjs",
+    "openapi": "npm run openapi -w packages/shared",
+    "eval": "tsx scripts/eval-extraction.ts",
+    "audit:deps": "npm audit --omit=dev --audit-level=high",
+    "scan:secrets": "node scripts/scan-secrets.mjs",
+    "db:migrate:local": "npm run db:migrate:local -w apps/api",
+    "db:seed:local": "npm run db:seed:local -w apps/api"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@eslint/js": "^9.39.0",
+    "@playwright/test": "1.56.1",
+    "@types/node": "^22.20.4",
+    "eslint": "^9.39.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "tsx": "^4.23.15",
+    "typescript": "5.9.3",
+    "typescript-eslint": "^8.46.0"
+  },
+  "allowScripts": {
+    "esbuild": true,
+    "workerd": true
+  },
+  "overrides": {
+    "sharp": "^0.35.4"
+  }
+}

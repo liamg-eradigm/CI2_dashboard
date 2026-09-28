@@ -1,0 +1,124 @@
+// Processing service (API) — Cloudflare Worker with D1, R2 and Queues.
+//
+// Source capture runs in the separate, isolated `eradigm-ci-capture-<env>`
+// worker (apps/capture) reached through the CAPTURE service binding; deploy it
+// before this worker. In dev, if the capture worker is not running, the same
+// capture library runs inline.
+//
+// Three environments: dev (local, `npm run dev`), staging and production.
+// Bindings are NOT inherited between environments, so each block is complete.
+// Run scripts/provision.sh once per environment to create the D1 database,
+// R2 bucket and queues, then paste the D1 database_id values below.
+//
+// Secrets (never committed; set with `wrangler secret put <NAME> --env <env>`):
+//   ANTHROPIC_API_KEY        Claude API key for the LLM adapter
+//   SNAPSHOT_ENCRYPTION_KEY  base64 32-byte key, AES-GCM encryption of stored snapshots
+//   AUDIT_HMAC_KEY           base64 key for the tamper-evident audit hash chain
+//   ALERT_WEBHOOK_URL        optional incoming-webhook URL for operational alerts
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "eradigm-ci-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
+  "limits": { "cpu_ms": 60000 },
+
+  "env": {
+    "dev": {
+      "name": "eradigm-ci-api-dev",
+      "workers_dev": true,
+      "vars": {
+        "ENVIRONMENT": "dev",
+        "AUTH_MODE": "dev",
+        "ACCESS_TEAM_DOMAIN": "",
+        "ACCESS_AUD": "",
+        "LLM_PROVIDER": "mock",
+        "LLM_MODEL": "claude-opus-5",
+        "LLM_EFFORT": "medium",
+        "CAPTURE_USER_AGENT": "EradigmCI-Capture/1.0 (+https://eradigm.com)",
+        "DNS_RESOLVER_URL": "https://cloudflare-dns.com/dns-query"
+      },
+      "d1_databases": [
+        { "binding": "DB", "database_name": "eradigm-ci-dev", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }
+      ],
+      "r2_buckets": [{ "binding": "SNAPSHOTS", "bucket_name": "eradigm-ci-snapshots-dev" }],
+      "services": [{ "binding": "CAPTURE", "service": "eradigm-ci-capture-dev" }],
+      "queues": {
+        "producers": [{ "binding": "JOBS", "queue": "eradigm-ci-jobs-dev" }],
+        "consumers": [
+          { "queue": "eradigm-ci-jobs-dev", "max_batch_size": 5, "max_batch_timeout": 2, "max_retries": 3, "dead_letter_queue": "eradigm-ci-jobs-dlq-dev" },
+          { "queue": "eradigm-ci-jobs-dlq-dev", "max_batch_size": 5, "max_retries": 1 }
+        ]
+      },
+      "triggers": { "crons": ["17 3 * * *"] }
+    },
+
+    "staging": {
+      "name": "eradigm-ci-api-staging",
+      "vars": {
+        "ENVIRONMENT": "staging",
+        "AUTH_MODE": "access",
+        "ACCESS_TEAM_DOMAIN": "REPLACE_WITH_TEAM.cloudflareaccess.com",
+        "ACCESS_AUD": "REPLACE_WITH_STAGING_ACCESS_AUD_TAG",
+        "LLM_PROVIDER": "anthropic",
+        "LLM_MODEL": "claude-opus-5",
+        "LLM_EFFORT": "medium",
+        "CAPTURE_USER_AGENT": "EradigmCI-Capture/1.0 (+https://eradigm.com)",
+        "DNS_RESOLVER_URL": "https://cloudflare-dns.com/dns-query"
+      },
+      "d1_databases": [
+        { "binding": "DB", "database_name": "eradigm-ci-staging", "database_id": "REPLACE_WITH_STAGING_D1_ID", "migrations_dir": "migrations" }
+      ],
+      "r2_buckets": [{ "binding": "SNAPSHOTS", "bucket_name": "eradigm-ci-snapshots-staging" }],
+      "services": [{ "binding": "CAPTURE", "service": "eradigm-ci-capture-staging" }],
+      "queues": {
+        "producers": [{ "binding": "JOBS", "queue": "eradigm-ci-jobs-staging" }],
+        "consumers": [
+          { "queue": "eradigm-ci-jobs-staging", "max_batch_size": 5, "max_batch_timeout": 2, "max_retries": 3, "dead_letter_queue": "eradigm-ci-jobs-dlq-staging" },
+          { "queue": "eradigm-ci-jobs-dlq-staging", "max_batch_size": 5, "max_retries": 1 }
+        ]
+      },
+      "ratelimits": [
+        { "name": "RATE_LIMITER", "namespace_id": "2001", "simple": { "limit": 300, "period": 60 } },
+        { "name": "SUBMIT_LIMITER", "namespace_id": "2002", "simple": { "limit": 30, "period": 60 } }
+      ],
+      "analytics_engine_datasets": [{ "binding": "METRICS", "dataset": "eradigm_ci_metrics_staging" }],
+      "triggers": { "crons": ["17 3 * * *"] }
+    },
+
+    "production": {
+      "name": "eradigm-ci-api-production",
+      "vars": {
+        "ENVIRONMENT": "production",
+        "AUTH_MODE": "access",
+        "ACCESS_TEAM_DOMAIN": "REPLACE_WITH_TEAM.cloudflareaccess.com",
+        "ACCESS_AUD": "REPLACE_WITH_PRODUCTION_ACCESS_AUD_TAG",
+        "LLM_PROVIDER": "anthropic",
+        "LLM_MODEL": "claude-opus-5",
+        "LLM_EFFORT": "medium",
+        "CAPTURE_USER_AGENT": "EradigmCI-Capture/1.0 (+https://eradigm.com)",
+        "DNS_RESOLVER_URL": "https://cloudflare-dns.com/dns-query"
+      },
+      "d1_databases": [
+        { "binding": "DB", "database_name": "eradigm-ci-production", "database_id": "REPLACE_WITH_PRODUCTION_D1_ID", "migrations_dir": "migrations" }
+      ],
+      "r2_buckets": [{ "binding": "SNAPSHOTS", "bucket_name": "eradigm-ci-snapshots-production" }],
+      "services": [{ "binding": "CAPTURE", "service": "eradigm-ci-capture-production" }],
+      "queues": {
+        "producers": [{ "binding": "JOBS", "queue": "eradigm-ci-jobs-production" }],
+        "consumers": [
+          { "queue": "eradigm-ci-jobs-production", "max_batch_size": 5, "max_batch_timeout": 2, "max_retries": 3, "dead_letter_queue": "eradigm-ci-jobs-dlq-production" },
+          { "queue": "eradigm-ci-jobs-dlq-production", "max_batch_size": 5, "max_retries": 1 }
+        ]
+      },
+      "ratelimits": [
+        { "name": "RATE_LIMITER", "namespace_id": "3001", "simple": { "limit": 300, "period": 60 } },
+        { "name": "SUBMIT_LIMITER", "namespace_id": "3002", "simple": { "limit": 30, "period": 60 } }
+      ],
+      "analytics_engine_datasets": [{ "binding": "METRICS", "dataset": "eradigm_ci_metrics_production" }],
+      "triggers": { "crons": ["17 3 * * *"] }
+    }
+  }
+}

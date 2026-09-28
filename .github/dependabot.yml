@@ -1,0 +1,20 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    groups:
+      cloudflare:
+        patterns: ["wrangler", "@cloudflare/*", "miniflare"]
+      react:
+        patterns: ["react", "react-dom", "@types/react*", "react-router*"]
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+  - package-ecosystem: npm
+    directory: "/services/capture-container"
+    schedule:
+      interval: weekly

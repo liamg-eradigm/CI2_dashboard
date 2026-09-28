@@ -1,0 +1,39 @@
+// Isolated capture worker (2_Input_Architecture: "Capture the source in an isolated worker").
+//
+// Deliberately has NO D1, R2, queue or application-secret bindings: a
+// compromised page can never reach the database or credentials. It is not
+// publicly routable (workers_dev = false, no routes); only the API reaches it
+// through a service binding.
+//
+// CAPTURE_MODE:
+//   fetch      Plain HTTP retrieval with SSRF protection (default).
+//   container  Delegates rendering to the containerised headless Chromium +
+//              SingleFile service in services/capture-container (set
+//              CONTAINER_URL and the CONTAINER_TOKEN secret). SingleFile needs
+//              a full browser with script injection and a filesystem, which a
+//              Worker does not provide, so it runs in a separate container
+//              while the public application stays on Cloudflare.
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "eradigm-ci-capture",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "observability": { "enabled": true },
+  "limits": { "cpu_ms": 30000 },
+  "env": {
+    "dev": {
+      "name": "eradigm-ci-capture-dev",
+      "vars": { "CAPTURE_MODE": "fetch", "CAPTURE_USER_AGENT": "EradigmCI-Capture/1.0 (+https://eradigm.com)", "DNS_RESOLVER_URL": "https://cloudflare-dns.com/dns-query", "CONTAINER_URL": "" }
+    },
+    "staging": {
+      "name": "eradigm-ci-capture-staging",
+      "vars": { "CAPTURE_MODE": "fetch", "CAPTURE_USER_AGENT": "EradigmCI-Capture/1.0 (+https://eradigm.com)", "DNS_RESOLVER_URL": "https://cloudflare-dns.com/dns-query", "CONTAINER_URL": "" }
+    },
+    "production": {
+      "name": "eradigm-ci-capture-production",
+      "vars": { "CAPTURE_MODE": "fetch", "CAPTURE_USER_AGENT": "EradigmCI-Capture/1.0 (+https://eradigm.com)", "DNS_RESOLVER_URL": "https://cloudflare-dns.com/dns-query", "CONTAINER_URL": "" }
+    }
+  }
+}
