@@ -162,7 +162,19 @@ https://eradigm-ci-web-production.<YOUR-SUBDOMAIN>.workers.dev
 For example, `https://eradigm-ci-web-production.eradigm-ci.workers.dev`. **Write this down; it's
 your `<WEB ADDRESS>` for the rest of the guide.** It starts with `https://` and has **no `/` at the end**.
 
-### D3. Connect the deployment tool to your Cloudflare account
+> The first part is always **`eradigm-ci-web-production`**, the name of the dashboard Worker this
+> project deploys. Don't use the name of any other Worker you may see in the Cloudflare dashboard.
+> Only the part between the two dots is yours (your subdomain).
+
+### D3. Switch on Analytics Engine (free, one click)
+The platform records usage metrics with Cloudflare's free **Analytics Engine**, which must be
+switched on once per account; otherwise the API deploy (Part I3) stops with
+"You need to enable Analytics Engine [code: 10089]".
+1. In the Cloudflare dashboard's left menu: **Workers & Pages → Analytics Engine**
+   (or open the link printed in that error message).
+2. Click **Enable Analytics Engine** / **Set up**. It's free; no payment details are needed.
+
+### D4. Connect the deployment tool to your Cloudflare account
 In the terminal:
 
 ```bash
@@ -233,7 +245,9 @@ You edit **one line** in one file.
 5. **Save** the file (Ctrl+S or Cmd+S).
 6. **Leave the `staging` entries (`REPLACE_WITH_STAGING_…`) as they are.** You're only setting up production.
 
-✅ Searching the file for `REPLACE_WITH_PRODUCTION` finds nothing. The database ID was filled in automatically in Part E.
+✅ Searching the file for `REPLACE_WITH_PRODUCTION` finds nothing, and your line reads exactly
+`"APP_ORIGIN": "https://eradigm-ci-web-production.<YOUR-SUBDOMAIN>.workers.dev",`. If `https://` is missing,
+sign-in will report "missing: APP_ORIGIN". The database ID was filled in automatically in Part E.
 
 ---
 
@@ -530,7 +544,7 @@ Until you add these secrets, the Deploy and Backup workflows show "Skipping…" 
 | Cloudflare asks for a card or a paid plan | You clicked into a paid product (e.g. R2, Zero Trust, a domain purchase) | Go back; nothing in this guide needs one |
 | `Authentication error` / `not logged in` from wrangler | Wrangler's login expired | `npx wrangler login` again |
 | Deploy says the queue or database doesn't exist | Part E didn't finish | Run `bash scripts/provision.sh production` again (safe) |
-| Deploy error mentions **Analytics Engine** | Some accounts must switch on the free Analytics Engine once | Cloudflare dashboard → Workers & Pages → **Analytics Engine** → enable, then deploy again |
+| Deploy error **"You need to enable Analytics Engine" [code: 10089]** | Analytics Engine hasn't been switched on for the account yet | Do D3 (free, one click), then run the same deploy command again |
 | The web address printed in I4 differs from `APP_ORIGIN` | A different subdomain was used | Put the printed address in `APP_ORIGIN` (Part F) **and** in Entra's Redirect URI and logout URL (G1, G3), then redeploy the API (I3) |
 | Microsoft error **AADSTS50011** (redirect URI mismatch) | Entra's Redirect URI doesn't exactly match `<WEB ADDRESS>/api/auth/callback` | Fix the Redirect URI in Entra → Authentication (same `https://`, no extra `/`) |
 | Microsoft error **AADSTS700016** (application not found) | Wrong Application (client) ID | Redo H1 with the correct ID |
