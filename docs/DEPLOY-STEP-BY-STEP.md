@@ -528,7 +528,7 @@ Until you add these secrets, the Deploy and Backup workflows show "Skipping…" 
 | **Add or remove users** | Administration → Users and roles (Part K3); **Deactivate** removes access immediately |
 | **Renew the Microsoft client secret** (before 24 months) | Entra → the app → Certificates & secrets → **+ New client secret** → copy the Value → `npx wrangler secret put ENTRA_CLIENT_SECRET --env production -c apps/api/wrangler.jsonc` → paste → then delete the old secret in Entra |
 | **Roll back a bad deploy** | `npx wrangler deployments list -c apps/api/wrangler.jsonc --env production`, then `npx wrangler rollback <version-id> -c apps/api/wrangler.jsonc --env production` (same for `apps/web`) |
-| **Locked out (no admin can sign in)** | `npx tsx scripts/create-invite.ts --tenant acme --email you@eradigm.com --name "You" --role admin --origin <WEB ADDRESS> > invite.sql`, then `npx wrangler d1 execute DB --remote -c apps/api/wrangler.jsonc --env production --file invite.sql`, then `rm invite.sql`, and open the printed link |
+| **Locked out (no admin can sign in)** | `npx tsx scripts/create-invite.ts --tenant acme --email you@eradigm.com --name "You" --role admin --origin <WEB ADDRESS> --out ~/invite.sql`, then `npx wrangler d1 execute DB --remote -c apps/api/wrangler.jsonc --env production --file ~/invite.sql`, then `rm ~/invite.sql`, and open the printed link (it only works once the second command has succeeded) |
 | **Use your own domain** (e.g. `ci.eradigm.com`) | Add the domain to Cloudflare, uncomment `routes` in `apps/web/wrangler.jsonc`, change `APP_ORIGIN`, add the new `/api/auth/callback` Redirect URI in Entra, then redeploy (API and web) |
 
 ---
