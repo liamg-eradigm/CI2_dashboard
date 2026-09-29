@@ -65,6 +65,28 @@ test.describe("client role", () => {
     }
   });
 
+  test("can view Phantoms and download Markdown, but not delete entries", async ({ page }) => {
+    await page.goto("/phantoms");
+    await expect(page.getByRole("heading", { name: "Phantoms" })).toBeVisible();
+    await expect(page.getByTestId("stream-primary")).toHaveText("Primary Phantoms");
+    const row = page.locator("table tbody tr").first();
+    await expect(row.locator("td").first().getByRole("button", { name: /Download Markdown/ })).toBeVisible();
+    await row.locator("td.title button").click();
+    const panel = page.getByRole("dialog");
+    await expect(panel.getByLabel("Markdown source")).toContainText("Source_tier: Primary");
+    await expect(panel.getByLabel("Markdown source")).toContainText(/^---\nid: P-\d+/);
+    await panel.getByRole("button", { name: "Open full record" }).click();
+    await expect(page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true })).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    // Secondary Phantoms: only Impact at or above the admin setting (Medium by default).
+    await page.getByTestId("stream-secondary").click();
+    await expect(page.locator(".stream-note")).toContainText("Impact Medium or higher");
+    const impacts = await page.locator("table tbody tr td .impact").allInnerTexts();
+    expect(impacts.length).toBeGreaterThan(0);
+    for (const i of impacts) expect(i).toMatch(/Medium|High/);
+    await expectAccessible(page, "/phantoms");
+  });
+
   test("cannot delete tracker entries", async ({ page }) => {
     await page.goto("/tracker");
     await page.locator("table tbody td.title button").first().click();
@@ -72,7 +94,7 @@ test.describe("client role", () => {
     await expect(page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true })).toHaveCount(0);
   });
 
-  test("dashboard defaults to the last three months and reconciles with the tracker", async ({ page }) => {
+  test("dashboard defaults to the last three months and reconciles with the Primary + Secondary trackers", async ({ page }) => {
     await page.goto("/dashboard");
     const bar = page.getByRole("region", { name: "Filters", exact: true });
     const to = bar.getByLabel("Date to");
@@ -84,16 +106,32 @@ test.describe("client role", () => {
     threeAgo.setMonth(today.getMonth() - 3);
     expect(Math.abs(new Date(await from.inputValue()).getTime() - threeAgo.getTime()) / 86_400_000).toBeLessThan(3);
 
+    await expect(page.locator(".kpi .v").first()).toHaveText(/^\d+$/);
     const kpi = await page.locator(".kpi .v").first().innerText();
     await choose(bar.getByRole("combobox", { name: "Macrotrend", exact: true }), "Portfolio Restructuring");
     await expect(page.locator(".pill", { hasText: "Macrotrend:" })).toBeVisible();
+    await expect(page.locator(".kpi .v").first()).not.toHaveText(kpi);
     const filtered = await page.locator(".kpi .v").first().innerText();
     await page.getByRole("navigation").getByRole("link", { name: "Tracker" }).click();
     // Filters are shared across Dashboard and Tracker via the URL.
     await expect(page.getByRole("region", { name: "Filters", exact: true }).getByRole("combobox", { name: "Macrotrend", exact: true })).toHaveValue("Portfolio Restructuring");
-    await expect(page.getByText(new RegExp(`of ${filtered} · page`))).toBeVisible();
-    await page.getByRole("button", { name: "Reset filter" }).click();
-    await expect(page.getByText(new RegExp(`of ${kpi} · page`))).toBeVisible();
+    // The Dashboard covers both streams: its count is the Primary Tracker plus the Secondary Tracker.
+    const count = async (act: () => Promise<unknown>, want: { stream: string; filtered: boolean }) => {
+      const [res] = await Promise.all([
+        page.waitForResponse((r) => r.url().includes("/api/tracker?") && r.url().includes(`stream=${want.stream}`) && r.url().includes("f.macrotrend") === want.filtered),
+        act(),
+      ]);
+      return ((await res.json()) as { total: number }).total;
+    };
+    await expect(page.getByTestId("stream-primary")).toHaveAttribute("aria-pressed", "true");
+    const p1 = await count(() => page.reload(), { stream: "primary", filtered: true });
+    const s1 = await count(() => page.getByTestId("stream-secondary").click(), { stream: "secondary", filtered: true });
+    await expect(page.getByRole("region", { name: "Filters", exact: true }).getByRole("combobox", { name: "Macrotrend", exact: true })).toHaveValue("Portfolio Restructuring");
+    expect(p1 + s1).toBe(Number(filtered));
+    await expect(page.getByText(new RegExp(`of ${s1} · page|^0 results`))).toBeVisible();
+    const s2 = await count(() => page.getByRole("button", { name: "Reset filter" }).click(), { stream: "secondary", filtered: false });
+    const p2 = await count(() => page.getByTestId("stream-primary").click(), { stream: "primary", filtered: false });
+    expect(p2 + s2).toBe(Number(kpi));
   });
 
   test("opens a record from the tracker, keeps filters and closes with Escape", async ({ page }) => {
@@ -127,11 +165,11 @@ test.describe("client role", () => {
     await choose(macro, "All");
     await expect(page.locator(".pill", { hasText: "Macrotrend:" })).toHaveCount(0);
     await page.goto("/dashboard");
-    const comp = page.getByRole("region", { name: "Filters", exact: true }).getByRole("combobox", { name: "Competitor", exact: true });
+    const comp = page.getByRole("region", { name: "Filters", exact: true }).getByRole("combobox", { name: "Competitors", exact: true });
     await comp.click();
     await comp.fill("astra");
     await page.keyboard.press("Enter");
-    await expect(page.locator(".pill", { hasText: "Competitor:" })).toContainText("AstraZeneca");
+    await expect(page.locator(".pill", { hasText: "Competitors:" })).toContainText("AstraZeneca");
     // Trend Test dropdowns search as well.
     const tt = page.locator("section.card", { has: page.getByRole("heading", { name: "Trend Test" }) });
     await choose(tt.getByRole("combobox", { name: "Macrotrend", exact: true }), "Geopolitics");

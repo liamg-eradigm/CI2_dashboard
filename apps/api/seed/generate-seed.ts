@@ -2,6 +2,8 @@
  * Generates seed/seed.sql: NON-CONFIDENTIAL demo data for dev and staging.
  * Mirrors the Claude Design prototype (78 approved signals, 4 Inbox drafts,
  * capture log) plus a second tenant used to demonstrate tenant isolation.
+ * Every third signal and two of the drafts belong to the Secondary stream, so
+ * both Trackers, both Inboxes and Phantoms have data.
  *
  * Matches the manual-entry prototype: Inbox drafts arrive with every tracker
  * field empty (with a saved copy of the page to read) and published signals
@@ -16,7 +18,7 @@
  * Never run against production.
  */
 import { writeFileSync } from "node:fs";
-import { DEFAULT_KEYS, defaultSchema } from "@eradigm/shared";
+import { DEFAULT_KEYS, SOURCE_TIER, STREAMS, defaultSchema, type Stream } from "@eradigm/shared";
 import { canonicalJson } from "../src/lib/crypto.js";
 import { createHash, createHmac } from "node:crypto";
 
@@ -68,26 +70,29 @@ const DEFAULT_SETTINGS = {
   trendDefaults: { minSampleSize: 5, signalCountChangePct: 25, distinctCompetitorsChange: 1, impactScoreChangePct: 25, growthScoreChange: 0.2 },
   retention: { snapshotDays: 730, rejectedDays: 90, deletedDays: 30 },
   redaction: { redactEmails: true, redactPhones: true, quarantineMarkers: [] },
+  phantoms: { secondaryMinImpact: "Medium" },
 };
 let optN = 0;
 for (const t of TENANTS) {
   out.push(`INSERT INTO tenants (id, name, slug, created_at) VALUES (${q(t.id)}, ${q(t.name)}, ${q(t.slug)}, ${q(GEN_AT)});`);
   out.push(`INSERT INTO schema_meta (tenant_id, revision) VALUES (${q(t.id)}, 1);`);
   out.push(`INSERT INTO tenant_settings (tenant_id, settings_json, updated_at) VALUES (${q(t.id)}, ${q(JSON.stringify(DEFAULT_SETTINGS))}, ${q(GEN_AT)});`);
-  for (const c of schema.columns) {
-    out.push(
-      `INSERT INTO tracker_columns (tenant_id, key, label, type, core, required, ai_assist, position) VALUES (${q(t.id)}, ${q(c.key)}, ${q(c.label)}, ${q(c.type)}, ${c.core ? 1 : 0}, ${c.required ? 1 : 0}, ${c.aiAssist ? 1 : 0}, ${c.position});`,
-    );
-    (c.options ?? []).forEach((o, i) =>
-      out.push(`INSERT INTO column_options (id, tenant_id, column_key, value, parent, position, created_at) VALUES ('opt_seed${++optN}', ${q(t.id)}, ${q(c.key)}, ${q(o)}, NULL, ${i}, ${q(GEN_AT)});`),
-    );
+  for (const st of STREAMS) {
+    for (const c of schema.columns) {
+      out.push(
+        `INSERT INTO tracker_columns (tenant_id, stream, key, label, type, core, required, ai_assist, in_tracker, position) VALUES (${q(t.id)}, '${st}', ${q(c.key)}, ${q(c.label)}, ${q(c.type)}, ${c.core ? 1 : 0}, ${c.required ? 1 : 0}, ${c.aiAssist ? 1 : 0}, ${c.inTracker ? 1 : 0}, ${c.position});`,
+      );
+      (c.options ?? []).forEach((o, i) =>
+        out.push(`INSERT INTO column_options (id, tenant_id, stream, column_key, value, parent, position, created_at) VALUES ('opt_seed${++optN}', ${q(t.id)}, '${st}', ${q(c.key)}, ${q(o)}, NULL, ${i}, ${q(GEN_AT)});`),
+      );
+    }
+    schema.taxonomy.forEach((g, i) => {
+      out.push(`INSERT INTO column_options (id, tenant_id, stream, column_key, value, parent, position, created_at) VALUES ('opt_seed${++optN}', ${q(t.id)}, '${st}', 'macrotrend', ${q(g.name)}, NULL, ${i}, ${q(GEN_AT)});`);
+      g.subtrends.forEach((s, j) =>
+        out.push(`INSERT INTO column_options (id, tenant_id, stream, column_key, value, parent, position, created_at) VALUES ('opt_seed${++optN}', ${q(t.id)}, '${st}', 'subtrend', ${q(s)}, ${q(g.name)}, ${j}, ${q(GEN_AT)});`),
+      );
+    });
   }
-  schema.taxonomy.forEach((g, i) => {
-    out.push(`INSERT INTO column_options (id, tenant_id, column_key, value, parent, position, created_at) VALUES ('opt_seed${++optN}', ${q(t.id)}, 'macrotrend', ${q(g.name)}, NULL, ${i}, ${q(GEN_AT)});`);
-    g.subtrends.forEach((s, j) =>
-      out.push(`INSERT INTO column_options (id, tenant_id, column_key, value, parent, position, created_at) VALUES ('opt_seed${++optN}', ${q(t.id)}, 'subtrend', ${q(s)}, ${q(g.name)}, ${j}, ${q(GEN_AT)});`),
-    );
-  });
 }
 
 const USERS = [
@@ -188,18 +193,40 @@ function gen(tenant: string, count: number, seed: number, codeStart: number, rev
     const url = `https://${source === "LinkedIn" ? "www.linkedin.com/posts" : source === "PR" ? "newsroom.example.com" : "source.example.com"}/${code.toLowerCase()}`;
     const revised = i % 5 === 0;
     const originalImpact = revised ? (IMPACT[(IMPACT.indexOf(impact) + 1) % 3] as string) : impact;
+    const stream: Stream = i % 3 === 2 ? "secondary" : "primary";
+    const recordId = `${stream === "primary" ? "P" : "S"}-${codeStart + i}`;
+    const publisher = source === "PR" ? (comps[0] as string) : source === "LinkedIn" ? "LinkedIn" : "Pharma Technology Review";
+    const TA = ["Oncology", "Immunology", "Cardiometabolic", "Neuroscience", "Rare Disease"];
+    // The Phantoms fields (seeded so the Markdown is realistic; all non-confidential and invented).
+    const phantom: Record<string, string> = {
+      record_id: recordId,
+      publisher,
+      url,
+      raw_ref: `RR-${String(codeStart + i).padStart(5, "0")}`,
+      source_tier: SOURCE_TIER[stream],
+      other_entities: r() < 0.4 ? "Academic partner" : "",
+      therapeutic_area: pick(TA),
+      assets: r() < 0.3 ? `${(comps[0] as string).slice(0, 2).toUpperCase()}-${100 + Math.floor(r() * 900)}` : "",
+      products: "",
+      header: `${title}.`,
+      key_details: `${text}\n\nMacrotrend: ${macro} · subtrend: ${sub}.`,
+      ci_perspective: `${impact} impact for competitors tracking ${macro}; ${growth.toLowerCase()} in activity.`,
+    };
+    const phantomSql = Object.entries(phantom)
+      .map(([k, v]) => `${q(k)}, ${v ? q(v) : "NULL"}`)
+      .join(", ");
     const values = (imp: string): string =>
-      `json_object('date', ${daysAgo(ago)}, 'competitors', json(${q(JSON.stringify(comps))}), 'macrotrend', ${q(macro)}, 'subtrend', ${q(sub)}, 'title', ${q(title)}, 'growth', ${q(growth)}, 'impact', ${q(imp)}, 'source', ${q(source)}, 'action', ${q(action)})`;
+      `json_object('date', ${daysAgo(ago)}, 'competitors', json(${q(JSON.stringify(comps))}), 'macrotrend', ${q(macro)}, 'subtrend', ${q(sub)}, 'title', ${q(title)}, 'growth', ${q(growth)}, 'impact', ${q(imp)}, 'source', ${q(source)}, 'action', ${q(action)}, 'review_date', ${daysAgo(Math.max(0, ago - 1))}, ${phantomSql})`;
     const prov = JSON.stringify(Object.fromEntries(schema.columns.map((c) => [c.key, "analyst"])));
-    const extra = JSON.stringify({ [DEFAULT_KEYS.source]: source, [DEFAULT_KEYS.action]: action });
+    const extraSql = `json_object(${q(DEFAULT_KEYS.source)}, ${q(source)}, ${q(DEFAULT_KEYS.action)}, ${q(action)}, 'review_date', ${daysAgo(Math.max(0, ago - 1))}, ${phantomSql.replace(/'record_id', '[^']*', /, "")})`;
     out.push(
       `INSERT INTO submissions (id, tenant_id, submitted_by, input_type, submitted_url, normalized_url, created_at) VALUES (${q(sid)}, ${q(tenant)}, ${q(who.id)}, 'url', ${q(url)}, ${q(url)}, ${tsAgo(ago, -60)});`,
     );
     out.push(
-      `INSERT INTO intelligence_items (id, tenant_id, submission_id, code, signal_code, status, version, attempts, input_type, url_key, outlet, submitted_url, final_url, received_at, submitted_by, headline, body_text, publication_date,
+      `INSERT INTO intelligence_items (id, tenant_id, submission_id, code, signal_code, stream, record_id, status, version, attempts, input_type, url_key, outlet, submitted_url, final_url, received_at, submitted_by, headline, body_text, publication_date,
         draft_json, provenance_json, extraction_json, published_rev, pub_date, title, macrotrend, subtrend, growth, impact, extra_json, approved_at, approved_by, created_at, updated_at)
-       VALUES (${q(id)}, ${q(tenant)}, ${q(sid)}, ${q(inbox)}, ${q(code)}, 'approved', 3, 1, 'url', ${q(url.replace(/^https:\/\/(www\.)?/, ""))}, ${q(source === "PR" ? "newsroom.example.com" : source === "LinkedIn" ? "linkedin.com" : "source.example.com")}, ${q(url)}, ${q(url)}, ${tsAgo(ago, -60)}, ${q(who.id)}, ${q(title)}, ${q(text)}, ${daysAgo(ago)},
-        ${values(impact)}, ${q(prov)}, NULL, ${revised ? 2 : 1}, ${daysAgo(ago)}, ${q(title)}, ${q(macro)}, ${q(sub)}, ${q(growth)}, ${q(impact)}, ${q(extra)}, ${tsAgo(ago - 1)}, ${q(who.id)}, ${tsAgo(ago, -60)}, ${tsAgo(Math.max(0, ago - 4))});`,
+       VALUES (${q(id)}, ${q(tenant)}, ${q(sid)}, ${q(inbox)}, ${q(code)}, '${stream}', ${q(recordId)}, 'approved', 3, 1, 'url', ${q(url.replace(/^https:\/\/(www\.)?/, ""))}, ${q(source === "PR" ? "newsroom.example.com" : source === "LinkedIn" ? "linkedin.com" : "source.example.com")}, ${q(url)}, ${q(url)}, ${tsAgo(ago, -60)}, ${q(who.id)}, ${q(title)}, ${q(text)}, ${daysAgo(ago)},
+        ${values(impact)}, ${q(prov)}, NULL, ${revised ? 2 : 1}, ${daysAgo(ago)}, ${q(title)}, ${q(macro)}, ${q(sub)}, ${q(growth)}, ${q(impact)}, ${extraSql}, ${tsAgo(ago - 1)}, ${q(who.id)}, ${tsAgo(ago, -60)}, ${tsAgo(Math.max(0, ago - 4))});`,
     );
     for (const c of comps) out.push(`INSERT INTO item_competitors (tenant_id, item_id, competitor) VALUES (${q(tenant)}, ${q(id)}, ${q(c)});`);
     out.push(
@@ -228,25 +255,25 @@ gen("t_north", 12, 29, 1100, [USERS.find((u) => u.id === "u_north_an") as (typeo
 // ---------------------------------------------------------------------------
 // Inbox drafts (Needs review) — from the prototype
 // ---------------------------------------------------------------------------
-type Draft = { code: string; hoursAgo: number; outlet: string; url: string; kicker: string; headline: string; byline: string; paras: string[] };
+type Draft = { code: string; hoursAgo: number; outlet: string; url: string; kicker: string; headline: string; byline: string; paras: string[]; stream: Stream };
 const INBOX: Draft[] = [
   {
-    code: "INB-2207", hoursAgo: 3, outlet: "LinkedIn", url: "https://www.linkedin.com/posts/sanofi-employer-health", kicker: "LinkedIn post",
+    code: "INB-2207", stream: "secondary", hoursAgo: 3, outlet: "LinkedIn", url: "https://www.linkedin.com/posts/sanofi-employer-health", kicker: "LinkedIn post",
     headline: "Partnering with employers to widen access to specialty care", byline: "Sanofi",
     paras: ["Today we are announcing an agreement with a coalition of large US employers to offer selected medicines directly to covered employees, alongside a digital support program.", "The arrangement bypasses traditional benefit intermediaries and sets a single transparent price for participating employers."],
   },
   {
-    code: "INB-2206", hoursAgo: 4, outlet: "Press release", url: "https://newsroom.example.com/az-roche-ai-alliance", kicker: "Press release",
+    code: "INB-2206", stream: "primary", hoursAgo: 4, outlet: "Press release", url: "https://newsroom.example.com/az-roche-ai-alliance", kicker: "Press release",
     headline: "AstraZeneca and Roche form pre-competitive AI alliance for target discovery", byline: "Business Wire",
     paras: ["The companies will pool de-identified screening data to train shared models for early target identification.", "Each partner retains rights to assets it develops independently using the shared models."],
   },
   {
-    code: "INB-2205", hoursAgo: 18, outlet: "Publication", url: "https://source.example.com/novartis-ai-academy", kicker: "Industry news",
+    code: "INB-2205", stream: "primary", hoursAgo: 18, outlet: "Publication", url: "https://source.example.com/novartis-ai-academy", kicker: "Industry news",
     headline: "Novartis opens AI academy with three-tier certification", byline: "Pharma Technology Review",
     paras: ["All employees will be required to complete the foundation tier by the end of 2027.", "Advanced tiers are aimed at data scientists and functional AI leads."],
   },
   {
-    code: "INB-2204", hoursAgo: 24, outlet: "Client signal", url: "https://client-portal.example.com/field-note-0924", kicker: "Client signal",
+    code: "INB-2204", stream: "secondary", hoursAgo: 24, outlet: "Client signal", url: "https://client-portal.example.com/field-note-0924", kicker: "Client signal",
     headline: "Field team reports Pfizer piloting AI next-best-action in oncology", byline: "Submitted by client",
     paras: ["Account managers report that Pfizer representatives are using an AI assistant to prioritise HCP visits in two US regions."],
   },
@@ -274,10 +301,10 @@ INBOX.forEach((it, i) => {
   const key = `d1:t_demo/${id}/${sha}`;
   out.push(`INSERT INTO submissions (id, tenant_id, submitted_by, input_type, submitted_url, normalized_url, created_at) VALUES (${q(sid)}, 't_demo', ${q(who.id)}, 'url', ${q(it.url)}, ${q(it.url)}, ${received});`);
   out.push(
-    `INSERT INTO intelligence_items (id, tenant_id, submission_id, code, status, version, attempts, input_type, url_key, outlet, submitted_url, final_url, received_at, submitted_by, headline, body_text, publication_date,
+    `INSERT INTO intelligence_items (id, tenant_id, submission_id, code, stream, status, version, attempts, input_type, url_key, outlet, submitted_url, final_url, received_at, submitted_by, headline, body_text, publication_date,
       draft_json, provenance_json, extraction_json, model_warnings_json, warnings_count, created_at, updated_at)
-     VALUES (${q(id)}, 't_demo', ${q(sid)}, ${q(it.code)}, 'needs_review', 2, 1, 'url', ${q(it.url.replace(/^https:\/\/(www\.)?/, ""))}, ${q(it.outlet)}, ${q(it.url)}, ${q(it.url)}, ${received}, ${q(who.id)}, ${q(it.headline)}, ${q(body)}, ${daysAgo(pubAgo)},
-      '{}', '{}', NULL, '[]', 0, ${received}, ${received});`,
+     VALUES (${q(id)}, 't_demo', ${q(sid)}, ${q(it.code)}, '${it.stream}', 'needs_review', 2, 1, 'url', ${q(it.url.replace(/^https:\/\/(www\.)?/, ""))}, ${q(it.outlet)}, ${q(it.url)}, ${q(it.url)}, ${received}, ${q(who.id)}, ${q(it.headline)}, ${q(body)}, ${daysAgo(pubAgo)},
+      ${q(JSON.stringify({ source_tier: SOURCE_TIER[it.stream] }))}, '{}', NULL, '[]', 0, ${received}, ${received});`,
   );
   out.push(`INSERT INTO snapshot_blobs (storage_key, seq, tenant_id, data) VALUES (${q(key)}, 0, 't_demo', ${q(html)});`);
   out.push(

@@ -44,6 +44,7 @@ export type AuditAction =
   | "settings.changed"
   | "export.created"
   | "snapshot.downloaded"
+  | "markdown.downloaded"
   | "view.saved"
   | "view.deleted"
   | "retention.purged"

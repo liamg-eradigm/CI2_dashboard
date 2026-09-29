@@ -8,6 +8,9 @@ import {
   STATUS_LABEL,
   can,
   normaliseValues,
+  AUTO_KEYS,
+  SOURCE_TIER,
+  STREAM_LABEL,
   optionsOf,
   sortedColumns,
   splitMulti,
@@ -19,7 +22,9 @@ import {
   type TrackerSchema,
 } from "@eradigm/shared";
 import { api, ApiError } from "../api/client";
-import { useInvalidate, useItem, useItems, useSchema } from "../api/hooks";
+import { useInboxCounts, useInvalidate, useItem, useItems, useSchema } from "../api/hooks";
+import { StreamSwitch } from "../components/StreamSwitch";
+import { useStreamParam } from "../state/stream";
 import { Combobox } from "../components/Combobox";
 import { ModelOutputTable } from "../components/ModelOutput";
 import { SchemaEditor } from "../components/SchemaEditor";
@@ -36,10 +41,12 @@ const TABS: { key: string; label: string; statuses: ItemStatus[] }[] = [
 const ALL_STATUSES: ItemStatus[] = ["needs_review", "queued", "fetching", "extracting", "failed", "approved", "rejected"];
 
 export function InboxPage({ me }: { me: Me }) {
-  const schema = useSchema();
+  const [stream, setStream] = useStreamParam();
+  const schema = useSchema(stream);
   const [tab, setTab] = useState("review");
   const [schemaOpen, setSchemaOpen] = useState(false);
-  const all = useItems(ALL_STATUSES, true, true);
+  const all = useItems(ALL_STATUSES, true, true, stream);
+  const unprocessed = useInboxCounts(true);
   const items = all.data ?? [];
   const counts = Object.fromEntries(TABS.map((t) => [t.key, items.filter((i) => t.statuses.includes(i.status)).length]));
   const today = new Date().toISOString().slice(0, 10);
@@ -54,7 +61,7 @@ export function InboxPage({ me }: { me: Me }) {
         <div className="band-row">
           <div>
             <span className="eyebrow">
-              {counts.review ?? 0} awaiting review · {approvedToday} approved today
+              {STREAM_LABEL[stream]} Inbox · {counts.review ?? 0} awaiting review · {approvedToday} approved today
             </span>
             <h1 id="page-title">Inbox</h1>
           </div>
@@ -66,20 +73,28 @@ export function InboxPage({ me }: { me: Me }) {
         </div>
       </section>
       <div className="content" style={{ gap: 14 }}>
+        <div className="stream-bar">
+          <StreamSwitch noun="Inbox" value={stream} onChange={setStream} counts={unprocessed.data} label="Inbox to show" />
+          <span className="stream-note">
+            {stream === "primary" ? "Uploads to the Primary Source · approved entries go to the Primary Tracker" : "Uploads to the Secondary Source · approved entries go to the Secondary Tracker"}
+          </span>
+        </div>
         {can(me.role, "schema:edit") && (
           <section className="card flush" aria-labelledby="cols-title">
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "14px 18px", flexWrap: "wrap" }}>
               <div>
                 <h2 className="card-title" id="cols-title">
-                  Tracker columns
+                  Tracker columns · {STREAM_LABEL[stream]} Inbox
                 </h2>
-                <span className="card-sub">{s ? `${s.columns.length} columns · changes apply to drafts, the Tracker, filters and exports` : ""}</span>
+                <span className="card-sub">
+                  {s ? `${s.columns.length} columns · ${s.columns.filter((c) => c.inTracker).length} shown in the Tracker · changes apply to the ${STREAM_LABEL[stream]} Inbox, Tracker and Phantoms only` : ""}
+                </span>
               </div>
               <button className="btn secondary" aria-expanded={schemaOpen} onClick={() => setSchemaOpen((o) => !o)} style={schemaOpen ? { background: "var(--tint)" } : undefined}>
                 {schemaOpen ? "Done" : "Edit columns"}
               </button>
             </div>
-            {schemaOpen && <SchemaEditor />}
+            {schemaOpen && <SchemaEditor key={stream} stream={stream} />}
           </section>
         )}
 
@@ -97,7 +112,7 @@ export function InboxPage({ me }: { me: Me }) {
             {(all.error as Error).message}
           </div>
         )}
-        {s && shown.map((it) => <InboxCard key={it.id} item={it} schema={s} me={me} />)}
+        {s && shown.filter((it) => it.stream === stream).map((it) => <InboxCard key={it.id} item={it} schema={s} me={me} />)}
         {s && !all.isLoading && shown.length === 0 && <div className="empty">Nothing here.</div>}
       </div>
     </>
@@ -115,6 +130,7 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
   const [evidence, setEvidence] = useState(false);
   const [draft, setDraft] = useState<Draft>(() => toDraft(schema, item));
   const [errors, setErrors] = useState<string[]>([]);
+  const [fieldMsg, setFieldMsg] = useState<Record<string, string>>({});
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [dupConfirm, setDupConfirm] = useState<DupInfo | null>(null);
@@ -124,7 +140,7 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
   const pending = item.status === "needs_review";
   const canReview = can(me.role, "item:review");
   const manual = me.features.prefill === "manual";
-  const emptyDraft = pending && sortedColumns(schema).every((c) => item.draft[c.key] == null || item.draft[c.key] === "" || (Array.isArray(item.draft[c.key]) && (item.draft[c.key] as unknown[]).length === 0));
+  const emptyDraft = pending && sortedColumns(schema).filter((c) => !AUTO_KEYS.includes(c.key)).every((c) => item.draft[c.key] == null || item.draft[c.key] === "" || (Array.isArray(item.draft[c.key]) && (item.draft[c.key] as unknown[]).length === 0));
 
   // Latest version this card knows about, and the values last persisted. Saves
   // are queued so fast data entry never races itself into a version conflict.
@@ -196,7 +212,10 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
         await inv("items");
         return;
       }
-      if (err.fields?.length) setErrors(err.fields.map((f) => f.key));
+      if (err.fields?.length) {
+        setErrors(err.fields.map((f) => f.key));
+        setFieldMsg(Object.fromEntries(err.fields.map((f) => [f.key, f.code === "required" ? "Required" : f.code === "duplicate_id" ? "Already used" : "Check this value"])));
+      }
       setMsg(err.message);
     } finally {
       setBusy(false);
@@ -385,96 +404,89 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
               </button>
             )}
           </div>
-          <div className="table-wrap" style={{ border: "1px solid var(--border)", borderRadius: 8 }}>
-            <table className="draft-table" style={{ minWidth: Math.max(1280, cols.length * 140) }}>
-              <thead>
-                <tr>
-                  {cols.map((c) => (
-                    <th key={c.key} scope="col" id={`h-${item.id}-${c.key}`}>
-                      {c.label}
-                      {c.required ? "" : " (optional)"}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  {cols.map((c) => {
-                    const v = draft[c.key] ?? "";
-                    const ex = extraction?.[c.key];
-                    const invalid = errors.includes(c.key);
-                    const missing = missingNow.has(c.key);
-                    const cls = `dcell ${invalid ? "invalid" : missing ? "missing" : ""}`;
-                    const common = {
-                      className: cls,
-                      disabled: !pending || !canReview,
-                      // Explicit name: the column header can be scrolled out of view in the wide draft table.
-                      "aria-label": c.label,
-                      "aria-invalid": invalid || undefined,
-                      "aria-describedby": `n-${item.id}-${c.key}`,
-                      onBlur: saveDraft,
-                    };
-                    const opts = c.type === "sub" ? (draft[CORE.macrotrend] ? subtrendsOf(schema, draft[CORE.macrotrend]) : []) : optionsOf(schema, c);
-                    const w = c.type === "date" ? 132 : c.type === "multi" ? 170 : c.type === "macro" ? 190 : c.type === "sub" ? 200 : c.type === "select" ? 150 : undefined;
-                    const lowConf = ex?.confidence != null && ex.confidence < LOW_CONFIDENCE;
-                    const prov = item.provenance[c.key];
-                    return (
-                      <td key={c.key} style={{ width: w }}>
-                        {c.type === "date" ? (
-                          <input type="date" {...common} value={v} onChange={(e) => set(c.key, e.target.value)} />
-                        ) : c.type === "text" ? (
-                          <input {...common} value={v} onChange={(e) => set(c.key, e.target.value)} style={{ minWidth: c.key === CORE.title ? 220 : 130 }} />
-                        ) : c.type === "multi" ? (
-                          <Combobox
-                            multiple
-                            className={cls}
-                            label={c.label}
-                            disabled={common.disabled}
-                            invalid={invalid}
-                            describedBy={common["aria-describedby"]}
-                            placeholder="Select…"
-                            options={opts}
-                            value={splitMulti(v)}
-                            onChange={(list) => set(c.key, list.join(", "))}
-                            onBlur={saveDraft}
-                            style={{ minWidth: 150 }}
-                          />
-                        ) : (
-                          <Combobox
-                            className={cls}
-                            label={c.label}
-                            disabled={common.disabled}
-                            invalid={invalid}
-                            describedBy={common["aria-describedby"]}
-                            placeholder={c.type === "sub" && !draft[CORE.macrotrend] ? "Choose a macrotrend first" : "Select…"}
-                            options={opts}
-                            pinned={v ? [{ value: "", label: "— Clear —" }] : []}
-                            value={v}
-                            onChange={(x) => set(c.key, x)}
-                            onBlur={saveDraft}
-                          />
-                        )}
-                        <div className={`cell-note ${ex?.warnings.length || lowConf ? "w" : ""}`} id={`n-${item.id}-${c.key}`}>
-                          {invalid ? (
-                            <span style={{ color: "var(--error)" }}>✕ Required</span>
-                          ) : missing ? (
-                            <span>⚠ Required</span>
-                          ) : ex?.confidence != null ? (
-                            <span>
-                              {lowConf ? "⚠ " : ""}
-                              {prov === "analyst" ? "Edited · " : prov === "source" ? "Source · " : "AI · "}
-                              {pct(ex.confidence)}
-                            </span>
-                          ) : prov === "analyst" ? (
-                            <span>Edited</span>
-                          ) : null}
-                        </div>
-                      </td>
-                    );
-                  })}
-                </tr>
-              </tbody>
-            </table>
+          <div className="draft-grid" role="group" aria-label={`Tracker fields for ${item.code}`}>
+            {cols.map((c) => {
+              const v = draft[c.key] ?? "";
+              const ex = extraction?.[c.key];
+              const invalid = errors.includes(c.key);
+              const missing = missingNow.has(c.key);
+              const auto = AUTO_KEYS.includes(c.key);
+              const cls = `dcell ${invalid ? "invalid" : missing ? "missing" : ""}`;
+              const common = {
+                className: cls,
+                disabled: !pending || !canReview,
+                "aria-label": c.label,
+                "aria-invalid": invalid || undefined,
+                "aria-describedby": `n-${item.id}-${c.key}`,
+                onBlur: saveDraft,
+              };
+              const opts = c.type === "sub" ? (draft[CORE.macrotrend] ? subtrendsOf(schema, draft[CORE.macrotrend]) : []) : optionsOf(schema, c);
+              const lowConf = ex?.confidence != null && ex.confidence < LOW_CONFIDENCE;
+              const prov = item.provenance[c.key];
+              const span = c.type === "long" ? "full" : c.key === CORE.title ? "wide" : "";
+              return (
+                <div key={c.key} className={`dfield ${span}`}>
+                  <span className="dlabel" id={`h-${item.id}-${c.key}`}>
+                    {c.label}
+                    {auto ? " (automatic)" : c.required ? "" : " (optional)"}
+                  </span>
+                  {auto ? (
+                    <input className="dcell auto" aria-label={c.label} readOnly value={SOURCE_TIER[item.stream]} aria-describedby={`n-${item.id}-${c.key}`} />
+                  ) : c.type === "date" ? (
+                    <input type="date" {...common} value={v} onChange={(e) => set(c.key, e.target.value)} />
+                  ) : c.type === "long" ? (
+                    <textarea {...common} className={`${cls} long`} rows={4} value={v} onChange={(e) => set(c.key, e.target.value)} />
+                  ) : c.type === "text" ? (
+                    <input {...common} value={v} onChange={(e) => set(c.key, e.target.value)} />
+                  ) : c.type === "multi" ? (
+                    <Combobox
+                      multiple
+                      className={cls}
+                      label={c.label}
+                      disabled={common.disabled}
+                      invalid={invalid}
+                      describedBy={common["aria-describedby"]}
+                      placeholder="Select…"
+                      options={opts}
+                      value={splitMulti(v)}
+                      onChange={(list) => set(c.key, list.join(", "))}
+                      onBlur={saveDraft}
+                    />
+                  ) : (
+                    <Combobox
+                      className={cls}
+                      label={c.label}
+                      disabled={common.disabled}
+                      invalid={invalid}
+                      describedBy={common["aria-describedby"]}
+                      placeholder={c.type === "sub" && !draft[CORE.macrotrend] ? "Choose a macrotrend first" : "Select…"}
+                      options={opts}
+                      pinned={v ? [{ value: "", label: "— Clear —" }] : []}
+                      value={v}
+                      onChange={(x) => set(c.key, x)}
+                      onBlur={saveDraft}
+                    />
+                  )}
+                  <div className={`cell-note ${ex?.warnings.length || lowConf ? "w" : ""}`} id={`n-${item.id}-${c.key}`}>
+                    {invalid ? (
+                      <span style={{ color: "var(--error)" }}>✕ {fieldMsg[c.key] ?? "Required"}</span>
+                    ) : missing ? (
+                      <span>⚠ Required</span>
+                    ) : auto ? (
+                      <span>Set from the {STREAM_LABEL[item.stream]} Source</span>
+                    ) : ex?.confidence != null ? (
+                      <span>
+                        {lowConf ? "⚠ " : ""}
+                        {prov === "analyst" ? "Edited · " : prov === "source" ? "Source · " : "AI · "}
+                        {pct(ex.confidence)}
+                      </span>
+                    ) : prov === "analyst" ? (
+                      <span>Edited</span>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })}
           </div>
           {msg && (
             <div className="err-msg" role="alert">

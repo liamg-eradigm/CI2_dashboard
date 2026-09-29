@@ -6,7 +6,7 @@
  * strings, auto-fit column widths) so the API can produce workbooks inside a
  * Worker without shipping a large spreadsheet library.
  */
-import { sortedColumns, type TrackerSchema } from "./schema.js";
+import { trackerColumns, type TrackerSchema } from "./schema.js";
 import type { ItemValues } from "./validation.js";
 
 export const EXPORT_FORMATS = ["csv", "xlsx", "tsv", "json"] as const;
@@ -24,8 +24,10 @@ export interface ExportRow {
   values: ItemValues;
 }
 
-export function exportFilename(scope: "filtered" | "all", format: ExportFormat, today: string): string {
-  return `eradigm-tracker-${scope}-${today}.${format}`;
+/** e.g. eradigm-tracker-filtered-2026-09-24.csv, eradigm-secondary-phantoms-all-2026-09-24.xlsx */
+export function exportFilename(scope: "filtered" | "all", format: ExportFormat, today: string, view: { stream?: string; name?: "tracker" | "phantoms" } = {}): string {
+  const prefix = view.stream && view.stream !== "primary" ? `${view.stream}-` : "";
+  return `eradigm-${prefix}${view.name ?? "tracker"}-${scope}-${today}.${format}`;
 }
 
 function cellText(v: ItemValues[string] | undefined): string {
@@ -35,7 +37,7 @@ function cellText(v: ItemValues[string] | undefined): string {
 
 /** Array-of-arrays with a header row. */
 export function toTable(schema: TrackerSchema, rows: ExportRow[]): string[][] {
-  const cols = sortedColumns(schema);
+  const cols = trackerColumns(schema);
   return [["Signal ID", ...cols.map((c) => c.label)], ...rows.map((r) => [r.signalId, ...cols.map((c) => cellText(r.values[c.key]))])];
 }
 
@@ -58,7 +60,7 @@ export function toTsv(table: string[][]): string {
 }
 
 export function toJson(schema: TrackerSchema, rows: ExportRow[]): string {
-  const cols = sortedColumns(schema);
+  const cols = trackerColumns(schema);
   return JSON.stringify(
     rows.map((r) => {
       const o: Record<string, unknown> = { "Signal ID": r.signalId };

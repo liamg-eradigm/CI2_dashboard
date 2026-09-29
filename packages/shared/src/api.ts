@@ -8,13 +8,15 @@
 import { z } from "zod";
 import { ACTIONS, ROLES } from "./permissions.js";
 import { ITEM_STATUSES } from "./status.js";
-import { COLUMN_TYPES, CREATABLE_COLUMN_TYPES, MAX_LABEL_LENGTH, MAX_OPTION_LENGTH } from "./schema.js";
+import { COLUMN_TYPES, CREATABLE_COLUMN_TYPES, MAX_LABEL_LENGTH, MAX_OPTION_LENGTH, STREAMS } from "./schema.js";
 import { EXPORT_FORMATS } from "./export.js";
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD");
 const isoDateTime = z.string();
 export const FieldValueSchema = z.union([z.string(), z.array(z.string()), z.null()]);
 export const ItemValuesSchema = z.record(z.string(), FieldValueSchema);
+/** Primary or Secondary stream (Source → Inbox → Tracker → Phantoms). Added in contract 1.4. */
+export const StreamSchema = z.enum(STREAMS);
 
 // ---------------------------------------------------------------------------
 // Schema / taxonomy
@@ -29,6 +31,8 @@ export const TrackerColumnSchema = z.object({
   position: z.number().int(),
   options: z.array(z.string()).optional(),
   aiAssist: z.boolean(),
+  /** Shown in the Tracker and Phantoms tables. Added in contract 1.4. */
+  inTracker: z.boolean().default(true),
 });
 
 export const TrackerSchemaSchema = z.object({
@@ -42,8 +46,8 @@ export const AddColumnRequest = z.object({
   type: z.enum(CREATABLE_COLUMN_TYPES),
 });
 export const UpdateColumnRequest = z
-  .object({ label: z.string().min(1).max(MAX_LABEL_LENGTH).optional(), required: z.boolean().optional() })
-  .refine((v) => v.label !== undefined || v.required !== undefined, "Nothing to update");
+  .object({ label: z.string().min(1).max(MAX_LABEL_LENGTH).optional(), required: z.boolean().optional(), inTracker: z.boolean().optional() })
+  .refine((v) => v.label !== undefined || v.required !== undefined || v.inTracker !== undefined, "Nothing to update");
 /** Optional reason recorded in the audit log when an item or tracker entry is deleted. */
 export const DeleteItemRequest = z.object({ reason: z.string().max(500).optional() });
 /** The full new column order: every current column key exactly once. */
@@ -121,6 +125,7 @@ export const ExtractedFieldSchema = z.object({
 export const ItemSummarySchema = z.object({
   id: z.string(),
   code: z.string(),
+  stream: StreamSchema.default("primary"),
   status: z.enum(ITEM_STATUSES),
   inputType: z.enum(["url", "file"]),
   outlet: z.string().nullable(),
@@ -215,7 +220,7 @@ export const ApproveRequest = z.object({
 export const RejectRequest = z.object({ reason: z.string().max(500).optional(), version: z.number().int() });
 export const ReprocessRequest = z.object({ version: z.number().int().optional() });
 export const ReviseRequest = z.object({ values: ItemValuesSchema, note: z.string().min(1).max(500) });
-export const CreateSubmissionRequest = z.object({ url: z.string().min(1).max(2048) });
+export const CreateSubmissionRequest = z.object({ url: z.string().min(1).max(2048), stream: StreamSchema.default("primary") });
 export const CreateSubmissionResponse = z.object({ item: ItemSummarySchema, duplicate: z.boolean() });
 
 // ---------------------------------------------------------------------------
@@ -225,6 +230,7 @@ export const CreateSubmissionResponse = z.object({ item: ItemSummarySchema, dupl
 export const SignalSchema = z.object({
   id: z.string(),
   code: z.string(),
+  stream: StreamSchema.default("primary"),
   values: ItemValuesSchema,
   text: z.string(),
   url: z.string().nullable(),
@@ -375,6 +381,8 @@ export const TenantSettingsSchema = z.object({
     redactPhones: z.boolean(),
     quarantineMarkers: z.array(z.string().min(3).max(80)).max(100),
   }),
+  /** Which Secondary Tracker entries also appear in Phantoms (Primary entries always do). Added in contract 1.4. */
+  phantoms: z.object({ secondaryMinImpact: z.string().min(1).max(MAX_OPTION_LENGTH) }).default({ secondaryMinImpact: "Medium" }),
 });
 export const UpdateSettingsRequest = TenantSettingsSchema.partial();
 
@@ -397,6 +405,7 @@ export const CaptureLogEntrySchema = z.object({
   outcome: z.string(),
   ok: z.boolean(),
   itemId: z.string().nullable(),
+  stream: StreamSchema.nullable().default(null),
 });
 
 export const IncidentSchema = z.object({
@@ -490,6 +499,8 @@ export const ENDPOINTS: EndpointDef[] = [
   { method: "post", path: "/api/schema/columns", summary: "Add a column", roles: STAFF, request: AddColumnRequest, response: TrackerSchemaSchema },
   { method: "patch", path: "/api/schema/columns/{key}", summary: "Rename a column or toggle Required", roles: STAFF, request: UpdateColumnRequest, response: TrackerSchemaSchema },
   { method: "delete", path: "/api/schema/columns/{key}", summary: "Delete a non-core column", roles: STAFF, response: TrackerSchemaSchema },
+  { method: "get", path: "/api/phantoms", summary: "Phantoms table (query: stream, filters, sort, page): every Primary entry, and Secondary entries at or above the admin-set Impact", roles: ALL_ROLES, response: TrackerPageSchema },
+  { method: "get", path: "/api/signals/{id}/markdown", summary: "Markdown for a tracker entry (text/markdown; ?download=1 for an attachment)", roles: ALL_ROLES, raw: "text/markdown" },
   { method: "put", path: "/api/schema/columns/order", summary: "Change the column order (drafts, Tracker, exports)", roles: STAFF, request: ReorderColumnsRequest, response: TrackerSchemaSchema },
   { method: "post", path: "/api/schema/columns/{key}/options", summary: "Add a dropdown option", roles: STAFF, request: AddOptionRequest, response: TrackerSchemaSchema },
   { method: "patch", path: "/api/schema/columns/{key}/options", summary: "Rename an option (propagates to signals, drafts and filters)", roles: STAFF, request: RenameOptionRequest, response: TrackerSchemaSchema },

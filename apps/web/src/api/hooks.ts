@@ -12,6 +12,7 @@ import {
   type QualityMetrics,
   type SavedView,
   type SignalDetail,
+  type Stream,
   type TenantSettings,
   type TrackerPage,
   type TrackerSchema,
@@ -19,13 +20,18 @@ import {
   type TrendResult,
   type User,
 } from "@eradigm/shared";
-import { api } from "./client";
+import { api, request } from "./client";
 
 export type SchemaWithUsage = TrackerSchema & { usage?: Record<string, Record<string, number>> };
 
 export const useMe = () => useQuery({ queryKey: ["me"], queryFn: () => api<Me>("/api/me"), retry: false, staleTime: 60_000 });
-export const useSchema = (withUsage = false) =>
-  useQuery({ queryKey: ["schema", withUsage], queryFn: () => api<SchemaWithUsage>(`/api/schema${withUsage ? "?usage=1" : ""}`), staleTime: 30_000 });
+/** A stream's column set, or "all" (both merged, read-only: the Dashboard). */
+export const useSchema = (stream: Stream | "all" = "primary", withUsage = false) =>
+  useQuery({
+    queryKey: ["schema", stream, withUsage],
+    queryFn: () => api<SchemaWithUsage>(`/api/schema?stream=${stream}${withUsage ? "&usage=1" : ""}`),
+    staleTime: 30_000,
+  });
 export const useSettings = () => useQuery({ queryKey: ["settings"], queryFn: () => api<TenantSettings>("/api/settings"), staleTime: 60_000 });
 
 const qs = (f: FilterState, extra: Record<string, string | number> = {}) => {
@@ -37,23 +43,41 @@ const qs = (f: FilterState, extra: Record<string, string | number> = {}) => {
 export const useDashboard = (f: FilterState, enabled = true) =>
   useQuery({ queryKey: ["dashboard", f], queryFn: () => api<DashboardData>(`/api/dashboard?${qs(f)}`), placeholderData: keepPreviousData, enabled });
 
-export const useTracker = (f: FilterState, sort: { key: string; dir: "asc" | "desc" }, page: number, pageSize = 10) =>
+export type TableView = "tracker" | "phantoms";
+
+export const useTracker = (f: FilterState, sort: { key: string; dir: "asc" | "desc" }, page: number, pageSize = 10, stream: Stream = "primary", view: TableView = "tracker", enabled = true) =>
   useQuery({
-    queryKey: ["tracker", f, sort, page, pageSize],
-    queryFn: () => api<TrackerPage>(`/api/tracker?${qs(f, { sort: sort.key, dir: sort.dir, page, pageSize })}`),
+    queryKey: ["tracker", view, stream, f, sort, page, pageSize],
+    queryFn: () => api<TrackerPage>(`/api/${view}?${qs(f, { sort: sort.key, dir: sort.dir, page, pageSize, stream })}`),
     placeholderData: keepPreviousData,
+    enabled,
   });
 
-export const exportUrl = (f: FilterState, sort: { key: string; dir: string }, scope: "filtered" | "all", format: string) =>
-  `/api/tracker/export?${qs(f, { sort: sort.key, dir: sort.dir, scope, format })}`;
+export const exportUrl = (f: FilterState, sort: { key: string; dir: string }, scope: "filtered" | "all", format: string, stream: Stream = "primary", view: TableView = "tracker") =>
+  `/api/tracker/export?${qs(f, { sort: sort.key, dir: sort.dir, scope, format, stream, view })}`;
+
+/** The Phantoms Markdown of an entry (text). */
+export const useMarkdown = (id: string | null) =>
+  useQuery({
+    queryKey: ["signal", id, "markdown"],
+    queryFn: async () => {
+      const res = await request(`/api/signals/${id}/markdown`);
+      return res.text();
+    },
+    enabled: !!id,
+  });
+
+/** Items awaiting the analyst in each inbox (the red badges). */
+export const useInboxCounts = (enabled: boolean) =>
+  useQuery({ queryKey: ["counts"], queryFn: () => api<Record<Stream, number>>("/api/items/counts"), enabled, refetchInterval: enabled ? 10_000 : false });
 
 export const useSignal = (id: string | null) =>
   useQuery({ queryKey: ["signal", id], queryFn: () => api<SignalDetail>(`/api/signals/${id}`), enabled: !!id });
 
-export const useItems = (statuses: string[], enabled = true, poll = false) =>
+export const useItems = (statuses: string[], enabled = true, poll = false, stream?: Stream) =>
   useQuery({
-    queryKey: ["items", statuses],
-    queryFn: () => api<ItemSummary[]>(`/api/items?status=${statuses.join(",")}`),
+    queryKey: ["items", statuses, stream ?? "both"],
+    queryFn: () => api<ItemSummary[]>(`/api/items?status=${statuses.join(",")}${stream ? `&stream=${stream}` : ""}`),
     enabled,
     refetchInterval: poll ? 3000 : false,
   });
@@ -81,7 +105,7 @@ export const runTrend = (cfg: TrendConfig) => api<TrendResult & { counts: { curr
 /** Invalidate everything derived from published signals or the schema. */
 export function useInvalidate() {
   const qc = useQueryClient();
-  return (...keys: string[]) => Promise.all((keys.length ? keys : ["dashboard", "tracker", "items", "item", "signal", "schema"]).map((k) => qc.invalidateQueries({ queryKey: [k] })));
+  return (...keys: string[]) => Promise.all((keys.length ? keys : ["dashboard", "tracker", "items", "item", "signal", "schema", "counts"]).map((k) => qc.invalidateQueries({ queryKey: [k] })));
 }
 
 export function useApiMutation<TVars, TRes>(fn: (v: TVars) => Promise<TRes>, invalidate: string[] = []) {

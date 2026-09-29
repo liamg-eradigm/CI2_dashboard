@@ -92,6 +92,31 @@ analyst-entered information distinguishable; in the prototype every value is
     published revision), **rejects** or **re-captures** (new attempt that keeps
     the values already entered; stale job messages are ignored).
 
+## Primary / Secondary streams and Phantoms
+- **Two streams.** Input has a *Primary Source* and a *Secondary Source* (HTML
+  upload only). Each item carries `stream`; it goes to that stream's Inbox and,
+  once approved, to that stream's Tracker. `Source Tier` is set by the platform
+  (`Primary` / `Reviewed-Secondary`) and cannot be edited.
+- **Separate column sets.** `tracker_columns` / `column_options` are keyed by
+  `(tenant, stream, …)`; each Inbox edits its own. Both start with the same 22
+  columns. `in_tracker` marks the nine shown in the Tracker and Phantoms tables
+  (the other fields feed the Markdown). Locked ("core") columns are the ones the
+  Dashboard charts and the Markdown depend on: they can be renamed, not deleted.
+- **Dashboard** reads both streams through one merged, read-only schema
+  (`?stream=all`): union of options, Primary order first.
+- **ID** is typed by the analyst, projected onto `intelligence_items.record_id`
+  and unique among tracker entries of a tenant (checked at approval, backed by a
+  partial unique index). **Review Date** defaults to the approval day.
+- **Phantoms** is a view, not a copy: every approved Primary entry, plus
+  approved Secondary entries whose Impact is at or above the admin setting
+  `phantoms.secondaryMinImpact` (Administration → Workspace settings). Changing
+  the setting or an entry's Impact updates Phantoms immediately.
+- **Markdown** (`GET /api/signals/:id/markdown`, `?download=1` for a file named
+  `<ID>.md`) is generated from the published field values only, with the
+  approver as `QC.Reviewed_by`. The front matter is valid YAML (two-space
+  indentation; values quoted only when YAML would misread them). See
+  `packages/shared/src/markdown.ts`.
+
 ## Queries
 `apps/api/src/services/query.ts` builds one tenant-scoped `WHERE` clause from the
 shared filter state and reuses it for the tracker page, KPI counts, timeline,

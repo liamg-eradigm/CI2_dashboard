@@ -1,19 +1,70 @@
 import path from "node:path";
-import { writeFileSync, mkdtempSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
+import type { Locator, Page } from "@playwright/test";
 import { choose, chooseMany, expect, expectAccessible, signInAs, test } from "./fixtures";
+
+const uid = () => Date.now().toString(36);
+
+/** Fill every required tracker field of an Inbox card (plus any extras by label). */
+async function fillEntry(card: Locator, v: { id: string; title: string; impact?: string; competitors?: string[]; extra?: Record<string, string> }) {
+  await card.getByRole("textbox", { name: "ID", exact: true }).fill(v.id);
+  await choose(card.getByRole("combobox", { name: "Macrotrend", exact: true }), "AI Investment in R&D");
+  await choose(card.getByRole("combobox", { name: "Subtrend", exact: true }), "External Partnerships to Accelerate AI");
+  await card.getByRole("textbox", { name: "Title", exact: true }).fill(v.title);
+  await card.getByLabel("Event Date", { exact: true }).fill("2026-09-24");
+  await choose(card.getByRole("combobox", { name: "Impact", exact: true }), v.impact ?? "High");
+  await choose(card.getByRole("combobox", { name: "Growth Intensity", exact: true }), "Strong Increase");
+  await choose(card.getByRole("combobox", { name: "Source Type", exact: true }), "PR");
+  await chooseMany(card.getByRole("combobox", { name: "Competitors", exact: true }), v.competitors ?? ["AstraZeneca", "Roche"]);
+  await choose(card.getByRole("combobox", { name: "Action", exact: true }), "Not Actioned");
+  for (const [label, value] of Object.entries(v.extra ?? {})) await card.getByLabel(label, { exact: true }).fill(value);
+}
+
+/** Put the columns (or a column's options) back in the default order via the API. */
+async function restoreOrder(page: Page, stream: "primary" | "secondary", keys: string[], optionsOf?: string) {
+  await page.evaluate(
+    async ({ stream, keys, optionsOf }) => {
+      const url = optionsOf ? `/api/schema/columns/${optionsOf}/options/order?stream=${stream}` : `/api/schema/columns/order?stream=${stream}`;
+      const res = await fetch(url, {
+        method: "PUT",
+        headers: { "content-type": "application/json", "x-eci-request": "1", "x-dev-user": localStorage.getItem("eradigm.devUser") ?? "" },
+        body: JSON.stringify(optionsOf ? { values: keys } : { keys }),
+      });
+      if (!res.ok) throw new Error(`restore failed ${res.status}`);
+    },
+    { stream, keys, optionsOf },
+  );
+}
+
+async function schemaOf(page: Page, stream: "primary" | "secondary") {
+  return page.evaluate(async (stream) => {
+    const res = await fetch(`/api/schema?stream=${stream}`, { headers: { "x-dev-user": localStorage.getItem("eradigm.devUser") ?? "" } });
+    return (await res.json()) as { columns: { key: string; label: string; position: number; inTracker: boolean; options?: string[] }[] };
+  }, stream);
+}
+
+function htmlFile(name: string, html: string) {
+  const dir = mkdtempSync(path.join(tmpdir(), "e2e-"));
+  const file = path.join(dir, name);
+  writeFileSync(file, html);
+  return file;
+}
 
 test.describe("analyst role", () => {
   test.beforeEach(async ({ page }) => signInAs(page, "analyst"));
 
   test("completes an empty Inbox draft from the saved page: validation, manual entry and approve", async ({ page }) => {
     await page.goto("/inbox");
-    await expect(page.getByRole("heading", { name: "Inbox" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Inbox", exact: true })).toBeVisible();
     const card = page.locator(".inbox-card", { hasText: "AstraZeneca and Roche form pre-competitive AI alliance" });
     // Manual entry: every tracker field starts empty and no AI output is shown.
     await expect(card.getByText("Awaiting analyst entry")).toBeVisible();
     await expect(card.getByText(/LLM draft/)).toHaveCount(0);
-    await expect(card.getByRole("textbox", { name: "News title", exact: true })).toHaveValue("");
+    await expect(card.getByRole("textbox", { name: "Title", exact: true })).toHaveValue("");
+    // Source Tier is filled automatically and read-only.
+    await expect(card.getByRole("textbox", { name: "Source Tier", exact: true })).toHaveValue("Primary");
+    await expect(card.getByRole("textbox", { name: "Source Tier", exact: true })).toHaveAttribute("readonly", "");
     await expect(card.getByRole("combobox", { name: "Macrotrend", exact: true })).toHaveValue("");
     // The analyst opens the saved page to read the source.
     await expect(card.getByRole("link", { name: /Open saved page in new tab/ })).toHaveAttribute("href", /^\/source\/itm_/);
@@ -21,16 +72,8 @@ test.describe("analyst role", () => {
     await expect(card.frameLocator("iframe.snapshot-frame").getByText("pool de-identified screening data")).toBeVisible();
 
     await card.getByRole("button", { name: "✓ Approve" }).click();
-    await expect(card.getByText(/Validation failed\. Complete: Date, Competitor, Macrotrend, Subtrend, News title/)).toBeVisible();
-    await card.getByLabel("Date", { exact: true }).fill("2026-09-24");
-    await chooseMany(card.getByRole("combobox", { name: "Competitor", exact: true }), ["AstraZeneca", "Roche"]);
-    await choose(card.getByRole("combobox", { name: "Macrotrend", exact: true }), "AI Investment in R&D");
-    await choose(card.getByRole("combobox", { name: "Subtrend", exact: true }), "External Partnerships to Accelerate AI");
-    await card.getByRole("textbox", { name: "News title", exact: true }).fill("AstraZeneca and Roche form pre-competitive AI alliance");
-    await choose(card.getByRole("combobox", { name: "Growth intensity", exact: true }), "Strong Increase");
-    await choose(card.getByRole("combobox", { name: "Impact", exact: true }), "High");
-    await choose(card.getByRole("combobox", { name: "Source", exact: true }), "PR");
-    await choose(card.getByRole("combobox", { name: "Action", exact: true }), "Not Actioned");
+    await expect(card.getByText(/Validation failed\. Complete: ID, Macrotrend, Subtrend, Title, Event Date, Impact, Growth Intensity, Source Type, Competitors, Action/)).toBeVisible();
+    await fillEntry(card, { id: `P-E2E-${uid()}`, title: "AstraZeneca and Roche form pre-competitive AI alliance", extra: { "Key Details": "Shared models.\n\nEach partner keeps its own assets." } });
     await card.getByRole("button", { name: "✓ Approve" }).click();
     await expect(page.getByText(/SIG-\d+ published to the tracker as rev 1/).first()).toBeVisible();
     await page.getByRole("button", { name: /Approved & rejected/ }).click();
@@ -41,8 +84,8 @@ test.describe("analyst role", () => {
     await page.goto("/inbox");
     const card = page.locator(".inbox-card", { hasText: "Novartis opens AI academy" });
     // Competitor is a dropdown (not free text) that searches and allows several values.
-    const comp = card.getByRole("combobox", { name: "Competitor", exact: true });
-    await expect(card.getByRole("textbox", { name: "Competitor", exact: true })).toHaveCount(0);
+    const comp = card.getByRole("combobox", { name: "Competitors", exact: true });
+    await expect(card.getByRole("textbox", { name: "Competitors", exact: true })).toHaveCount(0);
     await comp.click();
     await comp.fill("vart");
     const list = page.getByRole("listbox");
@@ -78,23 +121,42 @@ test.describe("analyst role", () => {
     await page.keyboard.press("Enter");
     await expect(sub).toHaveValue(/Tiered AI accreditation/);
     // Values persist as a saved draft.
-    await card.getByRole("textbox", { name: "News title", exact: true }).click();
+    await card.getByRole("textbox", { name: "Title", exact: true }).click();
     await page.reload();
     const again = page.locator(".inbox-card", { hasText: "Novartis opens AI academy" });
-    await expect(again.getByRole("combobox", { name: "Competitor", exact: true })).toHaveValue("Novartis");
+    await expect(again.getByRole("combobox", { name: "Competitors", exact: true })).toHaveValue("Novartis");
     await expect(again.getByRole("combobox", { name: "Subtrend", exact: true })).toHaveValue(/Tiered AI accreditation/);
   });
 
-  test("blocks unsafe URLs before anything is fetched", async ({ page }) => {
+  test("Input has two identical, aligned HTML sources and no URL option; each goes to its own inbox", async ({ page }) => {
     await page.goto("/input");
-    await page.getByRole("button", { name: "Metadata" }).click();
-    await page.getByRole("button", { name: "Capture source" }).click();
-    await expect(page.getByText("Stopped at step 2")).toBeVisible();
-    await expect(page.locator(".step.failed", { hasText: "Destination check" })).toContainText("link-local / cloud metadata service");
-    await page.getByRole("button", { name: "FTP" }).click();
-    await page.getByRole("button", { name: "Capture source" }).click();
-    await expect(page.getByText("Stopped at step 1")).toBeVisible();
-    await expect(page.getByRole("table", { name: "Capture log" })).toContainText("ftp://files.example.com/a.html");
+    const primary = page.getByTestId("source-primary");
+    const secondary = page.getByTestId("source-secondary");
+    await expect(primary.getByRole("heading", { name: "Primary Source" })).toBeVisible();
+    await expect(secondary.getByRole("heading", { name: "Secondary Source" })).toBeVisible();
+    await expect(page.getByRole("textbox", { name: /url/i })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Capture source|^URL$/ })).toHaveCount(0);
+    const [pb, sb] = [(await primary.boundingBox())!, (await secondary.boundingBox())!];
+    expect(Math.abs(pb.x - sb.x)).toBeLessThanOrEqual(1);
+    expect(Math.abs(pb.width - sb.width)).toBeLessThanOrEqual(1);
+    expect(Math.abs(pb.height - sb.height)).toBeLessThanOrEqual(1);
+    expect(sb.y).toBeGreaterThan(pb.y + pb.height - 1);
+    const [pz, sz] = [(await page.getByTestId("drop-zone-primary").boundingBox())!, (await page.getByTestId("drop-zone-secondary").boundingBox())!];
+    expect(Math.abs(pz.x - sz.x)).toBeLessThanOrEqual(1);
+    expect(Math.abs(pz.width - sz.width)).toBeLessThanOrEqual(1);
+
+    const title = `Pfizer secondary routing ${uid()}`;
+    const file = htmlFile("secondary.html", `<!DOCTYPE html><html><head><title>${title}</title></head><body><article><h1>${title}</h1><p>Pfizer has piloted an AI assistant for field teams in two regions, the company said.</p><p>The pilot runs until 2027.</p></article></body></html>`);
+    await secondary.locator('input[type="file"]').setInputFiles(file);
+    await secondary.getByRole("button", { name: "Process file for Secondary Source" }).click();
+    await expect(page.getByText("Complete · sent to the Secondary Inbox")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole("table", { name: "Capture log" }).locator("tr", { hasText: "secondary.html" }).first()).toContainText("Secondary");
+    await page.getByRole("button", { name: "Complete in Secondary Inbox →" }).click();
+    await expect(page).toHaveURL(/\/inbox\?stream=secondary/);
+    const card = page.locator(".inbox-card", { hasText: title });
+    await expect(card.getByRole("textbox", { name: "Source Tier", exact: true })).toHaveValue("Reviewed-Secondary");
+    await page.getByTestId("stream-primary").click();
+    await expect(page.locator(".inbox-card", { hasText: title })).toHaveCount(0);
   });
 
   test("processes a SingleFile upload end-to-end into Needs review", async ({ page }) => {
@@ -105,17 +167,16 @@ test.describe("analyst role", () => {
       `<!DOCTYPE html><html><!--\n Page saved with SingleFile \n url: https://newsroom.example.com/e2e-roche-lab-${Date.now().toString(36)} \n saved date: Wed Sep 24 2026\n--><head><title>Roche opens robotics-enabled lab</title><meta property="article:published_time" content="2026-09-24"><script>alert(1)</script></head><body><article><h1>Roche opens robotics-enabled autonomous lab in Basel ${Date.now().toString(36)}</h1><p>Roche has opened an autonomous laboratory where robotics-enabled labs run design-make-test cycles for small molecules around the clock.</p><p>The company said the lab will double experimental throughput for its early discovery teams by 2027.</p></article></body></html>`,
     );
     await page.goto("/input");
-    await page.getByRole("button", { name: "HTML file" }).click();
-    await page.locator('input[type="file"]').setInputFiles(file);
-    await page.getByRole("button", { name: "Process file" }).click();
-    await expect(page.getByText("Complete · sent to Needs review")).toBeVisible({ timeout: 30_000 });
+    await page.getByTestId("source-primary").locator('input[type="file"]').setInputFiles(file);
+    await page.getByRole("button", { name: "Process file for Primary Source" }).click();
+    await expect(page.getByText("Complete · sent to the Primary Inbox")).toBeVisible({ timeout: 30_000 });
     await expect(page.locator(".step", { hasText: "Content scan before storage" })).toContainText("script(s) stripped");
     await expect(page.locator(".step", { hasText: "Data policy check" })).toContainText("nothing sent to any external service");
     await expect(page.locator(".step", { hasText: "Routed to Needs review" })).toContainText("every tracker field empty");
     await expect(page.getByRole("heading", { name: "Model output" })).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: "Sent to the Inbox" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sent to the Primary Inbox" })).toBeVisible();
     await expectAccessible(page, "/input with results");
-    await page.getByRole("button", { name: "Complete in Inbox →" }).click();
+    await page.getByRole("button", { name: "Complete in Primary Inbox →" }).click();
     const card = page.locator(".inbox-card", { hasText: "Roche opens robotics-enabled" }).first();
     await expect(card).toBeVisible();
     await expect(card.getByText("Awaiting analyst entry")).toBeVisible();
@@ -123,21 +184,20 @@ test.describe("analyst role", () => {
 
   test("accepts an HTML file by drag and drop", async ({ page }) => {
     await page.goto("/input");
-    // Dropped while the URL option is selected: switches to HTML file mode by itself.
     const html = `<!DOCTYPE html><html><head><title>Dropped file</title></head><body><article><h1>Sanofi pilots dropped-file AI triage ${Date.now().toString(36)}</h1><p>Sanofi has piloted an AI triage tool across three trial sites, the company said on Monday.</p><p>The pilot runs until the end of 2026.</p></article></body></html>`;
     const dt = await page.evaluateHandle((h) => {
       const d = new DataTransfer();
       d.items.add(new File([h], "dropped.html", { type: "text/html" }));
       return d;
     }, html);
-    const card = page.locator("section.card", { has: page.getByRole("heading", { name: "New source" }) });
+    const card = page.getByTestId("source-secondary");
     await card.dispatchEvent("dragenter", { dataTransfer: dt });
     await card.dispatchEvent("dragover", { dataTransfer: dt });
     await card.dispatchEvent("drop", { dataTransfer: dt });
-    await expect(page.getByRole("button", { name: "HTML file" })).toHaveAttribute("aria-pressed", "true");
-    await expect(page.getByTestId("drop-zone")).toContainText("dropped.html");
-    await page.getByRole("button", { name: "Process file" }).click();
-    await expect(page.getByText("Complete · sent to Needs review")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("drop-zone-secondary")).toContainText("dropped.html");
+    await expect(page.getByTestId("drop-zone-primary")).not.toContainText("dropped.html");
+    await card.getByRole("button", { name: "Process file for Secondary Source" }).click();
+    await expect(page.getByText("Complete · sent to the Secondary Inbox")).toBeVisible({ timeout: 30_000 });
   });
 
   test("warns about a source already in the tracker, but lets it through and requires an explicit override to approve", async ({ page }) => {
@@ -149,11 +209,10 @@ test.describe("analyst role", () => {
       `<!DOCTYPE html><html><!--\n Page saved with SingleFile \n url: https://source.example.com/sig-1100 \n saved date: Wed Sep 24 2026\n--><head><title>Roche DTP again</title></head><body><article><h1>Roche brings DTP offering to a national retail pharmacy chain (re-saved)</h1><p>Roche has extended its direct-to-patient offering to a national retail pharmacy chain, the company said.</p><p>The roll-out covers all stores by 2027.</p></article></body></html>`,
     );
     await page.goto("/input");
-    await page.getByRole("button", { name: "HTML file" }).click();
-    await page.locator('input[type="file"]').setInputFiles(file);
-    await page.getByRole("button", { name: "Process file" }).click();
+    await page.getByTestId("source-primary").locator('input[type="file"]').setInputFiles(file);
+    await page.getByRole("button", { name: "Process file for Primary Source" }).click();
     await expect(page.getByText(/Possible duplicate: this source is already in the tracker as SIG-1100/)).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByText(/sent to Needs review/).first()).toBeVisible();
+    await expect(page.getByText(/sent to the Primary Inbox/).first()).toBeVisible();
 
     await page.goto("/inbox");
     const first = page.locator(".inbox-card", { hasText: "re-saved" }).first();
@@ -161,15 +220,7 @@ test.describe("analyst role", () => {
     // Track the card by its Inbox code: its title changes once the analyst types one.
     const code = (await first.locator(".code").innerText()).trim();
     const card = page.locator(".inbox-card", { has: page.locator(".code", { hasText: code }) });
-    await card.getByLabel("Date", { exact: true }).fill("2026-09-24");
-    await chooseMany(card.getByRole("combobox", { name: "Competitor", exact: true }), ["Roche"]);
-    await choose(card.getByRole("combobox", { name: "Macrotrend", exact: true }), "AI Investment in R&D");
-    await choose(card.getByRole("combobox", { name: "Subtrend", exact: true }), "External Partnerships to Accelerate AI");
-    await card.getByRole("textbox", { name: "News title", exact: true }).fill("Roche DTP retail roll-out (second entry)");
-    await choose(card.getByRole("combobox", { name: "Growth intensity", exact: true }), "Slight Increase");
-    await choose(card.getByRole("combobox", { name: "Impact", exact: true }), "Medium");
-    await choose(card.getByRole("combobox", { name: "Source", exact: true }), "PR");
-    await choose(card.getByRole("combobox", { name: "Action", exact: true }), "Not Actioned");
+    await fillEntry(card, { id: `P-DUP-${uid()}`, title: "Roche DTP retail roll-out (second entry)", impact: "Medium", competitors: ["Roche"] });
     await card.getByRole("button", { name: "✓ Approve" }).click();
     const dialog = card.getByRole("alertdialog");
     await expect(dialog).toContainText("Duplicate — SIG-1100 is already in the tracker");
@@ -184,6 +235,7 @@ test.describe("analyst role", () => {
 
   test("reorders tracker columns: A–Z, Z–A, move buttons and drag and drop", async ({ page }) => {
     await page.goto("/inbox");
+    const original = [...(await schemaOf(page, "primary")).columns].sort((a, b) => a.position - b.position).map((c) => c.key);
     await page.getByRole("button", { name: "Edit columns" }).click();
     const labels = () => page.locator(".schema-row .schema-grid input[aria-label^='Rename column']").evaluateAll((els) => els.map((e) => (e as HTMLInputElement).value));
     await page.getByRole("button", { name: "Sort A → Z" }).click();
@@ -196,38 +248,32 @@ test.describe("analyst role", () => {
     // Keyboard-accessible move.
     await page.getByRole("button", { name: `Move ${za[1]} up` }).click();
     await expect.poll(async () => (await labels())[0]).toBe(za[1]);
-    // Drag the last column onto the first row.
+    // Drag the third column onto the first row.
     const before = await labels();
-    const last = before[before.length - 1] as string;
-    const handle = page.locator(".schema-row", { has: page.getByLabel(`Rename column ${last}`, { exact: true }) }).locator(".drag-handle");
+    const third = before[2] as string;
+    const handle = page.locator(".schema-row", { has: page.getByLabel(`Rename column ${third}`, { exact: true }) }).locator(".drag-handle");
     await handle.dragTo(page.locator(".schema-row").first());
-    await expect.poll(async () => (await labels())[0]).toBe(last);
-    // The Tracker uses the new order.
+    await expect.poll(async () => (await labels())[0]).toBe(third);
+    // The Tracker uses the new order (the Inbox-only columns stay out of the Tracker).
     await page.goto("/tracker");
-    await expect(page.locator("table thead th").first()).toContainText(last, { timeout: 15_000 });
-    // Restore the default order for the other tests.
-    await page.goto("/inbox");
-    await page.getByRole("button", { name: "Edit columns" }).click();
-    for (const l of ["Action", "Source", "Impact", "Growth intensity", "News title", "Subtrend", "Macrotrend", "Competitor", "Date"]) {
-      const row = page.locator(".schema-row", { has: page.getByLabel(`Rename column ${l}`, { exact: true }) });
-      if (!(await row.count())) continue;
-      await row.locator(".drag-handle").dragTo(page.locator(".schema-row").first());
-      await expect.poll(async () => (await labels())[0]).toBe(l);
-    }
+    const trackerFirst = (await schemaOf(page, "primary")).columns.filter((c) => c.inTracker).sort((a, b) => a.position - b.position)[0]?.label as string;
+    await expect(page.locator("table thead th").first()).toContainText(trackerFirst, { timeout: 15_000 });
+    await expect(page.locator("table thead th")).toHaveCount(9);
+    await restoreOrder(page, "primary", original);
   });
 
   test("reorders dropdown options: A–Z, Z–A, move buttons and drag and drop", async ({ page }) => {
     await page.goto("/inbox");
     await page.getByRole("button", { name: "Edit columns" }).click();
-    const row = page.locator(".schema-row", { has: page.getByLabel("Rename column Source", { exact: true }) });
+    const row = page.locator(".schema-row", { has: page.getByLabel("Rename column Source Type", { exact: true }) });
     await row.getByRole("button", { name: /options/ }).click();
     const panel = page.locator(".opt-panel");
     const opts = () => panel.locator("input[aria-label^='Rename option']").evaluateAll((els) => els.map((e) => (e as HTMLInputElement).value));
     const original = await opts();
-    await panel.getByRole("button", { name: "Sort Source options Z to A" }).click();
-    await expect(page.locator(".toast").last()).toContainText("Source options sorted Z → A");
+    await panel.getByRole("button", { name: "Sort Source Type options Z to A" }).click();
+    await expect(page.locator(".toast").last()).toContainText("Source Type options sorted Z → A");
     await expect.poll(opts).toEqual([...original].sort((a, b) => b.localeCompare(a, undefined, { sensitivity: "base", numeric: true })));
-    await panel.getByRole("button", { name: "Sort Source options A to Z" }).click();
+    await panel.getByRole("button", { name: "Sort Source Type options A to Z" }).click();
     const az = [...original].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base", numeric: true }));
     await expect.poll(opts).toEqual(az);
     await panel.getByRole("button", { name: `Move option ${az[1]} up` }).click();
@@ -239,20 +285,15 @@ test.describe("analyst role", () => {
     // The Inbox dropdown uses the new order.
     await page.getByRole("button", { name: "Done" }).click();
     const card = page.locator(".inbox-card").first();
-    await card.getByRole("combobox", { name: "Source", exact: true }).click();
+    await card.getByRole("combobox", { name: "Source Type", exact: true }).click();
     await expect(page.getByRole("listbox").getByRole("option").first()).toHaveText(last);
     await page.keyboard.press("Escape");
     // Growth intensity / Impact explain that their order is also the level.
     await page.getByRole("button", { name: "Edit columns" }).click();
     await page.locator(".schema-row", { has: page.getByLabel("Rename column Impact", { exact: true }) }).getByRole("button", { name: /options/ }).click();
     await expect(page.locator(".order-note")).toContainText("the order is also the level");
-    // Restore the original Source order for the other tests.
-    await page.locator(".schema-row", { has: page.getByLabel("Rename column Source", { exact: true }) }).getByRole("button", { name: /options/ }).click();
-    for (const v of [...original].reverse()) {
-      await panel.locator(".opt-drag", { has: page.getByLabel(`Rename option ${v}`, { exact: true }) }).locator(".drag-handle").dragTo(panel.locator(".opt-drag").first());
-      await expect.poll(async () => (await opts())[0]).toBe(v);
-    }
-    await expect.poll(opts).toEqual(original);
+    // Restore the original Source Type order for the other tests.
+    await restoreOrder(page, "primary", original, "source");
   });
 
   test("deletes a tracker entry after an explicit confirmation", async ({ page }) => {
@@ -288,13 +329,95 @@ test.describe("analyst role", () => {
   test("edits dropdown options from the Inbox column editor", async ({ page }) => {
     await page.goto("/inbox");
     await page.getByRole("button", { name: "Edit columns" }).click();
-    const row = page.locator(".schema-grid", { has: page.getByLabel("Rename column Source") });
+    const row = page.locator(".schema-grid", { has: page.getByLabel("Rename column Source Type") });
     await row.getByRole("button", { name: /options/ }).click();
     await page.getByLabel("New option").fill("Analyst Call");
     await page.getByRole("button", { name: "+ Add option" }).click();
-    await expect(page.locator(".toast")).toContainText("Added “Analyst Call” to Source");
+    await expect(page.locator(".toast")).toContainText("Added “Analyst Call” to Source Type");
+    await expect(page.getByText("Markdown field · locked").first()).toBeVisible();
     await expect(page.getByRole("button", { name: "Chart field · locked" })).toHaveCount(0);
     await expect(page.getByText("Chart field · locked").first()).toBeVisible();
+  });
+
+  test("switches between the Primary and Secondary Inbox, with red unprocessed counts on the outer corners", async ({ page }) => {
+    await page.goto("/inbox");
+    const pBtn = page.getByTestId("stream-primary");
+    const sBtn = page.getByTestId("stream-secondary");
+    await expect(pBtn).toHaveText(/Primary Inbox/);
+    await expect(sBtn).toHaveText(/Secondary Inbox/);
+    const counts = await page.evaluate(async () => (await fetch("/api/items/counts", { headers: { "x-dev-user": localStorage.getItem("eradigm.devUser") ?? "" } })).json());
+    for (const [btn, key, side] of [[pBtn, "primary", "left"], [sBtn, "secondary", "right"]] as const) {
+      const badge = page.getByTestId(`count-${key}`);
+      if (!counts[key]) {
+        await expect(badge).toHaveCount(0);
+        continue;
+      }
+      await expect(badge).toHaveText(String(counts[key]));
+      const b = (await badge.boundingBox())!;
+      const o = (await btn.boundingBox())!;
+      expect(b.y).toBeLessThan(o.y); // sits on the top edge
+      if (side === "left") expect(b.x).toBeLessThan(o.x + 4);
+      else expect(b.x + b.width).toBeGreaterThan(o.x + o.width - 4);
+    }
+    // Secondary shows only Secondary uploads, with its own column editor.
+    await sBtn.click();
+    await expect(page).toHaveURL(/stream=secondary/);
+    await expect(page.locator(".inbox-card", { hasText: "Partnering with employers to widen access" })).toBeVisible();
+    await expect(page.locator(".inbox-card", { hasText: "AstraZeneca and Roche form pre-competitive" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Tracker columns · Secondary Inbox" })).toBeVisible();
+    await expectAccessible(page, "/inbox secondary");
+  });
+
+  test("Phantoms: approved entries appear with a Markdown panel and a Download Markdown button on the left of each row", async ({ page }) => {
+    const title = `Sanofi opens AI hub ${uid()}`;
+    const file = htmlFile("phantom.html", `<!DOCTYPE html><html><head><title>${title}</title></head><body><article><h1>${title}</h1><p>Sanofi has opened an AI hub in Paris with 300 staff, the company said on Monday.</p><p>The hub opens in 2027.</p></article></body></html>`);
+    await page.goto("/input");
+    await page.getByTestId("source-secondary").locator('input[type="file"]').setInputFiles(file);
+    await page.getByRole("button", { name: "Process file for Secondary Source" }).click();
+    await expect(page.getByText("Complete · sent to the Secondary Inbox")).toBeVisible({ timeout: 30_000 });
+    await page.goto("/inbox?stream=secondary");
+    const first = page.locator(".inbox-card", { hasText: title });
+    const code = (await first.locator(".code").innerText()).trim();
+    const card = page.locator(".inbox-card", { has: page.locator(".code", { hasText: code }) });
+    const rid = `S-PH-${uid()}`;
+    await fillEntry(card, {
+      id: rid,
+      title: `${title}: Paris`,
+      impact: "High",
+      competitors: ["Sanofi"],
+      extra: { Publisher: "Sanofi", URL: "https://www.sanofi.com/ai-hub", Header: "Sanofi opens a Paris AI hub.", "Key Details": "300 staff.\n\nOpens 2027.", "CI Perspective": "Raises the stakes for peers." },
+    });
+    await card.getByRole("button", { name: "✓ Approve" }).click();
+    await expect(page.getByText(/SIG-\d+ published to the tracker/).first()).toBeVisible();
+
+    // In the Secondary Tracker (not the Primary one), and in Secondary Phantoms (Impact High ≥ Medium).
+    await page.goto("/tracker?stream=secondary");
+    await expect(page.locator("td.title", { hasText: `${title}: Paris` })).toBeVisible();
+    await page.getByTestId("stream-primary").click();
+    await expect(page.locator("td.title", { hasText: `${title}: Paris` })).toHaveCount(0);
+    await page.getByRole("navigation").getByRole("link", { name: "Phantoms" }).click();
+    await page.getByTestId("stream-secondary").click();
+    const row = page.locator("table tbody tr", { hasText: `${title}: Paris` });
+    await expect(row).toBeVisible();
+    // The Download Markdown button is the first cell of the row.
+    await expect(row.locator("td").first().getByRole("button", { name: /Download Markdown/ })).toBeVisible();
+    const [download] = await Promise.all([page.waitForEvent("download"), row.getByRole("button", { name: /Download Markdown/ }).click()]);
+    expect(download.suggestedFilename()).toBe(`${rid}.md`);
+    const text = readFileSync((await download.path())!, "utf8");
+    expect(text.startsWith(`---\nid: ${rid}\ntitle: "${title}: Paris"\nevent_date: 2026-09-24\nsource_type: PR\nSource:\n  Publisher: Sanofi\n  URL: https://www.sanofi.com/ai-hub\n`)).toBe(true);
+    expect(text).toContain("Source_tier: Reviewed-Secondary\nCompetitors: Sanofi\n");
+    expect(text).toContain("QC:\n  Reviewed_by: L. Griffith\n");
+    expect(text).toContain("## Key Details\n300 staff.\n\nOpens 2027.\n");
+    // The side panel shows the same Markdown, raw and rendered.
+    await row.locator("td.title button").click();
+    const panel = page.getByRole("dialog");
+    await expect(panel.getByLabel("Markdown source")).toContainText(`id: ${rid}`);
+    await expectAccessible(page, "/phantoms Markdown panel");
+    await panel.getByRole("button", { name: "Preview" }).click();
+    await expect(panel.getByRole("heading", { name: "CI Perspective" })).toBeVisible();
+    await expect(panel.getByText("Raises the stakes for peers.")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
   });
 
   test("Inbox and Input pass automated accessibility checks", async ({ page }) => {

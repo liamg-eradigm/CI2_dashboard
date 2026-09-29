@@ -8,7 +8,8 @@ import { TrendTest } from "../components/TrendTest";
 import { useFilters } from "../state/filters";
 
 export function DashboardPage({ me }: { me: Me }) {
-  const schema = useSchema();
+  // Every source, Primary and Secondary, is on the Dashboard.
+  const schema = useSchema("all");
   const settings = useSettings();
   const f = useFilters(schema.data, settings.data?.timezone ?? me.timezone);
   const dash = useDashboard(f.filters, !!schema.data);

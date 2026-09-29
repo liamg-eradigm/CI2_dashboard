@@ -70,6 +70,9 @@ export class MockProvider implements LlmProvider {
         case "sub":
           fields[f.key] = best ? val(best.sub, 0.5, excerptWith(text, words(best.sub)[0] ?? best.sub)) : none("No taxonomy match");
           break;
+        case "long":
+          fields[f.key] = none("Not stated in article");
+          break;
         case "text":
           fields[f.key] = f.key === "title" ? val(input.headline.slice(0, 200), 0.9, "Article headline") : none("Not stated in article");
           break;

@@ -147,7 +147,7 @@ export async function processJob(env: Env, msg: JobMessage): Promise<"done" | "s
     log("info", "job_skipped", { item: msg.itemId, attempt: msg.attempt, status: item.status, current: item.attempts });
     return "skipped";
   }
-  const [schema, settings] = await Promise.all([loadSchema(env, msg.tenantId), loadSettings(env, msg.tenantId)]);
+  const [schema, settings] = await Promise.all([loadSchema(env, msg.tenantId, item.stream), loadSettings(env, msg.tenantId)]);
   const mode = prefillMode(env);
   const att = await env.DB.prepare("SELECT steps_json FROM processing_attempts WHERE tenant_id = ?1 AND item_id = ?2 AND attempt = ?3")
     .bind(msg.tenantId, msg.itemId, msg.attempt)

@@ -2,24 +2,25 @@
  * Approved signal detail (record drawer): source, snapshot, provenance,
  * company associations, classifications, revision history and related signals.
  */
-import { CORE, type ExtractedFieldView, type SignalDetail, type TrackerSchema } from "@eradigm/shared";
+import { CORE, entryMarkdown, markdownFileName, type ExtractedFieldView, type SignalDetail, type Stream } from "@eradigm/shared";
 import type { Env } from "../env.js";
 import { notFound } from "../lib/errors.js";
 import { revisions, snapshotMeta } from "./items.js";
 import { rowValues } from "./query.js";
+import type { Schemas } from "./schema.js";
 
 const SEP = "\u001f";
 
-export async function signalDetail(env: Env, schema: TrackerSchema, tenantId: string, id: string): Promise<SignalDetail> {
+export async function signalDetail(env: Env, schemas: Schemas, tenantId: string, id: string): Promise<SignalDetail> {
   const r = await env.DB.prepare(
     `SELECT i.*, (SELECT group_concat(c.competitor, '${SEP}') FROM item_competitors c WHERE c.item_id = i.id) AS competitors,
             (SELECT u.name FROM users u WHERE u.id = i.approved_by) AS approved_by_name
        FROM intelligence_items i WHERE i.tenant_id = ?1 AND i.id = ?2 AND i.status = 'approved' AND i.deleted_at IS NULL`,
   )
     .bind(tenantId, id)
-    .first<Record<string, unknown> & { id: string; signal_code: string; code: string; competitors: string | null; extra_json: string; pub_date: string; title: string | null; macrotrend: string | null; subtrend: string | null; growth: string | null; impact: string | null; body_text: string | null; final_url: string | null; submitted_url: string | null; published_rev: number; approved_at: string; approved_by_name: string | null; received_at: string; current_snapshot_id: string | null; provenance_json: string; extraction_json: string | null }>();
+    .first<Record<string, unknown> & { id: string; signal_code: string; stream: Stream; record_id: string | null; code: string; competitors: string | null; extra_json: string; pub_date: string; title: string | null; macrotrend: string | null; subtrend: string | null; growth: string | null; impact: string | null; body_text: string | null; final_url: string | null; submitted_url: string | null; published_rev: number; approved_at: string; approved_by_name: string | null; received_at: string; current_snapshot_id: string | null; provenance_json: string; extraction_json: string | null }>();
   if (!r) throw notFound("Signal");
-  const values = rowValues(schema, r);
+  const values = rowValues(schemas[r.stream] ?? schemas.primary, r);
   const attempt = await env.DB.prepare(
     "SELECT extraction_version, prompt_version, schema_version, model FROM processing_attempts WHERE tenant_id = ?1 AND item_id = ?2 AND status = 'succeeded' ORDER BY attempt DESC LIMIT 1",
   )
@@ -38,6 +39,7 @@ export async function signalDetail(env: Env, schema: TrackerSchema, tenantId: st
   return {
     id: r.id,
     code: r.signal_code,
+    stream: r.stream,
     values,
     text: r.body_text ?? "",
     url: r.final_url ?? r.submitted_url,
@@ -59,4 +61,22 @@ export async function signalDetail(env: Env, schema: TrackerSchema, tenantId: st
     revisions: await revisions(env, tenantId, id),
     related: (related.results ?? []).map((x) => ({ id: x.id, code: x.signal_code, title: x.title ?? "", date: x.pub_date, why: x.why })),
   };
+}
+
+/**
+ * The Phantoms Markdown for a tracker entry, built from its published field
+ * values only (plus who approved it, for QC.Reviewed_by).
+ */
+export async function signalMarkdown(env: Env, schemas: Schemas, tenantId: string, id: string): Promise<{ markdown: string; fileName: string; code: string }> {
+  const r = await env.DB.prepare(
+    `SELECT i.signal_code, i.stream, i.record_id, i.pub_date, i.title, i.macrotrend, i.subtrend, i.growth, i.impact, i.extra_json,
+            (SELECT group_concat(c.competitor, '${SEP}') FROM item_competitors c WHERE c.item_id = i.id) AS competitors,
+            (SELECT u.name FROM users u WHERE u.id = i.approved_by) AS approved_by_name
+       FROM intelligence_items i WHERE i.tenant_id = ?1 AND i.id = ?2 AND i.status = 'approved' AND i.deleted_at IS NULL`,
+  )
+    .bind(tenantId, id)
+    .first<{ signal_code: string; stream: Stream; record_id: string | null; pub_date: string; title: string | null; macrotrend: string | null; subtrend: string | null; growth: string | null; impact: string | null; extra_json: string; competitors: string | null; approved_by_name: string | null }>();
+  if (!r) throw notFound("Signal");
+  const values = rowValues(schemas[r.stream] ?? schemas.primary, r);
+  return { markdown: entryMarkdown(values, { reviewedBy: r.approved_by_name }), fileName: markdownFileName(values, r.signal_code), code: r.signal_code };
 }

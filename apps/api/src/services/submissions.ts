@@ -11,7 +11,7 @@
  * Inbox, its summary carries `duplicateOf` (shown as a warning on the Input
  * page and in the Inbox), and approval asks the reviewer to confirm.
  */
-import { CAPTURE_LIMITS, checkAndNormaliseUrl, dedupeKey, type ItemSummary, type TrackerSchema } from "@eradigm/shared";
+import { CAPTURE_LIMITS, FIELDS, SOURCE_TIER, checkAndNormaliseUrl, dedupeKey, type ItemSummary, type Stream } from "@eradigm/shared";
 import type { CaptureStep } from "@eradigm/capture";
 import type { Principal } from "../auth/context.js";
 import type { Env } from "../env.js";
@@ -23,7 +23,7 @@ import { parseUploadIsolated } from "../pipeline/capture-client.js";
 import { storeSnapshot } from "../pipeline/snapshots.js";
 import { audit } from "./audit.js";
 import { DUPLICATE_BASIS_LABEL, contentFingerprintInput, getSummary, nextCode } from "./items.js";
-import { loadSettings } from "./schema.js";
+import { loadSettings, type Schemas } from "./schema.js";
 
 export interface SubmitResult {
   item: ItemSummary;
@@ -47,8 +47,8 @@ async function logCapture(env: Env, tenantId: string, itemId: string | null, inp
 }
 
 /** A retried request with the same Idempotency-Key: return what the first one created. */
-async function replay(env: Env, schema: TrackerSchema, tenantId: string, itemId: string): Promise<SubmitResult> {
-  return { item: await getSummary(env, schema, tenantId, itemId), duplicate: true };
+async function replay(env: Env, schemas: Schemas, tenantId: string, itemId: string): Promise<SubmitResult> {
+  return { item: await getSummary(env, schemas, tenantId, itemId), duplicate: true };
 }
 
 /** Record (not block) a submission of a source that is already in the tracker. */
@@ -69,9 +69,20 @@ function isUnique(err: unknown): boolean {
   return /UNIQUE/i.test(String((err as Error)?.message ?? err));
 }
 
-export async function submitUrl(env: Env, ctx: ExecutionContext | null, schema: TrackerSchema, p: Principal, rawUrl: string, idemKey: string | null): Promise<SubmitResult> {
+/** A new item's draft: every field empty except Source Tier, which follows the stream. */
+const initialDraft = (stream: Stream) => JSON.stringify({ [FIELDS.sourceTier]: SOURCE_TIER[stream] });
+
+export async function submitUrl(
+  env: Env,
+  ctx: ExecutionContext | null,
+  schemas: Schemas,
+  p: Principal,
+  rawUrl: string,
+  idemKey: string | null,
+  stream: Stream = "primary",
+): Promise<SubmitResult> {
   const prior = await byIdempotencyKey(env, p.tenantId, idemKey);
-  if (prior) return replay(env, schema, p.tenantId, prior);
+  if (prior) return replay(env, schemas, p.tenantId, prior);
 
   const c = checkAndNormaliseUrl(rawUrl);
   if (!c.ok) {
@@ -93,9 +104,9 @@ export async function submitUrl(env: Env, ctx: ExecutionContext | null, schema: 
         "INSERT INTO submissions (id, tenant_id, submitted_by, input_type, submitted_url, normalized_url, idempotency_key, created_at) VALUES (?1, ?2, ?3, 'url', ?4, ?5, ?6, ?7)",
       ).bind(subId, p.tenantId, p.userId, rawUrl.slice(0, 2048), c.url, idemKey, now),
       env.DB.prepare(
-        `INSERT INTO intelligence_items (id, tenant_id, submission_id, code, status, input_type, url_key, outlet, submitted_url, received_at, submitted_by, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, 'queued', 'url', ?5, ?6, ?7, ?8, ?9, ?8, ?8)`,
-      ).bind(itemId, p.tenantId, subId, code, urlKey, c.host.replace(/^www\./, ""), c.url, now, p.userId),
+        `INSERT INTO intelligence_items (id, tenant_id, submission_id, code, status, input_type, url_key, outlet, submitted_url, received_at, submitted_by, created_at, updated_at, stream, draft_json)
+         VALUES (?1, ?2, ?3, ?4, 'queued', 'url', ?5, ?6, ?7, ?8, ?9, ?8, ?8, ?10, ?11)`,
+      ).bind(itemId, p.tenantId, subId, code, urlKey, c.host.replace(/^www\./, ""), c.url, now, p.userId, stream, initialDraft(stream)),
       env.DB.prepare(
         "INSERT INTO processing_attempts (id, tenant_id, item_id, attempt, status, stage, requested_by, started_at, steps_json) VALUES (?1, ?2, ?3, 1, 'running', 'queued', ?4, ?5, ?6)",
       ).bind(newId("att"), p.tenantId, itemId, p.userId, now, JSON.stringify(steps)),
@@ -104,12 +115,12 @@ export async function submitUrl(env: Env, ctx: ExecutionContext | null, schema: 
     if (!isUnique(err)) throw err;
     // Lost a race with a retry of the same request: return the winner.
     const winner = await byIdempotencyKey(env, p.tenantId, idemKey);
-    if (winner) return replay(env, schema, p.tenantId, winner);
+    if (winner) return replay(env, schemas, p.tenantId, winner);
     throw err;
   }
   await audit(env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "submission.created", targetType: "item", targetId: itemId, details: { code, inputType: "url" } });
   await enqueue(env, ctx, { kind: "process", tenantId: p.tenantId, itemId, attempt: 1 });
-  const item = await getSummary(env, schema, p.tenantId, itemId);
+  const item = await getSummary(env, schemas, p.tenantId, itemId);
   await noteDuplicate(env, p, item);
   return { item, duplicate: false };
 }
@@ -117,10 +128,11 @@ export async function submitUrl(env: Env, ctx: ExecutionContext | null, schema: 
 export async function submitFile(
   env: Env,
   ctx: ExecutionContext | null,
-  schema: TrackerSchema,
+  schemas: Schemas,
   p: Principal,
   file: { name: string; bytes: ArrayBuffer; type: string },
   idemKey: string | null,
+  stream: Stream = "primary",
 ): Promise<SubmitResult> {
   if (!/\.html?$/i.test(file.name)) throw new ApiError("UNSUPPORTED_MEDIA", "Only .html or .htm files are accepted");
   if (file.type && !/^(text\/html|application\/xhtml\+xml|application\/octet-stream)$/i.test(file.type.split(";")[0] ?? "")) {
@@ -128,7 +140,7 @@ export async function submitFile(
   }
   if (file.bytes.byteLength > CAPTURE_LIMITS.maxBytes) throw new ApiError("PAYLOAD_TOO_LARGE", `File exceeds the ${CAPTURE_LIMITS.maxBytes / 1048576} MB limit`);
   const prior = await byIdempotencyKey(env, p.tenantId, idemKey);
-  if (prior) return replay(env, schema, p.tenantId, prior);
+  if (prior) return replay(env, schemas, p.tenantId, prior);
 
   const fileSha = await sha256Hex(file.bytes);
   const label = `${file.name}${/Page saved with SingleFile/i.test(new TextDecoder().decode(file.bytes.slice(0, 8000))) ? " (SingleFile)" : ""}`;
@@ -158,8 +170,8 @@ export async function submitFile(
       ).bind(subId, p.tenantId, p.userId, parsed.finalUrl, file.name.slice(0, 255), fileSha, idemKey, now),
       env.DB.prepare(
         `INSERT INTO intelligence_items (id, tenant_id, submission_id, code, status, input_type, url_key, file_sha256, content_sha256, outlet, submitted_url, final_url, received_at, submitted_by,
-                                         headline, body_text, publication_date, model_warnings_json, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, 'queued', 'file', ?5, ?6, ?7, ?8, NULL, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?10, ?10)`,
+                                         headline, body_text, publication_date, model_warnings_json, created_at, updated_at, stream, draft_json)
+         VALUES (?1, ?2, ?3, ?4, 'queued', 'file', ?5, ?6, ?7, ?8, NULL, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?10, ?10, ?16, ?17)`,
       ).bind(
         itemId,
         p.tenantId,
@@ -176,6 +188,8 @@ export async function submitFile(
         parsed.article.bodyText,
         parsed.article.publicationDate,
         JSON.stringify(parsed.warnings),
+        stream,
+        initialDraft(stream),
       ),
       env.DB.prepare(
         "INSERT INTO processing_attempts (id, tenant_id, item_id, attempt, status, stage, requested_by, started_at, steps_json) VALUES (?1, ?2, ?3, 1, 'running', 'queued', ?4, ?5, ?6)",
@@ -184,7 +198,7 @@ export async function submitFile(
   } catch (err) {
     if (!isUnique(err)) throw err;
     const winner = await byIdempotencyKey(env, p.tenantId, idemKey);
-    if (winner) return replay(env, schema, p.tenantId, winner);
+    if (winner) return replay(env, schemas, p.tenantId, winner);
     throw err;
   }
   const snap = await storeSnapshot(env, {
@@ -202,7 +216,7 @@ export async function submitFile(
     retentionDays: settings.retention.snapshotDays,
   });
   await env.DB.prepare("UPDATE intelligence_items SET current_snapshot_id = ?1 WHERE tenant_id = ?2 AND id = ?3").bind(snap.id, p.tenantId, itemId).run();
-  const item = await getSummary(env, schema, p.tenantId, itemId);
+  const item = await getSummary(env, schemas, p.tenantId, itemId);
   const dupNote = item.duplicateOf && item.duplicateBasis ? ` · ⚠ already in the tracker as ${item.duplicateOf} (${DUPLICATE_BASIS_LABEL[item.duplicateBasis]})` : "";
   await logCapture(env, p.tenantId, itemId, label, parsed.finalUrl ? `${parsed.finalUrl} (from file metadata)` : null, `Captured · sent to Needs review${dupNote}`, true);
   await audit(env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "submission.created", targetType: "item", targetId: itemId, details: { code, inputType: "file", singleFile: parsed.singleFile.detected } });

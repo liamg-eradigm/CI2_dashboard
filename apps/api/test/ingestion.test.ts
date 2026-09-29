@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { captureUrlIsolated, parseUploadIsolated, setInlineCaptureFetcher } from "../src/pipeline/capture-client";
 import { peekTestQueue, runJob } from "../src/pipeline/process";
-import { COMPLETE, WITH_LLM, approveWith, articleHtml, call, drain, env, ingest, json, seedWorld, upload, type World } from "./helpers";
+import { COMPLETE, WITH_LLM, approveWith, nextRecordId, articleHtml, call, drain, env, ingest, json, seedWorld, upload, type World } from "./helpers";
 
 let w: World;
 beforeAll(async () => {
@@ -99,7 +99,7 @@ describe("URL submissions", () => {
     expect((await json(call(w.a.analyst, "GET", `/api/items/${second.id}`))).status).toBe("needs_review");
 
     // Explicit override: published as a separate entry, and the override is audited.
-    const ok = await call(w.a.analyst, "POST", `/api/items/${draft.id}/approve`, { body: { values: { ...draft.draft, ...COMPLETE }, version: draft.version, overrideDuplicate: true } });
+    const ok = await call(w.a.analyst, "POST", `/api/items/${draft.id}/approve`, { body: { values: { ...draft.draft, ...COMPLETE, record_id: nextRecordId() }, version: draft.version, overrideDuplicate: true } });
     expect(ok.status).toBe(200);
     const pub2 = await ok.json<any>();
     expect(pub2.status).toBe("approved");
@@ -218,7 +218,8 @@ describe("file submissions and the review lifecycle", () => {
     expect(outbound).toEqual([]);
     expect(item.status).toBe("needs_review");
     const schema = await json(call(w.a.analyst, "GET", "/api/schema"));
-    for (const c of schema.columns) expect(item.draft[c.key] ?? null).toBeNull();
+    // Every field starts empty except Source Tier, which the platform fills from the inbox.
+    for (const c of schema.columns) expect(item.draft[c.key] ?? null).toBe(c.key === "source_tier" ? "Primary" : null);
     expect(item.extraction).toBeNull();
     expect(item.warningsCount).toBe(0);
     expect(item.revisions).toEqual([]);

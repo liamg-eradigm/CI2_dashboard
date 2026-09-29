@@ -21,6 +21,7 @@ import {
 
 const schema = defaultSchema();
 const valid: ItemValues = {
+  record_id: "P-1001",
   date: "2026-09-24",
   competitors: ["Sanofi"],
   macrotrend: "Direct-to-Patient (DTP) Strategy",
@@ -62,9 +63,10 @@ describe("default taxonomy (3_Frontend_Design)", () => {
     expect(macroOfSubtrend(schema, "Mergers & Acquisitions")).toBe("Portfolio Restructuring");
   });
 
-  it("keeps the seven chart-critical columns as core", () => {
-    expect(schema.columns.filter((c) => c.core).map((c) => c.key)).toEqual(CORE_KEYS);
-    expect(getColumn(schema, "source")?.core).toBe(false);
+  it("locks the chart and Markdown columns (only Action can be deleted)", () => {
+    for (const k of CORE_KEYS) expect(getColumn(schema, k)?.core).toBe(true);
+    expect(schema.columns.filter((c) => !c.core).map((c) => c.key)).toEqual(["action"]);
+    expect(getColumn(schema, "source")?.core).toBe(true);
     expect(getColumn(schema, "action")?.aiAssist).toBe(false);
   });
 

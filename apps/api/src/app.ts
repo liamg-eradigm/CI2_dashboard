@@ -31,8 +31,11 @@ import {
   UpdateColumnRequest,
   UpdateSettingsRequest,
   UpdateUserRequest,
+  CORE,
   can,
   exportFilename,
+  isStream,
+  mergeSchemas,
   filtersFromParams,
   getColumn,
   toCsv,
@@ -43,6 +46,8 @@ import {
   todayIso,
   type ExportFormat,
   type ItemStatus,
+  type Stream,
+  type TrackerSchema,
   type TenantSettings,
 } from "@eradigm/shared";
 import { requirePermission, resolvePrincipal, type Principal } from "./auth/context.js";
@@ -55,9 +60,9 @@ import { log, metric } from "./lib/log.js";
 import { prefillMode } from "./pipeline/prefill.js";
 import { readSnapshot, snapshotBackend } from "./pipeline/snapshots.js";
 import { audit, listAudit, verifyChain } from "./services/audit.js";
-import { getDetail, getItemRow, listItems } from "./services/items.js";
+import { getDetail, getItemRow, inboxCounts, listItems } from "./services/items.js";
 import { qualityMetrics } from "./services/metrics.js";
-import { dashboard, exportRows, trackerPage, trendTest } from "./services/query.js";
+import { dashboard, exportRows, trackerPage, trendTest, type Scope } from "./services/query.js";
 import { approve, reject, reprocess, revise, saveDraft, softDelete } from "./services/review.js";
 import {
   addColumn,
@@ -65,6 +70,7 @@ import {
   deleteColumn,
   deleteOption,
   loadSchema,
+  loadSchemas,
   loadSettings,
   optionUsageMap,
   renameOption,
@@ -73,7 +79,7 @@ import {
   saveSettings,
   updateColumn,
 } from "./services/schema.js";
-import { signalDetail } from "./services/signals.js";
+import { signalDetail, signalMarkdown } from "./services/signals.js";
 import { submitFile, submitUrl } from "./services/submissions.js";
 import { createInvite, createUser, listUsers, revokeSessions, updateUser } from "./services/users.js";
 
@@ -171,8 +177,34 @@ const ctxOf = (c: C): ExecutionContext | null => {
   }
 };
 
-async function schemaFor(c: C) {
-  return loadSchema(c.env, P(c).tenantId);
+/** `?stream=primary|secondary` (default primary). */
+function streamOf(c: C, raw: string | null | undefined = c.req.query("stream")): Stream {
+  if (raw == null || raw === "") return "primary";
+  if (!isStream(raw)) throw badRequest("stream must be “primary” or “secondary”");
+  return raw;
+}
+
+async function schemaFor(c: C, stream: Stream = streamOf(c)) {
+  return loadSchema(c.env, P(c).tenantId, stream);
+}
+
+async function schemasFor(c: C) {
+  return loadSchemas(c.env, P(c).tenantId);
+}
+
+/** Both streams as one read-only schema: the Dashboard covers every source. */
+async function mergedSchema(c: C) {
+  const s = await schemasFor(c);
+  return mergeSchemas(s.primary, s.secondary);
+}
+
+/** Phantoms: Primary entries always; Secondary entries at or above the admin-set Impact. */
+async function phantomScope(c: C, stream: Stream, schema: TrackerSchema): Promise<Scope> {
+  if (stream === "primary") return { stream };
+  const { phantoms } = await loadSettings(c.env, P(c).tenantId);
+  const opts = getColumn(schema, CORE.impact)?.options ?? [];
+  const at = opts.indexOf(phantoms.secondaryMinImpact);
+  return { stream, impacts: opts.slice(at >= 0 ? at : Math.min(1, Math.max(0, opts.length - 1))) };
 }
 
 async function todayFor(c: C): Promise<string> {
@@ -214,75 +246,86 @@ app.post("/api/me/sessions/revoke", async (c) => {
 // ---------------------------------------------------------------------------
 
 app.get("/api/schema", async (c) => {
-  const schema = await schemaFor(c);
+  // ?stream=all: both column sets merged (read-only; used by the Dashboard).
+  if (c.req.query("stream") === "all") return c.json(await mergedSchema(c));
+  const stream = streamOf(c);
+  const schema = await schemaFor(c, stream);
   const p = P(c);
   if (can(p.role, "schema:edit") && c.req.query("usage") === "1") {
-    return c.json({ ...schema, usage: await optionUsageMap(c.env, p.tenantId, schema) });
+    return c.json({ ...schema, usage: await optionUsageMap(c.env, p.tenantId, stream, schema) });
   }
   return c.json(schema);
 });
 
-async function schemaChanged(c: C, details: Record<string, unknown>) {
+async function schemaChanged(c: C, stream: Stream, details: Record<string, unknown>) {
   const p = P(c);
-  await audit(c.env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "schema.changed", targetType: "schema", details });
-  const schema = await schemaFor(c);
-  return c.json({ ...schema, usage: await optionUsageMap(c.env, p.tenantId, schema) });
+  await audit(c.env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "schema.changed", targetType: "schema", details: { stream, ...details } });
+  const schema = await schemaFor(c, stream);
+  return c.json({ ...schema, usage: await optionUsageMap(c.env, p.tenantId, stream, schema) });
 }
 
 app.post("/api/schema/columns", async (c) => {
   requirePermission(P(c), "schema:edit");
   const b = await body(c, AddColumnRequest);
-  const r = await addColumn(c.env, P(c).tenantId, b.label, b.type);
-  return schemaChanged(c, { op: "add_column", key: r.key, type: b.type });
+  const stream = streamOf(c);
+  const r = await addColumn(c.env, P(c).tenantId, stream, b.label, b.type);
+  return schemaChanged(c, stream, { op: "add_column", key: r.key, type: b.type });
 });
 
 // Registered before "/api/schema/columns/:key" routes; PUT is used only here.
 app.put("/api/schema/columns/order", async (c) => {
   requirePermission(P(c), "schema:edit");
   const b = await body(c, ReorderColumnsRequest);
-  await reorderColumns(c.env, P(c).tenantId, b.keys);
-  return schemaChanged(c, { op: "reorder_columns", keys: b.keys });
+  const stream = streamOf(c);
+  await reorderColumns(c.env, P(c).tenantId, stream, b.keys);
+  return schemaChanged(c, stream, { op: "reorder_columns", keys: b.keys });
 });
 
 app.patch("/api/schema/columns/:key", async (c) => {
   requirePermission(P(c), "schema:edit");
   const b = await body(c, UpdateColumnRequest);
-  const r = await updateColumn(c.env, P(c).tenantId, c.req.param("key"), b);
-  return schemaChanged(c, { op: "update_column", key: c.req.param("key"), renamed: r.before.label !== r.after.label, required: r.after.required });
+  const stream = streamOf(c);
+  const r = await updateColumn(c.env, P(c).tenantId, stream, c.req.param("key"), b);
+  return schemaChanged(c, stream, { op: "update_column", key: c.req.param("key"), renamed: r.before.label !== r.after.label, required: r.after.required, inTracker: r.after.inTracker });
 });
 
 app.delete("/api/schema/columns/:key", async (c) => {
   requirePermission(P(c), "schema:edit");
-  await deleteColumn(c.env, P(c).tenantId, c.req.param("key"));
-  return schemaChanged(c, { op: "delete_column", key: c.req.param("key") });
+  const stream = streamOf(c);
+  await deleteColumn(c.env, P(c).tenantId, stream, c.req.param("key"));
+  return schemaChanged(c, stream, { op: "delete_column", key: c.req.param("key") });
 });
 
 app.post("/api/schema/columns/:key/options", async (c) => {
   requirePermission(P(c), "schema:edit");
   const b = await body(c, AddOptionRequest);
-  await addOption(c.env, P(c).tenantId, c.req.param("key"), b.value, b.parent);
-  return schemaChanged(c, { op: "add_option", key: c.req.param("key") });
+  const stream = streamOf(c);
+  await addOption(c.env, P(c).tenantId, stream, c.req.param("key"), b.value, b.parent);
+  return schemaChanged(c, stream, { op: "add_option", key: c.req.param("key") });
 });
 
 app.patch("/api/schema/columns/:key/options", async (c) => {
   requirePermission(P(c), "schema:edit");
   const b = await body(c, RenameOptionRequest);
-  await renameOption(c.env, P(c).tenantId, c.req.param("key"), b.from, b.to);
-  return schemaChanged(c, { op: "rename_option", key: c.req.param("key") });
+  const stream = streamOf(c);
+  await renameOption(c.env, P(c).tenantId, stream, c.req.param("key"), b.from, b.to);
+  return schemaChanged(c, stream, { op: "rename_option", key: c.req.param("key") });
 });
 
 app.put("/api/schema/columns/:key/options/order", async (c) => {
   requirePermission(P(c), "schema:edit");
   const b = await body(c, ReorderOptionsRequest);
-  await reorderOptions(c.env, P(c).tenantId, c.req.param("key"), b.values, b.parent);
-  return schemaChanged(c, { op: "reorder_options", key: c.req.param("key"), parent: b.parent ?? null });
+  const stream = streamOf(c);
+  await reorderOptions(c.env, P(c).tenantId, stream, c.req.param("key"), b.values, b.parent);
+  return schemaChanged(c, stream, { op: "reorder_options", key: c.req.param("key"), parent: b.parent ?? null });
 });
 
 app.delete("/api/schema/columns/:key/options", async (c) => {
   requirePermission(P(c), "schema:edit");
   const b = await body(c, DeleteOptionRequest);
-  await deleteOption(c.env, P(c).tenantId, c.req.param("key"), b.value);
-  return schemaChanged(c, { op: "delete_option", key: c.req.param("key") });
+  const stream = streamOf(c);
+  await deleteOption(c.env, P(c).tenantId, stream, c.req.param("key"), b.value);
+  return schemaChanged(c, stream, { op: "delete_option", key: c.req.param("key") });
 });
 
 // ---------------------------------------------------------------------------
@@ -295,35 +338,43 @@ function sortOf(c: C, schema: Awaited<ReturnType<typeof loadSchema>>) {
   return { key: getColumn(schema, key) ? key : "date", dir } as const;
 }
 
-app.get("/api/tracker", async (c) => {
+async function tablePage(c: C, view: "tracker" | "phantoms") {
   requirePermission(P(c), "tracker:read");
-  const schema = await schemaFor(c);
+  const stream = streamOf(c);
+  const schema = await schemaFor(c, stream);
+  const scope = view === "phantoms" ? await phantomScope(c, stream, schema) : { stream };
   const url = new URL(c.req.url);
   const f = filtersFromParams(url.searchParams, { schema, today: await todayFor(c) });
   const page = Math.max(0, Number.parseInt(c.req.query("page") ?? "0", 10) || 0);
   const pageSize = Math.min(100, Math.max(1, Number.parseInt(c.req.query("pageSize") ?? "10", 10) || 10));
-  return c.json(await trackerPage(c.env, schema, P(c).tenantId, f, sortOf(c, schema), page, pageSize));
-});
+  return c.json(await trackerPage(c.env, schema, P(c).tenantId, f, sortOf(c, schema), page, pageSize, scope));
+}
+
+app.get("/api/tracker", (c) => tablePage(c, "tracker"));
+app.get("/api/phantoms", (c) => tablePage(c, "phantoms"));
 
 app.get("/api/tracker/export", async (c) => {
   const p = P(c);
   requirePermission(p, "tracker:export");
-  const schema = await schemaFor(c);
+  const stream = streamOf(c);
+  const schema = await schemaFor(c, stream);
+  const view = c.req.query("view") === "phantoms" ? "phantoms" : "tracker";
+  const rowScope = view === "phantoms" ? await phantomScope(c, stream, schema) : { stream };
   const format = (c.req.query("format") ?? "csv") as ExportFormat;
   if (!(EXPORT_FORMATS as readonly string[]).includes(format)) throw badRequest("Unknown export format");
   const scope = c.req.query("scope") === "all" ? "all" : "filtered";
   const today = await todayFor(c);
   const url = new URL(c.req.url);
   const f = scope === "all" ? null : filtersFromParams(url.searchParams, { schema, today });
-  const rows = await exportRows(c.env, schema, p.tenantId, f, sortOf(c, schema));
+  const rows = await exportRows(c.env, schema, p.tenantId, f, sortOf(c, schema), rowScope);
   const table = toTable(schema, rows);
   const content: string | Uint8Array =
     format === "csv" ? toCsv(table) : format === "tsv" ? toTsv(table) : format === "json" ? toJson(schema, rows) : toXlsx(table);
-  await audit(c.env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "export.created", targetType: "tracker", details: { format, scope, rows: rows.length } });
+  await audit(c.env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "export.created", targetType: "tracker", details: { format, scope, rows: rows.length, stream, view } });
   return new Response(content, {
     headers: {
       "Content-Type": EXPORT_MIME[format],
-      "Content-Disposition": `attachment; filename="${exportFilename(scope, format, today)}"`,
+      "Content-Disposition": `attachment; filename="${exportFilename(scope, format, today, { stream, name: view })}"`,
       "X-Export-Rows": String(rows.length),
       "Cache-Control": "no-store",
     },
@@ -332,20 +383,39 @@ app.get("/api/tracker/export", async (c) => {
 
 app.get("/api/signals/:id", async (c) => {
   requirePermission(P(c), "tracker:read");
-  return c.json(await signalDetail(c.env, await schemaFor(c), P(c).tenantId, c.req.param("id")));
+  return c.json(await signalDetail(c.env, await schemasFor(c), P(c).tenantId, c.req.param("id")));
+});
+
+/** The Phantoms Markdown for an entry (inline for the side panel, or ?download=1 as a file). */
+app.get("/api/signals/:id/markdown", async (c) => {
+  const p = P(c);
+  requirePermission(p, "tracker:read");
+  const md = await signalMarkdown(c.env, await schemasFor(c), p.tenantId, c.req.param("id"));
+  const download = c.req.query("download") === "1";
+  if (download) {
+    await audit(c.env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "markdown.downloaded", targetType: "item", targetId: c.req.param("id"), details: { code: md.code, file: md.fileName } });
+  }
+  return new Response(md.markdown, {
+    headers: {
+      "Content-Type": "text/markdown; charset=utf-8",
+      "Content-Disposition": `${download ? "attachment" : "inline"}; filename="${md.fileName}"`,
+      "X-Content-Type-Options": "nosniff",
+      "Cache-Control": "private, no-store",
+    },
+  });
 });
 
 app.post("/api/signals/:id/revise", async (c) => {
   requirePermission(P(c), "item:edit");
   const b = await body(c, ReviseRequest);
-  const schema = await schemaFor(c);
-  await revise(c.env, schema, P(c), c.req.param("id"), b.values, b.note);
-  return c.json(await signalDetail(c.env, schema, P(c).tenantId, c.req.param("id")));
+  const schemas = await schemasFor(c);
+  await revise(c.env, schemas, P(c), c.req.param("id"), b.values, b.note);
+  return c.json(await signalDetail(c.env, schemas, P(c).tenantId, c.req.param("id")));
 });
 
 app.get("/api/dashboard", async (c) => {
   requirePermission(P(c), "dashboard:read");
-  const schema = await schemaFor(c);
+  const schema = await mergedSchema(c);
   const f = filtersFromParams(new URL(c.req.url).searchParams, { schema, today: await todayFor(c) });
   return c.json(await dashboard(c.env, schema, P(c).tenantId, f));
 });
@@ -354,7 +424,7 @@ app.post("/api/trend-test", async (c) => {
   requirePermission(P(c), "dashboard:read");
   const cfg = await body(c, TrendConfigSchema);
   if (cfg.from > cfg.to) throw badRequest("Date from must be on or before Date to");
-  return c.json(await trendTest(c.env, await schemaFor(c), P(c).tenantId, cfg));
+  return c.json(await trendTest(c.env, await mergedSchema(c), P(c).tenantId, cfg));
 });
 
 // ---------------------------------------------------------------------------
@@ -368,7 +438,7 @@ app.post("/api/submissions", async (c) => {
     const { success } = await c.env.SUBMIT_LIMITER.limit({ key: p.userId });
     if (!success) throw new ApiError("RATE_LIMITED", "Too many submissions. Please wait a minute and try again.");
   }
-  const schema = await schemaFor(c);
+  const schemas = await schemasFor(c);
   const idem = c.req.header("idempotency-key")?.slice(0, 100) ?? null;
   const type = c.req.header("content-type") ?? "";
   if (type.startsWith("multipart/form-data")) {
@@ -377,20 +447,23 @@ app.post("/api/submissions", async (c) => {
     const form = await c.req.formData();
     const file = form.get("file") as unknown as File | string | null;
     if (!file || typeof file === "string") throw badRequest("Attach an HTML file in the “file” field");
-    const r = await submitFile(c.env, ctxOf(c), schema, p, { name: file.name, bytes: await file.arrayBuffer(), type: file.type }, idem);
+    const stream = streamOf(c, (form.get("stream") as string | null) ?? c.req.query("stream"));
+    const r = await submitFile(c.env, ctxOf(c), schemas, p, { name: file.name, bytes: await file.arrayBuffer(), type: file.type }, idem, stream);
     return c.json(r, r.duplicate ? 200 : 201);
   }
   const b = await body(c, CreateSubmissionRequest);
-  const r = await submitUrl(c.env, ctxOf(c), schema, p, b.url, idem);
+  const r = await submitUrl(c.env, ctxOf(c), schemas, p, b.url, idem, b.stream);
   return c.json(r, r.duplicate ? 200 : 201);
 });
 
 app.get("/api/capture-log", async (c) => {
   requirePermission(P(c), "submission:create");
-  const res = await c.env.DB.prepare("SELECT id, at, input, final_url, outcome, ok, item_id FROM capture_log WHERE tenant_id = ?1 ORDER BY at DESC LIMIT 100")
+  const res = await c.env.DB.prepare(
+    "SELECT l.id, l.at, l.input, l.final_url, l.outcome, l.ok, l.item_id, i.stream FROM capture_log l LEFT JOIN intelligence_items i ON i.id = l.item_id WHERE l.tenant_id = ?1 ORDER BY l.at DESC LIMIT 100",
+  )
     .bind(P(c).tenantId)
-    .all<{ id: string; at: string; input: string; final_url: string | null; outcome: string; ok: number; item_id: string | null }>();
-  return c.json((res.results ?? []).map((r) => ({ id: r.id, at: r.at, input: r.input, finalUrl: r.final_url, outcome: r.outcome, ok: !!r.ok, itemId: r.item_id })));
+    .all<{ id: string; at: string; input: string; final_url: string | null; outcome: string; ok: number; item_id: string | null; stream: Stream | null }>();
+  return c.json((res.results ?? []).map((r) => ({ id: r.id, at: r.at, input: r.input, finalUrl: r.final_url, outcome: r.outcome, ok: !!r.ok, itemId: r.item_id, stream: r.stream })));
 });
 
 app.get("/api/items", async (c) => {
@@ -400,12 +473,19 @@ app.get("/api/items", async (c) => {
     (ITEM_STATUSES as readonly string[]).includes(s),
   );
   if (!statuses.length) throw badRequest("Unknown status");
-  return c.json(await listItems(c.env, await schemaFor(c), P(c).tenantId, statuses));
+  const stream = c.req.query("stream") ? streamOf(c) : null;
+  return c.json(await listItems(c.env, await schemasFor(c), P(c).tenantId, statuses, stream));
+});
+
+// Registered before "/api/items/:id". Items awaiting the analyst, per inbox (the red badges).
+app.get("/api/items/counts", async (c) => {
+  requirePermission(P(c), "inbox:read");
+  return c.json(await inboxCounts(c.env, P(c).tenantId));
 });
 
 app.get("/api/items/:id", async (c) => {
   requirePermission(P(c), "inbox:read");
-  return c.json(await getDetail(c.env, await schemaFor(c), P(c).tenantId, c.req.param("id")));
+  return c.json(await getDetail(c.env, await schemasFor(c), P(c).tenantId, c.req.param("id")));
 });
 
 app.get("/api/items/:id/snapshot", async (c) => {
@@ -436,25 +516,25 @@ app.get("/api/items/:id/snapshot", async (c) => {
 app.patch("/api/items/:id/draft", async (c) => {
   requirePermission(P(c), "item:edit");
   const b = await body(c, SaveDraftRequest);
-  return c.json(await saveDraft(c.env, await schemaFor(c), P(c), c.req.param("id"), b.values, b.version));
+  return c.json(await saveDraft(c.env, await schemasFor(c), P(c), c.req.param("id"), b.values, b.version));
 });
 
 app.post("/api/items/:id/approve", async (c) => {
   requirePermission(P(c), "item:review");
   const b = await body(c, ApproveRequest);
-  return c.json(await approve(c.env, await schemaFor(c), P(c), c.req.param("id"), b.values, b.version, b.note, b.overrideDuplicate ?? false));
+  return c.json(await approve(c.env, await schemasFor(c), P(c), c.req.param("id"), b.values, b.version, b.note, b.overrideDuplicate ?? false));
 });
 
 app.post("/api/items/:id/reject", async (c) => {
   requirePermission(P(c), "item:review");
   const b = await body(c, RejectRequest);
-  return c.json(await reject(c.env, await schemaFor(c), P(c), c.req.param("id"), b.reason, b.version));
+  return c.json(await reject(c.env, await schemasFor(c), P(c), c.req.param("id"), b.reason, b.version));
 });
 
 app.post("/api/items/:id/reprocess", async (c) => {
   requirePermission(P(c), "item:review");
   const b = await body(c, ReprocessRequest);
-  return c.json(await reprocess(c.env, ctxOf(c), await schemaFor(c), P(c), c.req.param("id"), b.version));
+  return c.json(await reprocess(c.env, ctxOf(c), await schemasFor(c), P(c), c.req.param("id"), b.version));
 });
 
 app.delete("/api/items/:id", async (c) => {
@@ -462,7 +542,7 @@ app.delete("/api/items/:id", async (c) => {
   // The body is optional (older dashboards send none).
   const raw = await c.req.text();
   const b = raw.trim() ? await body(c, DeleteItemRequest) : {};
-  return c.json(await softDelete(c.env, await schemaFor(c), P(c), c.req.param("id"), b.reason));
+  return c.json(await softDelete(c.env, await schemasFor(c), P(c), c.req.param("id"), b.reason));
 });
 
 // ---------------------------------------------------------------------------
@@ -520,6 +600,11 @@ app.patch("/api/settings", async (c) => {
       throw new ApiError("VALIDATION", "Unknown time zone");
     }
   }
+  if (b.phantoms) {
+    // The threshold must be one of the Secondary inbox's Impact options.
+    const opts = getColumn(await schemaFor(c, "secondary"), CORE.impact)?.options ?? [];
+    if (!opts.includes(b.phantoms.secondaryMinImpact)) throw new ApiError("VALIDATION", `Choose one of the Secondary Impact options: ${opts.join(", ")}`);
+  }
   const current = await loadSettings(c.env, p.tenantId);
   const next: TenantSettings = {
     ...current,
@@ -527,6 +612,7 @@ app.patch("/api/settings", async (c) => {
     trendDefaults: { ...current.trendDefaults, ...b.trendDefaults },
     retention: { ...current.retention, ...b.retention },
     redaction: { ...current.redaction, ...b.redaction },
+    phantoms: { ...current.phantoms, ...b.phantoms },
   };
   await saveSettings(c.env, p.tenantId, next, p.userId);
   await audit(c.env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "settings.changed", targetType: "settings", details: { sections: Object.keys(b) } });
@@ -633,5 +719,5 @@ app.get("/api/admin/config-status", async (c) => {
 
 app.get("/api/metrics/quality", async (c) => {
   requirePermission(P(c), "metrics:read");
-  return c.json(await qualityMetrics(c.env, await schemaFor(c), P(c).tenantId));
+  return c.json(await qualityMetrics(c.env, await mergedSchema(c), P(c).tenantId));
 });
