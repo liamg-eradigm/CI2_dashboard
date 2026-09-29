@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
-import { TYPE_LABEL, hasOptions, sortedColumns, type TrackerColumn } from "@eradigm/shared";
+import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
+import { CORE, TYPE_LABEL, hasOptions, sortedColumns, type TrackerColumn } from "@eradigm/shared";
 import { api } from "../api/client";
 import { useInvalidate, useSchema, type SchemaWithUsage } from "../api/hooks";
 import { useToast } from "../state/toast";
@@ -25,6 +25,121 @@ function RenameInput({ value, label, onCommit, className = "control" }: { value:
       }}
       maxLength={120}
     />
+  );
+}
+
+const byName = (dir: 1 | -1) => (a: string, b: string) => dir * a.localeCompare(b, undefined, { sensitivity: "base", numeric: true });
+
+/**
+ * A reorderable list of dropdown options: Sort A → Z / Z → A, drag the ⠿ handle,
+ * or use the ↑ ↓ buttons (keyboard). `renderRow` receives the order controls.
+ */
+function ReorderList({
+  values,
+  what,
+  note,
+  onSave,
+  renderRow,
+}: {
+  values: string[];
+  what: string;
+  note?: string;
+  onSave: (values: string[], ok: string) => Promise<boolean>;
+  renderRow: (value: string, orderCell: ReactNode) => ReactNode;
+}) {
+  const [order, setOrder] = useState<string[] | null>(null);
+  const [dragV, setDragV] = useState<string | null>(null);
+  const dropped = useRef(false);
+  const list = order ?? values;
+  const save = async (next: string[], ok: string) => {
+    if (next.join("\u0001") !== values.join("\u0001")) await onSave(next, ok);
+  };
+  const move = (v: string, by: number) => {
+    const next = [...values];
+    const i = next.indexOf(v);
+    const j = i + by;
+    if (i < 0 || j < 0 || j >= next.length) return;
+    next.splice(j, 0, ...next.splice(i, 1));
+    void save(next, `Moved “${v}” to position ${j + 1}`);
+  };
+  const over = (e: DragEvent, target: string) => {
+    if (!dragV) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = "move";
+    if (target === dragV) return;
+    setOrder((o) => {
+      const next = [...(o ?? values)];
+      const from = next.indexOf(dragV);
+      const to = next.indexOf(target);
+      if (from < 0 || to < 0) return o;
+      next.splice(to, 0, ...next.splice(from, 1));
+      return next;
+    });
+  };
+  const drop = (e: DragEvent) => {
+    if (!dragV) return;
+    e.preventDefault();
+    e.stopPropagation();
+    dropped.current = true;
+    const next = order;
+    const v = dragV;
+    setDragV(null);
+    if (next) void save(next, `Moved “${v}” to position ${next.indexOf(v) + 1}`).finally(() => setOrder(null));
+  };
+  if (!values.length) return null;
+  return (
+    <>
+      <div className="opt-order-bar">
+        <span className="field-label">Order</span>
+        <button className="btn secondary small" aria-label={`Sort ${what} A to Z`} onClick={() => void save([...values].sort(byName(1)), `${what} sorted A → Z`)}>
+          A → Z
+        </button>
+        <button className="btn secondary small" aria-label={`Sort ${what} Z to A`} onClick={() => void save([...values].sort(byName(-1)), `${what} sorted Z → A`)}>
+          Z → A
+        </button>
+        <span className="order-hint">or drag ⠿ · this is the order shown in every dropdown</span>
+      </div>
+      {note && <div className="order-note">⚠ {note}</div>}
+      {list.map((v, i) => (
+        <div key={v} className={`opt-drag ${dragV === v ? "dragging" : ""}`} onDragOver={(e) => over(e, v)} onDrop={drop}>
+          {renderRow(
+            v,
+            <span className="order-cell">
+              <span
+                className="drag-handle"
+                title={`Drag to move “${v}”`}
+                aria-hidden="true"
+                draggable
+                onDragStart={(e) => {
+                  e.stopPropagation();
+                  e.dataTransfer.effectAllowed = "move";
+                  e.dataTransfer.setData("text/plain", v);
+                  const row = e.currentTarget.closest(".opt-drag");
+                  if (row) e.dataTransfer.setDragImage(row, 16, 16);
+                  dropped.current = false;
+                  setDragV(v);
+                  setOrder([...values]);
+                }}
+                onDragEnd={(e) => {
+                  e.stopPropagation();
+                  setDragV(null);
+                  if (!dropped.current) setOrder(null);
+                }}
+              >
+                ⠿
+              </span>
+              <button className="move-btn" aria-label={`Move option ${v} up`} disabled={i === 0 || !!dragV} onClick={() => move(v, -1)}>
+                ↑
+              </button>
+              <button className="move-btn" aria-label={`Move option ${v} down`} disabled={i === list.length - 1 || !!dragV} onClick={() => move(v, 1)}>
+                ↓
+              </button>
+            </span>,
+          )}
+        </div>
+      ))}
+    </>
   );
 }
 
@@ -55,6 +170,9 @@ export function SchemaEditor() {
     }
   };
   if (!s) return <div className="skeleton" style={{ height: 80, margin: 18 }} />;
+  const saveOptionOrder = (c: TrackerColumn, parent?: string) => (values: string[], ok: string) => call(`/api/schema/columns/${c.key}/options/order`, "PUT", { values, parent }, ok);
+  const levelNote = (c: TrackerColumn) =>
+    c.key === CORE.growth || c.key === CORE.impact ? `For ${c.label} the order is also the level (first = lowest): it drives the timeline, the impact colours, the KPIs and the Trend Test.` : undefined;
   const usage = s.usage ?? {};
   const saved = sortedColumns(s);
   const byKey = new Map(saved.map((c) => [c.key, c]));
@@ -119,10 +237,11 @@ export function SchemaEditor() {
     },
   };
 
-  const optRow = (c: TrackerColumn, o: string, removeLabel: string) => {
+  const optRow = (c: TrackerColumn, o: string, removeLabel: string, orderCell: ReactNode) => {
     const n = usage[c.key]?.[o] ?? 0;
     return (
       <div className="opt-row" key={o}>
+        {orderCell}
         <RenameInput value={o} label={`Rename option ${o}`} onCommit={(to) => call(`/api/schema/columns/${c.key}/options`, "PATCH", { from: o, to }, `Renamed “${o}” to “${to}” across all signals`)} />
         <span className="use">{n} in use</span>
         <button
@@ -246,7 +365,13 @@ export function SchemaEditor() {
               </div>
               {isOpen && (c.type === "select" || c.type === "multi" || c.type === "macro") && (
                 <div className="opt-panel">
-                  {(c.type === "macro" ? s.taxonomy.map((g) => g.name) : (c.options ?? [])).map((o) => optRow(c, o, "Delete option"))}
+                  <ReorderList
+                    values={c.type === "macro" ? s.taxonomy.map((g) => g.name) : (c.options ?? [])}
+                    what={`${c.label} options`}
+                    note={levelNote(c)}
+                    onSave={saveOptionOrder(c)}
+                    renderRow={(o, cell) => optRow(c, o, "Delete option", cell)}
+                  />
                   <div className="opt-add">
                     <input className="control" aria-label={`New ${c.type === "macro" ? "macrotrend" : "option"}`} placeholder={c.type === "macro" ? "New macrotrend" : "New option"} value={adds[c.key] ?? ""} onChange={(e) => setAdds((a) => ({ ...a, [c.key]: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && doAdd(c.key)} />
                     <button className="btn small" style={{ height: 32 }} onClick={() => doAdd(c.key)}>
@@ -260,7 +385,7 @@ export function SchemaEditor() {
                   {s.taxonomy.map((g) => (
                     <div className="sub-group" key={g.name}>
                       <div className="gh">{g.name}</div>
-                      {g.subtrends.map((o) => optRow(c, o, "Delete subtrend"))}
+                      <ReorderList values={g.subtrends} what={`${g.name} subtrends`} onSave={saveOptionOrder(c, g.name)} renderRow={(o, cell) => optRow(c, o, "Delete subtrend", cell)} />
                       <div className="opt-add" style={{ gridTemplateColumns: "minmax(0,1fr) 70px" }}>
                         <input className="control" aria-label={`New subtrend for ${g.name}`} placeholder="New subtrend" value={adds[`s:${g.name}`] ?? ""} onChange={(e) => setAdds((a) => ({ ...a, [`s:${g.name}`]: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && doAdd(`s:${g.name}`, g.name)} />
                         <button className="btn small" style={{ height: 30 }} onClick={() => doAdd(`s:${g.name}`, g.name)}>

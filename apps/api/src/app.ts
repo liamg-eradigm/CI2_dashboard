@@ -12,6 +12,7 @@ import {
   AddOptionRequest,
   ApproveRequest,
   ReorderColumnsRequest,
+  ReorderOptionsRequest,
   DeleteItemRequest,
   CONTRACT_VERSION,
   CreateSavedViewRequest,
@@ -68,6 +69,7 @@ import {
   optionUsageMap,
   renameOption,
   reorderColumns,
+  reorderOptions,
   saveSettings,
   updateColumn,
 } from "./services/schema.js";
@@ -267,6 +269,13 @@ app.patch("/api/schema/columns/:key/options", async (c) => {
   const b = await body(c, RenameOptionRequest);
   await renameOption(c.env, P(c).tenantId, c.req.param("key"), b.from, b.to);
   return schemaChanged(c, { op: "rename_option", key: c.req.param("key") });
+});
+
+app.put("/api/schema/columns/:key/options/order", async (c) => {
+  requirePermission(P(c), "schema:edit");
+  const b = await body(c, ReorderOptionsRequest);
+  await reorderOptions(c.env, P(c).tenantId, c.req.param("key"), b.values, b.parent);
+  return schemaChanged(c, { op: "reorder_options", key: c.req.param("key"), parent: b.parent ?? null });
 });
 
 app.delete("/api/schema/columns/:key/options", async (c) => {

@@ -10,6 +10,7 @@ import {
   normaliseValues,
   optionsOf,
   sortedColumns,
+  splitMulti,
   subtrendsOf,
   validateValues,
   type ItemStatus,
@@ -19,6 +20,7 @@ import {
 } from "@eradigm/shared";
 import { api, ApiError } from "../api/client";
 import { useInvalidate, useItem, useItems, useSchema } from "../api/hooks";
+import { Combobox } from "../components/Combobox";
 import { ModelOutputTable } from "../components/ModelOutput";
 import { SchemaEditor } from "../components/SchemaEditor";
 import { SnapshotActions, SnapshotFrame } from "../components/SnapshotFrame";
@@ -413,24 +415,44 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
                       onBlur: saveDraft,
                     };
                     const opts = c.type === "sub" ? (draft[CORE.macrotrend] ? subtrendsOf(schema, draft[CORE.macrotrend]) : []) : optionsOf(schema, c);
-                    const w = c.type === "date" ? 132 : c.type === "multi" ? 150 : c.type === "macro" ? 170 : c.type === "sub" ? 180 : c.type === "select" ? 132 : undefined;
+                    const w = c.type === "date" ? 132 : c.type === "multi" ? 170 : c.type === "macro" ? 190 : c.type === "sub" ? 200 : c.type === "select" ? 150 : undefined;
                     const lowConf = ex?.confidence != null && ex.confidence < LOW_CONFIDENCE;
                     const prov = item.provenance[c.key];
                     return (
                       <td key={c.key} style={{ width: w }}>
                         {c.type === "date" ? (
                           <input type="date" {...common} value={v} onChange={(e) => set(c.key, e.target.value)} />
-                        ) : c.type === "text" || c.type === "multi" ? (
-                          <input {...common} value={v} onChange={(e) => set(c.key, e.target.value)} placeholder={c.type === "multi" ? "Comma-separated" : ""} style={{ minWidth: c.key === CORE.title ? 220 : 130 }} />
+                        ) : c.type === "text" ? (
+                          <input {...common} value={v} onChange={(e) => set(c.key, e.target.value)} style={{ minWidth: c.key === CORE.title ? 220 : 130 }} />
+                        ) : c.type === "multi" ? (
+                          <Combobox
+                            multiple
+                            className={cls}
+                            label={c.label}
+                            disabled={common.disabled}
+                            invalid={invalid}
+                            describedBy={common["aria-describedby"]}
+                            placeholder="Select…"
+                            options={opts}
+                            value={splitMulti(v)}
+                            onChange={(list) => set(c.key, list.join(", "))}
+                            onBlur={saveDraft}
+                            style={{ minWidth: 150 }}
+                          />
                         ) : (
-                          <select {...common} value={v} onChange={(e) => set(c.key, e.target.value)}>
-                            <option value="">Select…</option>
-                            {opts.map((o) => (
-                              <option key={o} value={o}>
-                                {o}
-                              </option>
-                            ))}
-                          </select>
+                          <Combobox
+                            className={cls}
+                            label={c.label}
+                            disabled={common.disabled}
+                            invalid={invalid}
+                            describedBy={common["aria-describedby"]}
+                            placeholder={c.type === "sub" && !draft[CORE.macrotrend] ? "Choose a macrotrend first" : "Select…"}
+                            options={opts}
+                            pinned={v ? [{ value: "", label: "— Clear —" }] : []}
+                            value={v}
+                            onChange={(x) => set(c.key, x)}
+                            onBlur={saveDraft}
+                          />
                         )}
                         <div className={`cell-note ${ex?.warnings.length || lowConf ? "w" : ""}`} id={`n-${item.id}-${c.key}`}>
                           {invalid ? (

@@ -131,7 +131,7 @@
         "DNS_RESOLVER_URL": "https://cloudflare-dns.com/dns-query"
       },
       "d1_databases": [
-        { "binding": "DB", "database_name": "eradigm-ci-production", "database_id": "REPLACE_WITH_PRODUCTION_D1_ID", "migrations_dir": "migrations" }
+        { "binding": "DB", "database_name": "eradigm-ci-production", "database_id": "cedf2126-92db-47e2-801e-7e8e4cad7089", "migrations_dir": "migrations" }
       ],
       // "r2_buckets": [{ "binding": "SNAPSHOTS", "bucket_name": "eradigm-ci-snapshots-production" }],
       "services": [{ "binding": "CAPTURE", "service": "eradigm-ci-capture-production" }],

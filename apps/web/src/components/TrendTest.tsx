@@ -4,6 +4,7 @@ import { runTrend, useSettings } from "../api/hooks";
 import { formatDate } from "../lib/format";
 import type { useFilters } from "../state/filters";
 import { SavedViews } from "./SavedViews";
+import { Combobox } from "./Combobox";
 
 type Result = TrendResult & { counts: { current: number; baseline: number } };
 
@@ -90,30 +91,15 @@ export function TrendTest({ schema, f }: { schema: TrackerSchema; f: ReturnType<
         <div className="trend-grid">
           <label className="field">
             <span>Macrotrend</span>
-            <select className="control" value={cfg.macrotrend} onChange={(e) => set({ macrotrend: e.target.value, subtrend: ALL })}>
-              <option value={ALL}>All</option>
-              {macrotrends(schema).map((m) => (
-                <option key={m}>{m}</option>
-              ))}
-            </select>
+            <Combobox label="Macrotrend" options={macrotrends(schema)} pinned={[{ value: ALL, label: "All" }]} value={cfg.macrotrend} onChange={(x) => set({ macrotrend: x, subtrend: ALL })} />
           </label>
           <label className="field">
             <span>Subtrend</span>
-            <select className="control" value={cfg.subtrend} onChange={(e) => set({ subtrend: e.target.value })}>
-              <option value={ALL}>All</option>
-              {subtrendsOf(schema, cfg.macrotrend).map((m) => (
-                <option key={m}>{m}</option>
-              ))}
-            </select>
+            <Combobox label="Subtrend" options={subtrendsOf(schema, cfg.macrotrend)} pinned={[{ value: ALL, label: "All" }]} value={cfg.subtrend} onChange={(x) => set({ subtrend: x })} />
           </label>
           <label className="field">
             <span>Growth intensity (optional)</span>
-            <select className="control" value={cfg.growth} onChange={(e) => set({ growth: e.target.value })}>
-              <option value={ALL}>All</option>
-              {growthOpts.map((m) => (
-                <option key={m}>{m}</option>
-              ))}
-            </select>
+            <Combobox label="Growth intensity (optional)" options={growthOpts} pinned={[{ value: ALL, label: "All" }]} value={cfg.growth} onChange={(x) => set({ growth: x })} />
           </label>
           <label className="field">
             <span>Date from</span>

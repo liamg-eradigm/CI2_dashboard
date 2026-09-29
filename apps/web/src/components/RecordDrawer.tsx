@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { CORE, can, displayValue, normaliseValues, optionsOf, sortedColumns, subtrendsOf, type Me, type TrackerSchema } from "@eradigm/shared";
+import { CORE, can, displayValue, normaliseValues, optionsOf, sortedColumns, splitMulti, subtrendsOf, type Me, type TrackerSchema } from "@eradigm/shared";
 import { api, ApiError } from "../api/client";
 import { useInvalidate, useSignal } from "../api/hooks";
 import { useToast } from "../state/toast";
 import { formatDate, localDateTime, pct } from "../lib/format";
+import { Combobox } from "./Combobox";
 import { SnapshotFrame } from "./SnapshotFrame";
 
 const PROV: Record<string, string> = { source: "From source", ai: "AI suggested", analyst: "Analyst" };
@@ -313,17 +314,14 @@ function ReviseForm({ id, schema, values, onDone }: { id: string; schema: Tracke
         return (
           <label className="field" key={c.key}>
             <span>{c.label}</span>
-            {c.type === "text" || c.type === "multi" ? (
-              <input className="control" value={val} onChange={(e) => set(e.target.value)} placeholder={c.type === "multi" ? "Comma-separated" : ""} />
+            {c.type === "text" ? (
+              <input className="control" value={val} onChange={(e) => set(e.target.value)} />
+            ) : c.type === "multi" ? (
+              <Combobox multiple label={c.label} options={opts} placeholder="Select…" value={splitMulti(val)} onChange={(list) => set(list.join(", "))} />
             ) : c.type === "date" ? (
               <input className="control" type="date" value={val} onChange={(e) => set(e.target.value)} />
             ) : (
-              <select className="control" value={val} onChange={(e) => set(e.target.value)}>
-                <option value="">Select…</option>
-                {opts.map((o) => (
-                  <option key={o}>{o}</option>
-                ))}
-              </select>
+              <Combobox label={c.label} options={opts} placeholder="Select…" pinned={val ? [{ value: "", label: "— Clear —" }] : []} value={val} onChange={set} />
             )}
           </label>
         );
