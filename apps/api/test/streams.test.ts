@@ -10,22 +10,27 @@ const RANGE = "from=2000-01-01&to=2100-01-01&pageSize=100";
 const body = (s: string) => `${s} across three European sites, the company said on Monday.\nThe roll-out completes in 2027.`;
 
 describe("Primary and Secondary streams", () => {
-  it("give each inbox its own 22-column set, edited independently", async () => {
+  it("give each inbox its own column set (Primary and Secondary layouts), edited independently", async () => {
     const p = await json(call(w.a.analyst, "GET", "/api/schema?stream=primary"));
     const s = await json(call(w.a.analyst, "GET", "/api/schema?stream=secondary"));
     const labels = (x: any) => [...x.columns].sort((a: any, b: any) => a.position - b.position).map((c: any) => c.label);
     expect(labels(p)).toEqual([
+      "ID", "Title", "Event Date", "Source Role", "Source Company", "Source Location", "Source Confidence", "Macrotrend", "Subtrend", "Growth Intensity", "Impact",
+      "Source Type", "Competitors", "Action", "Workstream", "Source Therapeutic Area", "Source Brand or Asset", "Insight Topic", "Key Intelligence Question", "Key Details", "Key Metrics",
+    ]);
+    expect(labels(s)).toEqual([
       "ID", "Macrotrend", "Subtrend", "Title", "Event Date", "Review Date", "Impact", "Growth Intensity", "Source Type", "Publisher", "URL", "Raw Ref",
       "Source Tier", "Competitors", "Other Entities", "Therapeutic Area", "Assets", "Products", "Action", "Header", "Key Details", "CI Perspective",
     ]);
-    expect(labels(s)).toEqual(labels(p));
-    // The Tracker shows the same nine columns as before.
-    expect(p.columns.filter((c: any) => c.inTracker).length).toBe(9);
+    // Both Trackers show the same nine columns as before (same keys and options).
+    const tracker = (x: any) => x.columns.filter((c: any) => c.inTracker).map((c: any) => c.key).sort();
+    expect(tracker(p)).toEqual(["action", "competitors", "date", "growth", "impact", "macrotrend", "source", "subtrend", "title"]);
+    expect(tracker(s)).toEqual(tracker(p));
     expect(p.taxonomy).toEqual(s.taxonomy);
-    await call(w.a.analyst, "PATCH", "/api/schema/columns/publisher?stream=secondary", { body: { label: "Publisher (secondary)" } });
-    expect((await json(call(w.a.analyst, "GET", "/api/schema?stream=secondary"))).columns.find((c: any) => c.key === "publisher").label).toBe("Publisher (secondary)");
-    expect((await json(call(w.a.analyst, "GET", "/api/schema?stream=primary"))).columns.find((c: any) => c.key === "publisher").label).toBe("Publisher");
-    await call(w.a.analyst, "PATCH", "/api/schema/columns/publisher?stream=secondary", { body: { label: "Publisher" } });
+    await call(w.a.analyst, "PATCH", "/api/schema/columns/key_details?stream=secondary", { body: { label: "Key Details (secondary)" } });
+    expect((await json(call(w.a.analyst, "GET", "/api/schema?stream=secondary"))).columns.find((c: any) => c.key === "key_details").label).toBe("Key Details (secondary)");
+    expect((await json(call(w.a.analyst, "GET", "/api/schema?stream=primary"))).columns.find((c: any) => c.key === "key_details").label).toBe("Key Details");
+    await call(w.a.analyst, "PATCH", "/api/schema/columns/key_details?stream=secondary", { body: { label: "Key Details" } });
     // Locked Markdown fields cannot be deleted; unknown streams are refused.
     expect((await call(w.a.analyst, "DELETE", "/api/schema/columns/key_details?stream=secondary")).status).toBe(409);
     expect((await call(w.a.analyst, "GET", "/api/tracker?stream=tertiary")).status).toBe(400);
@@ -160,12 +165,70 @@ describe("Phantoms", () => {
   });
 
   it("fills Review Date with the approval day when it is left empty, and names who approved it", async () => {
-    const item = await ingestTo("primary", w.a.analyst, "Review date default", body("Pfizer names a new CDO"));
+    const item = await ingestTo("secondary", w.a.analyst, "Review date default", body("Pfizer names a new CDO"));
     const pub = await json(approveWith(w.a.admin, item, { review_date: null }));
     expect(pub.draft.review_date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     const md = await (await call(w.a.client, "GET", `/api/signals/${pub.id}/markdown`)).text();
     expect(md).toContain(`  Review_date: ${pub.draft.review_date}`);
     expect(md).toContain("  Reviewed_by: A Admin");
+  });
+});
+
+describe("Primary Markdown", () => {
+  it("uses the Primary fields (no classification columns) with Key Intelligence Question, Key Details and Key Metrics", async () => {
+    const item = await ingestTo("primary", w.a.analyst, "Primary markdown page", body("Roche shares launch plans with KOLs"));
+    const rid = `P-MD-${nextRecordId()}`;
+    const pub = await json(
+      approveWith(w.a.analyst, item, {
+        record_id: rid,
+        title: "Roche plans a Q3 launch",
+        date: "2026-09-24",
+        source_role: "Oncology KOL",
+        source_company: "University Hospital",
+        source_location: "Basel, CH",
+        source_confidence: "High",
+        action: "Actioned",
+        workstream: "Launch readiness",
+        source_therapeutic_area: "Oncology",
+        source_brand_asset: "RG-6114",
+        insight_topic: "Launch sequencing",
+        key_intelligence_question: "When will Roche launch?",
+        key_details: "Q3 launch.\n\nThree markets first.",
+        key_metrics: "40% of KOLs aware",
+      }),
+    );
+    expect(await (await call(w.a.client, "GET", `/api/signals/${pub.id}/markdown`)).text()).toBe(
+      [
+        "---",
+        `id: ${rid}`,
+        "title: Roche plans a Q3 launch",
+        "event_date: 2026-09-24",
+        "Source:",
+        "  Role: Oncology KOL",
+        "  Company: University Hospital",
+        "  Location: Basel, CH",
+        "  Confidence: High",
+        "  Therapeutic_area: Oncology",
+        "  Brand_or_asset: RG-6114",
+        "Action: Actioned",
+        "Workstream: Launch readiness",
+        "Insight_topic: Launch sequencing",
+        "---",
+        "## Key Intelligence Question",
+        "When will Roche launch?",
+        "",
+        "## Key Details",
+        "Q3 launch.",
+        "",
+        "Three markets first.",
+        "",
+        "## Key Metrics",
+        "40% of KOLs aware",
+        "",
+      ].join("\n"),
+    );
+    // Primary has no Source Tier column, so none is stored on the entry.
+    expect(pub.draft.source_tier ?? null).toBeNull();
   });
 });
 

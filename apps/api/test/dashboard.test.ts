@@ -118,7 +118,7 @@ describe("exports", () => {
     const bytes = new Uint8Array(await res.arrayBuffer());
     expect([...bytes.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf]); // UTF-8 BOM for Excel
     const lines = new TextDecoder().decode(bytes).trim().split("\r\n");
-    expect(lines[0]).toBe("Signal ID,Macrotrend,Subtrend,Title,Event Date,Impact,Growth Intensity,Source Type,Competitors,Action");
+    expect(lines[0]).toBe("Signal ID,Title,Event Date,Macrotrend,Subtrend,Growth Intensity,Impact,Source Type,Competitors,Action");
     expect(lines.length - 1).toBe(t.total);
     const xlsx = await call(w.a.client, "GET", "/api/tracker/export?format=xlsx&scope=all");
     expect(new Uint8Array(await xlsx.arrayBuffer()).slice(0, 2)).toEqual(new Uint8Array([0x50, 0x4b]));

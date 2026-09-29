@@ -134,7 +134,6 @@ export async function saveSettings(env: Env, tenantId: string, settings: TenantS
 /** Statements that create a tenant with the default schema, taxonomy and settings. */
 export function tenantBootstrapStatements(env: Env, tenant: { id: string; name: string; slug: string }): D1PreparedStatement[] {
   const now = nowIso();
-  const s = defaultSchema();
   const stmts: D1PreparedStatement[] = [
     env.DB.prepare("INSERT INTO tenants (id, name, slug, created_at) VALUES (?1, ?2, ?3, ?4)").bind(tenant.id, tenant.name, tenant.slug, now),
     env.DB.prepare("INSERT INTO schema_meta (tenant_id, revision) VALUES (?1, 1)").bind(tenant.id),
@@ -142,6 +141,7 @@ export function tenantBootstrapStatements(env: Env, tenant: { id: string; name: 
     env.DB.prepare("INSERT INTO counters (tenant_id, name, value) VALUES (?1, 'inbox', 2200), (?1, 'signal', 1100)").bind(tenant.id),
   ];
   for (const stream of STREAMS) {
+    const s = defaultSchema(stream);
     for (const c of s.columns) {
       stmts.push(
         env.DB.prepare(

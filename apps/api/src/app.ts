@@ -7,10 +7,12 @@ import { Hono, type Context } from "hono";
 import type { z } from "zod";
 import {
   CAPTURE_LIMITS,
+  IMPORT_CHUNK_ROWS,
   ACTIONS,
   AddColumnRequest,
   AddOptionRequest,
   ApproveRequest,
+  ImportRequest,
   ReorderColumnsRequest,
   ReorderOptionsRequest,
   DeleteItemRequest,
@@ -80,6 +82,7 @@ import {
   updateColumn,
 } from "./services/schema.js";
 import { signalDetail, signalMarkdown } from "./services/signals.js";
+import { attachSnapshot, importRows } from "./services/imports.js";
 import { submitFile, submitUrl } from "./services/submissions.js";
 import { createInvite, createUser, listUsers, revokeSessions, updateUser } from "./services/users.js";
 
@@ -454,6 +457,28 @@ app.post("/api/submissions", async (c) => {
   const b = await body(c, CreateSubmissionRequest);
   const r = await submitUrl(c.env, ctxOf(c), schemas, p, b.url, idem, b.stream);
   return c.json(r, r.duplicate ? 200 : 201);
+});
+
+/** One-off spreadsheet import into a stream's Tracker (the dashboard parses the file and sends rows). */
+app.post("/api/import", async (c) => {
+  const p = P(c);
+  requirePermission(p, "submission:create");
+  requirePermission(p, "item:review");
+  const b = await body(c, ImportRequest);
+  if (!b.dryRun && b.rows.length > IMPORT_CHUNK_ROWS) throw badRequest(`Send at most ${IMPORT_CHUNK_ROWS} rows per import request`);
+  return c.json(await importRows(c.env, await schemasFor(c), p, streamOf(c), b.fileName, b.rows, !!b.dryRun));
+});
+
+/** Attach the saved HTML page to a tracker entry that has none (e.g. an imported row). */
+app.post("/api/items/:id/snapshot", async (c) => {
+  const p = P(c);
+  requirePermission(p, "item:edit");
+  const len = Number(c.req.header("content-length") ?? "0");
+  if (len > CAPTURE_LIMITS.maxBytes + 64 * 1024) throw new ApiError("PAYLOAD_TOO_LARGE", `File exceeds the ${CAPTURE_LIMITS.maxBytes / 1048576} MB limit`);
+  const form = await c.req.formData();
+  const file = form.get("file") as unknown as File | string | null;
+  if (!file || typeof file === "string") throw badRequest("Attach an HTML file in the “file” field");
+  return c.json(await attachSnapshot(c.env, p, c.req.param("id"), { name: file.name, bytes: await file.arrayBuffer(), type: file.type }));
 });
 
 app.get("/api/capture-log", async (c) => {

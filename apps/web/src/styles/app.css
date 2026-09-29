@@ -201,6 +201,14 @@ main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .stream-note { font-size: 12.5px; color: var(--muted); }
 /* Phantoms: Markdown column and side panel */
 .md-col { width: 1%; white-space: nowrap; }
+/* Tracker: open the saved page (document icon) or attach one (green plus). */
+.src-col { width: 1%; text-align: center; white-space: nowrap; }
+.src-btn { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border); background: #fff; color: var(--teal); padding: 0; cursor: pointer; }
+.src-btn:hover { background: var(--tint); border-color: var(--focus); }
+.src-btn.add { color: var(--success); border-color: #bfe0cb; }
+.src-btn.add:hover { background: #e7f5ec; border-color: var(--success); }
+.src-btn:disabled { opacity: 0.5; cursor: progress; }
+.src-none { color: var(--muted-3); }
 .md-dl { white-space: nowrap; }
 .md-drawer { width: 720px; }
 .md-toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
@@ -438,6 +446,13 @@ a.link-btn { text-decoration: none; }
 .source-row { display: grid; grid-template-columns: minmax(0, 1fr) 160px; gap: 12px; align-items: stretch; }
 .source-row .drop { min-height: 96px; }
 .source-row .btn.lg { align-self: center; width: 100%; justify-content: center; }
+.import-help { margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink-2); }
+.import-progress { height: 8px; border-radius: 4px; background: var(--page); overflow: hidden; }
+.import-progress > div { height: 100%; background: var(--teal); transition: width 0.2s; }
+.import-errors { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border: 1px solid #d98a84; border-left: 5px solid var(--error); border-radius: 8px; background: #f9e6e4; color: #6a1c16; }
+.import-errors .table-wrap { background: #fff; border-radius: 6px; }
+.import-done { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border: 1px solid #bfe0cb; border-left: 5px solid var(--success); border-radius: 8px; background: #e7f5ec; color: #1e5a36; font-size: 13px; }
+.import-done a { color: inherit; font-weight: 700; }
 .card.drag-target { outline: 2px dashed var(--focus); outline-offset: -6px; background: var(--tint-3); }
 .drop.over { background: #e6f5f6; border: 2px solid var(--focus); box-shadow: 0 0 0 3px rgba(31, 167, 176, 0.18); }
 .url-input { flex: 1 1 320px; min-width: 0; height: 44px; border: 1px solid var(--border-input); border-radius: 8px; padding: 0 14px; font: 500 13.5px var(--mono); color: var(--ink); }

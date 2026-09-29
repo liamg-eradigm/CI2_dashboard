@@ -103,12 +103,13 @@ function duplicateError(row: ItemRow, dup: PublishedDuplicate): ApiError {
 }
 
 /** Values the platform owns: Source Tier always matches the stream the source was uploaded to. */
-function withAutoValues(row: ItemRow, values: ItemValues): ItemValues {
+function withAutoValues(schema: TrackerSchema, row: ItemRow, values: ItemValues): ItemValues {
+  if (!schema.columns.some((c) => c.key === FIELDS.sourceTier)) return values;
   return { ...values, [FIELDS.sourceTier]: SOURCE_TIER[row.stream] ?? SOURCE_TIER.primary };
 }
 
 /** Today's date (YYYY-MM-DD) in the tenant's time zone. */
-async function todayIn(env: Env, tenantId: string): Promise<string> {
+export async function todayIn(env: Env, tenantId: string): Promise<string> {
   const { timezone } = await loadSettings(env, tenantId);
   try {
     return new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
@@ -147,7 +148,7 @@ export async function saveDraft(env: Env, schemas: Schemas, p: Principal, id: st
   const schema = schemas[row.stream];
   if (row.status !== "needs_review") throw conflict("Only drafts awaiting review can be edited");
   assertVersion(row, version);
-  const values = withAutoValues(row, normaliseValues(schema, raw));
+  const values = withAutoValues(schema, row, normaliseValues(schema, raw));
   const errors = validateValues(schema, values, { forApproval: false });
   if (errors.length) throw new ApiError("VALIDATION", errors[0]?.message ?? "Invalid value", errors);
   const current = normaliseValues(schema, JSON.parse(row.draft_json || "{}"));
@@ -187,7 +188,7 @@ export async function approve(
   assertTransition(row.status, "approved", "approved");
   if (row.status !== "needs_review") throw conflict("Only drafts awaiting review can be approved");
   assertVersion(row, version);
-  const values = withAutoValues(row, normaliseValues(schema, raw));
+  const values = withAutoValues(schema, row, normaliseValues(schema, raw));
   // Review Date defaults to the day of approval when the analyst leaves it empty.
   if (!values[FIELDS.reviewDate] && schema.columns.some((c) => c.key === FIELDS.reviewDate)) values[FIELDS.reviewDate] = await todayIn(env, p.tenantId);
   const errors = validateValues(schema, values, { forApproval: true });
@@ -271,7 +272,7 @@ export async function revise(env: Env, schemas: Schemas, p: Principal, id: strin
   const row = await getItemRow(env, p.tenantId, id);
   const schema = schemas[row.stream];
   if (row.status !== "approved") throw conflict("Only approved signals can be revised");
-  const values = withAutoValues(row, normaliseValues(schema, raw));
+  const values = withAutoValues(schema, row, normaliseValues(schema, raw));
   const errors = validateValues(schema, values, { forApproval: true });
   if (errors.length) throw validationError(errors);
   const idLabel = schema.columns.find((c) => c.key === FIELDS.id)?.label ?? "ID";

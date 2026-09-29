@@ -13,7 +13,7 @@
  * invite links.
  */
 import { createHash, randomBytes } from "node:crypto";
-import { defaultSchema, DEFAULT_TREND_THRESHOLDS } from "@eradigm/shared";
+import { defaultSchema, DEFAULT_TREND_THRESHOLDS, STREAMS } from "@eradigm/shared";
 
 const arg = (k: string) => {
   const i = process.argv.indexOf(`--${k}`);
@@ -39,20 +39,30 @@ const settings = {
   trendDefaults: DEFAULT_TREND_THRESHOLDS,
   retention: { snapshotDays: 730, rejectedDays: 90, deletedDays: 30 },
   redaction: { redactEmails: true, redactPhones: true, quarantineMarkers: [] },
+  phantoms: { secondaryMinImpact: "Medium" },
 };
 out.push(`INSERT INTO tenants (id, name, slug, created_at) VALUES (${q(t)}, ${q(name)}, ${q(slug)}, ${q(now)});`);
 out.push(`INSERT INTO schema_meta (tenant_id, revision) VALUES (${q(t)}, 1);`);
 out.push(`INSERT INTO tenant_settings (tenant_id, settings_json, updated_at) VALUES (${q(t)}, ${q(JSON.stringify(settings))}, ${q(now)});`);
 out.push(`INSERT INTO counters (tenant_id, name, value) VALUES (${q(t)}, 'inbox', 2200), (${q(t)}, 'signal', 1100);`);
-const s = defaultSchema();
-for (const c of s.columns) {
-  out.push(`INSERT INTO tracker_columns (tenant_id, key, label, type, core, required, ai_assist, position) VALUES (${q(t)}, ${q(c.key)}, ${q(c.label)}, ${q(c.type)}, ${c.core ? 1 : 0}, ${c.required ? 1 : 0}, ${c.aiAssist ? 1 : 0}, ${c.position});`);
-  (c.options ?? []).forEach((o, i) => out.push(`INSERT INTO column_options (id, tenant_id, column_key, value, parent, position, created_at) VALUES (${q(id("opt"))}, ${q(t)}, ${q(c.key)}, ${q(o)}, NULL, ${i}, ${q(now)});`));
+// Each stream (Primary, Secondary) has its own column set.
+for (const stream of STREAMS) {
+  const s = defaultSchema(stream);
+  for (const c of s.columns) {
+    out.push(
+      `INSERT INTO tracker_columns (tenant_id, stream, key, label, type, core, required, ai_assist, in_tracker, position) VALUES (${q(t)}, '${stream}', ${q(c.key)}, ${q(c.label)}, ${q(c.type)}, ${c.core ? 1 : 0}, ${c.required ? 1 : 0}, ${c.aiAssist ? 1 : 0}, ${c.inTracker ? 1 : 0}, ${c.position});`,
+    );
+    (c.options ?? []).forEach((o, i) =>
+      out.push(`INSERT INTO column_options (id, tenant_id, stream, column_key, value, parent, position, created_at) VALUES (${q(id("opt"))}, ${q(t)}, '${stream}', ${q(c.key)}, ${q(o)}, NULL, ${i}, ${q(now)});`),
+    );
+  }
+  s.taxonomy.forEach((g, i) => {
+    out.push(`INSERT INTO column_options (id, tenant_id, stream, column_key, value, parent, position, created_at) VALUES (${q(id("opt"))}, ${q(t)}, '${stream}', 'macrotrend', ${q(g.name)}, NULL, ${i}, ${q(now)});`);
+    g.subtrends.forEach((sub, j) =>
+      out.push(`INSERT INTO column_options (id, tenant_id, stream, column_key, value, parent, position, created_at) VALUES (${q(id("opt"))}, ${q(t)}, '${stream}', 'subtrend', ${q(sub)}, ${q(g.name)}, ${j}, ${q(now)});`),
+    );
+  });
 }
-s.taxonomy.forEach((g, i) => {
-  out.push(`INSERT INTO column_options (id, tenant_id, column_key, value, parent, position, created_at) VALUES (${q(id("opt"))}, ${q(t)}, 'macrotrend', ${q(g.name)}, NULL, ${i}, ${q(now)});`);
-  g.subtrends.forEach((sub, j) => out.push(`INSERT INTO column_options (id, tenant_id, column_key, value, parent, position, created_at) VALUES (${q(id("opt"))}, ${q(t)}, 'subtrend', ${q(sub)}, ${q(g.name)}, ${j}, ${q(now)});`));
-});
 out.push(`INSERT INTO users (id, email, name, created_at) VALUES (${q(id("usr"))}, ${q(admin)}, ${q(adminName)}, ${q(now)}) ON CONFLICT (email) DO NOTHING;`);
 out.push(`INSERT INTO role_assignments (id, tenant_id, user_id, role, assigned_at) SELECT ${q(id("rol"))}, ${q(t)}, id, 'admin', ${q(now)} FROM users WHERE email = ${q(admin)};`);
 // One-time invite link for the first admin (only its SHA-256 hash is stored).
