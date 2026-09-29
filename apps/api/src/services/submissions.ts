@@ -1,10 +1,15 @@
 /**
  * Submitting a URL or an HTML file (URL Processing sequence, 4_Backend_Design):
- *   1. validate + normalise   2. duplicate check   3. create submission (Queued)
- *   4. enqueue background capture/extraction/classification.
+ *   1. validate + normalise   2. create submission (Queued)
+ *   3. enqueue background capture/extraction/classification.
  *
- * Idempotent: the same Idempotency-Key, the same normalised URL or the same
- * file returns the existing item instead of creating a new one.
+ * Idempotent: the same Idempotency-Key (a double-click or a network retry)
+ * returns the existing item instead of creating a new one.
+ *
+ * Duplicates never block a submission. Only entries already in the tracker
+ * (approved) count as duplicates: the item is still created and sent to the
+ * Inbox, its summary carries `duplicateOf` (shown as a warning on the Input
+ * page and in the Inbox), and approval asks the reviewer to confirm.
  */
 import { CAPTURE_LIMITS, checkAndNormaliseUrl, dedupeKey, type ItemSummary, type TrackerSchema } from "@eradigm/shared";
 import type { CaptureStep } from "@eradigm/capture";
@@ -17,17 +22,12 @@ import { enqueue } from "../pipeline/process.js";
 import { parseUploadIsolated } from "../pipeline/capture-client.js";
 import { storeSnapshot } from "../pipeline/snapshots.js";
 import { audit } from "./audit.js";
-import { getSummary, nextCode } from "./items.js";
+import { DUPLICATE_BASIS_LABEL, contentFingerprintInput, getSummary, nextCode } from "./items.js";
 import { loadSettings } from "./schema.js";
 
 export interface SubmitResult {
   item: ItemSummary;
   duplicate: boolean;
-}
-
-async function existingBy(env: Env, tenantId: string, where: string, value: string): Promise<string | null> {
-  const r = await env.DB.prepare(`SELECT id FROM intelligence_items WHERE tenant_id = ?1 AND ${where} = ?2 AND status <> 'deleted' LIMIT 1`).bind(tenantId, value).first<{ id: string }>();
-  return r?.id ?? null;
 }
 
 async function byIdempotencyKey(env: Env, tenantId: string, key: string | null): Promise<string | null> {
@@ -46,11 +46,23 @@ async function logCapture(env: Env, tenantId: string, itemId: string | null, inp
     .run();
 }
 
-async function duplicateResult(env: Env, schema: TrackerSchema, p: Principal, itemId: string, input: string, basis: string): Promise<SubmitResult> {
-  const item = await getSummary(env, schema, p.tenantId, itemId);
-  await logCapture(env, p.tenantId, itemId, input, item.url, `Duplicate of ${item.code} · not captured again`, true);
-  await audit(env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "submission.duplicate", targetType: "item", targetId: itemId, details: { basis } });
-  return { item, duplicate: true };
+/** A retried request with the same Idempotency-Key: return what the first one created. */
+async function replay(env: Env, schema: TrackerSchema, tenantId: string, itemId: string): Promise<SubmitResult> {
+  return { item: await getSummary(env, schema, tenantId, itemId), duplicate: true };
+}
+
+/** Record (not block) a submission of a source that is already in the tracker. */
+async function noteDuplicate(env: Env, p: Principal, item: ItemSummary): Promise<void> {
+  if (!item.duplicateOf) return;
+  await audit(env, {
+    tenantId: p.tenantId,
+    actorId: p.userId,
+    actorEmail: p.email,
+    action: "submission.duplicate",
+    targetType: "item",
+    targetId: item.id,
+    details: { duplicateOf: item.duplicateOf, basis: item.duplicateBasis, proceeded: true },
+  });
 }
 
 function isUnique(err: unknown): boolean {
@@ -59,7 +71,7 @@ function isUnique(err: unknown): boolean {
 
 export async function submitUrl(env: Env, ctx: ExecutionContext | null, schema: TrackerSchema, p: Principal, rawUrl: string, idemKey: string | null): Promise<SubmitResult> {
   const prior = await byIdempotencyKey(env, p.tenantId, idemKey);
-  if (prior) return { item: await getSummary(env, schema, p.tenantId, prior), duplicate: true };
+  if (prior) return replay(env, schema, p.tenantId, prior);
 
   const c = checkAndNormaliseUrl(rawUrl);
   if (!c.ok) {
@@ -69,8 +81,6 @@ export async function submitUrl(env: Env, ctx: ExecutionContext | null, schema: 
     throw new ApiError("VALIDATION", c.reason, [{ key: "url", label: "URL", code: c.code, message: c.reason }]);
   }
   const urlKey = dedupeKey(c.url);
-  const existing = await existingBy(env, p.tenantId, "url_key", urlKey);
-  if (existing) return duplicateResult(env, schema, p, existing, rawUrl, "url");
 
   const now = nowIso();
   const subId = newId("sub");
@@ -92,14 +102,16 @@ export async function submitUrl(env: Env, ctx: ExecutionContext | null, schema: 
     ]);
   } catch (err) {
     if (!isUnique(err)) throw err;
-    // Lost a race with an identical submission: return the winner.
-    const winner = (await byIdempotencyKey(env, p.tenantId, idemKey)) ?? (await existingBy(env, p.tenantId, "url_key", urlKey));
-    if (winner) return duplicateResult(env, schema, p, winner, rawUrl, "url");
+    // Lost a race with a retry of the same request: return the winner.
+    const winner = await byIdempotencyKey(env, p.tenantId, idemKey);
+    if (winner) return replay(env, schema, p.tenantId, winner);
     throw err;
   }
   await audit(env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "submission.created", targetType: "item", targetId: itemId, details: { code, inputType: "url" } });
   await enqueue(env, ctx, { kind: "process", tenantId: p.tenantId, itemId, attempt: 1 });
-  return { item: await getSummary(env, schema, p.tenantId, itemId), duplicate: false };
+  const item = await getSummary(env, schema, p.tenantId, itemId);
+  await noteDuplicate(env, p, item);
+  return { item, duplicate: false };
 }
 
 export async function submitFile(
@@ -116,12 +128,10 @@ export async function submitFile(
   }
   if (file.bytes.byteLength > CAPTURE_LIMITS.maxBytes) throw new ApiError("PAYLOAD_TOO_LARGE", `File exceeds the ${CAPTURE_LIMITS.maxBytes / 1048576} MB limit`);
   const prior = await byIdempotencyKey(env, p.tenantId, idemKey);
-  if (prior) return { item: await getSummary(env, schema, p.tenantId, prior), duplicate: true };
+  if (prior) return replay(env, schema, p.tenantId, prior);
 
   const fileSha = await sha256Hex(file.bytes);
-  const sameFile = await existingBy(env, p.tenantId, "file_sha256", fileSha);
   const label = `${file.name}${/Page saved with SingleFile/i.test(new TextDecoder().decode(file.bytes.slice(0, 8000))) ? " (SingleFile)" : ""}`;
-  if (sameFile) return duplicateResult(env, schema, p, sameFile, label, "file");
 
   // Scan and sanitise in the isolated worker BEFORE anything is stored.
   const parsed = await parseUploadIsolated(env, file.bytes, file.name);
@@ -131,17 +141,14 @@ export async function submitFile(
     throw new ApiError("VALIDATION", parsed.message, [{ key: "file", label: "File", code: parsed.code, message: parsed.message }]);
   }
   const urlKey = parsed.finalUrl ? dedupeKey(parsed.finalUrl) : null;
-  if (urlKey) {
-    const sameUrl = await existingBy(env, p.tenantId, "url_key", urlKey);
-    if (sameUrl) return duplicateResult(env, schema, p, sameUrl, label, "url");
-  }
 
   const settings = await loadSettings(env, p.tenantId);
   const now = nowIso();
   const subId = newId("sub");
   const itemId = newId("itm");
   const code = await nextCode(env, p.tenantId, "inbox");
-  const contentSha = await sha256Hex(`${parsed.article.headline}\n${parsed.article.bodyText}`.toLowerCase().replace(/\s+/g, " "));
+  const fp = contentFingerprintInput(parsed.article.headline, parsed.article.bodyText);
+  const contentSha = fp ? await sha256Hex(fp) : null;
   let outlet = parsed.article.siteName;
   if (!outlet && parsed.finalUrl) outlet = new URL(parsed.finalUrl).hostname.replace(/^www\./, "");
   try {
@@ -176,8 +183,8 @@ export async function submitFile(
     ]);
   } catch (err) {
     if (!isUnique(err)) throw err;
-    const winner = (await byIdempotencyKey(env, p.tenantId, idemKey)) ?? (await existingBy(env, p.tenantId, "file_sha256", fileSha));
-    if (winner) return duplicateResult(env, schema, p, winner, label, "file");
+    const winner = await byIdempotencyKey(env, p.tenantId, idemKey);
+    if (winner) return replay(env, schema, p.tenantId, winner);
     throw err;
   }
   const snap = await storeSnapshot(env, {
@@ -195,8 +202,11 @@ export async function submitFile(
     retentionDays: settings.retention.snapshotDays,
   });
   await env.DB.prepare("UPDATE intelligence_items SET current_snapshot_id = ?1 WHERE tenant_id = ?2 AND id = ?3").bind(snap.id, p.tenantId, itemId).run();
-  await logCapture(env, p.tenantId, itemId, label, parsed.finalUrl ? `${parsed.finalUrl} (from file metadata)` : null, "Captured · sent to Needs review", true);
+  const item = await getSummary(env, schema, p.tenantId, itemId);
+  const dupNote = item.duplicateOf && item.duplicateBasis ? ` · ⚠ already in the tracker as ${item.duplicateOf} (${DUPLICATE_BASIS_LABEL[item.duplicateBasis]})` : "";
+  await logCapture(env, p.tenantId, itemId, label, parsed.finalUrl ? `${parsed.finalUrl} (from file metadata)` : null, `Captured · sent to Needs review${dupNote}`, true);
   await audit(env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "submission.created", targetType: "item", targetId: itemId, details: { code, inputType: "file", singleFile: parsed.singleFile.detected } });
+  await noteDuplicate(env, p, item);
   await enqueue(env, ctx, { kind: "process", tenantId: p.tenantId, itemId, attempt: 1 });
-  return { item: await getSummary(env, schema, p.tenantId, itemId), duplicate: false };
+  return { item, duplicate: false };
 }

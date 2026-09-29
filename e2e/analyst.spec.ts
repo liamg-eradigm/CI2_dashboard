@@ -54,7 +54,7 @@ test.describe("analyst role", () => {
     const file = path.join(dir, "roche-lab.html");
     writeFileSync(
       file,
-      `<!DOCTYPE html><html><!--\n Page saved with SingleFile \n url: https://newsroom.example.com/e2e-roche-lab-${Date.now()} \n saved date: Wed Sep 24 2026\n--><head><title>Roche opens robotics-enabled lab</title><meta property="article:published_time" content="2026-09-24"><script>alert(1)</script></head><body><article><h1>Roche opens robotics-enabled autonomous lab in Basel ${Date.now()}</h1><p>Roche has opened an autonomous laboratory where robotics-enabled labs run design-make-test cycles for small molecules around the clock.</p><p>The company said the lab will double experimental throughput for its early discovery teams by 2027.</p></article></body></html>`,
+      `<!DOCTYPE html><html><!--\n Page saved with SingleFile \n url: https://newsroom.example.com/e2e-roche-lab-${Date.now().toString(36)} \n saved date: Wed Sep 24 2026\n--><head><title>Roche opens robotics-enabled lab</title><meta property="article:published_time" content="2026-09-24"><script>alert(1)</script></head><body><article><h1>Roche opens robotics-enabled autonomous lab in Basel ${Date.now().toString(36)}</h1><p>Roche has opened an autonomous laboratory where robotics-enabled labs run design-make-test cycles for small molecules around the clock.</p><p>The company said the lab will double experimental throughput for its early discovery teams by 2027.</p></article></body></html>`,
     );
     await page.goto("/input");
     await page.getByRole("button", { name: "HTML file" }).click();
@@ -71,6 +71,118 @@ test.describe("analyst role", () => {
     const card = page.locator(".inbox-card", { hasText: "Roche opens robotics-enabled" }).first();
     await expect(card).toBeVisible();
     await expect(card.getByText("Awaiting analyst entry")).toBeVisible();
+  });
+
+  test("accepts an HTML file by drag and drop", async ({ page }) => {
+    await page.goto("/input");
+    // Dropped while the URL option is selected: switches to HTML file mode by itself.
+    const html = `<!DOCTYPE html><html><head><title>Dropped file</title></head><body><article><h1>Sanofi pilots dropped-file AI triage ${Date.now().toString(36)}</h1><p>Sanofi has piloted an AI triage tool across three trial sites, the company said on Monday.</p><p>The pilot runs until the end of 2026.</p></article></body></html>`;
+    const dt = await page.evaluateHandle((h) => {
+      const d = new DataTransfer();
+      d.items.add(new File([h], "dropped.html", { type: "text/html" }));
+      return d;
+    }, html);
+    const card = page.locator("section.card", { has: page.getByRole("heading", { name: "New source" }) });
+    await card.dispatchEvent("dragenter", { dataTransfer: dt });
+    await card.dispatchEvent("dragover", { dataTransfer: dt });
+    await card.dispatchEvent("drop", { dataTransfer: dt });
+    await expect(page.getByRole("button", { name: "HTML file" })).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByTestId("drop-zone")).toContainText("dropped.html");
+    await page.getByRole("button", { name: "Process file" }).click();
+    await expect(page.getByText("Complete · sent to Needs review")).toBeVisible({ timeout: 30_000 });
+  });
+
+  test("warns about a source already in the tracker, but lets it through and requires an explicit override to approve", async ({ page }) => {
+    const dir = mkdtempSync(path.join(tmpdir(), "e2e-"));
+    const file = path.join(dir, "again.html");
+    // Same URL as the published seed entry SIG-1100.
+    writeFileSync(
+      file,
+      `<!DOCTYPE html><html><!--\n Page saved with SingleFile \n url: https://source.example.com/sig-1100 \n saved date: Wed Sep 24 2026\n--><head><title>Roche DTP again</title></head><body><article><h1>Roche brings DTP offering to a national retail pharmacy chain (re-saved)</h1><p>Roche has extended its direct-to-patient offering to a national retail pharmacy chain, the company said.</p><p>The roll-out covers all stores by 2027.</p></article></body></html>`,
+    );
+    await page.goto("/input");
+    await page.getByRole("button", { name: "HTML file" }).click();
+    await page.locator('input[type="file"]').setInputFiles(file);
+    await page.getByRole("button", { name: "Process file" }).click();
+    await expect(page.getByText(/Possible duplicate: this source is already in the tracker as SIG-1100/)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(/sent to Needs review/).first()).toBeVisible();
+
+    await page.goto("/inbox");
+    const first = page.locator(".inbox-card", { hasText: "re-saved" }).first();
+    await expect(first.getByText("⚠ Duplicate of SIG-1100")).toBeVisible();
+    // Track the card by its Inbox code: its title changes once the analyst types one.
+    const code = (await first.locator(".code").innerText()).trim();
+    const card = page.locator(".inbox-card", { has: page.locator(".code", { hasText: code }) });
+    await card.getByLabel("Date", { exact: true }).fill("2026-09-24");
+    await card.getByRole("textbox", { name: "Competitor", exact: true }).fill("Roche");
+    await card.getByRole("combobox", { name: "Macrotrend", exact: true }).selectOption("AI Investment in R&D");
+    await card.getByRole("combobox", { name: "Subtrend", exact: true }).selectOption("External Partnerships to Accelerate AI");
+    await card.getByRole("textbox", { name: "News title", exact: true }).fill("Roche DTP retail roll-out (second entry)");
+    await card.getByRole("combobox", { name: "Growth intensity", exact: true }).selectOption("Slight Increase");
+    await card.getByRole("combobox", { name: "Impact", exact: true }).selectOption("Medium");
+    await card.getByRole("combobox", { name: "Source", exact: true }).selectOption("PR");
+    await card.getByRole("combobox", { name: "Action", exact: true }).selectOption("Not Actioned");
+    await card.getByRole("button", { name: "✓ Approve" }).click();
+    const dialog = card.getByRole("alertdialog");
+    await expect(dialog).toContainText("Duplicate — SIG-1100 is already in the tracker");
+    await expect(dialog.getByRole("link", { name: /Open SIG-1100 in the Tracker/ })).toHaveAttribute("href", /\/tracker\?signal=/);
+    await expectAccessible(page, "/inbox duplicate confirmation");
+    await dialog.getByRole("button", { name: "Cancel — don't approve" }).click();
+    await expect(card.getByRole("alertdialog")).toHaveCount(0);
+    await card.getByRole("button", { name: "✓ Approve" }).click();
+    await card.getByRole("button", { name: "Approve anyway (override duplicate)" }).click();
+    await expect(page.getByText(/SIG-\d+ published to the tracker as rev 1 \(duplicate confirmed\)/).first()).toBeVisible();
+  });
+
+  test("reorders tracker columns: A–Z, Z–A, move buttons and drag and drop", async ({ page }) => {
+    await page.goto("/inbox");
+    await page.getByRole("button", { name: "Edit columns" }).click();
+    const labels = () => page.locator(".schema-row .schema-grid input[aria-label^='Rename column']").evaluateAll((els) => els.map((e) => (e as HTMLInputElement).value));
+    await page.getByRole("button", { name: "Sort A → Z" }).click();
+    await expect(page.locator(".toast")).toContainText("Columns sorted A → Z");
+    await expect.poll(labels).toEqual([...(await labels())].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base", numeric: true })));
+    await page.getByRole("button", { name: "Sort Z → A" }).click();
+    await expect(page.locator(".toast").last()).toContainText("Columns sorted Z → A");
+    const za = await labels();
+    expect(za).toEqual([...za].sort((a, b) => b.localeCompare(a, undefined, { sensitivity: "base", numeric: true })));
+    // Keyboard-accessible move.
+    await page.getByRole("button", { name: `Move ${za[1]} up` }).click();
+    await expect.poll(async () => (await labels())[0]).toBe(za[1]);
+    // Drag the last column onto the first row.
+    const before = await labels();
+    const last = before[before.length - 1] as string;
+    const handle = page.locator(".schema-row", { has: page.getByLabel(`Rename column ${last}`, { exact: true }) }).locator(".drag-handle");
+    await handle.dragTo(page.locator(".schema-row").first());
+    await expect.poll(async () => (await labels())[0]).toBe(last);
+    // The Tracker uses the new order.
+    await page.goto("/tracker");
+    await expect(page.locator("table thead th").first()).toContainText(last, { timeout: 15_000 });
+    // Restore the default order for the other tests.
+    await page.goto("/inbox");
+    await page.getByRole("button", { name: "Edit columns" }).click();
+    for (const l of ["Action", "Source", "Impact", "Growth intensity", "News title", "Subtrend", "Macrotrend", "Competitor", "Date"]) {
+      const row = page.locator(".schema-row", { has: page.getByLabel(`Rename column ${l}`, { exact: true }) });
+      if (!(await row.count())) continue;
+      await row.locator(".drag-handle").dragTo(page.locator(".schema-row").first());
+      await expect.poll(async () => (await labels())[0]).toBe(l);
+    }
+  });
+
+  test("deletes a tracker entry after an explicit confirmation", async ({ page }) => {
+    await page.goto("/tracker");
+    const firstRow = page.locator("table tbody tr").first();
+    const title = (await firstRow.locator("td.title").innerText()).trim();
+    await firstRow.locator("td.title button").click();
+    const drawer = page.getByRole("dialog");
+    await drawer.getByRole("button", { name: "Delete", exact: true }).click();
+    const confirm = drawer.getByRole("alertdialog");
+    await expect(confirm).toContainText("will disappear from the Tracker, the Dashboard and exports for everyone");
+    await confirm.getByLabel(/Reason/).fill("E2E test deletion");
+    const code = (await confirm.locator("b").innerText()).match(/SIG-\d+/)?.[0] as string;
+    await confirm.getByRole("button", { name: `Delete ${code}` }).click();
+    await expect(page.locator(".toast")).toContainText(`${code} deleted from the tracker`);
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page.locator("table tbody td.title", { hasText: title })).toHaveCount(0);
   });
 
   test("opens the saved page full-window in a new tab", async ({ page, context }) => {

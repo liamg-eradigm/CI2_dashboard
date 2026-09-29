@@ -11,6 +11,8 @@ import {
   AddColumnRequest,
   AddOptionRequest,
   ApproveRequest,
+  ReorderColumnsRequest,
+  DeleteItemRequest,
   CONTRACT_VERSION,
   CreateSavedViewRequest,
   CreateSubmissionRequest,
@@ -65,6 +67,7 @@ import {
   loadSettings,
   optionUsageMap,
   renameOption,
+  reorderColumns,
   saveSettings,
   updateColumn,
 } from "./services/schema.js";
@@ -100,7 +103,7 @@ app.use("*", async (c, next) => {
 app.onError((err, c) => {
   const requestId = c.get("requestId");
   if (err instanceof ApiError) {
-    return c.json({ error: { code: err.code, message: err.message, fields: err.fields, requestId } }, err.status as 400);
+    return c.json({ error: { code: err.code, message: err.message, fields: err.fields, details: err.details, requestId } }, err.status as 400);
   }
   log("error", "unhandled", { requestId, message: (err as Error).message, stack: (err as Error).stack?.split("\n").slice(0, 5).join(" | ") });
   return c.json({ error: { code: "INTERNAL", message: "Something went wrong. Please try again.", requestId } }, 500);
@@ -229,6 +232,14 @@ app.post("/api/schema/columns", async (c) => {
   const b = await body(c, AddColumnRequest);
   const r = await addColumn(c.env, P(c).tenantId, b.label, b.type);
   return schemaChanged(c, { op: "add_column", key: r.key, type: b.type });
+});
+
+// Registered before "/api/schema/columns/:key" routes; PUT is used only here.
+app.put("/api/schema/columns/order", async (c) => {
+  requirePermission(P(c), "schema:edit");
+  const b = await body(c, ReorderColumnsRequest);
+  await reorderColumns(c.env, P(c).tenantId, b.keys);
+  return schemaChanged(c, { op: "reorder_columns", keys: b.keys });
 });
 
 app.patch("/api/schema/columns/:key", async (c) => {
@@ -422,7 +433,7 @@ app.patch("/api/items/:id/draft", async (c) => {
 app.post("/api/items/:id/approve", async (c) => {
   requirePermission(P(c), "item:review");
   const b = await body(c, ApproveRequest);
-  return c.json(await approve(c.env, await schemaFor(c), P(c), c.req.param("id"), b.values, b.version, b.note));
+  return c.json(await approve(c.env, await schemaFor(c), P(c), c.req.param("id"), b.values, b.version, b.note, b.overrideDuplicate ?? false));
 });
 
 app.post("/api/items/:id/reject", async (c) => {
@@ -439,7 +450,10 @@ app.post("/api/items/:id/reprocess", async (c) => {
 
 app.delete("/api/items/:id", async (c) => {
   requirePermission(P(c), "item:delete");
-  return c.json(await softDelete(c.env, await schemaFor(c), P(c), c.req.param("id")));
+  // The body is optional (older dashboards send none).
+  const raw = await c.req.text();
+  const b = raw.trim() ? await body(c, DeleteItemRequest) : {};
+  return c.json(await softDelete(c.env, await schemaFor(c), P(c), c.req.param("id"), b.reason));
 });
 
 // ---------------------------------------------------------------------------

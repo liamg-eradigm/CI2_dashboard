@@ -60,9 +60,14 @@ analyst-entered information distinguishable; in the prototype every value is
    credentials, standard ports, tracking parameters and fragments removed,
    private/loopback/link-local/metadata/CGNAT/multicast/reserved/IPv6-special and
    internal hostnames blocked. Rejections are logged and never create an item.
-2. **Duplicate check**: normalised URL key (and `Idempotency-Key`, file hash)
-   per tenant, enforced by partial unique indexes — concurrent identical
-   submissions resolve to one item.
+2. **Idempotency and duplicates**: a repeated request (same `Idempotency-Key`,
+   e.g. a double-click or network retry) resolves to one item. A genuine
+   re-submission always creates a new item: only entries **already in the
+   tracker (approved)** count as duplicates, matched on normalised URL key,
+   file hash or content fingerprint and evaluated at read time. The item is
+   still sent to the Inbox with a warning (`duplicateOf`); approval is refused
+   with `DUPLICATE` unless the reviewer explicitly overrides it, and the
+   override is audited. Failed, rejected and in-review copies never block.
 3. **Create submission** → item **Queued**, processing attempt 1, job enqueued.
 4. **Isolated retrieval** (capture worker): DNS-over-HTTPS resolution with every
    address checked, manual redirects (≤ 5) re-checked hop by hop, robots.txt,
@@ -75,7 +80,8 @@ analyst-entered information distinguishable; in the prototype every value is
    copy stays inert even when downloaded; headline, dates, outlet and body text
    extracted.
 6. **Save copy** (D1 by default) + metadata; capture log records final URL + outcome.
-7. **Content fingerprint** → duplicate-content check.
+7. **Content fingerprint** (skipped when almost no text was extracted) → used
+   for the duplicate warning; it never fails the item.
 8. **Data policy check** (`redaction.ts`) → quarantine on secrets, card
    numbers, confidentiality markings, etc.
 9. **Draft pre-fill** (`prefill.ts`): **manual entry** in the prototype — the

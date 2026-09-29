@@ -360,7 +360,7 @@ the same subdomain name you chose in D2.
 ```bash
 npx wrangler d1 migrations apply DB --remote -c apps/api/wrangler.jsonc --env production
 ```
-It lists 3 migrations and asks **"Ok to proceed?"**. Type `y` and press Enter.
+It lists the migrations not yet applied (4 on a new database) and asks **"Ok to proceed?"**. Type `y` and press Enter.
 
 ✅ Each migration shows ✅. It ends with "Migrations applied" or similar.
 

@@ -192,7 +192,7 @@ export function BarChart({
   const hi = opts[opts.length - 1] ?? "High";
   const lo = opts[0] ?? "Low";
   return (
-    <section className={`card ${full ? "full-row" : ""}`} aria-labelledby={id}>
+    <section className={`card ${full ? "full-row" : "paired"}`} aria-labelledby={id}>
       <div className="card-head">
         <div>
           <h2 className="card-title" id={id}>
@@ -202,41 +202,43 @@ export function BarChart({
         </div>
         {mix && <MixLegend schema={schema} />}
       </div>
-      <ul className={`bars ${variant ?? ""}`} aria-label={`${title}: count per category`}>
-        {bars.map((b) => (
-          <li
-            key={b.label}
-            className={`bar-row ${mix ? "mix" : ""}`}
-            aria-label={mix ? `${b.label}: ${b.high} ${hi}, ${b.medium} medium, ${b.low} ${lo}` : `${b.label}: ${b.n}`}
-          >
-            <div className="lbl">
-              {onSelect ? (
-                <button className="link-btn" style={{ padding: 0, fontWeight: 400, color: "inherit", textAlign: "left", fontSize: "inherit" }} onClick={() => onSelect(b.label)} title={`Filter by ${b.label}`}>
-                  {b.label}
-                </button>
+      <div className="chart-body">
+        <ul className={`bars ${variant ?? ""}`} aria-label={`${title}: count per category`}>
+          {bars.map((b) => (
+            <li
+              key={b.label}
+              className={`bar-row ${mix ? "mix" : ""}`}
+              aria-label={mix ? `${b.label}: ${b.high} ${hi}, ${b.medium} medium, ${b.low} ${lo}` : `${b.label}: ${b.n}`}
+            >
+              <div className="lbl">
+                {onSelect ? (
+                  <button className="link-btn" style={{ padding: 0, fontWeight: 400, color: "inherit", textAlign: "left", fontSize: "inherit" }} onClick={() => onSelect(b.label)} title={`Filter by ${b.label}`}>
+                    {b.label}
+                  </button>
+                ) : (
+                  b.label
+                )}
+              </div>
+              {mix ? (
+                <div className="track" aria-hidden="true">
+                  <div className="fill h" style={{ width: `${(b.high / max) * 100}%` }} />
+                  <div className="fill m" style={{ width: `${(b.medium / max) * 100}%` }} />
+                  <div className="fill l" style={{ width: `${(b.low / max) * 100}%` }} />
+                </div>
               ) : (
-                b.label
+                <div className="track" aria-hidden="true">
+                  <div className="fill" style={{ width: `${(b.n / max) * 100}%` }} />
+                </div>
               )}
-            </div>
-            {mix ? (
-              <div className="track" aria-hidden="true">
-                <div className="fill h" style={{ width: `${(b.high / max) * 100}%` }} />
-                <div className="fill m" style={{ width: `${(b.medium / max) * 100}%` }} />
-                <div className="fill l" style={{ width: `${(b.low / max) * 100}%` }} />
+              <div className="n" aria-hidden="true">
+                {mix ? `${b.high} / ${b.medium} / ${b.low}` : b.n}
               </div>
-            ) : (
-              <div className="track" aria-hidden="true">
-                <div className="fill" style={{ width: `${(b.n / max) * 100}%` }} />
-              </div>
-            )}
-            <div className="n" aria-hidden="true">
-              {mix ? `${b.high} / ${b.medium} / ${b.low}` : b.n}
-            </div>
-          </li>
-        ))}
-      </ul>
-      {!bars.length && <div className="empty">No categories configured.</div>}
-      {footer && <div className="foot-note">{footer}</div>}
+            </li>
+          ))}
+        </ul>
+        {!bars.length && <div className="empty">No categories configured.</div>}
+        {footer && <div className="foot-note">{footer}</div>}
+      </div>
     </section>
   );
 }

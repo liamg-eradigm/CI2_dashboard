@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState, type DragEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { CAPTURE_LIMITS, IN_PROGRESS_STATUSES, checkAndNormaliseUrl, pipelineSteps, type ItemSummary, type Me } from "@eradigm/shared";
 import type { ApiError } from "../api/client";
@@ -15,6 +15,12 @@ const SAMPLES: [string, string][] = [
   ["Paywall", "https://news.example.com/login?next=/pfizer"],
   ["FTP", "ftp://files.example.com/a.html"],
 ];
+
+const DUP_BASIS: Record<"url" | "file" | "content", string> = {
+  url: "Same URL as the existing tracker entry",
+  file: "Same file as the existing tracker entry",
+  content: "Same article text as the existing tracker entry",
+};
 
 const STAGE_OF_CODE: Record<string, number> = { EMPTY: 0, INVALID: 0, SCHEME: 0, CREDENTIALS: 0, TOO_LONG: 0, BLOCKED_HOST: 1, PORT: 1, CONTENT_TYPE: 2, TOO_LARGE: 0, MALICIOUS_CONTENT: 4 };
 
@@ -43,6 +49,61 @@ export function InputPage({ me }: { me: Me }) {
   const nav = useNavigate();
   const item = useItem(run?.itemId ?? null, true);
   const d = item.data;
+  const [dragging, setDragging] = useState(false);
+  const dragDepth = useRef(0);
+
+  // A file dropped outside the drop zone must not make the browser open (navigate to) it.
+  useEffect(() => {
+    const stop = (e: globalThis.DragEvent) => {
+      if (e.dataTransfer?.types.includes("Files")) e.preventDefault();
+    };
+    window.addEventListener("dragover", stop);
+    window.addEventListener("drop", stop);
+    return () => {
+      window.removeEventListener("dragover", stop);
+      window.removeEventListener("drop", stop);
+    };
+  }, []);
+
+  const pickFile = (f: File | null) => {
+    setFile(f);
+    setErr(f && !/\.html?$/i.test(f.name) ? "Only .html or .htm files are accepted." : null);
+  };
+  const hasFiles = (e: DragEvent) => e.dataTransfer.types.includes("Files");
+  // Dropping anywhere on the "New source" card works, and switches to HTML file mode.
+  const dropHandlers = {
+    onDragEnter: (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      dragDepth.current += 1;
+      setDragging(true);
+    },
+    onDragOver: (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+    },
+    onDragLeave: (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      dragDepth.current = Math.max(0, dragDepth.current - 1);
+      if (!dragDepth.current) setDragging(false);
+    },
+    onDrop: (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      dragDepth.current = 0;
+      setDragging(false);
+      const files = e.dataTransfer.files;
+      if (!files.length) return;
+      setMode("file");
+      if (fileRef.current) fileRef.current.value = "";
+      if (files.length > 1) {
+        setFile(null);
+        return setErr("Drop one HTML file at a time.");
+      }
+      pickFile(files[0] ?? null);
+    },
+  };
   const inProgress = d ? IN_PROGRESS_STATUSES.includes(d.status) : false;
 
   const submit = async () => {
@@ -114,8 +175,10 @@ export function InputPage({ me }: { me: Me }) {
         : d.status === "failed"
           ? `Stopped · ${d.error?.message ?? "failed"}`
           : run.duplicate
-            ? `Already captured as ${d.code} · no duplicate created`
-            : "Complete · sent to Needs review";
+            ? `Already submitted as ${d.code} · not submitted twice`
+            : d.duplicateOf
+              ? `Complete · sent to Needs review · ⚠ possible duplicate of ${d.duplicateOf}`
+              : "Complete · sent to Needs review";
   const runColor = !run ? "" : run.failAt != null || d?.status === "failed" ? "var(--error)" : doneAll ? "var(--success-2)" : "var(--teal)";
 
   return (
@@ -134,7 +197,7 @@ export function InputPage({ me }: { me: Me }) {
         </div>
       </section>
       <div className="content">
-        <section className="card" aria-labelledby="new-src">
+        <section className={`card${dragging && mode === "url" ? " drag-target" : ""}`} aria-labelledby="new-src" {...dropHandlers}>
           <div className="card-head" style={{ alignItems: "center" }}>
             <h2 className="card-title" id="new-src">
               New source
@@ -178,9 +241,9 @@ export function InputPage({ me }: { me: Me }) {
             </>
           ) : (
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "stretch" }}>
-              <label className="drop">
-                <input ref={fileRef} type="file" accept=".html,.htm,text/html" className="sr-only" onChange={(e) => (setFile(e.target.files?.[0] ?? null), setErr(null))} aria-describedby={err ? "input-err" : "file-note"} />
-                <span style={{ fontSize: 14, fontWeight: 700, color: "var(--navy-700)" }}>{file ? file.name : "Choose an HTML file"}</span>
+              <label className={`drop${dragging ? " over" : ""}`} data-testid="drop-zone">
+                <input ref={fileRef} type="file" accept=".html,.htm,text/html" className="sr-only" onChange={(e) => pickFile(e.target.files?.[0] ?? null)} aria-describedby={err ? "input-err" : "file-note"} />
+                <span style={{ fontSize: 14, fontWeight: 700, color: "var(--navy-700)" }}>{dragging ? "Drop the HTML file here" : file ? file.name : "Drag and drop an HTML file here, or click to choose"}</span>
                 <span style={{ fontSize: 12, color: "var(--muted)" }} id="file-note">
                   {file ? `${Math.round(file.size / 1024)} KB` : `.html or .htm up to ${CAPTURE_LIMITS.maxBytes / 1048576} MB · use SingleFile when a login portal blocks URL capture`}
                 </span>
@@ -196,6 +259,15 @@ export function InputPage({ me }: { me: Me }) {
             </div>
           )}
         </section>
+
+        {d?.duplicateOf && d.status !== "approved" && (
+          <div className="banner warn dup-banner" role="alert">
+            <b>⚠ Possible duplicate: this source is already in the tracker as {d.duplicateOf}</b>
+            <span>
+              {DUP_BASIS[d.duplicateBasis ?? "url"]}. It has still been sent to the Inbox as {d.code}. When it is approved, the reviewer will be asked to confirm before a second tracker entry is created.
+            </span>
+          </div>
+        )}
 
         {run && (
           <section className="card" aria-labelledby="pipe-title">

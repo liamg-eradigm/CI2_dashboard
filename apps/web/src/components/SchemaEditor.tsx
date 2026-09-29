@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
 import { TYPE_LABEL, hasOptions, sortedColumns, type TrackerColumn } from "@eradigm/shared";
 import { api } from "../api/client";
 import { useInvalidate, useSchema, type SchemaWithUsage } from "../api/hooks";
@@ -37,6 +37,10 @@ export function SchemaEditor() {
   const [newCol, setNewCol] = useState({ label: "", type: "select" });
   const [adds, setAdds] = useState<Record<string, string>>({});
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Column order while dragging (keys); null = the saved order.
+  const [dragOrder, setDragOrder] = useState<string[] | null>(null);
+  const [dragKey, setDragKey] = useState<string | null>(null);
+  const dropped = useRef(false);
   const s = schema.data;
 
   const call = async (path: string, method: string, json: unknown, ok: string) => {
@@ -52,6 +56,68 @@ export function SchemaEditor() {
   };
   if (!s) return <div className="skeleton" style={{ height: 80, margin: 18 }} />;
   const usage = s.usage ?? {};
+  const saved = sortedColumns(s);
+  const byKey = new Map(saved.map((c) => [c.key, c]));
+  const cols = dragOrder ? dragOrder.map((k) => byKey.get(k)).filter((c): c is TrackerColumn => !!c) : saved;
+
+  /** Save a new column order (applies to drafts, the Tracker, filters and exports). */
+  const saveOrder = async (keys: string[], ok: string) => {
+    if (keys.join("\u0001") === saved.map((c) => c.key).join("\u0001")) return;
+    await call("/api/schema/columns/order", "PUT", { keys }, ok);
+  };
+  const sortBy = (dir: 1 | -1) =>
+    saveOrder(
+      [...saved].sort((a, b) => dir * a.label.localeCompare(b.label, undefined, { sensitivity: "base", numeric: true })).map((c) => c.key),
+      `Columns sorted ${dir === 1 ? "A → Z" : "Z → A"}`,
+    );
+  const move = (key: string, by: number) => {
+    const keys = saved.map((c) => c.key);
+    const i = keys.indexOf(key);
+    const j = i + by;
+    if (i < 0 || j < 0 || j >= keys.length) return;
+    keys.splice(j, 0, ...keys.splice(i, 1));
+    void saveOrder(keys, `Moved “${byKey.get(key)?.label}” to position ${j + 1}`);
+  };
+  const drag = {
+    start: (e: DragEvent<HTMLElement>, key: string) => {
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", key);
+      // The handle is what is dragged; show the whole row under the pointer.
+      const row = e.currentTarget.closest(".schema-row");
+      if (row) e.dataTransfer.setDragImage(row, 24, 20);
+      dropped.current = false;
+      setDragKey(key);
+      setDragOrder(saved.map((c) => c.key));
+    },
+    over: (e: DragEvent, overKey: string) => {
+      if (!dragKey) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      if (overKey === dragKey) return;
+      setDragOrder((o) => {
+        const keys = [...(o ?? saved.map((c) => c.key))];
+        const from = keys.indexOf(dragKey);
+        const to = keys.indexOf(overKey);
+        if (from < 0 || to < 0) return o;
+        keys.splice(to, 0, ...keys.splice(from, 1));
+        return keys;
+      });
+    },
+    drop: (e: DragEvent) => {
+      if (!dragKey) return;
+      e.preventDefault();
+      dropped.current = true;
+      const keys = dragOrder;
+      const label = byKey.get(dragKey)?.label;
+      const pos = (keys?.indexOf(dragKey) ?? 0) + 1;
+      setDragKey(null);
+      if (keys) void saveOrder(keys, `Moved “${label}” to position ${pos}`).finally(() => setDragOrder(null));
+    },
+    end: () => {
+      setDragKey(null);
+      if (!dropped.current) setDragOrder(null);
+    },
+  };
 
   const optRow = (c: TrackerColumn, o: string, removeLabel: string) => {
     const n = usage[c.key]?.[o] ?? 0;
@@ -74,16 +140,28 @@ export function SchemaEditor() {
 
   return (
     <div style={{ borderTop: "1px solid var(--rule)", overflowX: "auto" }}>
-      <div style={{ minWidth: 860 }}>
+      <div style={{ minWidth: 940 }}>
+        <div className="order-bar">
+          <span className="field-label">Column order</span>
+          <button className="btn secondary small" onClick={() => void sortBy(1)} title="Sort all columns alphabetically by name, A to Z">
+            Sort A → Z
+          </button>
+          <button className="btn secondary small" onClick={() => void sortBy(-1)} title="Sort all columns alphabetically by name, Z to A">
+            Sort Z → A
+          </button>
+          <span className="order-hint">
+            or drag <span aria-hidden="true">⠿</span> to reorder (keyboard: the ↑ ↓ buttons). The order applies to drafts, the Tracker, filters and exports.
+          </span>
+        </div>
         <div className="schema-grid head" aria-hidden="true">
-          <span>#</span>
+          <span>Order</span>
           <span>Column name</span>
           <span>Type</span>
           <span>Dropdown options</span>
           <span>Entry</span>
           <span />
         </div>
-        {sortedColumns(s).map((c, i) => {
+        {cols.map((c, i) => {
           const isOpen = open === c.key;
           const count = c.type === "macro" ? s.taxonomy.length : c.type === "sub" ? s.taxonomy.reduce((a, g) => a + g.subtrends.length, 0) : (c.options?.length ?? 0);
           const noun = c.type === "macro" ? "macrotrends" : c.type === "sub" ? "subtrends" : count === 1 ? "option" : "options";
@@ -93,10 +171,35 @@ export function SchemaEditor() {
             if (await call(`/api/schema/columns/${c.key}/options`, "POST", { value: v, parent }, `Added “${v}”${parent ? ` to ${parent}` : ` to ${c.label}`}`)) setAdds((a) => ({ ...a, [key]: "" }));
           };
           return (
-            <div key={c.key} style={{ borderTop: "1px solid var(--page)" }}>
+            <div
+              key={c.key}
+              className={`schema-row ${dragKey === c.key ? "dragging" : ""}`}
+              onDragOver={(e) => drag.over(e, c.key)}
+              onDrop={drag.drop}
+              data-testid={`col-row-${c.key}`}
+            >
               <div className="schema-grid">
-                <span className="mono" style={{ fontSize: 11.5, color: "var(--muted-2)" }}>
-                  {i + 1}
+                <span className="order-cell">
+                  <span
+                    className="drag-handle"
+                    title={`Drag to move “${c.label}”`}
+                    aria-hidden="true"
+                    draggable
+                    onDragStart={(e) => drag.start(e, c.key)}
+                    onDragEnd={drag.end}
+                    data-testid={`drag-${c.key}`}
+                  >
+                    ⠿
+                  </span>
+                  <span className="mono" style={{ fontSize: 11.5, color: "var(--muted-2)", minWidth: 16 }}>
+                    {i + 1}
+                  </span>
+                  <button className="move-btn" aria-label={`Move ${c.label} up`} disabled={i === 0 || !!dragKey} onClick={() => move(c.key, -1)}>
+                    ↑
+                  </button>
+                  <button className="move-btn" aria-label={`Move ${c.label} down`} disabled={i === cols.length - 1 || !!dragKey} onClick={() => move(c.key, 1)}>
+                    ↓
+                  </button>
                 </span>
                 <RenameInput value={c.label} label={`Rename column ${c.label}`} onCommit={(label) => call(`/api/schema/columns/${c.key}`, "PATCH", { label }, `Renamed column “${c.label}” to “${label}”`)} />
                 <span style={{ fontSize: 12.5, color: "var(--muted)" }}>{TYPE_LABEL[c.type]}</span>

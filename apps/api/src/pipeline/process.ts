@@ -21,7 +21,7 @@ import { sha256Hex } from "../lib/crypto.js";
 import { newId, nowIso } from "../lib/ids.js";
 import { alert, log, metric } from "../lib/log.js";
 import { audit } from "../services/audit.js";
-import { getItemRow, type ItemRow } from "../services/items.js";
+import { DUPLICATE_BASIS_LABEL, contentFingerprintInput, getItemRow, publishedDuplicate, type ItemRow } from "../services/items.js";
 import { loadSchema, loadSettings } from "../services/schema.js";
 import { captureUrlIsolated } from "./capture-client.js";
 import { prefillDraft, prefillMode } from "./prefill.js";
@@ -184,14 +184,17 @@ export async function processJob(env: Env, msg: JobMessage): Promise<"done" | "s
       singleFile: result.singleFile.detected,
       retentionDays: settings.retention.snapshotDays,
     });
-    const contentSha = await sha256Hex(`${result.article.headline}\n${result.article.bodyText}`.toLowerCase().replace(/\s+/g, " "));
+    const fp = contentFingerprintInput(result.article.headline, result.article.bodyText);
+    const contentSha = fp ? await sha256Hex(fp) : null;
     await env.DB.prepare(
       `UPDATE intelligence_items SET current_snapshot_id = ?1, final_url = ?2, outlet = COALESCE(?3, outlet), headline = ?4, body_text = ?5, publication_date = ?6,
               content_sha256 = ?7, model_warnings_json = ?8, updated_at = ?9 WHERE tenant_id = ?10 AND id = ?11`,
     )
       .bind(snap.id, result.finalUrl, result.article.siteName, result.article.headline, result.article.bodyText, result.article.publicationDate, contentSha, JSON.stringify(result.warnings), nowIso(), msg.tenantId, msg.itemId)
       .run();
-    await logCapture(env, msg.tenantId, msg.itemId, item.submitted_url ?? "", result.finalUrl, "Captured · sent to Needs review", true);
+    const dup = await publishedDuplicate(env, msg.tenantId, msg.itemId);
+    const dupNote = dup ? ` · ⚠ already in the tracker as ${dup.signalCode} (${DUPLICATE_BASIS_LABEL[dup.basis]})` : "";
+    await logCapture(env, msg.tenantId, msg.itemId, item.submitted_url ?? "", result.finalUrl, `Captured · sent to Needs review${dupNote}`, true);
     await saveSteps(env, msg, "extracting", steps);
     item = await getItemRow(env, msg.tenantId, msg.itemId);
   }
@@ -199,19 +202,8 @@ export async function processJob(env: Env, msg: JobMessage): Promise<"done" | "s
   // ---- Stage 2: extraction, policy and classification --------------------
   await setStatus(env, msg, ["queued", "fetching", "extracting"], "extracting");
 
-  if (item.content_sha256) {
-    const dup = await env.DB.prepare(
-      "SELECT id, code FROM intelligence_items WHERE tenant_id = ?1 AND content_sha256 = ?2 AND id <> ?3 AND status NOT IN ('deleted', 'failed') ORDER BY received_at LIMIT 1",
-    )
-      .bind(msg.tenantId, item.content_sha256, item.id)
-      .first<{ id: string; code: string }>();
-    if (dup) {
-      steps.push({ label: "Duplicate check", ok: false, detail: `Same article content as ${dup.code} · not processed again` });
-      await failItem(env, msg, "DUPLICATE_CONTENT", `Duplicate of ${dup.code} (same article content)`, steps, { duplicateOf: dup.id });
-      await audit(env, { tenantId: msg.tenantId, actorId: null, actorEmail: "system", action: "submission.duplicate", targetType: "item", targetId: item.id, details: { duplicateOf: dup.code, basis: "content" } });
-      return "done";
-    }
-  }
+  // Duplicates are not failed here: only entries already in the tracker count, and
+  // the reviewer is warned (and must confirm) at approval. See services/items.ts.
 
   const headline = item.headline ?? "";
   const body = item.body_text ?? "";

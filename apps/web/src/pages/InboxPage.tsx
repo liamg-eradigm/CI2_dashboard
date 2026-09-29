@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   CORE,
   IN_PROGRESS_STATUSES,
@@ -102,6 +103,8 @@ export function InboxPage({ me }: { me: Me }) {
 }
 
 type Draft = Record<string, string>;
+type DupInfo = { signalCode: string; id: string | null; basis: string | null };
+const DUP_BASIS: Record<string, string> = { url: "same URL", file: "same uploaded file", content: "same article text" };
 const toDraft = (schema: TrackerSchema, it: ItemSummary): Draft =>
   Object.fromEntries(sortedColumns(schema).map((c) => [c.key, Array.isArray(it.draft[c.key]) ? (it.draft[c.key] as string[]).join(", ") : String(it.draft[c.key] ?? "")]));
 
@@ -112,6 +115,7 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
   const [errors, setErrors] = useState<string[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [dupConfirm, setDupConfirm] = useState<DupInfo | null>(null);
   const toast = useToast();
   const inv = useInvalidate();
   const detail = useItem(open ? item.id : null);
@@ -183,6 +187,13 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
       await inv();
     } catch (e) {
       const err = e as ApiError;
+      if (err.code === "DUPLICATE") {
+        // The same source is in the tracker (possibly approved by someone else just now): ask to confirm.
+        const dd = err.details as { duplicateOf?: string; duplicateItemId?: string; basis?: string };
+        setDupConfirm({ signalCode: dd.duplicateOf ?? "an existing entry", id: dd.duplicateItemId ?? null, basis: dd.basis ?? null });
+        await inv("items");
+        return;
+      }
       if (err.fields?.length) setErrors(err.fields.map((f) => f.key));
       setMsg(err.message);
     } finally {
@@ -190,16 +201,26 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
     }
   };
 
-  const approve = async () => {
+  const approve = async (overrideDuplicate = false) => {
     const errs = validateValues(schema, values, { forApproval: true });
     if (errs.length) {
       setErrors(errs.map((e) => e.key));
       setMsg(`Validation failed. Complete: ${errs.map((e) => e.label).join(", ")}`);
       return;
     }
+    // Already in the tracker: never publish a second entry without an explicit confirmation.
+    if (!overrideDuplicate && item.duplicateOf) {
+      setDupConfirm({ signalCode: item.duplicateOf, id: item.duplicateItemId, basis: item.duplicateBasis });
+      return;
+    }
+    setDupConfirm(null);
     // Let any queued draft save finish first so approval uses the latest version.
     await chainRef.current;
-    void act("/approve", { values: valuesRef.current, version: versionRef.current }, (r) => `${r.signalCode} published to the tracker as rev ${r.publishedRev}`);
+    void act(
+      "/approve",
+      { values: valuesRef.current, version: versionRef.current, ...(overrideDuplicate ? { overrideDuplicate: true } : {}) },
+      (r) => `${r.signalCode} published to the tracker as rev ${r.publishedRev}${overrideDuplicate ? " (duplicate confirmed)" : ""}`,
+    );
   };
 
   const statusTag = item.status === "needs_review" ? "warn" : item.status === "approved" ? "ok" : item.status === "failed" || item.status === "rejected" ? "err" : "info";
@@ -237,6 +258,7 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
               </span>
             )}
             {!extraction && emptyDraft && <span className="tag info">Awaiting analyst entry</span>}
+            {item.duplicateOf && pending && <span className="tag err">⚠ Duplicate of {item.duplicateOf}</span>}
             {item.attempts > 1 && <span className="tag info">Attempt {item.attempts}</span>}
           </div>
           <div className="inbox-title" id={`t-${item.id}`}>
@@ -271,7 +293,7 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
               >
                 ✕ Reject
               </button>
-              <button className="btn" style={{ height: 38, padding: "0 18px", fontSize: 14 }} disabled={busy} onClick={approve}>
+              <button className="btn" style={{ height: 38, padding: "0 18px", fontSize: 14 }} disabled={busy} onClick={() => void approve()}>
                 ✓ Approve
               </button>
             </>
@@ -299,6 +321,17 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
           {IN_PROGRESS_STATUSES.includes(item.status) && <span className="tag info">Processing…</span>}
         </div>
       </div>
+
+      {pending && (dupConfirm || item.duplicateOf) && (
+        <DuplicateWarning
+          code={item.code}
+          dup={dupConfirm ?? { signalCode: item.duplicateOf ?? "", id: item.duplicateItemId, basis: item.duplicateBasis }}
+          confirming={!!dupConfirm && canReview}
+          busy={busy}
+          onCancel={() => setDupConfirm(null)}
+          onConfirm={() => void approve(true)}
+        />
+      )}
 
       {item.hasSnapshot && !open && pending && (
         <div className="source-hint">
@@ -435,5 +468,43 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
         </div>
       )}
     </section>
+  );
+}
+
+/** A very visible warning that the same source is already in the tracker, with an explicit override at approval. */
+function DuplicateWarning({ code, dup, confirming, busy, onCancel, onConfirm }: { code: string; dup: DupInfo; confirming: boolean; busy: boolean; onCancel: () => void; onConfirm: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (confirming) ref.current?.focus();
+  }, [confirming]);
+  const why = dup.basis ? DUP_BASIS[dup.basis] ?? "same source" : "same source";
+  return (
+    <div ref={ref} tabIndex={-1} className={`dup-warning ${confirming ? "confirming" : ""}`} role={confirming ? "alertdialog" : "note"} aria-labelledby={`dup-${code}`} aria-describedby={`dup-d-${code}`}>
+      <div className="dup-icon" aria-hidden="true">
+        ⚠
+      </div>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <b id={`dup-${code}`}>{confirming ? `Duplicate — ${dup.signalCode} is already in the tracker` : `Possible duplicate of ${dup.signalCode}, which is already in the tracker`}</b>
+        <p id={`dup-d-${code}`}>
+          {code} has the {why} as {dup.signalCode}.{" "}
+          {confirming ? "Approving it anyway will publish a second, separate tracker entry. Only do this if it is genuinely a different update." : "You will be asked to confirm before it can be approved."}{" "}
+          {dup.id && (
+            <Link to={`/tracker?signal=${encodeURIComponent(dup.id)}`} target="_blank" rel="noopener">
+              Open {dup.signalCode} in the Tracker ↗
+            </Link>
+          )}
+        </p>
+        {confirming && (
+          <div className="dup-actions">
+            <button className="btn secondary" disabled={busy} onClick={onCancel}>
+              Cancel — don't approve
+            </button>
+            <button className="btn danger" disabled={busy} onClick={onConfirm}>
+              Approve anyway (override duplicate)
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
