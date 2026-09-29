@@ -48,7 +48,9 @@ for NAME in SNAPSHOT_ENCRYPTION_KEY AUDIT_HMAC_KEY SESSION_SECRET; do
     echo "  $NAME already set · kept"
     continue
   fi
-  if [[ "$NAME" == "SESSION_SECRET" ]]; then VALUE=$(openssl rand -base64 48); else VALUE=$(openssl rand -base64 32); fi
+  # Node (always installed for this project) rather than openssl, which Windows lacks.
+  if [[ "$NAME" == "SESSION_SECRET" ]]; then BYTES=48; else BYTES=32; fi
+  VALUE=$(node -e "process.stdout.write(require('crypto').randomBytes($BYTES).toString('base64'))")
   printf '%s' "$VALUE" | npx wrangler secret put "$NAME" --env "$ENV" -c apps/api/wrangler.jsonc >/dev/null
   echo "  $NAME set"
   if [[ "$NAME" != "SESSION_SECRET" ]]; then SHOWN="$SHOWN\n    $NAME = $VALUE"; fi
