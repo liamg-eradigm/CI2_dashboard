@@ -12,6 +12,7 @@ import {
   checkOptionName,
   defaultSchema,
   getColumn,
+  hasOptions,
   splitMulti,
   type CreatableColumnType,
   type TenantSettings,
@@ -310,6 +311,32 @@ export async function addOption(env: Env, tenantId: string, key: string, value: 
   }
   await env.DB.batch([optionInsert(env, tenantId, key, chk.value, parentValue, position), bump(env, tenantId)]);
   return chk.value;
+}
+
+/**
+ * Set the order of a column's options. `values` must list every current option
+ * exactly once (for Subtrend: every subtrend of `parent`). Order is meaningful:
+ * it is the order shown in every dropdown, and for Growth intensity and Impact
+ * it is also the level (first = lowest) used by the charts and the Trend Test.
+ */
+export async function reorderOptions(env: Env, tenantId: string, key: string, values: string[], parent?: string): Promise<void> {
+  const schema = await loadSchema(env, tenantId);
+  const col = requireColumn(schema, key);
+  if (!hasOptions(col)) throw badRequest(`“${col.label}” has no dropdown options`);
+  let current: string[];
+  if (col.type === "sub") {
+    const g = schema.taxonomy.find((x) => x.name === parent);
+    if (!g) throw badRequest("Choose the macrotrend whose subtrends you are reordering");
+    current = g.subtrends;
+  } else current = col.type === "macro" ? schema.taxonomy.map((g) => g.name) : (col.options ?? []);
+  const cur = new Set(current);
+  if (values.length !== cur.size || new Set(values).size !== values.length || !values.every((v) => cur.has(v))) {
+    throw new ApiError("CONFLICT", "The options changed while you were reordering them. Reload and try again.");
+  }
+  await env.DB.batch([
+    ...values.map((v, i) => env.DB.prepare("UPDATE column_options SET position = ?1 WHERE tenant_id = ?2 AND column_key = ?3 AND value = ?4").bind(i, tenantId, key, v)),
+    bump(env, tenantId),
+  ]);
 }
 
 export async function renameOption(env: Env, tenantId: string, key: string, from: string, to: string) {

@@ -1,7 +1,7 @@
 import path from "node:path";
 import { writeFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { expect, expectAccessible, signInAs, test } from "./fixtures";
+import { choose, chooseMany, expect, expectAccessible, signInAs, test } from "./fixtures";
 
 test.describe("analyst role", () => {
   test.beforeEach(async ({ page }) => signInAs(page, "analyst"));
@@ -23,18 +23,66 @@ test.describe("analyst role", () => {
     await card.getByRole("button", { name: "✓ Approve" }).click();
     await expect(card.getByText(/Validation failed\. Complete: Date, Competitor, Macrotrend, Subtrend, News title/)).toBeVisible();
     await card.getByLabel("Date", { exact: true }).fill("2026-09-24");
-    await card.getByRole("textbox", { name: "Competitor", exact: true }).fill("AstraZeneca, Roche");
-    await card.getByRole("combobox", { name: "Macrotrend", exact: true }).selectOption("AI Investment in R&D");
-    await card.getByRole("combobox", { name: "Subtrend", exact: true }).selectOption("External Partnerships to Accelerate AI");
+    await chooseMany(card.getByRole("combobox", { name: "Competitor", exact: true }), ["AstraZeneca", "Roche"]);
+    await choose(card.getByRole("combobox", { name: "Macrotrend", exact: true }), "AI Investment in R&D");
+    await choose(card.getByRole("combobox", { name: "Subtrend", exact: true }), "External Partnerships to Accelerate AI");
     await card.getByRole("textbox", { name: "News title", exact: true }).fill("AstraZeneca and Roche form pre-competitive AI alliance");
-    await card.getByRole("combobox", { name: "Growth intensity", exact: true }).selectOption("Strong Increase");
-    await card.getByRole("combobox", { name: "Impact", exact: true }).selectOption("High");
-    await card.getByRole("combobox", { name: "Source", exact: true }).selectOption("PR");
-    await card.getByRole("combobox", { name: "Action", exact: true }).selectOption("Not Actioned");
+    await choose(card.getByRole("combobox", { name: "Growth intensity", exact: true }), "Strong Increase");
+    await choose(card.getByRole("combobox", { name: "Impact", exact: true }), "High");
+    await choose(card.getByRole("combobox", { name: "Source", exact: true }), "PR");
+    await choose(card.getByRole("combobox", { name: "Action", exact: true }), "Not Actioned");
     await card.getByRole("button", { name: "✓ Approve" }).click();
     await expect(page.getByText(/SIG-\d+ published to the tracker as rev 1/).first()).toBeVisible();
     await page.getByRole("button", { name: /Approved & rejected/ }).click();
     await expect(page.locator(".inbox-card", { hasText: "AstraZeneca and Roche form pre-competitive AI alliance" }).getByText(/Approved · SIG-/)).toBeVisible();
+  });
+
+  test("Inbox dropdowns are searchable, including the Competitor multi-select", async ({ page }) => {
+    await page.goto("/inbox");
+    const card = page.locator(".inbox-card", { hasText: "Novartis opens AI academy" });
+    // Competitor is a dropdown (not free text) that searches and allows several values.
+    const comp = card.getByRole("combobox", { name: "Competitor", exact: true });
+    await expect(card.getByRole("textbox", { name: "Competitor", exact: true })).toHaveCount(0);
+    await comp.click();
+    await comp.fill("vart");
+    const list = page.getByRole("listbox");
+    await expect(list.getByRole("option")).toHaveText(["Novartis"]);
+    await expectAccessible(page, "/inbox with a dropdown open");
+    await page.keyboard.press("Enter");
+    await comp.fill("ro");
+    await expect(list.getByRole("option", { name: "Roche", exact: true })).toBeVisible();
+    await expect(list.getByRole("option", { name: "Pfizer", exact: true })).toHaveCount(0);
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("Enter");
+    await comp.fill("zzz");
+    await expect(page.getByText("No matches for “zzz”")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(comp).toHaveValue(/Novartis, /);
+    // Backspace removes the last selected competitor.
+    await comp.click();
+    await page.keyboard.press("Backspace");
+    await page.keyboard.press("Escape");
+    await expect(comp).toHaveValue("Novartis");
+    // Single-value dropdowns search too; Subtrend lists only the chosen macrotrend's subtrends.
+    const macro = card.getByRole("combobox", { name: "Macrotrend", exact: true });
+    await macro.click();
+    await macro.fill("workforce");
+    await page.keyboard.press("Enter");
+    await expect(macro).toHaveValue("Workforce AI Upskilling");
+    const sub = card.getByRole("combobox", { name: "Subtrend", exact: true });
+    await sub.click();
+    const subs = await page.getByRole("listbox").getByRole("option").allInnerTexts();
+    expect(subs.length).toBeGreaterThan(0);
+    expect(subs).not.toContain("Mergers & Acquisitions");
+    await sub.fill("tiered");
+    await page.keyboard.press("Enter");
+    await expect(sub).toHaveValue(/Tiered AI accreditation/);
+    // Values persist as a saved draft.
+    await card.getByRole("textbox", { name: "News title", exact: true }).click();
+    await page.reload();
+    const again = page.locator(".inbox-card", { hasText: "Novartis opens AI academy" });
+    await expect(again.getByRole("combobox", { name: "Competitor", exact: true })).toHaveValue("Novartis");
+    await expect(again.getByRole("combobox", { name: "Subtrend", exact: true })).toHaveValue(/Tiered AI accreditation/);
   });
 
   test("blocks unsafe URLs before anything is fetched", async ({ page }) => {
@@ -114,14 +162,14 @@ test.describe("analyst role", () => {
     const code = (await first.locator(".code").innerText()).trim();
     const card = page.locator(".inbox-card", { has: page.locator(".code", { hasText: code }) });
     await card.getByLabel("Date", { exact: true }).fill("2026-09-24");
-    await card.getByRole("textbox", { name: "Competitor", exact: true }).fill("Roche");
-    await card.getByRole("combobox", { name: "Macrotrend", exact: true }).selectOption("AI Investment in R&D");
-    await card.getByRole("combobox", { name: "Subtrend", exact: true }).selectOption("External Partnerships to Accelerate AI");
+    await chooseMany(card.getByRole("combobox", { name: "Competitor", exact: true }), ["Roche"]);
+    await choose(card.getByRole("combobox", { name: "Macrotrend", exact: true }), "AI Investment in R&D");
+    await choose(card.getByRole("combobox", { name: "Subtrend", exact: true }), "External Partnerships to Accelerate AI");
     await card.getByRole("textbox", { name: "News title", exact: true }).fill("Roche DTP retail roll-out (second entry)");
-    await card.getByRole("combobox", { name: "Growth intensity", exact: true }).selectOption("Slight Increase");
-    await card.getByRole("combobox", { name: "Impact", exact: true }).selectOption("Medium");
-    await card.getByRole("combobox", { name: "Source", exact: true }).selectOption("PR");
-    await card.getByRole("combobox", { name: "Action", exact: true }).selectOption("Not Actioned");
+    await choose(card.getByRole("combobox", { name: "Growth intensity", exact: true }), "Slight Increase");
+    await choose(card.getByRole("combobox", { name: "Impact", exact: true }), "Medium");
+    await choose(card.getByRole("combobox", { name: "Source", exact: true }), "PR");
+    await choose(card.getByRole("combobox", { name: "Action", exact: true }), "Not Actioned");
     await card.getByRole("button", { name: "✓ Approve" }).click();
     const dialog = card.getByRole("alertdialog");
     await expect(dialog).toContainText("Duplicate — SIG-1100 is already in the tracker");
@@ -166,6 +214,45 @@ test.describe("analyst role", () => {
       await row.locator(".drag-handle").dragTo(page.locator(".schema-row").first());
       await expect.poll(async () => (await labels())[0]).toBe(l);
     }
+  });
+
+  test("reorders dropdown options: A–Z, Z–A, move buttons and drag and drop", async ({ page }) => {
+    await page.goto("/inbox");
+    await page.getByRole("button", { name: "Edit columns" }).click();
+    const row = page.locator(".schema-row", { has: page.getByLabel("Rename column Source", { exact: true }) });
+    await row.getByRole("button", { name: /options/ }).click();
+    const panel = page.locator(".opt-panel");
+    const opts = () => panel.locator("input[aria-label^='Rename option']").evaluateAll((els) => els.map((e) => (e as HTMLInputElement).value));
+    const original = await opts();
+    await panel.getByRole("button", { name: "Sort Source options Z to A" }).click();
+    await expect(page.locator(".toast").last()).toContainText("Source options sorted Z → A");
+    await expect.poll(opts).toEqual([...original].sort((a, b) => b.localeCompare(a, undefined, { sensitivity: "base", numeric: true })));
+    await panel.getByRole("button", { name: "Sort Source options A to Z" }).click();
+    const az = [...original].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base", numeric: true }));
+    await expect.poll(opts).toEqual(az);
+    await panel.getByRole("button", { name: `Move option ${az[1]} up` }).click();
+    await expect.poll(async () => (await opts())[0]).toBe(az[1]);
+    const cur = await opts();
+    const last = cur[cur.length - 1] as string;
+    await panel.locator(".opt-drag", { has: page.getByLabel(`Rename option ${last}`, { exact: true }) }).locator(".drag-handle").dragTo(panel.locator(".opt-drag").first());
+    await expect.poll(async () => (await opts())[0]).toBe(last);
+    // The Inbox dropdown uses the new order.
+    await page.getByRole("button", { name: "Done" }).click();
+    const card = page.locator(".inbox-card").first();
+    await card.getByRole("combobox", { name: "Source", exact: true }).click();
+    await expect(page.getByRole("listbox").getByRole("option").first()).toHaveText(last);
+    await page.keyboard.press("Escape");
+    // Growth intensity / Impact explain that their order is also the level.
+    await page.getByRole("button", { name: "Edit columns" }).click();
+    await page.locator(".schema-row", { has: page.getByLabel("Rename column Impact", { exact: true }) }).getByRole("button", { name: /options/ }).click();
+    await expect(page.locator(".order-note")).toContainText("the order is also the level");
+    // Restore the original Source order for the other tests.
+    await page.locator(".schema-row", { has: page.getByLabel("Rename column Source", { exact: true }) }).getByRole("button", { name: /options/ }).click();
+    for (const v of [...original].reverse()) {
+      await panel.locator(".opt-drag", { has: page.getByLabel(`Rename option ${v}`, { exact: true }) }).locator(".drag-handle").dragTo(panel.locator(".opt-drag").first());
+      await expect.poll(async () => (await opts())[0]).toBe(v);
+    }
+    await expect.poll(opts).toEqual(original);
   });
 
   test("deletes a tracker entry after an explicit confirmation", async ({ page }) => {

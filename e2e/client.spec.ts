@@ -1,4 +1,4 @@
-import { expect, expectAccessible, signInAs, test } from "./fixtures";
+import { choose, expect, expectAccessible, signInAs, test } from "./fixtures";
 
 test.describe("client role", () => {
   test.beforeEach(async ({ page }) => signInAs(page, "client"));
@@ -85,7 +85,7 @@ test.describe("client role", () => {
     expect(Math.abs(new Date(await from.inputValue()).getTime() - threeAgo.getTime()) / 86_400_000).toBeLessThan(3);
 
     const kpi = await page.locator(".kpi .v").first().innerText();
-    await bar.getByRole("combobox", { name: "Macrotrend", exact: true }).selectOption("Portfolio Restructuring");
+    await choose(bar.getByRole("combobox", { name: "Macrotrend", exact: true }), "Portfolio Restructuring");
     await expect(page.locator(".pill", { hasText: "Macrotrend:" })).toBeVisible();
     const filtered = await page.locator(".kpi .v").first().innerText();
     await page.getByRole("navigation").getByRole("link", { name: "Tracker" }).click();
@@ -110,6 +110,32 @@ test.describe("client role", () => {
     await page.keyboard.press("Escape");
     await expect(dialog).toHaveCount(0);
     await expect(page.getByRole("region", { name: "Filters", exact: true }).getByRole("combobox", { name: "Impact", exact: true })).toHaveValue("High");
+  });
+
+  test("filter dropdowns on the Tracker and Dashboard are searchable", async ({ page }) => {
+    await page.goto("/tracker");
+    const bar = page.getByRole("region", { name: "Filters", exact: true });
+    const macro = bar.getByRole("combobox", { name: "Macrotrend", exact: true });
+    await expect(macro).toHaveValue("All");
+    await macro.click();
+    await macro.fill("geo");
+    await expect(page.getByRole("listbox").getByRole("option")).toHaveText(["Geopolitics"]);
+    await page.keyboard.press("Enter");
+    await expect(page.locator(".pill", { hasText: "Macrotrend:" })).toContainText("Geopolitics");
+    await expect(page).toHaveURL(/f\.macrotrend=Geopolitics/);
+    // "All" clears the filter again.
+    await choose(macro, "All");
+    await expect(page.locator(".pill", { hasText: "Macrotrend:" })).toHaveCount(0);
+    await page.goto("/dashboard");
+    const comp = page.getByRole("region", { name: "Filters", exact: true }).getByRole("combobox", { name: "Competitor", exact: true });
+    await comp.click();
+    await comp.fill("astra");
+    await page.keyboard.press("Enter");
+    await expect(page.locator(".pill", { hasText: "Competitor:" })).toContainText("AstraZeneca");
+    // Trend Test dropdowns search as well.
+    const tt = page.locator("section.card", { has: page.getByRole("heading", { name: "Trend Test" }) });
+    await choose(tt.getByRole("combobox", { name: "Macrotrend", exact: true }), "Geopolitics");
+    await expectAccessible(page, "/dashboard with searchable filters");
   });
 
   test("timeline points are keyboard accessible", async ({ page }) => {

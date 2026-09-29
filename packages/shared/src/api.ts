@@ -58,6 +58,11 @@ export const RenameOptionRequest = z.object({
   to: z.string().min(1).max(MAX_OPTION_LENGTH),
 });
 export const DeleteOptionRequest = z.object({ value: z.string().min(1).max(MAX_OPTION_LENGTH) });
+/** The full new order of a column's options (for Subtrend: of one macrotrend's subtrends, named by `parent`). */
+export const ReorderOptionsRequest = z.object({
+  values: z.array(z.string().min(1).max(MAX_OPTION_LENGTH)).min(1).max(500),
+  parent: z.string().min(1).max(MAX_OPTION_LENGTH).optional(),
+});
 
 // ---------------------------------------------------------------------------
 // Identity
@@ -488,6 +493,7 @@ export const ENDPOINTS: EndpointDef[] = [
   { method: "put", path: "/api/schema/columns/order", summary: "Change the column order (drafts, Tracker, exports)", roles: STAFF, request: ReorderColumnsRequest, response: TrackerSchemaSchema },
   { method: "post", path: "/api/schema/columns/{key}/options", summary: "Add a dropdown option", roles: STAFF, request: AddOptionRequest, response: TrackerSchemaSchema },
   { method: "patch", path: "/api/schema/columns/{key}/options", summary: "Rename an option (propagates to signals, drafts and filters)", roles: STAFF, request: RenameOptionRequest, response: TrackerSchemaSchema },
+  { method: "put", path: "/api/schema/columns/{key}/options/order", summary: "Change the order of a column's dropdown options (or of one macrotrend's subtrends)", roles: STAFF, request: ReorderOptionsRequest, response: TrackerSchemaSchema },
   { method: "delete", path: "/api/schema/columns/{key}/options", summary: "Delete an unused option", roles: STAFF, request: DeleteOptionRequest, response: TrackerSchemaSchema },
   { method: "get", path: "/api/tracker", summary: "Server-side filtered, sorted, paginated approved signals", roles: ALL_ROLES, query: ["q", "from", "to", "f.<column>", "sort", "dir", "page", "pageSize"], response: TrackerPageSchema },
   { method: "get", path: "/api/tracker/export", summary: "Export approved signals (audited)", roles: ALL_ROLES, query: ["scope", "format", "q", "from", "to", "f.<column>", "sort", "dir"], raw: `One of ${EXPORT_FORMATS.join(", ")}` },

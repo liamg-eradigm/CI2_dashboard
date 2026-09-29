@@ -197,6 +197,36 @@ describe("column order", () => {
   });
 });
 
+describe("option order", () => {
+  it("reorders a column's options, macrotrends and one macrotrend's subtrends", async () => {
+    const before = await json(call(w.a.analyst, "GET", "/api/schema"));
+    const source = before.columns.find((c: any) => c.key === "source");
+    const rev = [...source.options].reverse();
+    const s1 = await json(call(w.a.analyst, "PUT", "/api/schema/columns/source/options/order", { body: { values: rev } }));
+    expect(s1.columns.find((c: any) => c.key === "source").options).toEqual(rev);
+
+    const macros = before.taxonomy.map((g: any) => g.name);
+    const s2 = await json(call(w.a.analyst, "PUT", "/api/schema/columns/macrotrend/options/order", { body: { values: [...macros].reverse() } }));
+    expect(s2.taxonomy.map((g: any) => g.name)).toEqual([...macros].reverse());
+    // Subtrends stay attached to their macrotrend when macrotrends move.
+    expect(s2.taxonomy.find((g: any) => g.name === macros[0]).subtrends).toEqual(before.taxonomy[0].subtrends);
+
+    const g = before.taxonomy.find((x: any) => x.subtrends.length > 1);
+    const subs = [...g.subtrends].reverse();
+    const s3 = await json(call(w.a.analyst, "PUT", "/api/schema/columns/subtrend/options/order", { body: { values: subs, parent: g.name } }));
+    expect(s3.taxonomy.find((x: any) => x.name === g.name).subtrends).toEqual(subs);
+
+    // Partial, duplicated or foreign lists are refused; subtrends need their macrotrend; clients cannot reorder.
+    expect((await call(w.a.analyst, "PUT", "/api/schema/columns/source/options/order", { body: { values: rev.slice(1) } })).status).toBe(409);
+    expect((await call(w.a.analyst, "PUT", "/api/schema/columns/source/options/order", { body: { values: [rev[0], ...rev.slice(0, -1)] } })).status).toBe(409);
+    expect((await call(w.a.analyst, "PUT", "/api/schema/columns/subtrend/options/order", { body: { values: subs } })).status).toBe(400);
+    expect((await call(w.a.analyst, "PUT", "/api/schema/columns/title/options/order", { body: { values: ["x"] } })).status).toBe(400);
+    expect((await call(w.a.client, "PUT", "/api/schema/columns/source/options/order", { body: { values: source.options } })).status).toBe(403);
+    await call(w.a.analyst, "PUT", "/api/schema/columns/source/options/order", { body: { values: source.options } });
+    await call(w.a.analyst, "PUT", "/api/schema/columns/macrotrend/options/order", { body: { values: macros } });
+  });
+});
+
 describe("saved views and settings", () => {
   it("preserves filters and trend thresholds in saved views", async () => {
     const state = { filters: { q: "", from: "2026-01-01", to: "2026-03-31", values: { macrotrend: "Geopolitics & Pricing" } }, trend: { macrotrend: "All", subtrend: "All", competitors: [], growth: "All", from: "2026-01-01", to: "2026-03-31", thresholds: { minSampleSize: 3, signalCountChangePct: 10, distinctCompetitorsChange: 1, impactScoreChangePct: 10, growthScoreChange: 0.1 } } };

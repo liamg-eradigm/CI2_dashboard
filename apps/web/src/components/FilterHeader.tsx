@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { ALL, CORE, filterableColumns, formatDate, optionsOf, subtrendsOf, type TrackerSchema } from "@eradigm/shared";
 import type { useFilters } from "../state/filters";
+import { Combobox } from "./Combobox";
 import { SavedViews } from "./SavedViews";
 
 type F = ReturnType<typeof useFilters>;
@@ -86,14 +87,7 @@ export function FilterHeader({ title, schema, f, kpis, viewKind }: { title: stri
           return (
             <label className={`field ${c.key === CORE.competitors ? "span2" : ""}`} key={c.key}>
               <span>{c.label}</span>
-              <select className={`control ${v !== ALL ? "on" : ""}`} value={v} onChange={(e) => f.setValue(c.key, e.target.value)}>
-                <option value={ALL}>All</option>
-                {opts.map((o) => (
-                  <option key={o} value={o}>
-                    {o}
-                  </option>
-                ))}
-              </select>
+              <Combobox className={`control ${v !== ALL ? "on" : ""}`} label={c.label} options={opts} pinned={[{ value: ALL, label: "All" }]} value={v} onChange={(x) => f.setValue(c.key, x)} />
             </label>
           );
         })}
