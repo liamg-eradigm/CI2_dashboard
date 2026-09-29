@@ -1,0 +1,6 @@
+# Consistent line endings whether the repo is used from Windows (GitHub Desktop,
+# PowerShell, Git Bash) or WSL/macOS/Linux: stored as LF, so files never show as
+# "modified" just because a different Git wrote them.
+* text=auto
+# Shell scripts must keep LF on every OS, or bash fails with "$'\r': command not found".
+*.sh text eol=lf
