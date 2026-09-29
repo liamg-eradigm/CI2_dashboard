@@ -7,8 +7,8 @@
  * on staging. Normal invites are created in the app (Administration → Users).
  *
  *   npx tsx scripts/create-invite.ts --tenant eradigm --email jane.doe@eradigm.com --name "Jane Doe" \
- *     --role admin --origin https://ci.eradigm.com --out ~/invite.sql
- *   npx wrangler d1 execute DB --remote --env production -c apps/api/wrangler.jsonc --file ~/invite.sql
+ *     --role admin --origin https://ci.eradigm.com --out invite.sql
+ *   npx wrangler d1 execute DB --remote --env production -c apps/api/wrangler.jsonc --file invite.sql
  *
  * --out writes the SQL file itself (UTF-8, any shell); without it the SQL goes to stdout.
  *
