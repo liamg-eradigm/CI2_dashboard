@@ -24,7 +24,7 @@ import { newId, nowIso } from "../lib/ids.js";
 import { metric } from "../lib/log.js";
 import { enqueue } from "../pipeline/process.js";
 import { audit } from "./audit.js";
-import { getItemRow, getSummary, nextCode, type ItemRow } from "./items.js";
+import { DUPLICATE_BASIS_LABEL, NO_PUBLISHED_DUPLICATE, getItemRow, getSummary, nextCode, publishedDuplicate, type ItemRow, type PublishedDuplicate } from "./items.js";
 import { PHYSICAL } from "./schema.js";
 
 function same(a: ItemValues[string] | undefined, b: ItemValues[string] | undefined): boolean {
@@ -90,6 +90,15 @@ function projectionStatements(env: Env, schema: TrackerSchema, tenantId: string,
   ];
 }
 
+function duplicateError(row: ItemRow, dup: PublishedDuplicate): ApiError {
+  return new ApiError(
+    "DUPLICATE",
+    `${row.code} is a duplicate of ${dup.signalCode}, which is already in the tracker (${DUPLICATE_BASIS_LABEL[dup.basis]}). Approving it will add a second tracker entry.`,
+    undefined,
+    { duplicateOf: dup.signalCode, duplicateItemId: dup.id, basis: dup.basis },
+  );
+}
+
 function validationError(errors: ReturnType<typeof validateValues>): ApiError {
   return new ApiError("VALIDATION", `Validation failed. Complete: ${errors.map((e) => e.label).join(", ")}`, errors);
 }
@@ -125,7 +134,16 @@ export async function saveDraft(env: Env, schema: TrackerSchema, p: Principal, i
   return getSummary(env, schema, p.tenantId, id);
 }
 
-export async function approve(env: Env, schema: TrackerSchema, p: Principal, id: string, raw: Record<string, unknown>, version: number, note?: string): Promise<ItemSummary> {
+export async function approve(
+  env: Env,
+  schema: TrackerSchema,
+  p: Principal,
+  id: string,
+  raw: Record<string, unknown>,
+  version: number,
+  note?: string,
+  overrideDuplicate = false,
+): Promise<ItemSummary> {
   const row = await getItemRow(env, p.tenantId, id);
   assertTransition(row.status, "approved", "approved");
   if (row.status !== "needs_review") throw conflict("Only drafts awaiting review can be approved");
@@ -133,6 +151,9 @@ export async function approve(env: Env, schema: TrackerSchema, p: Principal, id:
   const values = normaliseValues(schema, raw);
   const errors = validateValues(schema, values, { forApproval: true });
   if (errors.length) throw validationError(errors);
+  // The same source already in the tracker: the reviewer must explicitly confirm.
+  const dup = await publishedDuplicate(env, p.tenantId, id);
+  if (dup && !overrideDuplicate) throw duplicateError(row, dup);
 
   // Corrections are measured against the AI draft; manually entered drafts have none.
   const ai = await aiDraft(env, p.tenantId, id);
@@ -151,20 +172,38 @@ export async function approve(env: Env, schema: TrackerSchema, p: Principal, id:
   const revId = newId("rev");
   const res = await env.DB.batch([
     env.DB.prepare(
-      `UPDATE intelligence_items SET status = 'approved', draft_json = ?1, provenance_json = ?2, signal_code = ?3, published_rev = ?4, approved_at = ?5, approved_by = ?6,
-              version = version + 1, op_token = ?7, updated_at = ?5 WHERE tenant_id = ?8 AND id = ?9 AND version = ?10 AND status = 'needs_review'`,
-    ).bind(JSON.stringify(values), JSON.stringify(prov), signalCode, rev, now, p.userId, token, p.tenantId, id, version),
+      `UPDATE intelligence_items SET status = 'approved', draft_json = ?, provenance_json = ?, signal_code = ?, published_rev = ?, approved_at = ?, approved_by = ?,
+              version = version + 1, op_token = ?, updated_at = ? WHERE tenant_id = ? AND id = ? AND version = ? AND status = 'needs_review'${overrideDuplicate ? "" : ` AND ${NO_PUBLISHED_DUPLICATE}`}`,
+    ).bind(JSON.stringify(values), JSON.stringify(prov), signalCode, rev, now, p.userId, token, now, p.tenantId, id, version, ...(overrideDuplicate ? [] : [id])),
     ...projectionStatements(env, schema, p.tenantId, id, values, token),
     env.DB.prepare(
       `INSERT INTO item_revisions (id, tenant_id, item_id, seq, kind, published_rev, values_json, provenance_json, changed_keys, created_by, created_at, note)
        SELECT ?, ?, ?, ?, 'published', ?, ?, ?, ?, ?, ?, ? WHERE ${g.sql}`,
-    ).bind(revId, p.tenantId, id, await nextSeq(env, id), rev, JSON.stringify(values), JSON.stringify(prov), JSON.stringify(corrected), p.userId, now, note?.trim() || "Approved from Inbox · validation passed", ...g.binds),
+    ).bind(
+      revId,
+      p.tenantId,
+      id,
+      await nextSeq(env, id),
+      rev,
+      JSON.stringify(values),
+      JSON.stringify(prov),
+      JSON.stringify(corrected),
+      p.userId,
+      now,
+      note?.trim() || (dup ? `Approved from Inbox · confirmed although ${dup.signalCode} is already in the tracker` : "Approved from Inbox · validation passed"),
+      ...g.binds,
+    ),
     env.DB.prepare(
       `INSERT INTO review_decisions (id, tenant_id, item_id, revision_id, decision, reviewer_id, decided_at, note, corrected_keys)
        SELECT ?, ?, ?, ?, 'approve', ?, ?, ?, ? WHERE ${g.sql}`,
     ).bind(newId("dec"), p.tenantId, id, revId, p.userId, now, note ?? null, JSON.stringify(corrected), ...g.binds),
   ]);
-  if ((res[0]?.meta.changes ?? 0) === 0) throw conflict("This item was changed by someone else. Reload to see the latest version.");
+  if ((res[0]?.meta.changes ?? 0) === 0) {
+    // Another copy of the same source was approved in the meantime.
+    const raced = overrideDuplicate ? null : await publishedDuplicate(env, p.tenantId, id);
+    if (raced) throw duplicateError(row, raced);
+    throw conflict("This item was changed by someone else. Reload to see the latest version.");
+  }
   await audit(env, {
     tenantId: p.tenantId,
     actorId: p.userId,
@@ -172,7 +211,7 @@ export async function approve(env: Env, schema: TrackerSchema, p: Principal, id:
     action: "item.approved",
     targetType: "item",
     targetId: id,
-    details: { signalCode, rev, correctedKeys: corrected },
+    details: { signalCode, rev, correctedKeys: corrected, ...(dup ? { duplicateOverride: { of: dup.signalCode, basis: dup.basis } } : {}) },
   });
   metric(env, "item_approved", 1, { tenant: p.tenantId });
   return getSummary(env, schema, p.tenantId, id);
@@ -274,7 +313,13 @@ export async function reprocess(env: Env, ctx: ExecutionContext | null, schema: 
   return getSummary(env, schema, p.tenantId, id);
 }
 
-export async function softDelete(env: Env, schema: TrackerSchema, p: Principal, id: string): Promise<ItemSummary> {
+/**
+ * Mark an item Deleted. For an approved entry this removes it from the Tracker,
+ * Dashboard, exports and signal links for everyone. The row, its revisions and
+ * the audit trail are kept (soft delete); the saved page follows the normal
+ * retention policy.
+ */
+export async function softDelete(env: Env, schema: TrackerSchema, p: Principal, id: string, reason?: string): Promise<ItemSummary> {
   const row = await getItemRow(env, p.tenantId, id);
   assertTransition(row.status, "deleted", "deleted");
   const now = nowIso();
@@ -282,6 +327,6 @@ export async function softDelete(env: Env, schema: TrackerSchema, p: Principal, 
     .bind(now, p.tenantId, id, row.status)
     .run();
   if ((res.meta.changes ?? 0) === 0) throw conflict("This item was changed by someone else. Reload to see the latest version.");
-  await audit(env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "item.deleted", targetType: "item", targetId: id, details: { from: row.status, signalCode: row.signal_code } });
+  await audit(env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "item.deleted", targetType: "item", targetId: id, details: { from: row.status, signalCode: row.signal_code, ...(reason?.trim() ? { reason: reason.trim() } : {}) } });
   return getSummary(env, schema, p.tenantId, id);
 }

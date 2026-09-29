@@ -16,3 +16,6 @@ test-results/
 eval/report-*.json
 eval/*.jsonl
 !eval/examples.sample.jsonl
+
+# One-off SQL from scripts/create-tenant.ts and create-invite.ts
+/*.sql

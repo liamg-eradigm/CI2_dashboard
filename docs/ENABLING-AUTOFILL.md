@@ -53,7 +53,7 @@ LLM_PROVIDER=anthropic ANTHROPIC_API_KEY=sk-ant-... LLM_MODEL=claude-sonnet-5 np
 ```
 Compare category accuracy, required-field completion, evidence support and correction rate in `eval/report-*.json`, then pick the model and effort.
 
-Estimated usage is about 12–16k tokens per 10-page article: about 10–11k input and 1.5–5k output, including thinking. There is one call per new article. Duplicates, blocked and quarantined items make no call.
+Estimated usage is about 12–16k tokens per 10-page article: about 10–11k input and 1.5–5k output, including thinking. There is one call per new article. Idempotent retries (the same request sent twice), blocked and quarantined items make no call. A re-submission of a source already in the tracker is processed normally and flagged as a duplicate for the reviewer.
 
 | Model (ID) | Price per 1M tokens (input / output) | ≈ per article | ≈ per 500 articles |
 |---|---|---|---|

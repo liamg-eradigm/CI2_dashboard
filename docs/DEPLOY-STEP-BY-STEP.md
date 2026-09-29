@@ -360,7 +360,7 @@ the same subdomain name you chose in D2.
 ```bash
 npx wrangler d1 migrations apply DB --remote -c apps/api/wrangler.jsonc --env production
 ```
-It lists 3 migrations and asks **"Ok to proceed?"**. Type `y` and press Enter.
+It lists the migrations not yet applied (4 on a new database) and asks **"Ok to proceed?"**. Type `y` and press Enter.
 
 ✅ Each migration shows ✅. It ends with "Migrations applied" or similar.
 
@@ -528,7 +528,7 @@ Until you add these secrets, the Deploy and Backup workflows show "Skipping…" 
 | **Add or remove users** | Administration → Users and roles (Part K3); **Deactivate** removes access immediately |
 | **Renew the Microsoft client secret** (before 24 months) | Entra → the app → Certificates & secrets → **+ New client secret** → copy the Value → `npx wrangler secret put ENTRA_CLIENT_SECRET --env production -c apps/api/wrangler.jsonc` → paste → then delete the old secret in Entra |
 | **Roll back a bad deploy** | `npx wrangler deployments list -c apps/api/wrangler.jsonc --env production`, then `npx wrangler rollback <version-id> -c apps/api/wrangler.jsonc --env production` (same for `apps/web`) |
-| **Locked out (no admin can sign in)** | `npx tsx scripts/create-invite.ts --tenant acme --email you@eradigm.com --name "You" --role admin --origin <WEB ADDRESS> > invite.sql`, then `npx wrangler d1 execute DB --remote -c apps/api/wrangler.jsonc --env production --file invite.sql`, then `rm invite.sql`, and open the printed link |
+| **Locked out (no admin can sign in)** | `npx tsx scripts/create-invite.ts --tenant acme --email you@eradigm.com --name "You" --role admin --origin <WEB ADDRESS> --out invite.sql`, then `npx wrangler d1 execute DB --remote -c apps/api/wrangler.jsonc --env production --file invite.sql`, then `rm invite.sql`, and open the printed link (it only works once the second command has succeeded) |
 | **Use your own domain** (e.g. `ci.eradigm.com`) | Add the domain to Cloudflare, uncomment `routes` in `apps/web/wrangler.jsonc`, change `APP_ORIGIN`, add the new `/api/auth/callback` Redirect URI in Entra, then redeploy (API and web) |
 
 ---
@@ -540,6 +540,9 @@ Until you add these secrets, the Deploy and Backup workflows show "Skipping…" 
 | `command not found: node` / `npx` | Node.js isn't installed, or the terminal was opened before installing | Install Node.js (B1), then close and reopen the terminal |
 | `bash: scripts/provision.sh: No such file or directory` | The terminal isn't in the project folder | Redo C3 (`ls` must show `apps`, `docs`…) |
 | Windows: commands behave strangely or `bash` isn't recognised | You're in Command Prompt or PowerShell | Use **Git Bash** (B4) |
+| `openssl` is not recognised, or `wrangler secret list` shows nothing after provisioning | You ran the steps in PowerShell, so `scripts/provision.sh` never set the secrets | Generate each value with `node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"` (use `32` instead of `48` for `SNAPSHOT_ENCRYPTION_KEY` and `AUDIT_HMAC_KEY`, and save those two in a password manager), then set it with `npx wrangler secret put <NAME> --env production -c apps/api/wrangler.jsonc`. Do this for `SESSION_SECRET`, `SNAPSHOT_ENCRYPTION_KEY` and `AUDIT_HMAC_KEY`, plus `ENTRA_CLIENT_ID` / `ENTRA_CLIENT_SECRET` if they are missing |
+| Sign-in says *missing: SESSION_SECRET, APP_ORIGIN* | Those were not set (see the row above), or `APP_ORIGIN` is not the full web address | Set the secrets, set `APP_ORIGIN` to `https://eradigm-ci-web-production.<your-subdomain>.workers.dev` (F), redeploy the API, then reopen the same invite link |
+| WSL (Ubuntu) on Windows: `Unable to read SQL text file "/home/…"` and wrangler's log path starts with `C:\` | WSL is running the **Windows** copy of Node, which cannot see Linux paths like `~/…` | Keep the file in the project folder and use a relative path (`--file invite.sql`), or use Git Bash |
 | Pasting doesn't work in the terminal | Git Bash doesn't use Ctrl+V | **Shift + Insert** or right-click → Paste |
 | Cloudflare asks for a card or a paid plan | You clicked into a paid product (e.g. R2, Zero Trust, a domain purchase) | Go back; nothing in this guide needs one |
 | `Authentication error` / `not logged in` from wrangler | Wrangler's login expired | `npx wrangler login` again |

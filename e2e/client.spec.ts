@@ -30,6 +30,48 @@ test.describe("client role", () => {
     expect(res).toEqual([403, 403, 403]);
   });
 
+  test("dashboard trend charts sit two per row, aligned edge to edge with the full-width charts", async ({ page }) => {
+    await page.goto("/dashboard");
+    const box = async (name: string) => (await page.locator("section.card", { has: page.getByRole("heading", { name, exact: true }) }).boundingBox())!;
+    await expect(page.getByRole("heading", { name: "Impact mix by Subtrend", exact: true })).toBeVisible();
+    const [tl, mm, mi, sm, si, comp] = await Promise.all(["Signal Timeline", "Signals by Macrotrend", "Impact mix by Macrotrend", "Signals by Subtrend", "Impact mix by Subtrend", "Competitor Composition"].map(box));
+    const near = (a: number, b: number) => expect(Math.abs(a - b)).toBeLessThanOrEqual(1);
+    // Row 1: the two macrotrend charts; row 2: the two subtrend charts.
+    near(mm.y, mi.y);
+    near(sm.y, si.y);
+    expect(sm.y).toBeGreaterThan(mm.y + mm.height - 1);
+    // Same columns in both rows, equal widths and heights within a row.
+    near(mm.x, sm.x);
+    near(mi.x, si.x);
+    near(mm.width, mi.width);
+    near(sm.width, si.width);
+    near(mm.height, mi.height);
+    near(sm.height, si.height);
+    // The pair spans exactly the width of the full-width charts above and below.
+    near(mm.x, tl.x);
+    near(mi.x + mi.width, tl.x + tl.width);
+    near(comp.x, tl.x);
+    near(comp.x + comp.width, tl.x + tl.width);
+    // Bars inside a pair start on the same line.
+    const firstBar = async (name: string) => (await page.locator("section.card", { has: page.getByRole("heading", { name, exact: true }) }).locator(".bar-row").first().boundingBox())!;
+    near((await firstBar("Signals by Macrotrend")).y, (await firstBar("Impact mix by Macrotrend")).y);
+    near((await firstBar("Signals by Subtrend")).y, (await firstBar("Impact mix by Subtrend")).y);
+    // ...and every row stays level with its partner down to the last one.
+    const rowsY = (name: string) => page.locator("section.card", { has: page.getByRole("heading", { name, exact: true }) }).locator(".bar-row").evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().y)));
+    for (const [a, b] of [["Signals by Macrotrend", "Impact mix by Macrotrend"], ["Signals by Subtrend", "Impact mix by Subtrend"]] as const) {
+      const [ya, yb] = [await rowsY(a), await rowsY(b)];
+      expect(ya.length).toBe(yb.length);
+      ya.forEach((y, i) => expect(Math.abs(y - (yb[i] as number))).toBeLessThanOrEqual(1));
+    }
+  });
+
+  test("cannot delete tracker entries", async ({ page }) => {
+    await page.goto("/tracker");
+    await page.locator("table tbody td.title button").first().click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await expect(page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true })).toHaveCount(0);
+  });
+
   test("dashboard defaults to the last three months and reconciles with the tracker", async ({ page }) => {
     await page.goto("/dashboard");
     const bar = page.getByRole("region", { name: "Filters", exact: true });

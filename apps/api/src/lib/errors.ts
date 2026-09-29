@@ -12,6 +12,7 @@ export type ErrorCode =
   | "NOT_FOUND"
   | "VALIDATION"
   | "CONFLICT"
+  | "DUPLICATE"
   | "RATE_LIMITED"
   | "BAD_REQUEST"
   | "PAYLOAD_TOO_LARGE"
@@ -25,6 +26,7 @@ const STATUS: Record<ErrorCode, number> = {
   NOT_FOUND: 404,
   VALIDATION: 422,
   CONFLICT: 409,
+  DUPLICATE: 409,
   RATE_LIMITED: 429,
   BAD_REQUEST: 400,
   PAYLOAD_TOO_LARGE: 413,
@@ -38,11 +40,13 @@ export class ApiError extends Error {
   readonly code: ErrorCode;
   readonly status: number;
   readonly fields?: FieldError[];
-  constructor(code: ErrorCode, message: string, fields?: FieldError[]) {
+  readonly details?: Record<string, unknown>;
+  constructor(code: ErrorCode, message: string, fields?: FieldError[], details?: Record<string, unknown>) {
     super(message);
     this.code = code;
     this.status = STATUS[code];
     this.fields = fields;
+    this.details = details;
   }
 }
 

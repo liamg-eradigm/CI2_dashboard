@@ -5,7 +5,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { app } from "../src/app";
-import { setEntraFetcher } from "../src/auth/entra";
+import { appOrigin, entraConfigured, setEntraFetcher } from "../src/auth/entra";
 import { _resetJwksCache } from "../src/auth/jwt";
 import { call, env, json, seedWorld, type World } from "./helpers";
 
@@ -252,6 +252,16 @@ describe("Sign in with Microsoft", () => {
     expect((await call(w.a.analyst, "POST", `/api/users/${admin.id}/invite`)).status).toBe(403);
     expect((await call(w.a.analyst, "POST", `/api/users/${client.id}/invite`)).status).toBe(201);
     expect((await call(w.a.client, "POST", `/api/users/${client.id}/invite`)).status).toBe(403);
+  });
+
+  it("forgives common APP_ORIGIN slips and explains what is wrong", () => {
+    expect(appOrigin({ APP_ORIGIN: " https://Eradigm-CI-Web-Production.eradigm.workers.dev/ " })).toBe("https://eradigm-ci-web-production.eradigm.workers.dev");
+    expect(appOrigin({ APP_ORIGIN: "eradigm-ci-web-production.eradigm.workers.dev" })).toBe("https://eradigm-ci-web-production.eradigm.workers.dev");
+    expect(appOrigin({ APP_ORIGIN: "https://x.workers.dev/app" })).toBeNull();
+    expect(appOrigin({ APP_ORIGIN: "REPLACE_WITH_PRODUCTION_WEB_ADDRESS" })).toBeNull();
+    const cfg = entraConfigured({ ...E, APP_ORIGIN: "https://x.workers.dev/app", SESSION_SECRET: "short" });
+    expect(cfg.ok).toBe(false);
+    expect(cfg.problems.join(" ")).toMatch(/SESSION_SECRET is shorter than 32 characters.*currently "https:\/\/x\.workers\.dev\/app"/);
   });
 
   it("reports the configuration in Administration → Deployment status", async () => {

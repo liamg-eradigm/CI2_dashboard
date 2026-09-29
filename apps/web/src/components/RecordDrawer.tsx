@@ -46,9 +46,12 @@ export function RecordDrawer({ id, schema, me, onClose, onOpen }: { id: string; 
   const sig = useSignal(id);
   const ref = useFocusTrap(true, onClose);
   const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const s = sig.data;
   const cols = sortedColumns(schema);
   const canRevise = can(me.role, "item:edit");
+  // Admins and analysts only (the API enforces the same rule).
+  const canDelete = can(me.role, "item:delete");
   const published = s?.revisions.filter((r) => r.kind === "published") ?? [];
 
   return (
@@ -70,9 +73,14 @@ export function RecordDrawer({ id, schema, me, onClose, onOpen }: { id: string; 
             )}
           </div>
           <div style={{ display: "flex", gap: 8 }}>
-            {canRevise && s && !editing && (
+            {canRevise && s && !editing && !deleting && (
               <button className="btn secondary small" onClick={() => setEditing(true)}>
                 Revise
+              </button>
+            )}
+            {canDelete && s && !editing && !deleting && (
+              <button className="btn danger small" onClick={() => setDeleting(true)}>
+                Delete
               </button>
             )}
             <button className="icon-btn" onClick={onClose} aria-label="Close record" data-autofocus>
@@ -90,6 +98,7 @@ export function RecordDrawer({ id, schema, me, onClose, onOpen }: { id: string; 
         )}
         {s && (
           <div className="drawer-body">
+            {deleting && <DeleteConfirm id={s.id} code={s.code} title={String(s.values[CORE.title] ?? "")} onCancel={() => setDeleting(false)} onDeleted={onClose} />}
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <h2 id="drawer-title" style={{ font: "700 20px/1.3 var(--sans)", textWrap: "pretty" }}>
                 {String(s.values[CORE.title] ?? "")}
@@ -225,6 +234,55 @@ export function RecordDrawer({ id, schema, me, onClose, onOpen }: { id: string; 
         )}
       </div>
     </>
+  );
+}
+
+/** Explicit, two-step deletion of a tracker entry (soft delete, audited). */
+function DeleteConfirm({ id, code, title, onCancel, onDeleted }: { id: string; code: string; title: string; onCancel: () => void; onDeleted: () => void }) {
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
+  const toast = useToast();
+  const inv = useInvalidate();
+  useEffect(() => ref.current?.focus(), []);
+  const submit = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      await api(`/api/items/${id}`, { method: "DELETE", json: reason.trim() ? { reason: reason.trim() } : {} });
+      toast(`${code} deleted from the tracker`);
+      onDeleted();
+      await inv();
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : "Could not delete");
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="delete-confirm" role="alertdialog" aria-labelledby="del-title" aria-describedby="del-desc" tabIndex={-1} ref={ref}>
+      <b id="del-title">Delete {code} from the tracker?</b>
+      <p id="del-desc">
+        “{title || code}” will disappear from the Tracker, the Dashboard and exports for everyone, including clients. This can't be undone from the dashboard. Its history and the audit log are kept.
+      </p>
+      <label className="field">
+        <span>Reason (optional, recorded in the audit log)</span>
+        <input className="control" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} placeholder="e.g. Duplicate entry, published in error" />
+      </label>
+      {err && (
+        <div className="err-msg" role="alert">
+          ✕ {err}
+        </div>
+      )}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button className="btn secondary" disabled={busy} onClick={onCancel}>
+          Cancel
+        </button>
+        <button className="btn danger confirm" disabled={busy} onClick={submit}>
+          {busy ? "Deleting…" : `Delete ${code}`}
+        </button>
+      </div>
+    </div>
   );
 }
 

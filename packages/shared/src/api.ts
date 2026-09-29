@@ -44,6 +44,10 @@ export const AddColumnRequest = z.object({
 export const UpdateColumnRequest = z
   .object({ label: z.string().min(1).max(MAX_LABEL_LENGTH).optional(), required: z.boolean().optional() })
   .refine((v) => v.label !== undefined || v.required !== undefined, "Nothing to update");
+/** Optional reason recorded in the audit log when an item or tracker entry is deleted. */
+export const DeleteItemRequest = z.object({ reason: z.string().max(500).optional() });
+/** The full new column order: every current column key exactly once. */
+export const ReorderColumnsRequest = z.object({ keys: z.array(z.string().min(1).max(64)).min(1).max(200) });
 export const AddOptionRequest = z.object({
   value: z.string().min(1).max(MAX_OPTION_LENGTH),
   /** Macrotrend the new subtrend belongs to (subtrend column only). */
@@ -126,7 +130,10 @@ export const ItemSummarySchema = z.object({
   warningsCount: z.number().int(),
   modelWarnings: z.array(z.string()),
   error: z.object({ code: z.string(), message: z.string() }).nullable(),
+  /** Signal code of an entry ALREADY IN THE TRACKER that this item duplicates (only approved entries count). */
   duplicateOf: z.string().nullable(),
+  duplicateItemId: z.string().nullable(),
+  duplicateBasis: z.enum(["url", "file", "content"]).nullable(),
   quarantined: z.boolean(),
   version: z.number().int(),
   attempts: z.number().int(),
@@ -193,7 +200,13 @@ export const ItemDetailSchema = ItemSummarySchema.extend({
 });
 
 export const SaveDraftRequest = z.object({ values: ItemValuesSchema, version: z.number().int() });
-export const ApproveRequest = z.object({ values: ItemValuesSchema, version: z.number().int(), note: z.string().max(500).optional() });
+export const ApproveRequest = z.object({
+  values: ItemValuesSchema,
+  version: z.number().int(),
+  note: z.string().max(500).optional(),
+  /** Publish even though the same source is already in the tracker (the API refuses with DUPLICATE otherwise). */
+  overrideDuplicate: z.boolean().optional(),
+});
 export const RejectRequest = z.object({ reason: z.string().max(500).optional(), version: z.number().int() });
 export const ReprocessRequest = z.object({ version: z.number().int().optional() });
 export const ReviseRequest = z.object({ values: ItemValuesSchema, note: z.string().min(1).max(500) });
@@ -410,6 +423,7 @@ export const ErrorSchema = z.object({
     code: z.string(),
     message: z.string(),
     fields: z.array(z.object({ key: z.string(), label: z.string(), code: z.string(), message: z.string() })).optional(),
+    details: z.record(z.string(), z.unknown()).optional(),
     requestId: z.string().optional(),
   }),
 });
@@ -443,7 +457,7 @@ export type ExtractedFieldView = z.infer<typeof ExtractedFieldSchema>;
 // ---------------------------------------------------------------------------
 
 export interface EndpointDef {
-  method: "get" | "post" | "patch" | "delete";
+  method: "get" | "post" | "put" | "patch" | "delete";
   path: string;
   summary: string;
   roles: readonly string[];
@@ -471,6 +485,7 @@ export const ENDPOINTS: EndpointDef[] = [
   { method: "post", path: "/api/schema/columns", summary: "Add a column", roles: STAFF, request: AddColumnRequest, response: TrackerSchemaSchema },
   { method: "patch", path: "/api/schema/columns/{key}", summary: "Rename a column or toggle Required", roles: STAFF, request: UpdateColumnRequest, response: TrackerSchemaSchema },
   { method: "delete", path: "/api/schema/columns/{key}", summary: "Delete a non-core column", roles: STAFF, response: TrackerSchemaSchema },
+  { method: "put", path: "/api/schema/columns/order", summary: "Change the column order (drafts, Tracker, exports)", roles: STAFF, request: ReorderColumnsRequest, response: TrackerSchemaSchema },
   { method: "post", path: "/api/schema/columns/{key}/options", summary: "Add a dropdown option", roles: STAFF, request: AddOptionRequest, response: TrackerSchemaSchema },
   { method: "patch", path: "/api/schema/columns/{key}/options", summary: "Rename an option (propagates to signals, drafts and filters)", roles: STAFF, request: RenameOptionRequest, response: TrackerSchemaSchema },
   { method: "delete", path: "/api/schema/columns/{key}/options", summary: "Delete an unused option", roles: STAFF, request: DeleteOptionRequest, response: TrackerSchemaSchema },
@@ -489,7 +504,7 @@ export const ENDPOINTS: EndpointDef[] = [
   { method: "post", path: "/api/items/{id}/approve", summary: "Validate server-side and publish as a new revision", roles: STAFF, request: ApproveRequest, response: ItemSummarySchema },
   { method: "post", path: "/api/items/{id}/reject", summary: "Reject a draft", roles: STAFF, request: RejectRequest, response: ItemSummarySchema },
   { method: "post", path: "/api/items/{id}/reprocess", summary: "Request another processing attempt (safe to retry)", roles: STAFF, request: ReprocessRequest, response: ItemSummarySchema },
-  { method: "delete", path: "/api/items/{id}", summary: "Mark an item Deleted", roles: STAFF, response: ItemSummarySchema },
+  { method: "delete", path: "/api/items/{id}", summary: "Mark an item Deleted (also removes an approved entry from the tracker)", roles: STAFF, request: DeleteItemRequest, response: ItemSummarySchema },
   { method: "get", path: "/api/views", summary: "Saved views", roles: ALL_ROLES, response: z.array(SavedViewSchema) },
   { method: "post", path: "/api/views", summary: "Save a view", roles: ALL_ROLES, request: CreateSavedViewRequest, response: SavedViewSchema },
   { method: "delete", path: "/api/views/{id}", summary: "Delete a saved view", roles: ALL_ROLES },

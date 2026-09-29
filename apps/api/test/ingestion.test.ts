@@ -41,13 +41,17 @@ describe("URL submissions", () => {
     expect(n?.n).toBe(0);
   });
 
-  it("handles duplicate submissions idempotently (URL, Idempotency-Key and concurrency)", async () => {
+  it("is idempotent per Idempotency-Key, but never blocks re-submitting a source that is not in the tracker", async () => {
     const first = await call(w.a.analyst, "POST", "/api/submissions", { body: { url: "https://news.example.com/dup-story?utm_source=x" } });
     expect(first.status).toBe(201);
     const a = await first.json<any>();
-    const again = await json(call(w.a.analyst, "POST", "/api/submissions", { body: { url: "http://www.news.example.com/dup-story/#frag" } }));
-    expect(again.duplicate).toBe(true);
-    expect(again.item.id).toBe(a.item.id);
+    // The same URL again (e.g. after a failed capture) creates a new Inbox item: nothing is in the tracker yet.
+    const again = await call(w.a.analyst, "POST", "/api/submissions", { body: { url: "http://www.news.example.com/dup-story/#frag" } });
+    expect(again.status).toBe(201);
+    const b = await again.json<any>();
+    expect(b.duplicate).toBe(false);
+    expect(b.item.id).not.toBe(a.item.id);
+    expect(b.item.duplicateOf).toBeNull();
 
     const results = await Promise.all(
       Array.from({ length: 5 }, () => call(w.a.analyst, "POST", "/api/submissions", { body: { url: "https://news.example.com/race" }, headers: { "idempotency-key": "race-1" } })),
@@ -56,6 +60,71 @@ describe("URL submissions", () => {
     expect(new Set(bodies.map((b) => b.item.id)).size).toBe(1);
     const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM intelligence_items WHERE tenant_id = ?1 AND url_key = 'news.example.com/race'").bind(w.a.id).first<{ n: number }>();
     expect(n?.n).toBe(1);
+  });
+
+  it("warns (but proceeds) when the source is already in the tracker, and approval requires an explicit override", async () => {
+    const html = articleHtml({ url: "https://news.example.com/in-tracker", title: "Already tracked story", body: "Roche expands its robotics-enabled lab network across three new sites in Europe.\nThe expansion completes in 2027." });
+    const r1 = await upload(w.a.analyst, html, "tracked.html");
+    expect(r1.status).toBe(201);
+    await drain();
+    const firstItem = await json(call(w.a.analyst, "GET", `/api/items/${(await r1.json<any>()).item.id}`));
+    expect(firstItem.status).toBe("needs_review");
+    const published = await json(approveWith(w.a.analyst, firstItem));
+    expect(published.status).toBe("approved");
+    expect(published.duplicateOf).toBeNull();
+
+    // Same URL typed on the Input page: created and sent to the Inbox, flagged as a duplicate.
+    const byUrl = await call(w.a.analyst, "POST", "/api/submissions", { body: { url: "https://news.example.com/in-tracker" } });
+    expect(byUrl.status).toBe(201);
+    const u = await byUrl.json<any>();
+    expect(u.duplicate).toBe(false);
+    expect(u.item).toMatchObject({ duplicateOf: published.signalCode, duplicateItemId: published.id, duplicateBasis: "url" });
+
+    // The same file uploaded again: also allowed, and flagged.
+    const r2 = await upload(w.a.analyst, html, "tracked-again.html");
+    expect(r2.status).toBe(201);
+    const second = (await r2.json<any>()).item;
+    expect(second.duplicateOf).toBe(published.signalCode);
+    await drain();
+    const draft = await json(call(w.a.analyst, "GET", `/api/items/${second.id}`));
+    expect(draft.status).toBe("needs_review");
+
+    // Approval refuses without the override, with a clear message and machine-readable details.
+    const refused = await approveWith(w.a.analyst, draft);
+    expect(refused.status).toBe(409);
+    const err = (await refused.json<any>()).error;
+    expect(err.code).toBe("DUPLICATE");
+    expect(err.message).toContain(`duplicate of ${published.signalCode}`);
+    expect(err.details).toMatchObject({ duplicateOf: published.signalCode, duplicateItemId: published.id });
+    expect((await json(call(w.a.analyst, "GET", `/api/items/${second.id}`))).status).toBe("needs_review");
+
+    // Explicit override: published as a separate entry, and the override is audited.
+    const ok = await call(w.a.analyst, "POST", `/api/items/${draft.id}/approve`, { body: { values: { ...draft.draft, ...COMPLETE }, version: draft.version, overrideDuplicate: true } });
+    expect(ok.status).toBe(200);
+    const pub2 = await ok.json<any>();
+    expect(pub2.status).toBe("approved");
+    expect(pub2.signalCode).not.toBe(published.signalCode);
+    const ev = await env.DB.prepare("SELECT details_json FROM audit_events WHERE action = 'item.approved' AND target_id = ?1").bind(draft.id).first<{ details_json: string }>();
+    expect(JSON.parse(ev!.details_json).duplicateOverride).toMatchObject({ of: published.signalCode });
+    const dupEvents = await env.DB.prepare("SELECT COUNT(*) AS n FROM audit_events WHERE action = 'submission.duplicate' AND target_id IN (?1, ?2)").bind(u.item.id, second.id).first<{ n: number }>();
+    expect(dupEvents?.n).toBe(2);
+  });
+
+  it("does not count rejected or failed copies as duplicates", async () => {
+    const html = articleHtml({ url: "https://news.example.com/rejected-once", title: "Rejected once story", body: "Pfizer pilots an autonomous chemistry platform with two academic partners.\nResults are expected next year." });
+    const r1 = await upload(w.a.analyst, html, "rej.html");
+    const first = (await r1.json<any>()).item;
+    await drain();
+    const d1 = await json(call(w.a.analyst, "GET", `/api/items/${first.id}`));
+    expect((await call(w.a.analyst, "POST", `/api/items/${first.id}/reject`, { body: { version: d1.version } })).status).toBe(200);
+    const r2 = await upload(w.a.analyst, html, "rej-again.html");
+    expect(r2.status).toBe(201);
+    const second = (await r2.json<any>()).item;
+    expect(second.id).not.toBe(first.id);
+    expect(second.duplicateOf).toBeNull();
+    await drain();
+    const d2 = await json(call(w.a.analyst, "GET", `/api/items/${second.id}`));
+    expect((await approveWith(w.a.analyst, d2)).status).toBe(200);
   });
 
   it("retries failed capture safely and never duplicates records", async () => {
@@ -244,7 +313,24 @@ describe("file submissions and the review lifecycle", () => {
     expect(again.attempts).toBe(2);
   });
 
-  it("detects duplicate content across different uploads", async () => {
+  it("lets analysts and admins (never clients) delete a tracker entry, with an audited reason", async () => {
+    const item = await ingest(w.a.analyst, "Entry to delete", "Sanofi signs a licensing deal for an oncology asset with a biotech partner.\nThe deal includes milestone payments.");
+    const pub = await json(approveWith(w.a.analyst, item));
+    expect((await call(w.a.client, "GET", `/api/signals/${pub.id}`)).status).toBe(200);
+    expect((await call(w.a.client, "DELETE", `/api/items/${pub.id}`)).status).toBe(403);
+    const del = await call(w.a.analyst, "DELETE", `/api/items/${pub.id}`, { body: { reason: "Published in error" } });
+    expect(del.status).toBe(200);
+    expect((await del.json<any>()).status).toBe("deleted");
+    expect((await call(w.a.client, "GET", `/api/signals/${pub.id}`)).status).toBe(404);
+    const t = await json(call(w.a.client, "GET", "/api/tracker?from=2000-01-01&to=2100-01-01&pageSize=100"));
+    expect(t.rows.find((r: any) => r.id === pub.id)).toBeUndefined();
+    const ev = await env.DB.prepare("SELECT details_json FROM audit_events WHERE action = 'item.deleted' AND target_id = ?1").bind(pub.id).first<{ details_json: string }>();
+    expect(JSON.parse(ev!.details_json)).toMatchObject({ from: "approved", signalCode: pub.signalCode, reason: "Published in error" });
+    // Once deleted it no longer counts as a duplicate, and cannot be deleted twice.
+    expect((await call(w.a.admin, "DELETE", `/api/items/${pub.id}`)).status).toBe(409);
+  });
+
+  it("flags duplicate content across different uploads only once a copy is in the tracker", async () => {
     const body = "Unique duplicate-content body about Roche and robotics-enabled labs in Basel.\nThe lab doubles throughput by 2027.";
     const first = await ingest(w.a.analyst, "Duplicate content test", body);
     expect(first.status).toBe("needs_review");
@@ -252,9 +338,12 @@ describe("file submissions and the review lifecycle", () => {
     const { item } = await res.json<any>();
     await drain();
     const second = await json(call(w.a.analyst, "GET", `/api/items/${item.id}`));
-    expect(second.status).toBe("failed");
-    expect(second.error.code).toBe("DUPLICATE_CONTENT");
-    expect(second.duplicateOf).toBe(first.code);
+    // Never failed: the first copy is only in review, so this is not a duplicate yet.
+    expect(second.status).toBe("needs_review");
+    expect(second.duplicateOf).toBeNull();
+    const pub = await json(approveWith(w.a.analyst, first));
+    const after = await json(call(w.a.analyst, "GET", `/api/items/${item.id}`));
+    expect(after).toMatchObject({ duplicateOf: pub.signalCode, duplicateBasis: "content" });
   });
 
   it("quarantines content that violates the data policy without sending it anywhere", async () => {

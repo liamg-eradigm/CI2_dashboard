@@ -180,6 +180,23 @@ describe("schema editing", () => {
   });
 });
 
+describe("column order", () => {
+  it("reorders all columns (A–Z, Z–A or dragged) and rejects stale or partial orders", async () => {
+    const before = await json(call(w.a.analyst, "GET", "/api/schema"));
+    const keys = [...before.columns].sort((a: any, b: any) => a.position - b.position).map((c: any) => c.key);
+    const reversed = [...keys].reverse();
+    const after = await json(call(w.a.analyst, "PUT", "/api/schema/columns/order", { body: { keys: reversed } }));
+    expect([...after.columns].sort((a: any, b: any) => a.position - b.position).map((c: any) => c.key)).toEqual(reversed);
+    expect(after.revision).toBeGreaterThan(before.revision);
+    // Missing a column, or naming one twice: refused, nothing changes.
+    expect((await call(w.a.analyst, "PUT", "/api/schema/columns/order", { body: { keys: keys.slice(1) } })).status).toBe(409);
+    expect((await call(w.a.analyst, "PUT", "/api/schema/columns/order", { body: { keys: [keys[0], ...keys.slice(0, -1)] } })).status).toBe(409);
+    // Clients cannot edit the schema.
+    expect((await call(w.a.client, "PUT", "/api/schema/columns/order", { body: { keys } })).status).toBe(403);
+    await call(w.a.analyst, "PUT", "/api/schema/columns/order", { body: { keys } });
+  });
+});
+
 describe("saved views and settings", () => {
   it("preserves filters and trend thresholds in saved views", async () => {
     const state = { filters: { q: "", from: "2026-01-01", to: "2026-03-31", values: { macrotrend: "Geopolitics & Pricing" } }, trend: { macrotrend: "All", subtrend: "All", competitors: [], growth: "All", from: "2026-01-01", to: "2026-03-31", thresholds: { minSampleSize: 3, signalCountChangePct: 10, distinctCompetitorsChange: 1, impactScoreChangePct: 10, growthScoreChange: 0.1 } } };

@@ -121,7 +121,7 @@
         //    https, no trailing slash, e.g. "https://ci.eradigm.com" or
         //    "https://eradigm-ci-web-production.<your-subdomain>.workers.dev". It must match the
         //    Redirect URI registered in Microsoft Entra ID (docs/SIGN-IN-ENTRA.md, step 1).
-        "APP_ORIGIN": "REPLACE_WITH_PRODUCTION_WEB_ADDRESS",
+        "APP_ORIGIN": "https://eradigm-ci-web-production.eradigm.workers.dev",
         "SESSION_IDLE_MINUTES": "480",
         "SESSION_MAX_HOURS": "24",
         "LLM_PROVIDER": "none",

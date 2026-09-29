@@ -24,7 +24,7 @@
 | Treat all inputs/outputs as confidential; classification & redaction before external transmission | `packages/shared/src/redaction.ts`; tenant-configurable markers. The data-policy check runs on every capture; redaction applies to anything sent to an AI service once pre-fill is enabled. |
 | Quarantine on policy violation; non-sensitive incident record; notify admin; retention procedure | `apps/api/src/pipeline/process.ts` (`quarantine`), `incidents` table (category + time only), notifications + webhook, immediate deletion of stored copies. |
 | Do not claim third-party deletion | Documented; UI and API never claim provider-side deletion. |
-| Failed jobs retried safely without duplicates | Attempt-numbered jobs, conditional state updates, operation tokens, unique indexes (tests: `ingestion.test.ts`). |
+| Failed jobs retried safely without duplicates | Attempt-numbered jobs, conditional state updates, operation tokens, the submission Idempotency-Key unique index (tests: `ingestion.test.ts`). A source already in the tracker needs an explicit, audited override to be published twice. |
 | Clear failure messages and recovery options | Failed items show the reason, Retry/Delete actions, Input page pipeline shows the failing step. |
 | Dashboard/API security headers | CSP (no inline scripts, `frame-ancestors 'none'`), `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy: no-referrer`, HSTS, Permissions-Policy (`apps/web/public/_headers`); API `Cache-Control: no-store`. |
 | Spreadsheet formula injection in exports | Cells starting with `= + - @` are neutralised in CSV/TSV. |

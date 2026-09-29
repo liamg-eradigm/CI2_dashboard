@@ -35,7 +35,7 @@ verification on the deployed Cloudflare environment / with Eradigm credentials �
 | Criterion | Status | Evidence |
 |---|---|---|
 | Unauthorized cross-tenant access blocked | ✅ | `security.test.ts › tenant isolation` (reads, writes, lists, aggregates, exports, tenant switching) + E2E |
-| Duplicate submissions handled idempotently | ✅ | URL key, Idempotency-Key, file hash, content fingerprint; 5 concurrent identical submissions → 1 item (`ingestion.test.ts`) |
+| Duplicate submissions handled idempotently | ✅ | Idempotency-Key: 5 concurrent identical requests → 1 item. Duplicates count only against the tracker (URL key, file hash, content fingerprint): warned at Input, refused at approval unless overridden, override audited; failed/rejected copies never block (`ingestion.test.ts`, `e2e/analyst.spec.ts`) |
 | Failed jobs retried safely | ✅ | transient failure → retry → Failed → Retry → Needs review; stale message replay is a no-op; one revision, one snapshot |
 | Every published item has provenance + audit trail | ✅ | per-field provenance, attempt versions/model, published revision, `item.approved` audit event (tested); seeded items also carry audit events |
 | Dashboard totals reconcile with filtered tracker records | ✅ | `dashboard.test.ts` over 8 filter combinations (KPIs, timeline, bars, competitor counts) + E2E |

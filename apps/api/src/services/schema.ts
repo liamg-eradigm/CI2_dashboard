@@ -212,6 +212,19 @@ export async function updateColumn(env: Env, tenantId: string, key: string, patc
   return { before: { label: col.label, required: col.required }, after: { label, required: patch.required ?? col.required } };
 }
 
+/** Set the order of all columns at once. `keys` must list every current column exactly once. */
+export async function reorderColumns(env: Env, tenantId: string, keys: string[]): Promise<void> {
+  const schema = await loadSchema(env, tenantId);
+  const current = new Set(schema.columns.map((c) => c.key));
+  if (keys.length !== current.size || new Set(keys).size !== keys.length || !keys.every((k) => current.has(k))) {
+    throw new ApiError("CONFLICT", "The columns changed while you were reordering them. Reload and try again.");
+  }
+  await env.DB.batch([
+    ...keys.map((k, i) => env.DB.prepare("UPDATE tracker_columns SET position = ?1 WHERE tenant_id = ?2 AND key = ?3 AND deleted_at IS NULL").bind(i, tenantId, k)),
+    bump(env, tenantId),
+  ]);
+}
+
 export async function deleteColumn(env: Env, tenantId: string, key: string) {
   const schema = await loadSchema(env, tenantId);
   const col = requireColumn(schema, key);

@@ -64,7 +64,7 @@ export interface ItemRow {
 
 type Enriched = ItemRow & {
   submitted_by_name: string | null;
-  duplicate_code: string | null;
+  published_dup: string | null;
   decision: string | null;
   decision_by: string | null;
   decision_at: string | null;
@@ -72,9 +72,51 @@ type Enriched = ItemRow & {
   snapshot_status: string | null;
 };
 
+export type DuplicateBasis = "url" | "file" | "content";
+export interface PublishedDuplicate {
+  id: string;
+  signalCode: string;
+  basis: DuplicateBasis;
+}
+
+/**
+ * Only entries already in the tracker (approved) count as duplicates: a failed,
+ * rejected or still-in-review copy never blocks a new submission. Evaluated at
+ * read time, so the warning is always current (e.g. the other copy is approved
+ * or deleted later). `i` is the item being checked, `d` the tracker entry.
+ */
+const DUP_MATCH = `d.tenant_id = i.tenant_id AND d.id <> i.id AND d.status = 'approved' AND (
+    (i.url_key IS NOT NULL AND d.url_key = i.url_key) OR
+    (i.file_sha256 IS NOT NULL AND d.file_sha256 = i.file_sha256) OR
+    (i.content_sha256 IS NOT NULL AND d.content_sha256 = i.content_sha256))`;
+const DUP_BASIS = `CASE WHEN i.url_key IS NOT NULL AND d.url_key = i.url_key THEN 'url' WHEN i.file_sha256 IS NOT NULL AND d.file_sha256 = i.file_sha256 THEN 'file' ELSE 'content' END`;
+const DUP_SELECT = `SELECT d.id || ' ' || d.signal_code || ' ' || ${DUP_BASIS} FROM intelligence_items d WHERE ${DUP_MATCH} ORDER BY d.approved_at LIMIT 1`;
+
+function parseDup(v: string | null): PublishedDuplicate | null {
+  const [id, signalCode, basis] = (v ?? "").split(" ");
+  return id && signalCode && basis ? { id, signalCode, basis: basis as DuplicateBasis } : null;
+}
+
+/** The tracker entry this item duplicates, if any (used to guard approval). */
+export async function publishedDuplicate(env: Env, tenantId: string, id: string): Promise<PublishedDuplicate | null> {
+  const r = await env.DB.prepare(`SELECT (${DUP_SELECT}) AS dup FROM intelligence_items i WHERE i.tenant_id = ?1 AND i.id = ?2`).bind(tenantId, id).first<{ dup: string | null }>();
+  return parseDup(r?.dup ?? null);
+}
+
+/** SQL condition that is true when item `?` has NO duplicate in the tracker (for guarded approval). */
+export const NO_PUBLISHED_DUPLICATE = `NOT EXISTS (SELECT 1 FROM intelligence_items i, intelligence_items d WHERE i.id = ? AND ${DUP_MATCH})`;
+
+export const DUPLICATE_BASIS_LABEL: Record<DuplicateBasis, string> = { url: "same URL", file: "same uploaded file", content: "same article text" };
+
+/** Fingerprint of the article text, or null when there is too little text to compare meaningfully. */
+export function contentFingerprintInput(headline: string | null | undefined, body: string | null | undefined): string | null {
+  const text = `${headline ?? ""}\n${body ?? ""}`.toLowerCase().replace(/\s+/g, " ").trim();
+  return text.length >= 40 ? text : null;
+}
+
 const SELECT_ENRICHED = `SELECT i.*,
   (SELECT u.name FROM users u WHERE u.id = i.submitted_by) AS submitted_by_name,
-  (SELECT d.code FROM intelligence_items d WHERE d.id = i.duplicate_of AND d.tenant_id = i.tenant_id) AS duplicate_code,
+  CASE WHEN i.status IN ('approved', 'deleted') THEN NULL ELSE (${DUP_SELECT}) END AS published_dup,
   (SELECT s.retention_status FROM source_snapshots s WHERE s.id = i.current_snapshot_id) AS snapshot_status,
   rd.decision AS decision, (SELECT u.name FROM users u WHERE u.id = rd.reviewer_id) AS decision_by, rd.decided_at AS decision_at, rd.note AS decision_note
   FROM intelligence_items i
@@ -88,6 +130,7 @@ export function fullDraft(schema: TrackerSchema, json: string): ItemValues {
 }
 
 export function toSummary(schema: TrackerSchema, r: Enriched): ItemSummary {
+  const dup = parseDup(r.published_dup);
   const extraction = r.extraction_json ? (JSON.parse(r.extraction_json) as Record<string, ExtractedFieldView>) : null;
   return {
     id: r.id,
@@ -106,7 +149,9 @@ export function toSummary(schema: TrackerSchema, r: Enriched): ItemSummary {
     warningsCount: r.warnings_count,
     modelWarnings: JSON.parse(r.model_warnings_json || "[]"),
     error: r.error_code ? { code: r.error_code, message: r.error_message ?? "" } : null,
-    duplicateOf: r.duplicate_code,
+    duplicateOf: dup?.signalCode ?? null,
+    duplicateItemId: dup?.id ?? null,
+    duplicateBasis: dup?.basis ?? null,
     quarantined: !!r.quarantined,
     version: r.version,
     attempts: r.attempts,

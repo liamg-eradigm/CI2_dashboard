@@ -13,6 +13,7 @@ import { ApiError, conflict, forbidden, notFound } from "../lib/errors.js";
 import { newId, nowIso } from "../lib/ids.js";
 import { sha256Hex } from "../lib/crypto.js";
 import { deleteUserSessions, randomToken } from "../auth/sessions.js";
+import { appOrigin } from "../auth/entra.js";
 import { audit } from "./audit.js";
 
 export const INVITE_DAYS = 7;
@@ -75,7 +76,7 @@ export async function createInvite(env: Env, p: Principal, userId: string): Prom
     env.DB.prepare("INSERT INTO user_invites (id, user_id, tenant_id, created_by, created_at, expires_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)").bind(await sha256Hex(token), userId, p.tenantId, p.userId, now, expiresAt),
   ]);
   await audit(env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "user.invite_created", targetType: "user", targetId: userId, details: { expiresAt } });
-  const origin = (env.APP_ORIGIN ?? "").replace(/\/$/, "");
+  const origin = appOrigin(env) ?? "";
   return { url: `${origin}/invite/${token}`, expiresAt };
 }
 

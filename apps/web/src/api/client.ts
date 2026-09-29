@@ -11,12 +11,14 @@ export class ApiError extends Error {
   status: number;
   code: string;
   fields: NonNullable<ApiErrorBody["error"]["fields"]>;
+  details: Record<string, unknown>;
   requestId?: string;
   constructor(status: number, body: Partial<ApiErrorBody> | null) {
     super(body?.error?.message ?? `Request failed (${status})`);
     this.status = status;
     this.code = body?.error?.code ?? "HTTP_" + status;
     this.fields = body?.error?.fields ?? [];
+    this.details = body?.error?.details ?? {};
     this.requestId = body?.error?.requestId;
   }
 }
