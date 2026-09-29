@@ -1,20 +1,11 @@
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { CAPTURE_LIMITS, IN_PROGRESS_STATUSES, checkAndNormaliseUrl, pipelineSteps, type ItemSummary, type Me } from "@eradigm/shared";
+import { CAPTURE_LIMITS, IN_PROGRESS_STATUSES, STREAM_LABEL, pipelineSteps, type ItemSummary, type Me, type Stream } from "@eradigm/shared";
 import type { ApiError } from "../api/client";
 import { api } from "../api/client";
 import { useCaptureLog, useInvalidate, useItem, useSchema } from "../api/hooks";
 import { ModelOutputTable } from "../components/ModelOutput";
 import { localDateTime } from "../lib/format";
-
-
-const SAMPLES: [string, string][] = [
-  ["Public article", "newsroom.example.com/roche-autonomous-lab?utm_source=li#top"],
-  ["Private IP", "http://10.0.0.12/admin"],
-  ["Metadata", "http://169.254.169.254/latest/meta-data"],
-  ["Paywall", "https://news.example.com/login?next=/pfizer"],
-  ["FTP", "ftp://files.example.com/a.html"],
-];
 
 const DUP_BASIS: Record<"url" | "file" | "content", string> = {
   url: "Same URL as the existing tracker entry",
@@ -22,37 +13,126 @@ const DUP_BASIS: Record<"url" | "file" | "content", string> = {
   content: "Same article text as the existing tracker entry",
 };
 
-const STAGE_OF_CODE: Record<string, number> = { EMPTY: 0, INVALID: 0, SCHEME: 0, CREDENTIALS: 0, TOO_LONG: 0, BLOCKED_HOST: 1, PORT: 1, CONTENT_TYPE: 2, TOO_LARGE: 0, MALICIOUS_CONTENT: 4 };
+const STAGE_OF_CODE: Record<string, number> = { TOO_LARGE: 0, CONTENT_TYPE: 0, MALICIOUS_CONTENT: 4 };
+
+const SOURCES: { stream: Stream; title: string; note: string }[] = [
+  { stream: "primary", title: "Primary Source", note: "Sent to the Primary Inbox · Source Tier: Primary" },
+  { stream: "secondary", title: "Secondary Source", note: "Sent to the Secondary Inbox · Source Tier: Reviewed-Secondary" },
+];
 
 interface LocalRun {
-  mode: "url" | "file";
+  stream: Stream;
   itemId: string | null;
   duplicate?: boolean;
   /** Failure before an item was created (policy rejection). */
   failAt?: number;
   failDetail?: string;
-  firstDetail?: string;
+}
+
+const hasFiles = (e: DragEvent) => e.dataTransfer.types.includes("Files");
+
+/** One upload area (identical for Primary and Secondary): drag and drop, or click to choose. */
+function SourceCard({ stream, title, note, busy, onSubmit }: { stream: Stream; title: string; note: string; busy: boolean; onSubmit: (stream: Stream, file: File) => Promise<boolean> }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const depth = useRef(0);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const id = `src-${stream}`;
+
+  const pick = (f: File | null) => {
+    setFile(f);
+    setErr(f && !/\.html?$/i.test(f.name) ? "Only .html or .htm files are accepted." : null);
+  };
+  const submit = async () => {
+    setErr(null);
+    if (!file) return setErr("Choose or drop an HTML file first.");
+    if (!/\.html?$/i.test(file.name)) return setErr("Only .html or .htm files are accepted.");
+    if (file.size > CAPTURE_LIMITS.maxBytes) return setErr(`File exceeds the ${CAPTURE_LIMITS.maxBytes / 1048576} MB limit.`);
+    if (await onSubmit(stream, file)) {
+      setFile(null);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  return (
+    <section
+      className={`card source-card${dragging ? " drag-target" : ""}`}
+      aria-labelledby={`${id}-title`}
+      data-testid={`source-${stream}`}
+      onDragEnter={(e) => {
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        depth.current += 1;
+        setDragging(true);
+      }}
+      onDragOver={(e) => {
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "copy";
+      }}
+      onDragLeave={(e) => {
+        if (!hasFiles(e)) return;
+        depth.current = Math.max(0, depth.current - 1);
+        if (!depth.current) setDragging(false);
+      }}
+      onDrop={(e) => {
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        depth.current = 0;
+        setDragging(false);
+        const files = e.dataTransfer.files;
+        if (!files.length) return;
+        if (fileRef.current) fileRef.current.value = "";
+        if (files.length > 1) {
+          setFile(null);
+          return setErr("Drop one HTML file at a time.");
+        }
+        pick(files[0] ?? null);
+      }}
+    >
+      <div className="card-head" style={{ alignItems: "center" }}>
+        <div>
+          <h2 className="card-title" id={`${id}-title`}>
+            {title}
+          </h2>
+          <span className="card-sub">{note}</span>
+        </div>
+      </div>
+      <div className="source-row">
+        <label className={`drop${dragging ? " over" : ""}`} data-testid={`drop-zone-${stream}`}>
+          <input ref={fileRef} type="file" accept=".html,.htm,text/html" className="sr-only" onChange={(e) => pick(e.target.files?.[0] ?? null)} aria-describedby={err ? `${id}-err` : `${id}-note`} aria-label={`${title}: HTML file`} />
+          <span style={{ fontSize: 14, fontWeight: 700, color: "var(--navy-700)" }}>{dragging ? "Drop the HTML file here" : file ? file.name : "Drag and drop an HTML file here, or click to choose"}</span>
+          <span style={{ fontSize: 12, color: "var(--muted)" }} id={`${id}-note`}>
+            {file ? `${Math.round(file.size / 1024)} KB` : `.html or .htm up to ${CAPTURE_LIMITS.maxBytes / 1048576} MB · save pages with SingleFile`}
+          </span>
+        </label>
+        <button className="btn lg" onClick={submit} disabled={busy} aria-label={`Process file for ${title}`}>
+          {busy ? "Uploading…" : "Process file"}
+        </button>
+      </div>
+      {err && (
+        <div className="err-msg" id={`${id}-err`} role="alert">
+          <b>✕</b> {err}
+        </div>
+      )}
+    </section>
+  );
 }
 
 export function InputPage({ me }: { me: Me }) {
   const manual = me.features.prefill === "manual";
-  const [mode, setMode] = useState<"url" | "file">("url");
-  const [url, setUrl] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [err, setErr] = useState<string | null>(null);
   const [run, setRun] = useState<LocalRun | null>(null);
-  const [busy, setBusy] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const schema = useSchema();
+  const [busy, setBusy] = useState<Stream | null>(null);
+  const [pageErr, setPageErr] = useState<string | null>(null);
+  const schema = useSchema(run?.stream ?? "primary");
   const inv = useInvalidate();
   const log = useCaptureLog(true);
   const nav = useNavigate();
   const item = useItem(run?.itemId ?? null, true);
   const d = item.data;
-  const [dragging, setDragging] = useState(false);
-  const dragDepth = useRef(0);
 
-  // A file dropped outside the drop zone must not make the browser open (navigate to) it.
+  // A file dropped outside a drop zone must not make the browser open (navigate to) it.
   useEffect(() => {
     const stop = (e: globalThis.DragEvent) => {
       if (e.dataTransfer?.types.includes("Files")) e.preventDefault();
@@ -64,91 +144,44 @@ export function InputPage({ me }: { me: Me }) {
       window.removeEventListener("drop", stop);
     };
   }, []);
-
-  const pickFile = (f: File | null) => {
-    setFile(f);
-    setErr(f && !/\.html?$/i.test(f.name) ? "Only .html or .htm files are accepted." : null);
-  };
-  const hasFiles = (e: DragEvent) => e.dataTransfer.types.includes("Files");
-  // Dropping anywhere on the "New source" card works, and switches to HTML file mode.
-  const dropHandlers = {
-    onDragEnter: (e: DragEvent) => {
-      if (!hasFiles(e)) return;
-      e.preventDefault();
-      dragDepth.current += 1;
-      setDragging(true);
-    },
-    onDragOver: (e: DragEvent) => {
-      if (!hasFiles(e)) return;
-      e.preventDefault();
-      e.dataTransfer.dropEffect = "copy";
-    },
-    onDragLeave: (e: DragEvent) => {
-      if (!hasFiles(e)) return;
-      dragDepth.current = Math.max(0, dragDepth.current - 1);
-      if (!dragDepth.current) setDragging(false);
-    },
-    onDrop: (e: DragEvent) => {
-      if (!hasFiles(e)) return;
-      e.preventDefault();
-      dragDepth.current = 0;
-      setDragging(false);
-      const files = e.dataTransfer.files;
-      if (!files.length) return;
-      setMode("file");
-      if (fileRef.current) fileRef.current.value = "";
-      if (files.length > 1) {
-        setFile(null);
-        return setErr("Drop one HTML file at a time.");
-      }
-      pickFile(files[0] ?? null);
-    },
-  };
   const inProgress = d ? IN_PROGRESS_STATUSES.includes(d.status) : false;
 
-  const submit = async () => {
-    setErr(null);
-    if (mode === "url") {
-      if (!url.trim()) return setErr("Enter a URL to capture.");
-    } else {
-      if (!file) return setErr("Choose an HTML file first.");
-      if (!/\.html?$/i.test(file.name)) return setErr("Only .html or .htm files are accepted.");
-      if (file.size > CAPTURE_LIMITS.maxBytes) return setErr(`File exceeds the ${CAPTURE_LIMITS.maxBytes / 1048576} MB limit.`);
-    }
-    setBusy(true);
+  const submit = async (stream: Stream, file: File): Promise<boolean> => {
+    setPageErr(null);
+    setBusy(stream);
     const key = crypto.randomUUID();
     try {
-      let res: { item: ItemSummary; duplicate: boolean };
-      if (mode === "url") {
-        res = await api("/api/submissions", { method: "POST", json: { url }, headers: { "idempotency-key": key } });
-      } else {
-        const fd = new FormData();
-        fd.append("file", file as File);
-        res = await api("/api/submissions", { method: "POST", body: fd, headers: { "idempotency-key": key } });
-      }
-      setRun({ mode, itemId: res.item.id, duplicate: res.duplicate });
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("stream", stream);
+      const res = await api<{ item: ItemSummary; duplicate: boolean }>("/api/submissions", { method: "POST", body: fd, headers: { "idempotency-key": key } });
+      setRun({ stream, itemId: res.item.id, duplicate: res.duplicate });
+      return true;
     } catch (e) {
       const ae = e as ApiError;
       const code = ae.fields?.[0]?.code ?? ae.code;
       if (ae.status === 422 || ae.status === 415 || ae.status === 413) {
-        const at = STAGE_OF_CODE[code] ?? 0;
-        const norm = mode === "url" ? checkAndNormaliseUrl(url) : null;
-        setRun({ mode, itemId: null, failAt: at, failDetail: ae.message, firstDetail: at > 0 && norm && "url" in norm && norm.url ? `Normalised to ${norm.url}` : undefined });
-      } else setErr(ae.message);
+        setRun({ stream, itemId: null, failAt: STAGE_OF_CODE[code] ?? 0, failDetail: ae.message });
+        return false;
+      }
+      setPageErr(ae.message);
+      return false;
     } finally {
-      setBusy(false);
-      await inv("capture-log", "items");
+      setBusy(null);
+      await inv("capture-log", "items", "counts");
     }
   };
 
-  const labels = pipelineSteps(run?.mode ?? mode, me.features.prefill);
+  const labels = pipelineSteps("file", me.features.prefill);
   const serverSteps = d?.attemptsDetail[0]?.steps ?? [];
   const failedIdx = run?.failAt ?? (d?.status === "failed" ? serverSteps.findIndex((s) => !s.ok) : -1);
   const doneAll = d?.status === "needs_review" || d?.status === "approved";
+  const inboxName = `${STREAM_LABEL[run?.stream ?? "primary"]} Inbox`;
+  const inboxLink = `/inbox${run?.stream === "secondary" ? "?stream=secondary" : ""}`;
 
   const stepState = (i: number) => {
     if (run?.failAt != null) {
-      if (i < run.failAt) return { st: "done", detail: i === 0 && run.firstDetail ? run.firstDetail : "Passed" };
+      if (i < run.failAt) return { st: "done", detail: "Passed" };
       if (i === run.failAt) return { st: "fail", detail: run.failDetail ?? "" };
       return { st: "skip", detail: "Not run" };
     }
@@ -177,8 +210,8 @@ export function InputPage({ me }: { me: Me }) {
           : run.duplicate
             ? `Already submitted as ${d.code} · not submitted twice`
             : d.duplicateOf
-              ? `Complete · sent to Needs review · ⚠ possible duplicate of ${d.duplicateOf}`
-              : "Complete · sent to Needs review";
+              ? `Complete · sent to the ${inboxName} · ⚠ possible duplicate of ${d.duplicateOf}`
+              : `Complete · sent to the ${inboxName}`;
   const runColor = !run ? "" : run.failAt != null || d?.status === "failed" ? "var(--error)" : doneAll ? "var(--success-2)" : "var(--teal)";
 
   return (
@@ -191,74 +224,22 @@ export function InputPage({ me }: { me: Me }) {
           </div>
           <div className="band-copy">
             {manual
-              ? "Paste the URL of a news update, or upload an HTML file saved with SingleFile when a login portal blocks capture. The page is saved and sent to the Inbox with every tracker field empty for an analyst to complete. Nothing is published automatically."
-              : "Paste the URL of a news update, or upload an HTML file saved with SingleFile when a login portal blocks capture. Every extracted draft goes to the Inbox for review and is never published automatically."}
+              ? "Upload an HTML file saved with SingleFile as a Primary or a Secondary source. The page is saved and sent to that source's Inbox with every tracker field empty for an analyst to complete. Nothing is published automatically."
+              : "Upload an HTML file saved with SingleFile as a Primary or a Secondary source. Every extracted draft goes to that source's Inbox for review and is never published automatically."}
           </div>
         </div>
       </section>
       <div className="content">
-        <section className={`card${dragging && mode === "url" ? " drag-target" : ""}`} aria-labelledby="new-src" {...dropHandlers}>
-          <div className="card-head" style={{ alignItems: "center" }}>
-            <h2 className="card-title" id="new-src">
-              New source
-            </h2>
-            <div className="seg" role="group" aria-label="Input type" style={{ width: 260 }}>
-              {(["url", "file"] as const).map((m) => (
-                <button key={m} aria-pressed={mode === m} onClick={() => (setMode(m), setErr(null))}>
-                  {m === "url" ? "URL" : "HTML file"}
-                </button>
-              ))}
-            </div>
+        <div className="source-stack">
+          {SOURCES.map((src) => (
+            <SourceCard key={src.stream} {...src} busy={busy === src.stream} onSubmit={submit} />
+          ))}
+        </div>
+        {pageErr && (
+          <div className="err-msg" role="alert">
+            <b>✕</b> {pageErr}
           </div>
-          {mode === "url" ? (
-            <>
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                <label style={{ flex: "1 1 320px", display: "flex" }}>
-                  <span className="sr-only">News URL</span>
-                  <input
-                    className="url-input"
-                    value={url}
-                    onChange={(e) => (setUrl(e.target.value), setErr(null))}
-                    onKeyDown={(e) => e.key === "Enter" && !busy && submit()}
-                    placeholder="https://newsroom.example.com/article"
-                    inputMode="url"
-                    aria-invalid={!!err}
-                    aria-describedby={err ? "input-err" : undefined}
-                  />
-                </label>
-                <button className="btn lg" onClick={submit} disabled={busy}>
-                  {busy ? "Submitting…" : "Capture source"}
-                </button>
-              </div>
-              <div className="chips">
-                <span>Try:</span>
-                {SAMPLES.map(([l, u]) => (
-                  <button key={l} className="chip" onClick={() => (setUrl(u), setErr(null))}>
-                    {l}
-                  </button>
-                ))}
-              </div>
-            </>
-          ) : (
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "stretch" }}>
-              <label className={`drop${dragging ? " over" : ""}`} data-testid="drop-zone">
-                <input ref={fileRef} type="file" accept=".html,.htm,text/html" className="sr-only" onChange={(e) => pickFile(e.target.files?.[0] ?? null)} aria-describedby={err ? "input-err" : "file-note"} />
-                <span style={{ fontSize: 14, fontWeight: 700, color: "var(--navy-700)" }}>{dragging ? "Drop the HTML file here" : file ? file.name : "Drag and drop an HTML file here, or click to choose"}</span>
-                <span style={{ fontSize: 12, color: "var(--muted)" }} id="file-note">
-                  {file ? `${Math.round(file.size / 1024)} KB` : `.html or .htm up to ${CAPTURE_LIMITS.maxBytes / 1048576} MB · use SingleFile when a login portal blocks URL capture`}
-                </span>
-              </label>
-              <button className="btn lg" style={{ alignSelf: "center" }} onClick={submit} disabled={busy}>
-                {busy ? "Uploading…" : "Process file"}
-              </button>
-            </div>
-          )}
-          {err && (
-            <div className="err-msg" id="input-err" role="alert">
-              <b>✕</b> {err}
-            </div>
-          )}
-        </section>
+        )}
 
         {d?.duplicateOf && d.status !== "approved" && (
           <div className="banner warn dup-banner" role="alert">
@@ -273,7 +254,8 @@ export function InputPage({ me }: { me: Me }) {
           <section className="card" aria-labelledby="pipe-title">
             <div className="card-head" style={{ alignItems: "baseline" }}>
               <h2 className="card-title" id="pipe-title">
-                {manual ? "Capture" : "Capture and extraction"} {d ? <span className="mono" style={{ fontSize: 12, color: "var(--muted)" }}>· {d.code}</span> : null}
+                {manual ? "Capture" : "Capture and extraction"} · {STREAM_LABEL[run.stream]} Source{" "}
+                {d ? <span className="mono" style={{ fontSize: 12, color: "var(--muted)" }}>· {d.code}</span> : null}
               </h2>
               <span style={{ fontSize: 12.5, fontWeight: 700, color: runColor }} role="status">
                 {runStatus}
@@ -306,14 +288,14 @@ export function InputPage({ me }: { me: Me }) {
             <div className="card-head" style={{ alignItems: "center" }}>
               <div>
                 <h2 className="card-title" id="sent-title">
-                  Sent to the Inbox
+                  Sent to the {inboxName}
                 </h2>
                 <span className="card-sub">
-                  {d.code} · saved page stored · {schema.data.columns.length} tracker fields left empty for the analyst · nothing sent to any external service
+                  {d.code} · saved page stored · {schema.data.columns.filter((c) => c.key !== "source_tier").length} tracker fields left empty for the analyst · nothing sent to any external service
                 </span>
               </div>
-              <button className="btn" onClick={() => nav("/inbox")}>
-                Complete in Inbox →
+              <button className="btn" onClick={() => nav(inboxLink)}>
+                Complete in {inboxName} →
               </button>
             </div>
           </section>
@@ -337,8 +319,8 @@ export function InputPage({ me }: { me: Me }) {
             <ModelOutputTable schema={schema.data} extraction={d.extraction} caption="Model output with evidence and validation" />
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "12px 20px", borderTop: "1px solid var(--rule)", background: "var(--subtle)", flexWrap: "wrap" }}>
               <span style={{ fontSize: 13, color: "var(--ink-2)" }}>The draft is in the Inbox as Needs review. Nothing is published until an analyst approves it.</span>
-              <button className="btn" onClick={() => nav("/inbox")}>
-                Review in Inbox →
+              <button className="btn" onClick={() => nav(inboxLink)}>
+                Review in {inboxName} →
               </button>
             </div>
           </section>
@@ -357,6 +339,7 @@ export function InputPage({ me }: { me: Me }) {
               <thead>
                 <tr>
                   <th scope="col">Time</th>
+                  <th scope="col">Source</th>
                   <th scope="col">Submitted</th>
                   <th scope="col">Final resolved URL</th>
                   <th scope="col">Outcome</th>
@@ -368,6 +351,7 @@ export function InputPage({ me }: { me: Me }) {
                     <td className="mono" style={{ whiteSpace: "nowrap", fontSize: 11.5 }}>
                       {localDateTime(l.at)}
                     </td>
+                    <td style={{ whiteSpace: "nowrap", fontSize: 12 }}>{l.stream ? STREAM_LABEL[l.stream] : "—"}</td>
                     <td className="mono" style={{ fontSize: 11.5, color: "var(--ink)", overflowWrap: "anywhere", maxWidth: 260 }}>
                       {l.input}
                     </td>

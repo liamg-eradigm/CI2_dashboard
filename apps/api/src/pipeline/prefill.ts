@@ -15,6 +15,7 @@
  * Switching modes is configuration only; see docs/ENABLING-AUTOFILL.md.
  */
 import {
+  AUTO_KEYS,
   CORE,
   LOW_CONFIDENCE,
   MANUAL_DRAFT_STEPS,
@@ -83,7 +84,9 @@ function manualDraft({ schema, item }: PrefillInput): PrefillOutcome {
   const previous = JSON.parse(item.provenance_json || "{}") as Record<string, Provenance>;
   const provenance: Record<string, Provenance> = {};
   for (const c of schema.columns) provenance[c.key] = values[c.key] == null ? null : (previous[c.key] ?? "analyst");
-  const empty = schema.columns.filter((c) => values[c.key] == null).length;
+  // Automatic fields (Source Tier) do not count: the analyst enters every other field.
+  const entered = schema.columns.filter((c) => !AUTO_KEYS.includes(c.key));
+  const empty = entered.filter((c) => values[c.key] == null).length;
   const [policyLabel, routedLabel] = MANUAL_DRAFT_STEPS;
   return {
     ok: true,
@@ -98,7 +101,7 @@ function manualDraft({ schema, item }: PrefillInput): PrefillOutcome {
         {
           label: routedLabel,
           ok: true,
-          detail: `${item.code} created in Inbox · ${empty === schema.columns.length ? "every tracker field empty" : `${empty} of ${schema.columns.length} tracker fields empty`} · analyst enters values from the saved source · never auto-published`,
+          detail: `${item.code} created in Inbox · ${empty === entered.length ? "every tracker field empty" : `${empty} of ${entered.length} tracker fields empty`} · analyst enters values from the saved source · never auto-published`,
         },
       ],
       meta: { provider: "none", model: null, promptVersion: null, schemaVersion: null, inputTokens: null, outputTokens: null, latencyMs: null },

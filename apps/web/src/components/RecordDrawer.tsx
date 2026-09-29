@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { CORE, can, displayValue, normaliseValues, optionsOf, sortedColumns, splitMulti, subtrendsOf, type Me, type TrackerSchema } from "@eradigm/shared";
+import { AUTO_KEYS, CORE, STREAM_LABEL, can, displayValue, normaliseValues, optionsOf, sortedColumns, splitMulti, subtrendsOf, type Me, type TrackerSchema } from "@eradigm/shared";
 import { api, ApiError } from "../api/client";
-import { useInvalidate, useSignal } from "../api/hooks";
+import { useInvalidate, useSchema, useSignal } from "../api/hooks";
 import { useToast } from "../state/toast";
 import { formatDate, localDateTime, pct } from "../lib/format";
 import { Combobox } from "./Combobox";
@@ -9,7 +9,7 @@ import { SnapshotFrame } from "./SnapshotFrame";
 
 const PROV: Record<string, string> = { source: "From source", ai: "AI suggested", analyst: "Analyst" };
 
-function useFocusTrap(open: boolean, onClose: () => void) {
+export function useFocusTrap(open: boolean, onClose: () => void) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -43,8 +43,11 @@ function useFocusTrap(open: boolean, onClose: () => void) {
   return ref;
 }
 
-export function RecordDrawer({ id, schema, me, onClose, onOpen }: { id: string; schema: TrackerSchema; me: Me; onClose: () => void; onOpen: (id: string) => void }) {
+export function RecordDrawer({ id, schema: pageSchema, me, onClose, onOpen }: { id: string; schema: TrackerSchema; me: Me; onClose: () => void; onOpen: (id: string) => void }) {
   const sig = useSignal(id);
+  // The entry's own inbox column set (the Dashboard page passes the merged one).
+  const own = useSchema(sig.data?.stream ?? "primary");
+  const schema = own.data ?? pageSchema;
   const ref = useFocusTrap(true, onClose);
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -66,6 +69,8 @@ export function RecordDrawer({ id, schema, me, onClose, onOpen }: { id: string; 
             </span>
             {s && (
               <>
+                <span>·</span>
+                <span>{STREAM_LABEL[s.stream]} Tracker</span>
                 <span>·</span>
                 <span>Published rev {s.rev}</span>
                 <span>·</span>
@@ -114,7 +119,7 @@ export function RecordDrawer({ id, schema, me, onClose, onOpen }: { id: string; 
                 <div className="section-h">Classifications</div>
                 <div className="cls-grid">
                   {cols
-                    .filter((c) => c.key !== CORE.title && c.key !== CORE.competitors)
+                    .filter((c) => c.key !== CORE.title && c.key !== CORE.competitors && c.type !== "long")
                     .map((c) => {
                       const ev = s.evidence?.[c.key];
                       return (
@@ -131,6 +136,16 @@ export function RecordDrawer({ id, schema, me, onClose, onOpen }: { id: string; 
                 </div>
               </div>
             )}
+
+            {!editing &&
+              cols
+                .filter((c) => c.type === "long")
+                .map((c) => (
+                  <div key={c.key} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <div className="section-h">{c.label}</div>
+                    <div style={{ fontSize: 14, lineHeight: 1.6, color: "var(--ink-2)", whiteSpace: "pre-line" }}>{String(s.values[c.key] ?? "") || "—"}</div>
+                  </div>
+                ))}
 
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <div className="section-h">Company associations</div>
@@ -314,8 +329,12 @@ function ReviseForm({ id, schema, values, onDone }: { id: string; schema: Tracke
         return (
           <label className="field" key={c.key}>
             <span>{c.label}</span>
-            {c.type === "text" ? (
+            {AUTO_KEYS.includes(c.key) ? (
+              <input className="control" value={val} readOnly aria-readonly="true" />
+            ) : c.type === "text" ? (
               <input className="control" value={val} onChange={(e) => set(e.target.value)} />
+            ) : c.type === "long" ? (
+              <textarea className="control" rows={4} style={{ height: "auto", padding: 8, lineHeight: 1.45 }} value={val} onChange={(e) => set(e.target.value)} />
             ) : c.type === "multi" ? (
               <Combobox multiple label={c.label} options={opts} placeholder="Select…" value={splitMulti(val)} onChange={(list) => set(list.join(", "))} />
             ) : c.type === "date" ? (

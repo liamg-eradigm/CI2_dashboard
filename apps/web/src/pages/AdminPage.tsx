@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { ROLES, ROLE_LABEL, canCreateUserWithRole, type Invite, type Me, type Role, type TenantSettings, type UserWithInvite } from "@eradigm/shared";
 import { api } from "../api/client";
-import { useAudit, useConfigStatus, useIncidents, useInvalidate, useNotifications, useQuality, useSettings, useUsers } from "../api/hooks";
+import { useAudit, useConfigStatus, useIncidents, useInvalidate, useNotifications, useQuality, useSchema, useSettings, useUsers } from "../api/hooks";
+import { Combobox } from "../components/Combobox";
 import { localDateTime, pct } from "../lib/format";
 import { useToast } from "../state/toast";
 
@@ -299,6 +300,8 @@ function Quality({ manual }: { manual: boolean }) {
 
 function Settings() {
   const s = useSettings();
+  const secondary = useSchema("secondary");
+  const impactOpts = secondary.data?.columns.find((c) => c.key === "impact")?.options ?? [];
   const inv = useInvalidate();
   const toast = useToast();
   const [draft, setDraft] = useState<TenantSettings | null>(null);
@@ -352,6 +355,21 @@ function Settings() {
           <input className="control" type="number" min={0} value={draft.retention.deletedDays} onChange={(e) => setDraft({ ...draft, retention: { ...draft.retention, deletedDays: num(e.target.value) } })} />
         </label>
       </div>
+      <fieldset style={{ border: 0, padding: 0, margin: 0, display: "grid", gap: 8 }}>
+        <legend className="section-h">Phantoms</legend>
+        <p className="card-sub" style={{ margin: 0 }}>
+          Every Primary Tracker entry is in Phantoms. Secondary Tracker entries are included when their Impact is at or above this level (using the Secondary Inbox’s Impact order).
+        </p>
+        <label className="field" style={{ maxWidth: 320 }}>
+          <span>Secondary entries: minimum Impact</span>
+          <Combobox
+            label="Secondary entries: minimum Impact"
+            options={impactOpts}
+            value={draft.phantoms.secondaryMinImpact}
+            onChange={(v) => v && setDraft({ ...draft, phantoms: { secondaryMinImpact: v } })}
+          />
+        </label>
+      </fieldset>
       <fieldset style={{ border: 0, padding: 0, margin: 0, display: "grid", gap: 8 }}>
         <legend className="section-h">Data classification and redaction (checked for every capture; redaction applies to anything sent to an AI service if pre-fill is enabled)</legend>
         <label style={{ fontSize: 13 }}>

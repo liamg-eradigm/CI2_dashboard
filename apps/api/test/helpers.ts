@@ -85,10 +85,20 @@ export function articleHtml(opts: { url?: string; title: string; body: string; d
     .join("")}</article></body></html>`;
 }
 
-export async function upload(userEmail: string, html: string, name = "page.html", headers: Record<string, string> = {}) {
+export async function upload(userEmail: string, html: string, name = "page.html", headers: Record<string, string> = {}, stream?: "primary" | "secondary") {
   const form = new FormData();
   form.append("file", new File([html], name, { type: "text/html" }));
+  if (stream) form.append("stream", stream);
   return call(userEmail, "POST", "/api/submissions", { form, headers });
+}
+
+/** Upload to a stream, run the pipeline and return the Needs-review item. */
+export async function ingestTo(stream: "primary" | "secondary", userEmail: string, title: string, body: string, url?: string) {
+  const res = await upload(userEmail, articleHtml({ title, body, url }), `${title.slice(0, 20).replace(/\W+/g, "-")}.html`, {}, stream);
+  if (res.status !== 201) throw new Error(`upload failed ${res.status}: ${await res.text()}`);
+  const { item } = await res.json<{ item: { id: string } }>();
+  await drain();
+  return json(call(userEmail, "GET", `/api/items/${item.id}`));
 }
 
 /** Upload an article, run the pipeline and return the Needs-review item. */
@@ -113,6 +123,10 @@ export const COMPLETE = {
   action: "Not Actioned",
 };
 
+let idSeq = 0;
+/** A unique analyst ID for each approval (IDs must be unique among tracker entries). */
+export const nextRecordId = () => `T-${Date.now().toString(36)}-${++idSeq}`;
+
 export async function approveWith(userEmail: string, item: { id: string; version: number; draft: Record<string, unknown> }, values: Record<string, unknown> = {}) {
-  return call(userEmail, "POST", `/api/items/${item.id}/approve`, { body: { values: { ...item.draft, ...COMPLETE, ...values }, version: item.version } });
+  return call(userEmail, "POST", `/api/items/${item.id}/approve`, { body: { values: { ...item.draft, ...COMPLETE, record_id: nextRecordId(), ...values }, version: item.version } });
 }

@@ -10,10 +10,12 @@ import type {
   ItemValues,
   Revision,
   Snapshot,
+  Stream,
   TrackerSchema,
 } from "@eradigm/shared";
 import type { Env } from "../env.js";
 import { notFound } from "../lib/errors.js";
+import type { Schemas } from "./schema.js";
 
 export interface ItemRow {
   id: string;
@@ -21,6 +23,8 @@ export interface ItemRow {
   submission_id: string;
   code: string;
   signal_code: string | null;
+  stream: Stream;
+  record_id: string | null;
   status: ItemStatus;
   version: number;
   op_token: string | null;
@@ -129,12 +133,14 @@ export function fullDraft(schema: TrackerSchema, json: string): ItemValues {
   return out;
 }
 
-export function toSummary(schema: TrackerSchema, r: Enriched): ItemSummary {
+export function toSummary(schemas: Schemas, r: Enriched): ItemSummary {
+  const schema = schemas[r.stream] ?? schemas.primary;
   const dup = parseDup(r.published_dup);
   const extraction = r.extraction_json ? (JSON.parse(r.extraction_json) as Record<string, ExtractedFieldView>) : null;
   return {
     id: r.id,
     code: r.code,
+    stream: r.stream,
     status: r.status,
     inputType: r.input_type,
     outlet: r.outlet,
@@ -170,18 +176,32 @@ export async function getItemRow(env: Env, tenantId: string, id: string): Promis
   return r;
 }
 
-export async function getSummary(env: Env, schema: TrackerSchema, tenantId: string, id: string): Promise<ItemSummary> {
+export async function getSummary(env: Env, schemas: Schemas, tenantId: string, id: string): Promise<ItemSummary> {
   const r = await env.DB.prepare(`${SELECT_ENRICHED} WHERE i.tenant_id = ?1 AND i.id = ?2`).bind(tenantId, id).first<Enriched>();
   if (!r) throw notFound("Item");
-  return toSummary(schema, r);
+  return toSummary(schemas, r);
 }
 
-export async function listItems(env: Env, schema: TrackerSchema, tenantId: string, statuses: ItemStatus[], limit = 200): Promise<ItemSummary[]> {
-  const ph = statuses.map((_, i) => `?${i + 2}`).join(",");
-  const res = await env.DB.prepare(`${SELECT_ENRICHED} WHERE i.tenant_id = ?1 AND i.status IN (${ph}) ORDER BY i.received_at DESC LIMIT ${Math.min(500, limit)}`)
-    .bind(tenantId, ...statuses)
+export async function listItems(env: Env, schemas: Schemas, tenantId: string, statuses: ItemStatus[], stream: Stream | null = null, limit = 200): Promise<ItemSummary[]> {
+  const ph = statuses.map((_, i) => `?${i + 3}`).join(",");
+  const res = await env.DB.prepare(
+    `${SELECT_ENRICHED} WHERE i.tenant_id = ?1 AND (?2 IS NULL OR i.stream = ?2) AND i.status IN (${ph}) ORDER BY i.received_at DESC LIMIT ${Math.min(500, limit)}`,
+  )
+    .bind(tenantId, stream, ...statuses)
     .all<Enriched>();
-  return (res.results ?? []).map((r) => toSummary(schema, r));
+  return (res.results ?? []).map((r) => toSummary(schemas, r));
+}
+
+/** Items awaiting the analyst (Needs review or still processing) per stream: the Inbox badges. */
+export async function inboxCounts(env: Env, tenantId: string): Promise<Record<Stream, number>> {
+  const res = await env.DB.prepare(
+    "SELECT stream, COUNT(*) AS n FROM intelligence_items WHERE tenant_id = ?1 AND status IN ('needs_review', 'queued', 'fetching', 'extracting') GROUP BY stream",
+  )
+    .bind(tenantId)
+    .all<{ stream: Stream; n: number }>();
+  const out: Record<Stream, number> = { primary: 0, secondary: 0 };
+  for (const r of res.results ?? []) out[r.stream] = r.n;
+  return out;
 }
 
 export async function revisions(env: Env, tenantId: string, itemId: string): Promise<Revision[]> {
@@ -270,8 +290,8 @@ export async function snapshotMeta(env: Env, tenantId: string, snapshotId: strin
   };
 }
 
-export async function getDetail(env: Env, schema: TrackerSchema, tenantId: string, id: string): Promise<ItemDetail> {
-  const summary = await getSummary(env, schema, tenantId, id);
+export async function getDetail(env: Env, schemas: Schemas, tenantId: string, id: string): Promise<ItemDetail> {
+  const summary = await getSummary(env, schemas, tenantId, id);
   const row = await getItemRow(env, tenantId, id);
   const [revs, atts, snap] = await Promise.all([revisions(env, tenantId, id), attempts(env, tenantId, id), snapshotMeta(env, tenantId, row.current_snapshot_id)]);
   return { ...summary, bodyText: row.body_text, publicationDate: row.publication_date, revisions: revs, attemptsDetail: atts, snapshot: snap };

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
-import { CORE, TYPE_LABEL, hasOptions, sortedColumns, type TrackerColumn } from "@eradigm/shared";
+import { AUTO_KEYS, CORE, STREAM_LABEL, TYPE_LABEL, hasOptions, sortedColumns, type Stream, type TrackerColumn } from "@eradigm/shared";
 import { api } from "../api/client";
 import { useInvalidate, useSchema, type SchemaWithUsage } from "../api/hooks";
 import { useToast } from "../state/toast";
@@ -143,8 +143,15 @@ function ReorderList({
   );
 }
 
-export function SchemaEditor() {
-  const schema = useSchema(true);
+/** Why a locked column cannot be deleted. */
+const lockNote = (c: TrackerColumn) =>
+  c.key === CORE.macrotrend || c.key === CORE.subtrend || c.key === CORE.impact || c.key === CORE.growth || c.key === CORE.competitors || c.key === CORE.date
+    ? "Chart field · locked"
+    : "Markdown field · locked";
+
+/** Column editor for one inbox (each inbox has its own columns and options). */
+export function SchemaEditor({ stream = "primary" }: { stream?: Stream }) {
+  const schema = useSchema(stream, true);
   const toast = useToast();
   const inv = useInvalidate();
   const [open, setOpen] = useState<string | null>(null);
@@ -160,7 +167,7 @@ export function SchemaEditor() {
 
   const call = async (path: string, method: string, json: unknown, ok: string) => {
     try {
-      await api<SchemaWithUsage>(path, { method, json });
+      await api<SchemaWithUsage>(`${path}${path.includes("?") ? "&" : "?"}stream=${stream}`, { method, json });
       await inv();
       toast(ok);
       return true;
@@ -259,7 +266,7 @@ export function SchemaEditor() {
 
   return (
     <div style={{ borderTop: "1px solid var(--rule)", overflowX: "auto" }}>
-      <div style={{ minWidth: 940 }}>
+      <div style={{ minWidth: 1060 }}>
         <div className="order-bar">
           <span className="field-label">Column order</span>
           <button className="btn secondary small" onClick={() => void sortBy(1)} title="Sort all columns alphabetically by name, A to Z">
@@ -278,6 +285,7 @@ export function SchemaEditor() {
           <span>Type</span>
           <span>Dropdown options</span>
           <span>Entry</span>
+          <span>In Tracker</span>
           <span />
         </div>
         {cols.map((c, i) => {
@@ -339,10 +347,22 @@ export function SchemaEditor() {
                 >
                   {c.required ? "Required" : "Optional"}
                 </button>
+                <button
+                  className={`req-toggle ${c.inTracker ? "on" : "off"}`}
+                  aria-pressed={c.inTracker}
+                  aria-label={`Show ${c.label} as a column in the ${STREAM_LABEL[stream]} Tracker and Phantoms`}
+                  title="Toggle whether the Tracker and Phantoms tables show this column (the Inbox always does)"
+                  onClick={() =>
+                    call(`/api/schema/columns/${c.key}`, "PATCH", { inTracker: !c.inTracker }, `${c.label} is ${c.inTracker ? "no longer shown" : "now shown"} in the ${STREAM_LABEL[stream]} Tracker`)
+                  }
+                >
+                  {c.inTracker ? "Shown" : "Hidden"}
+                </button>
                 <div style={{ display: "flex", justifyContent: "flex-end" }}>
                   {c.core ? (
-                    <span title="Used by the Dashboard charts, so it can be renamed but not deleted" style={{ fontSize: 12, color: "var(--muted-2)" }}>
-                      Chart field · locked
+                    <span title="Used by the Dashboard charts or the Phantoms Markdown, so it can be renamed but not deleted" style={{ fontSize: 12, color: "var(--muted-2)" }}>
+                      {lockNote(c)}
+                      {AUTO_KEYS.includes(c.key) ? " · automatic" : ""}
                     </span>
                   ) : (
                     <button
@@ -405,6 +425,7 @@ export function SchemaEditor() {
           <select className="control" style={{ width: "auto", height: 36 }} aria-label="New column type" value={newCol.type} onChange={(e) => setNewCol((n) => ({ ...n, type: e.target.value }))}>
             <option value="select">Dropdown</option>
             <option value="text">Text</option>
+            <option value="long">Long text</option>
             <option value="date">Date</option>
           </select>
           <button

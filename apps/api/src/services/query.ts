@@ -23,6 +23,7 @@ import {
   type FilterState,
   type ItemValues,
   type Signal,
+  type Stream,
   type TrackerSchema,
   type TrendConfig,
   type TrendResult,
@@ -41,9 +42,38 @@ function escapeLike(s: string): string {
   return s.replace(/[\\%_]/g, (m) => `\\${m}`);
 }
 
-export function buildWhere(schema: TrackerSchema, tenantId: string, f: FilterState, skip: readonly string[] = []): Where {
+/**
+ * Which entries a view covers. The Dashboard covers every stream (no scope);
+ * the Tracker one stream; Phantoms one stream, where Secondary entries only
+ * count at or above the admin-set Impact (`impacts` = the qualifying values).
+ */
+export interface Scope {
+  stream?: Stream;
+  impacts?: string[];
+}
+
+function scopeWhere(scope: Scope): Where {
+  const parts: string[] = [];
+  const binds: unknown[] = [];
+  if (scope.stream) {
+    parts.push("i.stream = ?");
+    binds.push(scope.stream);
+  }
+  if (scope.impacts) {
+    parts.push(scope.impacts.length ? `i.impact IN (${scope.impacts.map(() => "?").join(",")})` : "0");
+    binds.push(...scope.impacts);
+  }
+  return { sql: parts.join(" AND "), binds };
+}
+
+export function buildWhere(schema: TrackerSchema, tenantId: string, f: FilterState, skip: readonly string[] = [], scope: Scope = {}): Where {
   const parts = ["i.tenant_id = ?", "i.status = 'approved'", "i.deleted_at IS NULL", "i.pub_date >= ?", "i.pub_date <= ?"];
   const binds: unknown[] = [tenantId, f.from, f.to];
+  const sc = scopeWhere(scope);
+  if (sc.sql) {
+    parts.push(sc.sql);
+    binds.push(...sc.binds);
+  }
   if (f.q) {
     parts.push("(i.title LIKE ? ESCAPE '\\' OR i.body_text LIKE ? ESCAPE '\\')");
     const like = `%${escapeLike(f.q)}%`;
@@ -88,6 +118,8 @@ function orderBy(schema: TrackerSchema, key: string, dir: "asc" | "desc"): Where
 interface SignalRow {
   id: string;
   signal_code: string;
+  stream: Stream;
+  record_id: string | null;
   pub_date: string;
   title: string | null;
   macrotrend: string | null;
@@ -103,12 +135,15 @@ interface SignalRow {
   approved_by_name: string | null;
 }
 
-const SIGNAL_COLUMNS = `i.id, i.signal_code, i.pub_date, i.title, i.macrotrend, i.subtrend, i.growth, i.impact, i.extra_json,
+const SIGNAL_COLUMNS = `i.id, i.signal_code, i.stream, i.record_id, i.pub_date, i.title, i.macrotrend, i.subtrend, i.growth, i.impact, i.extra_json,
   (SELECT group_concat(c.competitor, '${SEP}') FROM item_competitors c WHERE c.item_id = i.id) AS competitors,
   substr(i.body_text, 1, 600) AS body_text, i.final_url, i.published_rev, i.approved_at,
   (SELECT u.name FROM users u WHERE u.id = i.approved_by) AS approved_by_name`;
 
-export function rowValues(schema: TrackerSchema, r: Pick<SignalRow, "pub_date" | "title" | "macrotrend" | "subtrend" | "growth" | "impact" | "extra_json" | "competitors">): ItemValues {
+export function rowValues(
+  schema: TrackerSchema,
+  r: Pick<SignalRow, "pub_date" | "title" | "macrotrend" | "subtrend" | "growth" | "impact" | "extra_json" | "competitors"> & { record_id?: string | null },
+): ItemValues {
   const extra = JSON.parse(r.extra_json || "{}") as ItemValues;
   const out: ItemValues = {};
   for (const col of schema.columns) {
@@ -124,6 +159,7 @@ function toSignal(schema: TrackerSchema, r: SignalRow): Signal {
   return {
     id: r.id,
     code: r.signal_code,
+    stream: r.stream,
     values: rowValues(schema, r),
     text: r.body_text ?? "",
     url: r.final_url,
@@ -133,9 +169,10 @@ function toSignal(schema: TrackerSchema, r: SignalRow): Signal {
   };
 }
 
-async function countPublished(env: Env, tenantId: string): Promise<number> {
-  const r = await env.DB.prepare("SELECT COUNT(*) AS n FROM intelligence_items WHERE tenant_id = ?1 AND status = 'approved' AND deleted_at IS NULL")
-    .bind(tenantId)
+async function countPublished(env: Env, tenantId: string, scope: Scope = {}): Promise<number> {
+  const sc = scopeWhere(scope);
+  const r = await env.DB.prepare(`SELECT COUNT(*) AS n FROM intelligence_items i WHERE i.tenant_id = ? AND i.status = 'approved' AND i.deleted_at IS NULL${sc.sql ? ` AND ${sc.sql}` : ""}`)
+    .bind(tenantId, ...sc.binds)
     .first<{ n: number }>();
   return r?.n ?? 0;
 }
@@ -148,8 +185,9 @@ export async function trackerPage(
   sort: { key: string; dir: "asc" | "desc" },
   page: number,
   pageSize: number,
+  scope: Scope = {},
 ) {
-  const w = buildWhere(schema, tenantId, f);
+  const w = buildWhere(schema, tenantId, f, [], scope);
   const o = orderBy(schema, sort.key, sort.dir);
   const [rows, count] = await env.DB.batch([
     env.DB.prepare(`SELECT ${SIGNAL_COLUMNS} FROM intelligence_items i WHERE ${w.sql} ORDER BY ${o.sql} LIMIT ? OFFSET ?`).bind(...w.binds, ...o.binds, pageSize, page * pageSize),
@@ -158,7 +196,7 @@ export async function trackerPage(
   return {
     rows: ((rows?.results ?? []) as unknown as SignalRow[]).map((r) => toSignal(schema, r)),
     total: ((count?.results ?? [])[0] as { n: number } | undefined)?.n ?? 0,
-    totalPublished: await countPublished(env, tenantId),
+    totalPublished: await countPublished(env, tenantId, scope),
     page,
     pageSize,
   };
@@ -166,10 +204,11 @@ export async function trackerPage(
 
 export const EXPORT_MAX_ROWS = 50_000;
 
-export async function exportRows(env: Env, schema: TrackerSchema, tenantId: string, f: FilterState | null, sort: { key: string; dir: "asc" | "desc" }) {
+export async function exportRows(env: Env, schema: TrackerSchema, tenantId: string, f: FilterState | null, sort: { key: string; dir: "asc" | "desc" }, scope: Scope = {}) {
+  const sc = scopeWhere(scope);
   const w = f
-    ? buildWhere(schema, tenantId, f)
-    : { sql: "i.tenant_id = ? AND i.status = 'approved' AND i.deleted_at IS NULL", binds: [tenantId] };
+    ? buildWhere(schema, tenantId, f, [], scope)
+    : { sql: `i.tenant_id = ? AND i.status = 'approved' AND i.deleted_at IS NULL${sc.sql ? ` AND ${sc.sql}` : ""}`, binds: [tenantId, ...sc.binds] };
   const o = orderBy(schema, sort.key, sort.dir);
   const res = await env.DB.prepare(`SELECT ${SIGNAL_COLUMNS} FROM intelligence_items i WHERE ${w.sql} ORDER BY ${o.sql} LIMIT ${EXPORT_MAX_ROWS}`)
     .bind(...w.binds, ...o.binds)

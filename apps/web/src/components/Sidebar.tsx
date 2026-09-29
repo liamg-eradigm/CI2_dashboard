@@ -2,7 +2,7 @@ import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { ROLE_LABEL, can, type Me } from "@eradigm/shared";
-import { useItems } from "../api/hooks";
+import { useInboxCounts } from "../api/hooks";
 import { DEV_AUTH, devUserStore, signOut, tenantStore } from "../api/client";
 
 const DEV_USERS = [
@@ -16,12 +16,19 @@ export function Sidebar({ me }: { me: Me }) {
   const [open, setOpen] = useState(true);
   const qc = useQueryClient();
   const staff = can(me.role, "inbox:read");
-  const pending = useItems(["needs_review"], staff);
-  const n = pending.data?.length ?? 0;
+  const counts = useInboxCounts(staff);
+  const n = (counts.data?.primary ?? 0) + (counts.data?.secondary ?? 0);
   const loc = useLocation();
-  // Dashboard and Tracker share one filter state: carry it across when switching.
-  const shared = new URLSearchParams([...new URLSearchParams(loc.search)].filter(([k]) => k === "q" || k === "from" || k === "to" || k.startsWith("f."))).toString();
-  const withFilters = (to: string) => (shared && (to === "/dashboard" || to === "/tracker") ? `${to}?${shared}` : to);
+  // Dashboard, Tracker and Phantoms share one filter state (and Tracker/Phantoms the Primary/Secondary switch): carry it across.
+  const cur = [...new URLSearchParams(loc.search)];
+  const filterPairs = cur.filter(([k]) => k === "q" || k === "from" || k === "to" || k.startsWith("f."));
+  const tables = loc.pathname === "/tracker" || loc.pathname === "/phantoms";
+  const withFilters = (to: string) => {
+    if (to !== "/dashboard" && to !== "/tracker" && to !== "/phantoms") return to;
+    const pairs = to === "/dashboard" ? filterPairs : tables ? cur.filter(([k]) => k === "stream" || filterPairs.some(([f]) => f === k)) : filterPairs;
+    const q = new URLSearchParams(pairs).toString();
+    return q ? `${to}?${q}` : to;
+  };
 
   if (!open) {
     return (
@@ -35,6 +42,7 @@ export function Sidebar({ me }: { me: Me }) {
   const links: [string, string, boolean][] = [
     ["/dashboard", "Dashboard", true],
     ["/tracker", "Tracker", true],
+    ["/phantoms", "Phantoms", true],
     ["/inbox", "Inbox", staff],
     ["/input", "Input", can(me.role, "submission:create")],
     ["/admin", "Administration", can(me.role, "user:read")],
@@ -63,7 +71,7 @@ export function Sidebar({ me }: { me: Me }) {
             <NavLink key={to} to={withFilters(to)} className={({ isActive }) => (isActive ? "active" : "")}>
               <span>{label}</span>
               {to === "/inbox" && n > 0 && (
-                <span className="badge" aria-label={`${n} awaiting review`}>
+                <span className="badge" aria-label={`${n} unprocessed`}>
                   {n}
                 </span>
               )}

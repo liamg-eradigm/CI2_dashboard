@@ -36,6 +36,8 @@ export interface FieldError {
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 export const MAX_TEXT_LENGTH = 2000;
+/** Long text (Header, Key Details, CI Perspective): paragraphs and line breaks are kept. */
+export const MAX_LONG_TEXT_LENGTH = 20000;
 
 export function isIsoDate(v: string): boolean {
   if (!ISO_DATE.test(v)) return false;
@@ -74,6 +76,13 @@ export function normaliseValues(schema: TrackerSchema, raw: Record<string, unkno
       out[col.key] = list.length ? list : null;
     } else if (v == null) {
       out[col.key] = null;
+    } else if (col.type === "long") {
+      const s = String(v)
+        .replace(/\r\n?/g, "\n")
+        .replace(/[ \t]+$/gm, "")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+      out[col.key] = s === "" ? null : s;
     } else {
       const s = String(v).replace(/\s+/g, " ").trim();
       out[col.key] = s === "" ? null : s;
@@ -109,6 +118,11 @@ export function validateValues(
       case "text": {
         if (typeof v !== "string") err(col, "too_long", `${col.label} must be text`);
         else if (v.length > MAX_TEXT_LENGTH) err(col, "too_long", `${col.label} must be ${MAX_TEXT_LENGTH} characters or fewer`);
+        break;
+      }
+      case "long": {
+        if (typeof v !== "string") err(col, "too_long", `${col.label} must be text`);
+        else if (v.length > MAX_LONG_TEXT_LENGTH) err(col, "too_long", `${col.label} must be ${MAX_LONG_TEXT_LENGTH} characters or fewer`);
         break;
       }
       case "multi": {
