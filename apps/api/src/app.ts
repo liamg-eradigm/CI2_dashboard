@@ -39,6 +39,8 @@ import {
   exportFilename,
   isStream,
   mergeSchemas,
+  phantomColumns,
+  trackerColumns,
   filtersFromParams,
   getColumn,
   toCsv,
@@ -281,8 +283,8 @@ app.put("/api/schema/columns/order", async (c) => {
   requirePermission(P(c), "schema:edit");
   const b = await body(c, ReorderColumnsRequest);
   const stream = streamOf(c);
-  await reorderColumns(c.env, P(c).tenantId, stream, b.keys);
-  return schemaChanged(c, stream, { op: "reorder_columns", keys: b.keys });
+  await reorderColumns(c.env, P(c).tenantId, stream, b.keys, b.table);
+  return schemaChanged(c, stream, { op: "reorder_columns", table: b.table, keys: b.keys });
 });
 
 app.patch("/api/schema/columns/:key", async (c) => {
@@ -290,7 +292,7 @@ app.patch("/api/schema/columns/:key", async (c) => {
   const b = await body(c, UpdateColumnRequest);
   const stream = streamOf(c);
   const r = await updateColumn(c.env, P(c).tenantId, stream, c.req.param("key"), b);
-  return schemaChanged(c, stream, { op: "update_column", key: c.req.param("key"), renamed: r.before.label !== r.after.label, required: r.after.required, inTracker: r.after.inTracker });
+  return schemaChanged(c, stream, { op: "update_column", key: c.req.param("key"), renamed: r.before.label !== r.after.label, required: r.after.required, inTracker: r.after.inTracker, inPhantoms: r.after.inPhantoms });
 });
 
 app.delete("/api/schema/columns/:key", async (c) => {
@@ -371,9 +373,10 @@ app.get("/api/tracker/export", async (c) => {
   const url = new URL(c.req.url);
   const f = scope === "all" ? null : filtersFromParams(url.searchParams, { schema, today });
   const rows = await exportRows(c.env, schema, p.tenantId, f, sortOf(c, schema), rowScope);
-  const table = toTable(schema, rows);
+  const cols = view === "phantoms" ? phantomColumns(schema) : trackerColumns(schema);
+  const table = toTable(schema, rows, cols);
   const content: string | Uint8Array =
-    format === "csv" ? toCsv(table) : format === "tsv" ? toTsv(table) : format === "json" ? toJson(schema, rows) : toXlsx(table);
+    format === "csv" ? toCsv(table) : format === "tsv" ? toTsv(table) : format === "json" ? toJson(schema, rows, cols) : toXlsx(table);
   await audit(c.env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "export.created", targetType: "tracker", details: { format, scope, rows: rows.length, stream, view } });
   return new Response(content, {
     headers: {

@@ -27,7 +27,7 @@ import { StreamSwitch } from "../components/StreamSwitch";
 import { useStreamParam } from "../state/stream";
 import { Combobox } from "../components/Combobox";
 import { ModelOutputTable } from "../components/ModelOutput";
-import { SchemaEditor } from "../components/SchemaEditor";
+import { SchemaEditor, TableColumnsEditor } from "../components/SchemaEditor";
 import { SnapshotActions, SnapshotFrame } from "../components/SnapshotFrame";
 import { localDateTime, pct } from "../lib/format";
 import { useToast } from "../state/toast";
@@ -84,17 +84,37 @@ export function InboxPage({ me }: { me: Me }) {
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "14px 18px", flexWrap: "wrap" }}>
               <div>
                 <h2 className="card-title" id="cols-title">
-                  Tracker columns · {STREAM_LABEL[stream]} Inbox
+                  Columns · {STREAM_LABEL[stream]}
                 </h2>
                 <span className="card-sub">
-                  {s ? `${s.columns.length} columns · ${s.columns.filter((c) => c.inTracker).length} shown in the Tracker · changes apply to the ${STREAM_LABEL[stream]} Inbox, Tracker and Phantoms only` : ""}
+                  {s
+                    ? `${s.columns.length} Inbox columns · ${s.columns.filter((c) => c.inTracker).length} in the Tracker · ${s.columns.filter((c) => c.inPhantoms).length} in Phantoms · changes apply to the ${STREAM_LABEL[stream]} Inbox, Tracker and Phantoms only`
+                    : ""}
                 </span>
               </div>
               <button className="btn secondary" aria-expanded={schemaOpen} onClick={() => setSchemaOpen((o) => !o)} style={schemaOpen ? { background: "var(--tint)" } : undefined}>
                 {schemaOpen ? "Done" : "Edit columns"}
               </button>
             </div>
-            {schemaOpen && <SchemaEditor key={stream} stream={stream} />}
+            {schemaOpen && (
+              <>
+                <div className="cols-section-h" id="cols-inbox">
+                  <h3>{STREAM_LABEL[stream]} Inbox columns</h3>
+                  <span>Every field of an entry: names, types, dropdown options and whether approval requires it. One input fills all of them.</span>
+                </div>
+                <SchemaEditor key={stream} stream={stream} />
+                <div className="cols-section-h" id="cols-tracker">
+                  <h3>{STREAM_LABEL[stream]} Tracker columns</h3>
+                  <span>The columns of the Tracker table, filters and exports, chosen from the Inbox columns.</span>
+                </div>
+                <TableColumnsEditor key={`t-${stream}`} stream={stream} table="tracker" />
+                <div className="cols-section-h" id="cols-phantoms">
+                  <h3>{STREAM_LABEL[stream]} Phantoms columns</h3>
+                  <span>The columns of the Phantoms table and its exports, chosen from the Inbox columns. The Markdown files are not affected.</span>
+                </div>
+                <TableColumnsEditor key={`p-${stream}`} stream={stream} table="phantoms" />
+              </>
+            )}
           </section>
         )}
 

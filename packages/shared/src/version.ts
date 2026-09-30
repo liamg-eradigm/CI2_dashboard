@@ -5,7 +5,7 @@
  * additive changes. The API returns it in the `X-Contract-Version` header and
  * the dashboard warns when its own major version differs.
  */
-export const CONTRACT_VERSION = "1.5.0";
+export const CONTRACT_VERSION = "1.6.0";
 
 /** Version of the structured output format the LLM must return. */
 export const EXTRACTION_SCHEMA_VERSION = "extraction-schema/1.0.0";

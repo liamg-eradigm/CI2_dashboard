@@ -15,7 +15,9 @@ import {
   getColumn,
   hasOptions,
   splitMulti,
+  tableColumns,
   type CreatableColumnType,
+  type TableName,
   type Stream,
   type TenantSettings,
   type TrackerColumn,
@@ -50,6 +52,9 @@ interface ColumnRow {
   ai_assist: number;
   in_tracker: number;
   position: number;
+  tracker_position: number;
+  in_phantoms: number;
+  phantoms_position: number;
 }
 interface OptionRow {
   column_key: string;
@@ -63,7 +68,7 @@ export async function loadSchema(env: Env, tenantId: string, stream: Stream = "p
   const [meta, cols, opts] = await env.DB.batch([
     env.DB.prepare("SELECT revision FROM schema_meta WHERE tenant_id = ?1").bind(tenantId),
     env.DB.prepare(
-      "SELECT key, label, type, core, required, ai_assist, in_tracker, position FROM tracker_columns WHERE tenant_id = ?1 AND stream = ?2 AND deleted_at IS NULL ORDER BY position",
+      "SELECT key, label, type, core, required, ai_assist, in_tracker, position, tracker_position, in_phantoms, phantoms_position FROM tracker_columns WHERE tenant_id = ?1 AND stream = ?2 AND deleted_at IS NULL ORDER BY position",
     ).bind(tenantId, stream),
     env.DB.prepare("SELECT column_key, value, parent, position FROM column_options WHERE tenant_id = ?1 AND stream = ?2 ORDER BY position, value").bind(tenantId, stream),
   ]);
@@ -78,6 +83,9 @@ export async function loadSchema(env: Env, tenantId: string, stream: Stream = "p
       position: c.position,
       aiAssist: !!c.ai_assist,
       inTracker: !!c.in_tracker,
+      trackerPosition: c.tracker_position,
+      inPhantoms: !!c.in_phantoms,
+      phantomsPosition: c.phantoms_position,
     };
     if (c.type === "select" || c.type === "multi") col.options = options.filter((o) => o.column_key === c.key).map((o) => o.value);
     return col;
@@ -145,8 +153,8 @@ export function tenantBootstrapStatements(env: Env, tenant: { id: string; name: 
     for (const c of s.columns) {
       stmts.push(
         env.DB.prepare(
-          "INSERT INTO tracker_columns (tenant_id, stream, key, label, type, core, required, ai_assist, in_tracker, position) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
-        ).bind(tenant.id, stream, c.key, c.label, c.type, c.core ? 1 : 0, c.required ? 1 : 0, c.aiAssist ? 1 : 0, c.inTracker ? 1 : 0, c.position),
+          "INSERT INTO tracker_columns (tenant_id, stream, key, label, type, core, required, ai_assist, in_tracker, position, tracker_position, in_phantoms, phantoms_position) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+        ).bind(tenant.id, stream, c.key, c.label, c.type, c.core ? 1 : 0, c.required ? 1 : 0, c.aiAssist ? 1 : 0, c.inTracker ? 1 : 0, c.position, c.trackerPosition, c.inPhantoms ? 1 : 0, c.phantomsPosition),
       );
       (c.options ?? []).forEach((o, i) => stmts.push(optionInsert(env, tenant.id, stream, c.key, o, null, i)));
     }
@@ -192,21 +200,17 @@ export async function addColumn(env: Env, tenantId: string, stream: Stream, labe
   const slug = chk.value.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 24) || "col";
   const key = `x_${slug}_${Math.random().toString(36).slice(2, 7)}`;
   const position = Math.max(-1, ...schema.columns.map((c) => c.position)) + 1;
+  // A new column is an Inbox column only; add it to the Tracker or Phantoms table separately.
   await env.DB.batch([
-    env.DB.prepare("INSERT INTO tracker_columns (tenant_id, stream, key, label, type, core, required, ai_assist, in_tracker, position) VALUES (?1, ?6, ?2, ?3, ?4, 0, 0, 1, 1, ?5)").bind(
-      tenantId,
-      key,
-      chk.value,
-      type,
-      position,
-      stream,
-    ),
+    env.DB.prepare(
+      "INSERT INTO tracker_columns (tenant_id, stream, key, label, type, core, required, ai_assist, in_tracker, position, tracker_position, in_phantoms, phantoms_position) VALUES (?1, ?6, ?2, ?3, ?4, 0, 0, 1, 0, ?5, ?5, 0, ?5)",
+    ).bind(tenantId, key, chk.value, type, position, stream),
     bump(env, tenantId),
   ]);
   return { key, label: chk.value };
 }
 
-export async function updateColumn(env: Env, tenantId: string, stream: Stream, key: string, patch: { label?: string; required?: boolean; inTracker?: boolean }) {
+export async function updateColumn(env: Env, tenantId: string, stream: Stream, key: string, patch: { label?: string; required?: boolean; inTracker?: boolean; inPhantoms?: boolean }) {
   const schema = await loadSchema(env, tenantId, stream);
   const col = requireColumn(schema, key);
   const stmts: D1PreparedStatement[] = [];
@@ -216,33 +220,47 @@ export async function updateColumn(env: Env, tenantId: string, stream: Stream, k
     if (!chk.ok) throw new ApiError("CONFLICT", chk.error);
     label = chk.value;
   }
+  // Added to a table → placed at the end of that table.
+  const end = (t: TableName) => Math.max(-1, ...tableColumns(schema, t).map((c) => (t === "tracker" ? c.trackerPosition : c.phantomsPosition))) + 1;
+  const trackerPosition = patch.inTracker && !col.inTracker ? end("tracker") : col.trackerPosition;
+  const phantomsPosition = patch.inPhantoms && !col.inPhantoms ? end("phantoms") : col.phantomsPosition;
   stmts.push(
-    env.DB.prepare("UPDATE tracker_columns SET label = ?1, required = ?2, in_tracker = ?5 WHERE tenant_id = ?3 AND key = ?4 AND stream = ?6").bind(
+    env.DB.prepare(
+      "UPDATE tracker_columns SET label = ?1, required = ?2, in_tracker = ?5, tracker_position = ?7, in_phantoms = ?8, phantoms_position = ?9 WHERE tenant_id = ?3 AND key = ?4 AND stream = ?6",
+    ).bind(
       label,
       (patch.required ?? col.required) ? 1 : 0,
       tenantId,
       key,
       (patch.inTracker ?? col.inTracker) ? 1 : 0,
       stream,
+      trackerPosition,
+      (patch.inPhantoms ?? col.inPhantoms) ? 1 : 0,
+      phantomsPosition,
     ),
     bump(env, tenantId),
   );
   await env.DB.batch(stmts);
   return {
-    before: { label: col.label, required: col.required, inTracker: col.inTracker },
-    after: { label, required: patch.required ?? col.required, inTracker: patch.inTracker ?? col.inTracker },
+    before: { label: col.label, required: col.required, inTracker: col.inTracker, inPhantoms: col.inPhantoms },
+    after: { label, required: patch.required ?? col.required, inTracker: patch.inTracker ?? col.inTracker, inPhantoms: patch.inPhantoms ?? col.inPhantoms },
   };
 }
 
-/** Set the order of all columns at once. `keys` must list every current column exactly once. */
-export async function reorderColumns(env: Env, tenantId: string, stream: Stream, keys: string[]): Promise<void> {
+/**
+ * Set the order of a table's columns at once: the Inbox (every column), or
+ * the Tracker / Phantoms table (its columns only). `keys` must list each of
+ * that table's current columns exactly once.
+ */
+export async function reorderColumns(env: Env, tenantId: string, stream: Stream, keys: string[], table: "inbox" | TableName = "inbox"): Promise<void> {
   const schema = await loadSchema(env, tenantId, stream);
-  const current = new Set(schema.columns.map((c) => c.key));
+  const current = new Set((table === "inbox" ? schema.columns : tableColumns(schema, table)).map((c) => c.key));
   if (keys.length !== current.size || new Set(keys).size !== keys.length || !keys.every((k) => current.has(k))) {
     throw new ApiError("CONFLICT", "The columns changed while you were reordering them. Reload and try again.");
   }
+  const col = table === "inbox" ? "position" : table === "tracker" ? "tracker_position" : "phantoms_position";
   await env.DB.batch([
-    ...keys.map((k, i) => env.DB.prepare("UPDATE tracker_columns SET position = ?1 WHERE tenant_id = ?2 AND key = ?3 AND stream = ?4 AND deleted_at IS NULL").bind(i, tenantId, k, stream)),
+    ...keys.map((k, i) => env.DB.prepare(`UPDATE tracker_columns SET ${col} = ?1 WHERE tenant_id = ?2 AND key = ?3 AND stream = ?4 AND deleted_at IS NULL`).bind(i, tenantId, k, stream)),
     bump(env, tenantId),
   ]);
 }

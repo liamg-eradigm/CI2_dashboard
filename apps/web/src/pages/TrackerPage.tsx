@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CORE, STREAM_LABEL, can, displayValue, getColumn, trackerColumns, type Me, type Signal, type TrackerColumn } from "@eradigm/shared";
+import { CORE, FIELDS, STREAM_LABEL, can, displayValue, getColumn, phantomColumns, trackerColumns, type Me, type Signal, type TrackerColumn } from "@eradigm/shared";
 import { api, request, type ApiError } from "../api/client";
 import { exportUrl, useInvalidate, useSchema, useSettings, useTracker, type TableView } from "../api/hooks";
 import { FilterHeader } from "../components/FilterHeader";
-import { MarkdownPanel, downloadMarkdown } from "../components/MarkdownPanel";
+import { MarkdownPanel } from "../components/MarkdownPanel";
 import { DeleteEntries } from "../components/DeleteEntries";
 import { RecordDrawer } from "../components/RecordDrawer";
 import { SourceDrawer } from "../components/SnapshotFrame";
@@ -19,6 +19,15 @@ function Cell({ col, s, impactCol, growthCol, actionCol }: { col: TrackerColumn;
   const v = s.values[col.key];
   const text = displayValue(col, v);
   if (col.type === "date") return <td className="date">{text}</td>;
+  if (col.key === FIELDS.id) return <td className="nowrap">{text}</td>;
+  if (col.type === "long")
+    return (
+      <td className="long">
+        <div className="clamp" title={text}>
+          {text}
+        </div>
+      </td>
+    );
   if (col.key === CORE.competitors) return <td className="comp">{text}</td>;
   if (col.key === CORE.title) return <td className="title">{text}</td>;
   if (col.key === CORE.impact && typeof v === "string") {
@@ -174,7 +183,8 @@ export function TrackerPage({ me, view = "tracker" }: { me: Me; view?: TableView
 
   if (!schema.data) return <div className="content"><div className="skeleton" style={{ height: 200 }} /></div>;
   const s = schema.data;
-  const cols = trackerColumns(s);
+  // Each table has its own columns, chosen from the Inbox columns (Inbox → Edit columns).
+  const cols = phantoms ? phantomColumns(s) : trackerColumns(s);
   const canAttach = can(me.role, "item:edit");
   const canDelete = can(me.role, "item:delete");
   const impactCol = getColumn(s, CORE.impact);
@@ -223,8 +233,8 @@ export function TrackerPage({ me, view = "tracker" }: { me: Me; view?: TableView
           <span className="stream-note">
             {phantoms
               ? stream === "primary"
-                ? "Every Primary Tracker entry · open a row to view its Markdown"
-                : `Secondary Tracker entries with Impact ${settings.data?.phantoms.secondaryMinImpact ?? "Medium"} or higher (set by admins) · open a row to view its Markdown`
+                ? "Every Primary Tracker entry · open the Markdown from the MD icon"
+                : `Secondary Tracker entries with Impact ${settings.data?.phantoms.secondaryMinImpact ?? "Medium"} or higher (set by admins) · open the Markdown from the MD icon`
               : `Approved entries from the ${STREAM_LABEL[stream]} Inbox`}
           </span>
         </div>
@@ -337,18 +347,12 @@ export function TrackerPage({ me, view = "tracker" }: { me: Me; view?: TableView
                     )}
                     {phantoms && (
                       <td className="md-col">
-                        <button
-                          className="btn secondary small md-dl"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            void downloadMarkdown(r.id).then(
-                              (name) => toast(`Downloaded ${name}`),
-                              (err: Error) => toast(`Download failed · ${err.message}`, false),
-                            );
-                          }}
-                          aria-label={`Download Markdown for ${String(r.values[CORE.title] ?? r.code)}`}
-                        >
-                          <span aria-hidden="true">⤓</span> Download Markdown
+                        <button className="src-btn open md-open" onClick={() => setParam({ md: r.id }, true)} aria-label={`Open Markdown for ${String(r.values[CORE.title] ?? r.code)}`} title="Open the Markdown file">
+                          <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+                            <path d="M5 2.5h6.5L15.5 6.5V17a.5.5 0 0 1-.5.5H5a.5.5 0 0 1-.5-.5V3a.5.5 0 0 1 .5-.5Z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+                            <path d="M11.5 2.5v4h4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+                            <text x="10" y="14.6" textAnchor="middle" fontSize="5.6" fontWeight="700" fontFamily="sans-serif" fill="currentColor">MD</text>
+                          </svg>
                         </button>
                       </td>
                     )}

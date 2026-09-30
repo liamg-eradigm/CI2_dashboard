@@ -102,10 +102,24 @@ analyst-entered information distinguishable; in the prototype every value is
   and, once approved, to that stream's Tracker. `Source Tier` is set by the
   platform (Secondary only: `Reviewed-Secondary`) and cannot be edited.
 - **Separate column sets.** `tracker_columns` / `column_options` are keyed by
-  `(tenant, stream, …)`; each Inbox edits its own. Both start with the same 22
-  columns. `in_tracker` marks the nine shown in the Tracker and Phantoms tables
-  (the other fields feed the Markdown). Locked ("core") columns are the ones the
-  Dashboard charts and the Markdown depend on: they can be renamed, not deleted.
+  `(tenant, stream, …)`; each stream edits its own. Locked ("core") columns are
+  the ones the Dashboard charts and the Markdown depend on: they can be
+  renamed, not deleted.
+- **Three tables per stream** (Inbox → Edit columns): the **Inbox columns**
+  (every field; `position` is the Inbox order), and the **Tracker** and
+  **Phantoms** tables, each an ordered choice of Inbox columns
+  (`in_tracker` + `tracker_position`, `in_phantoms` + `phantoms_position`,
+  migration 0008). Names, types and dropdown options belong to the Inbox
+  column, so all three tables share them. The Tracker columns drive the
+  Tracker table, its exports and the Tracker/Dashboard filters; the Phantoms
+  columns drive the Phantoms table and its exports (Phantoms keeps the Tracker
+  filters). The Markdown layout is fixed and does not follow the Phantoms
+  columns. A new Inbox column joins neither table until it is added there.
+  Defaults: Tracker = Title, Event Date, Macrotrend, Subtrend, Growth
+  Intensity, Impact, Source Type, Competitors, Action (both streams);
+  Phantoms = the Markdown fields (`DEFAULT_PHANTOMS_KEYS`).
+- **Phantoms Markdown** opens from the MD icon (or the title) as a full side
+  pane showing the file, with Download at the top right.
 - **Dashboard** reads both streams through one merged, read-only schema
   (`?stream=all`): union of options, Primary order first.
 - **ID** is typed by the analyst, projected onto `intelligence_items.record_id`
