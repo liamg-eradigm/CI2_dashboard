@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { ALL, CORE, getColumn, type Me } from "@eradigm/shared";
 import { useDashboard, useSchema, useSettings } from "../api/hooks";
 import { BarChart, SignalTimeline } from "../components/Charts";
+import { DatesHint } from "../components/DatesHint";
 import { FilterHeader } from "../components/FilterHeader";
 import { RecordDrawer } from "../components/RecordDrawer";
 import { TrendTest } from "../components/TrendTest";
@@ -80,6 +81,11 @@ export function DashboardPage({ me }: { me: Me }) {
             Could not load the dashboard: {(dash.error as Error).message}
           </div>
         )}
+        {d?.outsideDates?.count ? (
+          <div className="banner info dates-banner">
+            <DatesHint info={d.outsideDates} f={f} />
+          </div>
+        ) : null}
         {d ? (
           <>
             <SignalTimeline data={d} schema={s} from={f.filters.from} to={f.filters.to} onOpen={open} />

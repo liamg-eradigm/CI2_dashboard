@@ -319,17 +319,27 @@ export const SignalDetailSchema = SignalSchema.extend({
   related: z.array(z.object({ id: z.string(), code: z.string(), title: z.string(), date: z.string().nullable(), why: z.string() })),
 });
 
+/**
+ * Entries that match every filter except the dates (so the date range hides
+ * them), and the Event Date span of all matching entries, for "Show all dates".
+ * Added in contract 1.8.
+ */
+export const OutsideDatesSchema = z.object({ count: z.number().int(), from: z.string().nullable(), to: z.string().nullable() });
+export type OutsideDates = z.infer<typeof OutsideDatesSchema>;
+
 export const TrackerPageSchema = z.object({
   rows: z.array(SignalSchema),
   total: z.number().int(),
   totalPublished: z.number().int(),
   page: z.number().int(),
   pageSize: z.number().int(),
+  outsideDates: OutsideDatesSchema.optional(),
 });
 
 const Bar = z.object({ label: z.string(), n: z.number().int(), high: z.number().int(), medium: z.number().int(), low: z.number().int() });
 
 export const DashboardSchema = z.object({
+  outsideDates: OutsideDatesSchema.optional(),
   kpis: z.object({
     approved: z.number().int(),
     totalPublished: z.number().int(),
