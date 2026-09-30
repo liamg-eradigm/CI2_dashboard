@@ -15,6 +15,7 @@ import {
   ImportRequest,
   ReorderColumnsRequest,
   ReorderOptionsRequest,
+  CreateManualRequest,
   DeleteItemRequest,
   CONTRACT_VERSION,
   CreateSavedViewRequest,
@@ -65,7 +66,7 @@ import { audit, listAudit, verifyChain } from "./services/audit.js";
 import { getDetail, getItemRow, inboxCounts, listItems } from "./services/items.js";
 import { qualityMetrics } from "./services/metrics.js";
 import { dashboard, exportRows, trackerPage, trendTest, type Scope } from "./services/query.js";
-import { approve, reject, reprocess, revise, saveDraft, softDelete } from "./services/review.js";
+import { approve, deleteFromTable, reject, reprocess, revise, saveDraft, softDelete } from "./services/review.js";
 import {
   addColumn,
   addOption,
@@ -83,7 +84,7 @@ import {
 } from "./services/schema.js";
 import { signalDetail, signalMarkdown } from "./services/signals.js";
 import { attachSnapshot, importRows } from "./services/imports.js";
-import { submitFile, submitUrl } from "./services/submissions.js";
+import { submitFile, submitManual, submitUrl } from "./services/submissions.js";
 import { createInvite, createUser, listUsers, revokeSessions, updateUser } from "./services/users.js";
 
 type Vars = { principal: Principal; requestId: string };
@@ -203,11 +204,11 @@ async function mergedSchema(c: C) {
 
 /** Phantoms: Primary entries always; Secondary entries at or above the admin-set Impact. */
 async function phantomScope(c: C, stream: Stream, schema: TrackerSchema): Promise<Scope> {
-  if (stream === "primary") return { stream };
+  if (stream === "primary") return { stream, table: "phantoms" };
   const { phantoms } = await loadSettings(c.env, P(c).tenantId);
   const opts = getColumn(schema, CORE.impact)?.options ?? [];
   const at = opts.indexOf(phantoms.secondaryMinImpact);
-  return { stream, impacts: opts.slice(at >= 0 ? at : Math.min(1, Math.max(0, opts.length - 1))) };
+  return { stream, impacts: opts.slice(at >= 0 ? at : Math.min(1, Math.max(0, opts.length - 1))), table: "phantoms" };
 }
 
 async function todayFor(c: C): Promise<string> {
@@ -459,6 +460,14 @@ app.post("/api/submissions", async (c) => {
   return c.json(r, r.duplicate ? 200 : 201);
 });
 
+app.post("/api/submissions/manual", async (c) => {
+  const p = P(c);
+  requirePermission(p, "submission:create");
+  const b = await body(c, CreateManualRequest);
+  const r = await submitManual(c.env, await schemasFor(c), p, c.req.header("idempotency-key")?.slice(0, 100) ?? null, b.stream);
+  return c.json(r, r.duplicate ? 200 : 201);
+});
+
 /** One-off spreadsheet import into a stream's Tracker (the dashboard parses the file and sends rows). */
 app.post("/api/import", async (c) => {
   const p = P(c);
@@ -566,8 +575,13 @@ app.delete("/api/items/:id", async (c) => {
   requirePermission(P(c), "item:delete");
   // The body is optional (older dashboards send none).
   const raw = await c.req.text();
-  const b = raw.trim() ? await body(c, DeleteItemRequest) : {};
-  return c.json(await softDelete(c.env, await schemasFor(c), P(c), c.req.param("id"), b.reason));
+  const b: DeleteItemRequest = raw.trim() ? await body(c, DeleteItemRequest) : {};
+  const schemas = await schemasFor(c);
+  if (b.from && b.from !== "global") return c.json(await deleteFromTable(c.env, schemas, P(c), c.req.param("id"), b.from, async (stream, impact) => {
+    const sc = await phantomScope(c, stream, schemas[stream]);
+    return !sc.impacts || sc.impacts.includes(impact ?? "");
+  }, b.reason));
+  return c.json(await softDelete(c.env, schemas, P(c), c.req.param("id"), b.reason));
 });
 
 // ---------------------------------------------------------------------------

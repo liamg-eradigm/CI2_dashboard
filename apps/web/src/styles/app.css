@@ -371,6 +371,10 @@ td.title button:focus-visible { outline: 2px solid var(--focus); }
 .tag.ok { background: #e7f4ec; color: var(--success-2); }
 .tag.err { background: #f9e6e4; color: #9a2b25; }
 .tag.info { background: var(--tint); color: var(--navy-700); }
+.manual-glyph { cursor: default; color: var(--teal); font-size: 15px; }
+.manual-glyph:hover { background: #fff; border-color: var(--border-input); }
+.manual-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-top: 12px; border-top: 1px solid var(--rule); font-size: 13px; color: var(--ink-2); line-height: 1.45; }
+.manual-row > span { flex: 1 1 320px; }
 .chev { display: inline-block; transition: transform 0.15s; font-size: 11px; }
 .chev.open { transform: rotate(90deg); }
 .inbox-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
@@ -517,7 +521,11 @@ a.link-btn { text-decoration: none; }
 .delete-confirm { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border: 1px solid #d98a84; border-left: 5px solid var(--error); border-radius: 8px; background: #f9e6e4; color: #6a1c16; }
 .delete-confirm:focus { outline: 2px solid var(--focus); outline-offset: 2px; }
 .delete-confirm b { font-size: 15px; }
+.delete-confirm .field > span { color: #6a1c16; }
 .delete-confirm p { margin: 0; font-size: 13px; line-height: 1.5; }
+.del-options { display: flex; flex-direction: column; gap: 6px; }
+.delete-confirm .del-options b { font-size: inherit; }
+.delete-confirm .del-small { font-size: 12.5px; opacity: 0.85; }
 .dup-icon { font-size: 20px; line-height: 1; }
 .dup-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
 

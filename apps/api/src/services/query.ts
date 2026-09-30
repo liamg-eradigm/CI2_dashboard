@@ -38,9 +38,6 @@ export interface Where {
   binds: unknown[];
 }
 
-function escapeLike(s: string): string {
-  return s.replace(/[\\%_]/g, (m) => `\\${m}`);
-}
 
 /**
  * Which entries a view covers. The Dashboard covers every stream (no scope);
@@ -50,10 +47,15 @@ function escapeLike(s: string): string {
 export interface Scope {
   stream?: Stream;
   impacts?: string[];
+  /** The table whose "deleted from this table only" entries are left out: Phantoms, else the Tracker (Dashboard, Trend Test). */
+  table?: "tracker" | "phantoms";
 }
 
+/** Entries removed from one table only stay out of that table (see migration 0007). */
+export const visibleIn = (table: "tracker" | "phantoms" = "tracker") => (table === "phantoms" ? "i.phantoms_hidden_at IS NULL" : "i.tracker_hidden_at IS NULL");
+
 function scopeWhere(scope: Scope): Where {
-  const parts: string[] = [];
+  const parts: string[] = [visibleIn(scope.table)];
   const binds: unknown[] = [];
   if (scope.stream) {
     parts.push("i.stream = ?");
@@ -75,9 +77,12 @@ export function buildWhere(schema: TrackerSchema, tenantId: string, f: FilterSta
     binds.push(...sc.binds);
   }
   if (f.q) {
-    parts.push("(i.title LIKE ? ESCAPE '\\' OR i.body_text LIKE ? ESCAPE '\\')");
-    const like = `%${escapeLike(f.q)}%`;
-    binds.push(like, like);
+    // Case-insensitive substring match. instr() rather than LIKE: D1 rejects LIKE
+    // patterns longer than 50 characters ("pattern too complex"), e.g. a pasted title.
+    parts.push("(instr(lower(i.title), ?) > 0 OR instr(lower(i.body_text), ?) > 0)");
+    // SQLite's lower() folds ASCII only; fold the query the same way.
+    const needle = f.q.replace(/[A-Z]/g, (ch) => ch.toLowerCase());
+    binds.push(needle, needle);
   }
   for (const col of filterableColumns(schema)) {
     if (skip.includes(col.key)) continue;
@@ -314,7 +319,7 @@ export async function trendTest(env: Env, schema: TrackerSchema, tenantId: strin
   const impactCol = getColumn(schema, CORE.impact);
   const growthCol = getColumn(schema, CORE.growth);
   const load = async (from: string, to: string) => {
-    const parts = ["i.tenant_id = ?", "i.status = 'approved'", "i.deleted_at IS NULL", "i.pub_date >= ?", "i.pub_date <= ?"];
+    const parts = ["i.tenant_id = ?", "i.status = 'approved'", "i.deleted_at IS NULL", visibleIn("tracker"), "i.pub_date >= ?", "i.pub_date <= ?"];
     const binds: unknown[] = [tenantId, from, to];
     if (cfg.macrotrend && cfg.macrotrend !== ALL) {
       parts.push("i.macrotrend = ?");

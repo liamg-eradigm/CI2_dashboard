@@ -4,7 +4,8 @@ import { api, request, type ApiError } from "../api/client";
 import { exportUrl, useInvalidate, useSchema, useSettings, useTracker, type TableView } from "../api/hooks";
 import { FilterHeader } from "../components/FilterHeader";
 import { MarkdownPanel, downloadMarkdown } from "../components/MarkdownPanel";
-import { RecordDrawer, useFocusTrap } from "../components/RecordDrawer";
+import { DeleteEntries } from "../components/DeleteEntries";
+import { RecordDrawer } from "../components/RecordDrawer";
 import { SourceDrawer } from "../components/SnapshotFrame";
 import { StreamSwitch } from "../components/StreamSwitch";
 import { useStreamParam } from "../state/stream";
@@ -116,75 +117,6 @@ function SourceCell({ s, canAttach, onOpen }: { s: Signal; canAttach: boolean; o
         </svg>
       </button>
     </td>
-  );
-}
-
-/** Confirm and delete the selected entries (soft delete, audited; one request per entry). */
-function BulkDelete({ rows, onCancel, onDone }: { rows: Signal[]; onCancel: () => void; onDone: (deleted: string[]) => void }) {
-  const [reason, setReason] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState(0);
-  const [err, setErr] = useState<string | null>(null);
-  const toast = useToast();
-  const inv = useInvalidate();
-  const ref = useFocusTrap(true, busy ? () => undefined : onCancel);
-  const n = rows.length;
-  const noun = n === 1 ? "entry" : "entries";
-  const submit = async () => {
-    setBusy(true);
-    setErr(null);
-    const deleted: string[] = [];
-    for (const r of rows) {
-      try {
-        await api(`/api/items/${r.id}`, { method: "DELETE", json: reason.trim() ? { reason: reason.trim() } : {} });
-        deleted.push(r.id);
-        setDone(deleted.length);
-      } catch (e) {
-        setErr(`Stopped at ${r.code}: ${(e as ApiError).message}. ${deleted.length} of ${n} deleted.`);
-        break;
-      }
-    }
-    await inv();
-    if (deleted.length === n) toast(`Deleted ${n} ${noun} from the tracker`);
-    setBusy(false);
-    onDone(deleted);
-  };
-  return (
-    <>
-      <div className="scrim" onClick={busy ? undefined : onCancel} aria-hidden="true" />
-      <div className="modal delete-confirm" role="alertdialog" aria-modal="true" aria-labelledby="bulk-del-title" aria-describedby="bulk-del-desc" ref={ref}>
-        <b id="bulk-del-title">
-          Delete {n} {noun}?
-        </b>
-        <p id="bulk-del-desc">
-          {n === 1 ? "It" : "They"} will disappear from the Tracker, Phantoms, the Dashboard and exports for everyone, including clients. This can't be undone from the dashboard. History and the audit log are kept.
-        </p>
-        <ul className="bulk-del-list">
-          {rows.map((r) => (
-            <li key={r.id}>
-              <span className="mono">{r.code}</span> {String(r.values[CORE.title] ?? "")}
-            </li>
-          ))}
-        </ul>
-        <label className="field">
-          <span>Reason (optional, recorded in the audit log)</span>
-          <input className="control" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} placeholder="e.g. Duplicate entry, published in error" data-autofocus />
-        </label>
-        {err && (
-          <div className="err-msg" role="alert">
-            ✕ {err}
-          </div>
-        )}
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button className="btn secondary" disabled={busy} onClick={onCancel}>
-            Cancel
-          </button>
-          <button className="btn danger confirm" disabled={busy} onClick={submit}>
-            {busy ? `Deleting… ${done} of ${n}` : `Delete ${n} ${noun}`}
-          </button>
-        </div>
-      </div>
-    </>
   );
 }
 
@@ -455,8 +387,10 @@ export function TrackerPage({ me, view = "tracker" }: { me: Me; view?: TableView
         <SourceDrawer itemId={savedOpen} code={savedRow?.code ?? "Saved source"} title={String(savedRow?.values[CORE.title] ?? "Saved copy of the page")} onClose={() => setParam({ saved: null })} />
       )}
       {confirmDelete && pickedRows.length > 0 && (
-        <BulkDelete
-          rows={pickedRows}
+        <DeleteEntries
+          modal
+          table={view}
+          entries={pickedRows.map((r) => ({ id: r.id, code: r.code, title: String(r.values[CORE.title] ?? "") }))}
           onCancel={() => setConfirmDelete(false)}
           onDone={(ids) => {
             setPicked((p) => new Set([...p].filter((id) => !ids.includes(id))));
@@ -467,7 +401,7 @@ export function TrackerPage({ me, view = "tracker" }: { me: Me; view?: TableView
       {mdOpen && !selected && (
         <MarkdownPanel id={mdOpen} onClose={() => setParam({ md: null })} onOpenRecord={(id) => setParam({ md: null, signal: id }, true)} />
       )}
-      {selected && <RecordDrawer id={selected} schema={s} me={me} onClose={() => setParam({ signal: null })} onOpen={(id) => setParam({ signal: id }, true)} />}
+      {selected && <RecordDrawer id={selected} schema={s} me={me} table={view} onClose={() => setParam({ signal: null })} onOpen={(id) => setParam({ signal: id }, true)} />}
     </>
   );
 }

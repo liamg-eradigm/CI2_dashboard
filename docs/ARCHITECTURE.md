@@ -93,10 +93,14 @@ analyst-entered information distinguishable; in the prototype every value is
     the values already entered; stale job messages are ignored).
 
 ## Primary / Secondary streams and Phantoms
-- **Two streams.** Input has a *Primary Source* and a *Secondary Source* (HTML
-  upload only). Each item carries `stream`; it goes to that stream's Inbox and,
-  once approved, to that stream's Tracker. `Source Tier` is set by the platform
-  (`Primary` / `Reviewed-Secondary`) and cannot be edited.
+- **Two streams.** Input has one *Add a source* card with a Primary / Secondary
+  switch (the same control as the spreadsheet import): an HTML upload, or a
+  **manual entry** (`POST /api/submissions/manual`, `input_type = 'manual'`), a
+  blank item that goes straight to Needs review for an analyst to fill in
+  entirely (no capture, nothing to reprocess; the page can be attached later
+  from the tracker). Each item carries `stream`; it goes to that stream's Inbox
+  and, once approved, to that stream's Tracker. `Source Tier` is set by the
+  platform (Secondary only: `Reviewed-Secondary`) and cannot be edited.
 - **Separate column sets.** `tracker_columns` / `column_options` are keyed by
   `(tenant, stream, …)`; each Inbox edits its own. Both start with the same 22
   columns. `in_tracker` marks the nine shown in the Tracker and Phantoms tables
@@ -144,10 +148,18 @@ analyst-entered information distinguishable; in the prototype every value is
   like any upload). Rows no longer open on click; the title opens the record
   (Tracker) or the Markdown (Phantoms).
 - **Deleting entries**: admins and analysts get a tick-box column in the
-  Tracker and Phantoms tables; *Delete selected* asks for confirmation (and an
-  optional reason) and then sends one `DELETE /api/items/:id` per entry (soft
-  delete, audited), so an entry leaves the Tracker, Phantoms, Dashboard and
-  exports together.
+  Tracker and Phantoms tables (and *Delete* in the record drawer). The
+  confirmation offers *Delete Tracker Entry* / *Delete Phantom Entry* (that
+  table only) or *Delete Globally*, sent as `DELETE /api/items/:id` with
+  `from: "tracker" | "phantoms" | "global"`, one request per entry, audited.
+  - From the Tracker: sets `tracker_hidden_at`; the entry leaves the Tracker,
+    Dashboard, Trend Test and Tracker exports, and stays in Phantoms.
+  - From Phantoms: sets `phantoms_hidden_at`; it leaves Phantoms and Phantoms
+    exports, and stays in the Tracker and on the Dashboard.
+  - Globally (the default): the soft delete (`status = 'deleted'`).
+  An entry that would be left in neither table (already removed from the
+  other, or a Secondary entry below the Phantoms Impact threshold) is deleted
+  globally. Removed-from-one-table entries still hold their ID.
 
 ## Queries
 `apps/api/src/services/query.ts` builds one tenant-scoped `WHERE` clause from the

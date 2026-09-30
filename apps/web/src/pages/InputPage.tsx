@@ -5,6 +5,7 @@ import type { ApiError } from "../api/client";
 import { api } from "../api/client";
 import { useCaptureLog, useInvalidate, useItem, useSchema } from "../api/hooks";
 import { ImportCard } from "../components/ImportCard";
+import { StreamSwitch } from "../components/StreamSwitch";
 import { ModelOutputTable } from "../components/ModelOutput";
 import { localDateTime } from "../lib/format";
 
@@ -16,15 +17,17 @@ const DUP_BASIS: Record<"url" | "file" | "content", string> = {
 
 const STAGE_OF_CODE: Record<string, number> = { TOO_LARGE: 0, CONTENT_TYPE: 0, MALICIOUS_CONTENT: 4 };
 
-const SOURCES: { stream: Stream; title: string; note: string }[] = [
-  { stream: "primary", title: "Primary Source", note: "Sent to the Primary Inbox · Source Tier: Primary" },
-  { stream: "secondary", title: "Secondary Source", note: "Sent to the Secondary Inbox · Source Tier: Reviewed-Secondary" },
-];
+const SOURCE_NOTE: Record<Stream, string> = {
+  primary: "Sent to the Primary Inbox",
+  secondary: "Sent to the Secondary Inbox · Source Tier: Reviewed-Secondary",
+};
 
 interface LocalRun {
   stream: Stream;
   itemId: string | null;
   duplicate?: boolean;
+  /** A blank manual entry (no file, so no capture steps). */
+  typedIn?: boolean;
   /** Failure before an item was created (policy rejection). */
   failAt?: number;
   failDetail?: string;
@@ -32,14 +35,28 @@ interface LocalRun {
 
 const hasFiles = (e: DragEvent) => e.dataTransfer.types.includes("Files");
 
-/** One upload area (identical for Primary and Secondary): drag and drop, or click to choose. */
-function SourceCard({ stream, title, note, busy, onSubmit }: { stream: Stream; title: string; note: string; busy: boolean; onSubmit: (stream: Stream, file: File) => Promise<boolean> }) {
+/**
+ * The one source card: a Primary / Secondary switch, then an HTML file (drag
+ * and drop, or click to choose) or a blank manual entry, sent to that
+ * source's Inbox.
+ */
+function SourceCard({
+  busy,
+  onSubmit,
+  onManual,
+}: {
+  busy: "file" | "manual" | null;
+  onSubmit: (stream: Stream, file: File) => Promise<boolean>;
+  onManual: (stream: Stream) => Promise<void>;
+}) {
+  const [stream, setStream] = useState<Stream>("primary");
   const [file, setFile] = useState<File | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const depth = useRef(0);
   const fileRef = useRef<HTMLInputElement>(null);
-  const id = `src-${stream}`;
+  const id = "src-html";
+  const title = `${STREAM_LABEL[stream]} Source`;
 
   const pick = (f: File | null) => {
     setFile(f);
@@ -60,7 +77,7 @@ function SourceCard({ stream, title, note, busy, onSubmit }: { stream: Stream; t
     <section
       className={`card source-card${dragging ? " drag-target" : ""}`}
       aria-labelledby={`${id}-title`}
-      data-testid={`source-${stream}`}
+      data-testid="source-card"
       onDragEnter={(e) => {
         if (!hasFiles(e)) return;
         e.preventDefault();
@@ -95,21 +112,38 @@ function SourceCard({ stream, title, note, busy, onSubmit }: { stream: Stream; t
       <div className="card-head" style={{ alignItems: "center" }}>
         <div>
           <h2 className="card-title" id={`${id}-title`}>
-            {title}
+            Add a source
           </h2>
-          <span className="card-sub">{note}</span>
+          <span className="card-sub">{SOURCE_NOTE[stream]}</span>
         </div>
+        <StreamSwitch
+          noun="Source"
+          value={stream}
+          onChange={(s) => {
+            setStream(s);
+            setErr(null);
+          }}
+          label="Source type"
+        />
       </div>
       <div className="source-row">
-        <label className={`drop${dragging ? " over" : ""}`} data-testid={`drop-zone-${stream}`}>
+        <label className={`drop${dragging ? " over" : ""}`} data-testid="drop-zone-html">
           <input ref={fileRef} type="file" accept=".html,.htm,text/html" className="sr-only" onChange={(e) => pick(e.target.files?.[0] ?? null)} aria-describedby={err ? `${id}-err` : `${id}-note`} aria-label={`${title}: HTML file`} />
           <span style={{ fontSize: 14, fontWeight: 700, color: "var(--navy-700)" }}>{dragging ? "Drop the HTML file here" : file ? file.name : "Drag and drop an HTML file here, or click to choose"}</span>
           <span style={{ fontSize: 12, color: "var(--muted)" }} id={`${id}-note`}>
             {file ? `${Math.round(file.size / 1024)} KB` : `.html or .htm up to ${CAPTURE_LIMITS.maxBytes / 1048576} MB · save pages with SingleFile`}
           </span>
         </label>
-        <button className="btn lg" onClick={submit} disabled={busy} aria-label={`Process file for ${title}`}>
-          {busy ? "Uploading…" : "Process file"}
+        <button className="btn lg" onClick={submit} disabled={!!busy} aria-label={`Process file for ${title}`}>
+          {busy === "file" ? "Uploading…" : "Process file"}
+        </button>
+      </div>
+      <div className="manual-row">
+        <span>
+          <b>No HTML file?</b> Send a blank entry to the {STREAM_LABEL[stream]} Inbox and fill in every field there. You can attach the HTML later from the tracker.
+        </span>
+        <button className="btn secondary" onClick={() => void onManual(stream)} disabled={!!busy}>
+          {busy === "manual" ? "Creating…" : "✎ Manual entry"}
         </button>
       </div>
       {err && (
@@ -124,7 +158,7 @@ function SourceCard({ stream, title, note, busy, onSubmit }: { stream: Stream; t
 export function InputPage({ me }: { me: Me }) {
   const manual = me.features.prefill === "manual";
   const [run, setRun] = useState<LocalRun | null>(null);
-  const [busy, setBusy] = useState<Stream | null>(null);
+  const [busy, setBusy] = useState<"file" | "manual" | null>(null);
   const [pageErr, setPageErr] = useState<string | null>(null);
   const schema = useSchema(run?.stream ?? "primary");
   const inv = useInvalidate();
@@ -149,7 +183,7 @@ export function InputPage({ me }: { me: Me }) {
 
   const submit = async (stream: Stream, file: File): Promise<boolean> => {
     setPageErr(null);
-    setBusy(stream);
+    setBusy("file");
     const key = crypto.randomUUID();
     try {
       const fd = new FormData();
@@ -170,6 +204,20 @@ export function InputPage({ me }: { me: Me }) {
     } finally {
       setBusy(null);
       await inv("capture-log", "items", "counts");
+    }
+  };
+
+  const createManual = async (stream: Stream) => {
+    setPageErr(null);
+    setBusy("manual");
+    try {
+      const res = await api<{ item: ItemSummary; duplicate: boolean }>("/api/submissions/manual", { method: "POST", json: { stream }, headers: { "idempotency-key": crypto.randomUUID() } });
+      setRun({ stream, itemId: res.item.id, typedIn: true });
+    } catch (e) {
+      setPageErr((e as ApiError).message);
+    } finally {
+      setBusy(null);
+      await inv("items", "counts");
     }
   };
 
@@ -225,16 +273,14 @@ export function InputPage({ me }: { me: Me }) {
           </div>
           <div className="band-copy">
             {manual
-              ? "Upload an HTML file saved with SingleFile as a Primary or a Secondary source. The page is saved and sent to that source's Inbox with every tracker field empty for an analyst to complete. Nothing is published automatically."
+              ? "Upload an HTML file saved with SingleFile as a Primary or a Secondary source, or send a blank manual entry. Either goes to that source's Inbox with every tracker field empty for an analyst to complete. Nothing is published automatically."
               : "Upload an HTML file saved with SingleFile as a Primary or a Secondary source. Every extracted draft goes to that source's Inbox for review and is never published automatically."}
           </div>
         </div>
       </section>
       <div className="content">
         <div className="source-stack">
-          {SOURCES.map((src) => (
-            <SourceCard key={src.stream} {...src} busy={busy === src.stream} onSubmit={submit} />
-          ))}
+          <SourceCard busy={busy} onSubmit={submit} onManual={createManual} />
           <ImportCard />
         </div>
         {pageErr && (
@@ -252,7 +298,7 @@ export function InputPage({ me }: { me: Me }) {
           </div>
         )}
 
-        {run && (
+        {run && !run.typedIn && (
           <section className="card" aria-labelledby="pipe-title">
             <div className="card-head" style={{ alignItems: "baseline" }}>
               <h2 className="card-title" id="pipe-title">
@@ -290,10 +336,10 @@ export function InputPage({ me }: { me: Me }) {
             <div className="card-head" style={{ alignItems: "center" }}>
               <div>
                 <h2 className="card-title" id="sent-title">
-                  Sent to the {inboxName}
+                  {run?.typedIn ? "Blank entry sent" : "Sent"} to the {inboxName}
                 </h2>
                 <span className="card-sub">
-                  {d.code} · saved page stored · {schema.data.columns.filter((c) => c.key !== "source_tier").length} tracker fields left empty for the analyst · nothing sent to any external service
+                  {d.code} · {run?.typedIn ? "blank manual entry, no source file" : "saved page stored"} · {schema.data.columns.filter((c) => c.key !== "source_tier").length} tracker fields left empty for the analyst · nothing sent to any external service
                 </span>
               </div>
               <button className="btn" onClick={() => nav(inboxLink)}>

@@ -5,6 +5,7 @@ import { useInvalidate, useSchema, useSignal } from "../api/hooks";
 import { useToast } from "../state/toast";
 import { formatDate, localDateTime, pct } from "../lib/format";
 import { Combobox } from "./Combobox";
+import { DeleteEntries, type DeleteTable } from "./DeleteEntries";
 import { SnapshotFrame } from "./SnapshotFrame";
 
 const PROV: Record<string, string> = { source: "From source", ai: "AI suggested", analyst: "Analyst" };
@@ -43,7 +44,22 @@ export function useFocusTrap(open: boolean, onClose: () => void) {
   return ref;
 }
 
-export function RecordDrawer({ id, schema: pageSchema, me, onClose, onOpen }: { id: string; schema: TrackerSchema; me: Me; onClose: () => void; onOpen: (id: string) => void }) {
+export function RecordDrawer({
+  id,
+  schema: pageSchema,
+  me,
+  table,
+  onClose,
+  onOpen,
+}: {
+  id: string;
+  schema: TrackerSchema;
+  me: Me;
+  /** The table the drawer was opened from; deleting then offers "that table only". None on the Dashboard. */
+  table?: DeleteTable;
+  onClose: () => void;
+  onOpen: (id: string) => void;
+}) {
   const sig = useSignal(id);
   // The entry's own inbox column set (the Dashboard page passes the merged one).
   const own = useSchema(sig.data?.stream ?? "primary");
@@ -104,7 +120,14 @@ export function RecordDrawer({ id, schema: pageSchema, me, onClose, onOpen }: { 
         )}
         {s && (
           <div className="drawer-body">
-            {deleting && <DeleteConfirm id={s.id} code={s.code} title={String(s.values[CORE.title] ?? "")} onCancel={() => setDeleting(false)} onDeleted={onClose} />}
+            {deleting && (
+              <DeleteEntries
+                table={table}
+                entries={[{ id: s.id, code: s.code, title: String(s.values[CORE.title] ?? "") }]}
+                onCancel={() => setDeleting(false)}
+                onDone={(ids) => (ids.length ? onClose() : undefined)}
+              />
+            )}
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <h2 id="drawer-title" style={{ font: "700 20px/1.3 var(--sans)", textWrap: "pretty" }}>
                 {String(s.values[CORE.title] ?? "")}
@@ -250,55 +273,6 @@ export function RecordDrawer({ id, schema: pageSchema, me, onClose, onOpen }: { 
         )}
       </div>
     </>
-  );
-}
-
-/** Explicit, two-step deletion of a tracker entry (soft delete, audited). */
-function DeleteConfirm({ id, code, title, onCancel, onDeleted }: { id: string; code: string; title: string; onCancel: () => void; onDeleted: () => void }) {
-  const [reason, setReason] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const ref = useRef<HTMLDivElement>(null);
-  const toast = useToast();
-  const inv = useInvalidate();
-  useEffect(() => ref.current?.focus(), []);
-  const submit = async () => {
-    setBusy(true);
-    setErr(null);
-    try {
-      await api(`/api/items/${id}`, { method: "DELETE", json: reason.trim() ? { reason: reason.trim() } : {} });
-      toast(`${code} deleted from the tracker`);
-      onDeleted();
-      await inv();
-    } catch (e) {
-      setErr(e instanceof ApiError ? e.message : "Could not delete");
-      setBusy(false);
-    }
-  };
-  return (
-    <div className="delete-confirm" role="alertdialog" aria-labelledby="del-title" aria-describedby="del-desc" tabIndex={-1} ref={ref}>
-      <b id="del-title">Delete {code} from the tracker?</b>
-      <p id="del-desc">
-        “{title || code}” will disappear from the Tracker, the Dashboard and exports for everyone, including clients. This can't be undone from the dashboard. Its history and the audit log are kept.
-      </p>
-      <label className="field">
-        <span>Reason (optional, recorded in the audit log)</span>
-        <input className="control" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} placeholder="e.g. Duplicate entry, published in error" />
-      </label>
-      {err && (
-        <div className="err-msg" role="alert">
-          ✕ {err}
-        </div>
-      )}
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <button className="btn secondary" disabled={busy} onClick={onCancel}>
-          Cancel
-        </button>
-        <button className="btn danger confirm" disabled={busy} onClick={submit}>
-          {busy ? "Deleting…" : `Delete ${code}`}
-        </button>
-      </div>
-    </div>
   );
 }
 

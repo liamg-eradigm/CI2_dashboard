@@ -49,7 +49,16 @@ export const UpdateColumnRequest = z
   .object({ label: z.string().min(1).max(MAX_LABEL_LENGTH).optional(), required: z.boolean().optional(), inTracker: z.boolean().optional() })
   .refine((v) => v.label !== undefined || v.required !== undefined || v.inTracker !== undefined, "Nothing to update");
 /** Optional reason recorded in the audit log when an item or tracker entry is deleted. */
-export const DeleteItemRequest = z.object({ reason: z.string().max(500).optional() });
+export const DeleteItemRequest = z.object({
+  reason: z.string().max(500).optional(),
+  /**
+   * Tracker entries only: remove it from the Tracker (it stays in Phantoms),
+   * from Phantoms (it stays in the Tracker), or everywhere ("global", the
+   * default). An entry left in neither table is deleted globally.
+   */
+  from: z.enum(["tracker", "phantoms", "global"]).optional(),
+});
+export type DeleteItemRequest = z.infer<typeof DeleteItemRequest>;
 /** The full new column order: every current column key exactly once. */
 export const ReorderColumnsRequest = z.object({ keys: z.array(z.string().min(1).max(64)).min(1).max(200) });
 export const AddOptionRequest = z.object({
@@ -127,7 +136,8 @@ export const ItemSummarySchema = z.object({
   code: z.string(),
   stream: StreamSchema.default("primary"),
   status: z.enum(ITEM_STATUSES),
-  inputType: z.enum(["url", "file"]),
+  /** "manual": a blank entry created from the Input page, with no source file. */
+  inputType: z.enum(["url", "file", "manual"]),
   outlet: z.string().nullable(),
   submittedUrl: z.string().nullable(),
   url: z.string().nullable(),
@@ -221,6 +231,8 @@ export const RejectRequest = z.object({ reason: z.string().max(500).optional(), 
 export const ReprocessRequest = z.object({ version: z.number().int().optional() });
 export const ReviseRequest = z.object({ values: ItemValuesSchema, note: z.string().min(1).max(500) });
 export const CreateSubmissionRequest = z.object({ url: z.string().min(1).max(2048), stream: StreamSchema.default("primary") });
+/** A blank Inbox entry, typed in by an analyst in its entirety (no source file). */
+export const CreateManualRequest = z.object({ stream: StreamSchema.default("primary") });
 /** One-off spreadsheet import into a tracker: rows keyed by the tracker's column labels, already parsed by the dashboard. */
 export const IMPORT_CHUNK_ROWS = 8;
 export const ImportRequest = z.object({
@@ -534,6 +546,7 @@ export const ENDPOINTS: EndpointDef[] = [
   { method: "get", path: "/api/dashboard", summary: "KPIs, timeline and chart aggregates for the shared filter state", roles: ALL_ROLES, query: ["q", "from", "to", "f.<column>"], response: DashboardSchema },
   { method: "post", path: "/api/trend-test", summary: "Evaluate the Trend Test", roles: ALL_ROLES, request: TrendConfigSchema, response: TrendResultSchema },
   { method: "post", path: "/api/submissions", summary: "Submit a URL (JSON) or HTML file (multipart). Idempotent on URL/content and Idempotency-Key.", roles: STAFF, request: CreateSubmissionRequest, response: CreateSubmissionResponse, multipart: true },
+  { method: "post", path: "/api/submissions/manual", summary: "Send a blank entry to a stream's Inbox for an analyst to fill in (no source file). Idempotent on Idempotency-Key.", roles: STAFF, request: CreateManualRequest, response: CreateSubmissionResponse },
   { method: "get", path: "/api/capture-log", summary: "Final resolved URL and retrieval outcome for every submission", roles: STAFF, response: z.array(CaptureLogEntrySchema) },
   { method: "get", path: "/api/items", summary: "Inbox items", roles: STAFF, query: ["status"], response: z.array(ItemSummarySchema) },
   { method: "get", path: "/api/items/{id}", summary: "Inbox item detail", roles: STAFF, response: ItemDetailSchema },
