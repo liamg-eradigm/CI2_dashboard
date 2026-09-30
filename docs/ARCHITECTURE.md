@@ -181,6 +181,17 @@ analyst-entered information distinguishable; in the prototype every value is
   (`POST /api/items/:id/snapshot`, scanned and sanitised in the capture worker
   like any upload). Rows no longer open on click; the title opens the record
   (Tracker) or the Markdown (Phantoms).
+- **Editing approved entries**: analysts and admins get an Edit (pencil)
+  column in the Tracker, Phantoms and Deliverables tables, and ✎ Edit in the
+  record drawer and the Markdown pane. The form has every Inbox field and ends
+  in **Approve** (`POST /api/signals/:id/revise`, note optional): the values are
+  validated like an approval (required fields, options, dates, unique ID),
+  published as a new revision (`item_revisions`, projection updated), and
+  re-stamped as approved by the editor now (QC Reviewed_by) with Review Date set
+  to today unless the editor changed it. Everything downstream follows the new
+  revision: Tracker, Dashboard, Phantoms membership (Impact), the Markdown
+  (generated from the published values), and the alert `.docx` (regenerated
+  when its `source_rev` differs). Newsletters already created keep their file.
 - **Deleting entries**: admins and analysts get a tick-box column in the
   Tracker and Phantoms tables (and *Delete* in the record drawer). The
   confirmation offers *Delete Tracker Entry* / *Delete Phantom Entry* (that

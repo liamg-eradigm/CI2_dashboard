@@ -694,7 +694,7 @@ test.describe("analyst role", () => {
     await expect(page.getByTestId("deliv-alerts")).toHaveAttribute("aria-pressed", "true");
     // Only High Impact entries, with the Phantoms columns (and Alert, Markdown, Source).
     const heads = await page.locator("table thead th").allInnerTexts();
-    expect(heads.slice(0, 4).map((h) => h.trim().toLowerCase())).toEqual(["alert", "markdown", "source", "id"]);
+    expect(heads.slice(0, 5).map((h) => h.trim().toLowerCase())).toEqual(["alert", "markdown", "source", "edit", "id"]);
     const impacts = await page.evaluate(async () => {
       const h = { "x-dev-user": localStorage.getItem("eradigm.devUser") ?? "" };
       const get = async (s: string) => ((await (await fetch(`/api/deliverables/alerts?stream=${s}&from=2000-01-01&to=2100-01-01&pageSize=25`, { headers: h })).json()) as { rows: { values: { impact: string } }[] }).rows.map((r) => r.values.impact);
@@ -776,6 +776,46 @@ test.describe("analyst role", () => {
     expect(download.suggestedFilename()).toBe(`${name.replace(/ /g, "-")}.docx`);
     await page.keyboard.press("Escape");
     await expectAccessible(page, "/deliverables newsletter");
+  });
+
+  test("edits an approved Phantom and approves it again: the Markdown is regenerated", async ({ page }) => {
+    await page.goto("/phantoms");
+    const row = page.locator("table tbody tr").nth(2);
+    const title = (await row.locator("td.title").innerText()).trim();
+    await row.getByRole("button", { name: `Edit ${title}` }).click();
+    const drawer = page.getByRole("dialog");
+    await expect(drawer.getByText("Edit entry")).toBeVisible();
+    // A field of the edit form by its label (a textarea's accessible name also contains its text).
+    const field = (label: string) => drawer.locator(".edit-form label.field").filter({ has: page.getByText(label, { exact: true }) }).locator("input, textarea").first();
+    const newTitle = `${title} (edited ${uid()})`;
+    await field("Title *").fill(newTitle);
+    await field("Key Metrics").fill("Three new sites,\n\nopening in 2027.");
+    // The approval checks run again: a cleared required field is flagged next to it.
+    await field("Source Role").fill("Oncology KOL");
+    await field("ID *").fill("");
+    await drawer.getByRole("button", { name: "✓ Approve" }).click();
+    await expect(drawer.getByRole("alert")).toContainText("One field needs attention before approval");
+    await expect(drawer.locator(".field-err")).toContainText(/ID/);
+    const id = `P-ED-${uid()}`;
+    await field("ID *").fill(id);
+    await expectAccessible(page, "/phantoms edit form");
+    await drawer.getByRole("button", { name: "✓ Approve" }).click();
+    await expect(page.locator(".toast").last()).toContainText(/SIG-\d+ approved again as rev \d+ · Markdown and deliverables updated/);
+    await expect(drawer.getByRole("heading", { name: newTitle })).toBeVisible();
+    await page.keyboard.press("Escape");
+    // The table and the Markdown show the new version.
+    const edited = page.locator("table tbody tr", { hasText: newTitle });
+    await expect(edited).toBeVisible();
+    await edited.getByRole("button", { name: `Open Markdown for ${newTitle}` }).click();
+    const md = page.getByRole("dialog").getByLabel("Markdown source");
+    await expect(md).toContainText(`id: ${id}`);
+    await expect(md).toContainText(`title: ${newTitle}`);
+    await expect(md).toContainText("## Key Metrics\nThree new sites,\n\nopening in 2027.");
+    // Edit is also offered from the Markdown pane.
+    await page.getByRole("dialog").getByRole("button", { name: "✎ Edit" }).click();
+    await expect(page.getByRole("dialog").getByText("Edit entry")).toBeVisible();
+    await page.getByRole("dialog").getByRole("button", { name: "Cancel" }).click();
+    await expect(page.getByRole("dialog").getByRole("button", { name: "✎ Edit" })).toBeVisible();
   });
 
   test("Inbox and Input pass automated accessibility checks", async ({ page }) => {

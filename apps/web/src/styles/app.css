@@ -232,6 +232,8 @@ table.data tr.picked td { background: var(--tint-3); }
 .md-pane .md-preview { padding: 24px 32px 40px; max-width: 880px; }
 .md-seg { width: 200px; }
 td.nowrap { white-space: nowrap; }
+.edit-form .field-err { font-size: 12px; margin-top: 2px; }
+.edit-actions { position: sticky; bottom: 0; display: flex; gap: 8px; padding: 12px 0 4px; background: #fff; border-top: 1px solid var(--rule); }
 .deliv-switch { display: flex; justify-content: center; }
 .deliv-seg { width: 320px; height: 42px; }
 .deliv-seg button { font-size: 14.5px; }

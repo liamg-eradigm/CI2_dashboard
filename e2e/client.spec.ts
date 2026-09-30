@@ -164,6 +164,14 @@ test.describe("client role", () => {
     await expect(page.getByRole("button", { name: /Attach the HTML page/ })).toHaveCount(0);
   });
 
+  test("cannot edit approved entries", async ({ page }) => {
+    await page.goto("/phantoms");
+    await expect(page.locator("table tbody tr").first()).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Edit / })).toHaveCount(0);
+    await page.locator("table tbody tr").first().locator("td.md-col button").click();
+    await expect(page.getByRole("dialog").getByRole("button", { name: "✎ Edit" })).toHaveCount(0);
+  });
+
   test("cannot delete tracker entries", async ({ page }) => {
     await page.goto("/tracker");
     await expect(page.locator("table tbody tr").first()).toBeVisible();

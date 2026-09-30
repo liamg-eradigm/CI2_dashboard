@@ -243,7 +243,8 @@ export const ApproveRequest = z.object({
 });
 export const RejectRequest = z.object({ reason: z.string().max(500).optional(), version: z.number().int() });
 export const ReprocessRequest = z.object({ version: z.number().int().optional() });
-export const ReviseRequest = z.object({ values: ItemValuesSchema, note: z.string().min(1).max(500) });
+/** Edit an approved entry and approve it again (the note is optional since contract 1.9). */
+export const ReviseRequest = z.object({ values: ItemValuesSchema, note: z.string().max(500).optional() });
 export const CreateSubmissionRequest = z.object({ url: z.string().min(1).max(2048), stream: StreamSchema.default("primary") });
 /** A blank Inbox entry, typed in by an analyst in its entirety (no source file). */
 export const CreateManualRequest = z.object({ stream: StreamSchema.default("primary") });
@@ -589,7 +590,7 @@ export const ENDPOINTS: EndpointDef[] = [
   { method: "get", path: "/api/tracker", summary: "Server-side filtered, sorted, paginated approved signals", roles: ALL_ROLES, query: ["q", "from", "to", "f.<column>", "sort", "dir", "page", "pageSize"], response: TrackerPageSchema },
   { method: "get", path: "/api/tracker/export", summary: "Export approved signals (audited)", roles: ALL_ROLES, query: ["scope", "format", "q", "from", "to", "f.<column>", "sort", "dir"], raw: `One of ${EXPORT_FORMATS.join(", ")}` },
   { method: "get", path: "/api/signals/{id}", summary: "Approved signal detail with provenance and history", roles: ALL_ROLES, response: SignalDetailSchema },
-  { method: "post", path: "/api/signals/{id}/revise", summary: "Publish a new revision of an approved signal", roles: STAFF, request: ReviseRequest, response: SignalDetailSchema },
+  { method: "post", path: "/api/signals/{id}/revise", summary: "Edit an approved entry and approve it again: validated like an approval, published as a new revision (Tracker, Phantoms, Markdown, Dashboard and alerts follow)", roles: STAFF, request: ReviseRequest, response: SignalDetailSchema },
   { method: "get", path: "/api/dashboard", summary: "KPIs, timeline and chart aggregates for the shared filter state", roles: ALL_ROLES, query: ["q", "from", "to", "f.<column>"], response: DashboardSchema },
   { method: "post", path: "/api/trend-test", summary: "Evaluate the Trend Test", roles: ALL_ROLES, request: TrendConfigSchema, response: TrendResultSchema },
   { method: "post", path: "/api/submissions", summary: "Submit a URL (JSON) or HTML file (multipart). Idempotent on URL/content and Idempotency-Key.", roles: STAFF, request: CreateSubmissionRequest, response: CreateSubmissionResponse, multipart: true },
