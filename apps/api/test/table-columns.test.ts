@@ -109,7 +109,7 @@ describe("Inbox, Tracker and Phantoms columns", () => {
   it("exports the Tracker with the Tracker columns and Phantoms with the Phantoms columns", async () => {
     const { item } = await json(call(w.a.analyst, "POST", "/api/submissions/manual", { body: { stream: "primary" } }));
     expect((await approveWith(w.a.analyst, item, { title: "Column export entry", key_metrics: "12 sites" })).status).toBe(200);
-    const head = async (view: string) => (await (await call(w.a.analyst, "GET", `/api/tracker/export?stream=primary&format=csv&scope=all&view=${view}&${RANGE}`)).text()).replace(/^\uFEFF/, "").split("\r\n")[0];
+    const head = async (view: string) => (await (await call(w.a.analyst, "GET", `/api/tracker/export?stream=primary&format=csv&scope=all&view=${view}&${RANGE}`)).text()).replace(/^\uFEFF/, "").split("\r\n")[0] ?? "";
     expect(await head("tracker")).toBe(`Signal ID,${TRACKER.join(",")}`);
     const ph = await head("phantoms");
     expect(ph.startsWith("Signal ID,Title,Event Date,Source Role,")).toBe(true);

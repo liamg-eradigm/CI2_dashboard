@@ -86,9 +86,11 @@ describe("deleting from one table only", () => {
   });
 
   it("deletes globally when the entry is not in the other table (Secondary below the Phantoms threshold)", async () => {
+    await call(w.a.admin, "PATCH", "/api/settings", { body: { phantoms: { secondaryMinImpact: "Medium" } } });
     const id = await entry("secondary", "Low impact scoped delete", { impact: "Low" });
     expect(await ids("phantoms", "secondary")).not.toContain(id);
     expect((await json(del(id, "tracker"))).status).toBe("deleted");
+    await call(w.a.admin, "PATCH", "/api/settings", { body: { phantoms: { secondaryMinImpact: "Low" } } });
   });
 
   it("Delete Globally (or no choice, as before) removes it everywhere; clients cannot delete", async () => {

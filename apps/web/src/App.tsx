@@ -6,13 +6,14 @@ import { getContractWarning } from "./api/client";
 import { Sidebar } from "./components/Sidebar";
 import { DashboardPage } from "./pages/DashboardPage";
 import { TrackerPage } from "./pages/TrackerPage";
+import { DeliverablesPage } from "./pages/DeliverablesPage";
 import { InboxPage } from "./pages/InboxPage";
 import { InputPage } from "./pages/InputPage";
 import { AdminPage } from "./pages/AdminPage";
 import { InvitePage, SignInPage } from "./pages/SignInPage";
 import { SourcePage } from "./pages/SourcePage";
 
-const TITLES: Record<string, string> = { "/dashboard": "Dashboard", "/tracker": "Tracker", "/phantoms": "Phantoms", "/inbox": "Inbox", "/input": "Input", "/admin": "Administration" };
+const TITLES: Record<string, string> = { "/dashboard": "Dashboard", "/tracker": "Tracker", "/phantoms": "Phantoms", "/deliverables": "Deliverables", "/inbox": "Inbox", "/input": "Input", "/admin": "Administration" };
 
 export function App() {
   const loc = useLocation();
@@ -67,6 +68,7 @@ function SignedIn() {
           <Route path="/dashboard" element={<DashboardPage me={me.data} />} />
           <Route path="/tracker" element={<TrackerPage me={me.data} view="tracker" />} />
           <Route path="/phantoms" element={<TrackerPage key="phantoms" me={me.data} view="phantoms" />} />
+          <Route path="/deliverables" element={<DeliverablesPage me={me.data} />} />
           {/* Staff-only pages do not exist for clients: the routes redirect to the dashboard (the API also refuses them). */}
           <Route path="/inbox" element={staff ? <InboxPage me={me.data} /> : <Navigate to="/dashboard" replace />} />
           <Route path="/input" element={can(role, "submission:create") ? <InputPage me={me.data} /> : <Navigate to="/dashboard" replace />} />

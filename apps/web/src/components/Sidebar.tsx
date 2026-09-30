@@ -19,12 +19,13 @@ export function Sidebar({ me }: { me: Me }) {
   const counts = useInboxCounts(staff);
   const n = (counts.data?.primary ?? 0) + (counts.data?.secondary ?? 0);
   const loc = useLocation();
-  // Dashboard, Tracker and Phantoms share one filter state (and Tracker/Phantoms the Primary/Secondary switch): carry it across.
+  // Dashboard, Tracker, Phantoms and Deliverables share one filter state (and the tables the Primary/Secondary switch): carry it across.
   const cur = [...new URLSearchParams(loc.search)];
   const filterPairs = cur.filter(([k]) => k === "q" || k === "from" || k === "to" || k.startsWith("f."));
-  const tables = loc.pathname === "/tracker" || loc.pathname === "/phantoms";
+  const TABLES = ["/tracker", "/phantoms", "/deliverables"];
+  const tables = TABLES.includes(loc.pathname);
   const withFilters = (to: string) => {
-    if (to !== "/dashboard" && to !== "/tracker" && to !== "/phantoms") return to;
+    if (to !== "/dashboard" && !TABLES.includes(to)) return to;
     const pairs = to === "/dashboard" ? filterPairs : tables ? cur.filter(([k]) => k === "stream" || filterPairs.some(([f]) => f === k)) : filterPairs;
     const q = new URLSearchParams(pairs).toString();
     return q ? `${to}?${q}` : to;
@@ -43,6 +44,7 @@ export function Sidebar({ me }: { me: Me }) {
     ["/dashboard", "Dashboard", true],
     ["/tracker", "Tracker", true],
     ["/phantoms", "Phantoms", true],
+    ["/deliverables", "Deliverables", true],
     ["/inbox", "Inbox", staff],
     ["/input", "Input", can(me.role, "submission:create")],
     ["/admin", "Administration", can(me.role, "user:read")],

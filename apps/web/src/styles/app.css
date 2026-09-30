@@ -232,6 +232,23 @@ table.data tr.picked td { background: var(--tint-3); }
 .md-pane .md-preview { padding: 24px 32px 40px; max-width: 880px; }
 .md-seg { width: 200px; }
 td.nowrap { white-space: nowrap; }
+.deliv-switch { display: flex; justify-content: center; }
+.deliv-seg { width: 320px; height: 42px; }
+.deliv-seg button { font-size: 14.5px; }
+.docx-body { flex: 1 1 auto; min-height: 0; overflow: auto; background: #e9eef1; }
+.docx-body:focus { outline: 2px solid var(--focus); outline-offset: -2px; }
+.docx-host .docx-wrapper { background: transparent; padding: 28px 24px 40px; }
+.docx-host .docx-wrapper > section.docx { box-shadow: 0 2px 10px rgba(7, 40, 56, 0.18); margin-bottom: 24px; }
+.nl-table td { vertical-align: top; }
+.nl-name b { display: block; font-size: 14px; color: var(--ink); }
+.nl-name span { display: block; font-size: 12px; color: var(--muted); margin-top: 3px; }
+.nl-items { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 3px; font-size: 13px; }
+.nl-items .mono { font-size: 12px; color: var(--muted); margin-right: 4px; }
+.nl-items .deleted { color: var(--muted); text-decoration: line-through; }
+.nl-create { background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px; }
+.nl-create b { font-size: 16px; }
+.nl-create p { margin: 0; font-size: 13px; color: var(--ink-2); }
+.nl-create .bulk-del-list { border-color: var(--border); }
 td.long { min-width: 260px; max-width: 420px; }
 td.long .clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-line; }
 .md-toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }

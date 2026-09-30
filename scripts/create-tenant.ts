@@ -39,7 +39,7 @@ const settings = {
   trendDefaults: DEFAULT_TREND_THRESHOLDS,
   retention: { snapshotDays: 730, rejectedDays: 90, deletedDays: 30 },
   redaction: { redactEmails: true, redactPhones: true, quarantineMarkers: [] },
-  phantoms: { secondaryMinImpact: "Medium" },
+  phantoms: { secondaryMinImpact: "Low" },
 };
 out.push(`INSERT INTO tenants (id, name, slug, created_at) VALUES (${q(t)}, ${q(name)}, ${q(slug)}, ${q(now)});`);
 out.push(`INSERT INTO schema_meta (tenant_id, revision) VALUES (${q(t)}, 1);`);

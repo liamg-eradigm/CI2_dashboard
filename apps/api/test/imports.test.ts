@@ -75,13 +75,19 @@ describe("spreadsheet import", () => {
     expect(JSON.parse(ev!.details_json)).toMatchObject({ stream: "primary", rows: 2 });
   });
 
-  it("imports Secondary rows; only Medium or higher reach Phantoms, and Source Tier is automatic", async () => {
+  it("imports Secondary rows; they reach Phantoms at or above the admin-set Impact, and Source Tier is automatic", async () => {
     const rows = [secondaryRow(2), secondaryRow(3, { Impact: "Low" }), secondaryRow(4, { "Source Tier": "Primary" })];
     const res = await json(importRows("secondary", rows));
     expect(res.imported).toBe(3);
     const ph = (await json(call(w.a.client, "GET", `/api/phantoms?stream=secondary&${RANGE}`))).rows.map((r: any) => r.code);
+    // Default minimum Low: every Secondary row is a Phantom; at Medium the Low one is not.
     expect(ph).toContain(res.codes[0]);
-    expect(ph).not.toContain(res.codes[1]);
+    expect(ph).toContain(res.codes[1]);
+    await call(w.a.admin, "PATCH", "/api/settings", { body: { phantoms: { secondaryMinImpact: "Medium" } } });
+    const ph2 = (await json(call(w.a.client, "GET", `/api/phantoms?stream=secondary&${RANGE}`))).rows.map((r: any) => r.code);
+    expect(ph2).toContain(res.codes[0]);
+    expect(ph2).not.toContain(res.codes[1]);
+    await call(w.a.admin, "PATCH", "/api/settings", { body: { phantoms: { secondaryMinImpact: "Low" } } });
     const t = await json(call(w.a.client, "GET", `/api/tracker?stream=secondary&${RANGE}`));
     const third = t.rows.find((r: any) => r.code === res.codes[2]);
     expect(third.values.date).toBe("2025-09-24");

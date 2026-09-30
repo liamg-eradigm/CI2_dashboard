@@ -127,8 +127,28 @@ analyst-entered information distinguishable; in the prototype every value is
   partial unique index). **Review Date** defaults to the approval day.
 - **Phantoms** is a view, not a copy: every approved Primary entry, plus
   approved Secondary entries whose Impact is at or above the admin setting
-  `phantoms.secondaryMinImpact` (Administration → Workspace settings). Changing
-  the setting or an entry's Impact updates Phantoms immediately.
+  `phantoms.secondaryMinImpact` (Administration → Workspace settings; default
+  Low, i.e. every Secondary entry — migration 0009 moved tenants from the old
+  Medium default). Changing the setting or an entry's Impact updates Phantoms
+  immediately.
+- **Deliverables** (tab; central Alerts / Newsletter switch) are built from
+  Phantoms and use the Phantoms table (columns, Markdown, saved page, filters).
+  - *Alerts* (`GET /api/deliverables/alerts`): Phantoms of either stream with
+    the highest Impact (High). Each gets a stored `.docx` alert
+    (`deliverables` table, `kind = 'alert'`, one per entry) the first time it
+    is listed, regenerated when the entry is revised (`source_rev`). At most
+    25 per page (Workers Free plan query limit).
+  - *Newsletter* (`GET /api/deliverables/newsletter`): Phantoms with the two
+    highest Impacts (High, Medium). Analysts and admins tick entries (kept
+    across pages and both streams), name the newsletter and create it
+    (`POST /api/newsletters`); `GET /api/newsletters` lists them (name, the
+    Phantoms used) above the entries.
+  - The `.docx` (`GET /api/deliverables/:id/docx`, `?download=1` for a file)
+    opens in a side pane rendered in the browser (`docx-preview`, loaded on
+    first use). Content is a placeholder until the AI writer is connected: the
+    entry's Title (alert) or the newsletter's name, bold 32 pt
+    (`packages/shared/src/docx.ts`, `titleDocx`). Stored as base64 text in D1
+    (no R2 needed).
 - **Markdown** (`GET /api/signals/:id/markdown`, `?download=1` for a file named
   `<ID>.md`) is generated from the published field values only. The front
   matter is valid YAML (two-space indentation; values quoted only when YAML

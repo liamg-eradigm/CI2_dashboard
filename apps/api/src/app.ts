@@ -16,6 +16,8 @@ import {
   ReorderColumnsRequest,
   ReorderOptionsRequest,
   CreateManualRequest,
+  CreateNewsletterRequest,
+  DOCX_MIME,
   DeleteItemRequest,
   CONTRACT_VERSION,
   CreateSavedViewRequest,
@@ -87,6 +89,7 @@ import {
 import { signalDetail, signalMarkdown } from "./services/signals.js";
 import { attachSnapshot, importRows } from "./services/imports.js";
 import { submitFile, submitManual, submitUrl } from "./services/submissions.js";
+import { ALERTS_PAGE_MAX, createNewsletter, ensureAlerts, listNewsletters, readDeliverable } from "./services/deliverables.js";
 import { createInvite, createUser, listUsers, revokeSessions, updateUser } from "./services/users.js";
 
 type Vars = { principal: Principal; requestId: string };
@@ -210,7 +213,27 @@ async function phantomScope(c: C, stream: Stream, schema: TrackerSchema): Promis
   const { phantoms } = await loadSettings(c.env, P(c).tenantId);
   const opts = getColumn(schema, CORE.impact)?.options ?? [];
   const at = opts.indexOf(phantoms.secondaryMinImpact);
-  return { stream, impacts: opts.slice(at >= 0 ? at : Math.min(1, Math.max(0, opts.length - 1))), table: "phantoms" };
+  return { stream, impacts: opts.slice(at >= 0 ? at : 0), table: "phantoms" };
+}
+
+type TableView = "tracker" | "phantoms" | "alerts" | "newsletter";
+const TABLE_VIEWS: readonly TableView[] = ["tracker", "phantoms", "alerts", "newsletter"];
+
+/**
+ * Deliverables are built from Phantoms: Alerts from those with the highest
+ * Impact (High), the Newsletter from the two highest (High, Medium).
+ */
+async function deliverableScope(c: C, stream: Stream, schema: TrackerSchema, kind: "alerts" | "newsletter"): Promise<Scope> {
+  const sc = await phantomScope(c, stream, schema);
+  const opts = getColumn(schema, CORE.impact)?.options ?? [];
+  const want = opts.slice(kind === "alerts" ? -1 : -2);
+  return { ...sc, impacts: sc.impacts ? sc.impacts.filter((i) => want.includes(i)) : want };
+}
+
+async function scopeFor(c: C, view: TableView, stream: Stream, schema: TrackerSchema): Promise<Scope> {
+  if (view === "phantoms") return phantomScope(c, stream, schema);
+  if (view === "alerts" || view === "newsletter") return deliverableScope(c, stream, schema, view);
+  return { stream };
 }
 
 async function todayFor(c: C): Promise<string> {
@@ -344,28 +367,68 @@ function sortOf(c: C, schema: Awaited<ReturnType<typeof loadSchema>>) {
   return { key: getColumn(schema, key) ? key : "date", dir } as const;
 }
 
-async function tablePage(c: C, view: "tracker" | "phantoms") {
+async function tablePage(c: C, view: TableView) {
   requirePermission(P(c), "tracker:read");
   const stream = streamOf(c);
   const schema = await schemaFor(c, stream);
-  const scope = view === "phantoms" ? await phantomScope(c, stream, schema) : { stream };
+  const scope = await scopeFor(c, view, stream, schema);
   const url = new URL(c.req.url);
   const f = filtersFromParams(url.searchParams, { schema, today: await todayFor(c) });
   const page = Math.max(0, Number.parseInt(c.req.query("page") ?? "0", 10) || 0);
-  const pageSize = Math.min(100, Math.max(1, Number.parseInt(c.req.query("pageSize") ?? "10", 10) || 10));
-  return c.json(await trackerPage(c.env, schema, P(c).tenantId, f, sortOf(c, schema), page, pageSize, scope));
+  const pageSize = Math.min(view === "alerts" ? ALERTS_PAGE_MAX : 100, Math.max(1, Number.parseInt(c.req.query("pageSize") ?? "10", 10) || 10));
+  const result = await trackerPage(c.env, schema, P(c).tenantId, f, sortOf(c, schema), page, pageSize, scope);
+  // Each alert row carries its .docx, created (or refreshed after a revision) on first sight.
+  if (view === "alerts") result.rows = await ensureAlerts(c.env, P(c).tenantId, result.rows);
+  return c.json(result);
 }
 
 app.get("/api/tracker", (c) => tablePage(c, "tracker"));
 app.get("/api/phantoms", (c) => tablePage(c, "phantoms"));
+app.get("/api/deliverables/alerts", (c) => tablePage(c, "alerts"));
+app.get("/api/deliverables/newsletter", (c) => tablePage(c, "newsletter"));
+
+app.get("/api/newsletters", async (c) => {
+  requirePermission(P(c), "tracker:read");
+  return c.json(await listNewsletters(c.env, P(c).tenantId));
+});
+
+app.post("/api/newsletters", async (c) => {
+  const p = P(c);
+  requirePermission(p, "item:edit");
+  const b = await body(c, CreateNewsletterRequest);
+  const schemas = await schemasFor(c);
+  const scopes: Partial<Record<Stream, Scope>> = {};
+  const n = await createNewsletter(c.env, p, b.name, b.itemIds, async (stream, impact) => {
+    scopes[stream] ??= await deliverableScope(c, stream, schemas[stream], "newsletter");
+    return !!impact && (scopes[stream]?.impacts ?? []).includes(impact);
+  });
+  return c.json(n, 201);
+});
+
+/** A stored alert or newsletter .docx: inline for the side pane, or ?download=1 as a file. */
+app.get("/api/deliverables/:id/docx", async (c) => {
+  const p = P(c);
+  requirePermission(p, "tracker:read");
+  const d = await readDeliverable(c.env, p.tenantId, c.req.param("id"));
+  const download = c.req.query("download") === "1";
+  if (download) await audit(c.env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "deliverable.downloaded", targetType: "deliverable", targetId: c.req.param("id"), details: { kind: d.kind, file: d.fileName } });
+  return new Response(d.bytes, {
+    headers: {
+      "Content-Type": DOCX_MIME,
+      "Content-Disposition": `${download ? "attachment" : "inline"}; filename="${d.fileName}"`,
+      "Cache-Control": "no-store",
+      "X-Content-Type-Options": "nosniff",
+    },
+  });
+});
 
 app.get("/api/tracker/export", async (c) => {
   const p = P(c);
   requirePermission(p, "tracker:export");
   const stream = streamOf(c);
   const schema = await schemaFor(c, stream);
-  const view = c.req.query("view") === "phantoms" ? "phantoms" : "tracker";
-  const rowScope = view === "phantoms" ? await phantomScope(c, stream, schema) : { stream };
+  const view: TableView = TABLE_VIEWS.find((v) => v === c.req.query("view")) ?? "tracker";
+  const rowScope = await scopeFor(c, view, stream, schema);
   const format = (c.req.query("format") ?? "csv") as ExportFormat;
   if (!(EXPORT_FORMATS as readonly string[]).includes(format)) throw badRequest("Unknown export format");
   const scope = c.req.query("scope") === "all" ? "all" : "filtered";
@@ -373,7 +436,8 @@ app.get("/api/tracker/export", async (c) => {
   const url = new URL(c.req.url);
   const f = scope === "all" ? null : filtersFromParams(url.searchParams, { schema, today });
   const rows = await exportRows(c.env, schema, p.tenantId, f, sortOf(c, schema), rowScope);
-  const cols = view === "phantoms" ? phantomColumns(schema) : trackerColumns(schema);
+  // Deliverables tables show the Phantoms columns.
+  const cols = view === "tracker" ? trackerColumns(schema) : phantomColumns(schema);
   const table = toTable(schema, rows, cols);
   const content: string | Uint8Array =
     format === "csv" ? toCsv(table) : format === "tsv" ? toTsv(table) : format === "json" ? toJson(schema, rows, cols) : toXlsx(table);

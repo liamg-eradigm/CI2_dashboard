@@ -641,6 +641,100 @@ test.describe("analyst role", () => {
     await expect(md).not.toContainText("Agentic AI Platforms");
   });
 
+  test("Deliverables → Alerts: High Impact Phantoms of both streams, each with a .docx alert that opens as a side pane", async ({ page }) => {
+    await page.goto("/deliverables");
+    await expect(page.getByRole("navigation").getByRole("link", { name: "Deliverables" })).toHaveAttribute("aria-current", "page");
+    // The central Alerts / Newsletter switch.
+    const sw = page.getByRole("group", { name: "Deliverable" });
+    const [swBox, content] = [(await sw.boundingBox())!, (await page.locator(".content").boundingBox())!];
+    expect(Math.abs(swBox.x + swBox.width / 2 - (content.x + content.width / 2))).toBeLessThanOrEqual(4);
+    await expect(page.getByTestId("deliv-alerts")).toHaveAttribute("aria-pressed", "true");
+    // Only High Impact entries, with the Phantoms columns (and Alert, Markdown, Source).
+    const heads = await page.locator("table thead th").allInnerTexts();
+    expect(heads.slice(0, 4).map((h) => h.trim().toLowerCase())).toEqual(["alert", "markdown", "source", "id"]);
+    const impacts = await page.evaluate(async () => {
+      const h = { "x-dev-user": localStorage.getItem("eradigm.devUser") ?? "" };
+      const get = async (s: string) => ((await (await fetch(`/api/deliverables/alerts?stream=${s}&from=2000-01-01&to=2100-01-01&pageSize=25`, { headers: h })).json()) as { rows: { values: { impact: string } }[] }).rows.map((r) => r.values.impact);
+      return [...(await get("primary")), ...(await get("secondary"))];
+    });
+    expect(impacts.length).toBeGreaterThan(0);
+    expect(new Set(impacts)).toEqual(new Set(["High"]));
+    await expectAccessible(page, "/deliverables alerts");
+
+    // The .docx: the Title in bold 32 pt, viewed in the pane and downloaded.
+    const row = page.locator("table tbody tr").first();
+    const title = (await row.locator("td.title").innerText()).trim();
+    await row.getByRole("button", { name: `Open the alert for ${title}` }).click();
+    const pane = page.getByRole("dialog", { name: title });
+    const para = pane.locator(".docx-host section.docx p").first();
+    await expect(para).toHaveText(title, { timeout: 15_000 });
+    const style = await para.locator("span").first().evaluate((e) => ({ weight: getComputedStyle(e).fontWeight, size: getComputedStyle(e).fontSize }));
+    expect(Number(style.weight)).toBeGreaterThanOrEqual(700);
+    // 32 pt, as rendered in CSS pixels.
+    expect(Math.round(parseFloat(style.size))).toBe(Math.round((32 * 96) / 72));
+    const [download] = await Promise.all([page.waitForEvent("download"), pane.getByRole("button", { name: "Download .docx" }).click()]);
+    expect(download.suggestedFilename()).toMatch(/^[\w-]+-alert\.docx$/);
+    const bytes = readFileSync((await download.path())!);
+    expect(bytes.subarray(0, 2).toString()).toBe("PK");
+    await expectAccessible(page, "/deliverables alert pane");
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    // The same row also opens its Markdown and saved page.
+    await row.getByRole("button", { name: `Open Markdown for ${title}` }).click();
+    await expect(page.getByRole("dialog").getByLabel("Markdown source")).toContainText(title);
+    await page.keyboard.press("Escape");
+    await page.getByTestId("stream-secondary").click();
+    await expect(page.locator(".stream-note")).toContainText("Secondary Phantoms with High Impact");
+  });
+
+  test("Deliverables → Newsletter: tick High / Medium entries from both streams, name it and create the .docx", async ({ page }) => {
+    await page.goto("/deliverables?d=newsletter");
+    await expect(page.getByTestId("deliv-newsletter")).toHaveAttribute("aria-pressed", "true");
+    const list = page.getByTestId("newsletters");
+    const table = page.locator("section[aria-label='Approved signals table']");
+    // The Newsletters table sits above the entries.
+    expect((await list.boundingBox())!.y).toBeLessThan((await table.boundingBox())!.y);
+    await expect(list.locator("thead th")).toHaveText([/Newsletter/i, /Name/i, /Phantoms used/i]);
+    const before = await list.locator("tbody tr").count();
+    const create = page.getByRole("button", { name: "Create Newsletter" });
+    await expect(create).toBeDisabled();
+    const rows = table.locator("tbody tr");
+    const t1 = (await rows.nth(0).locator("td.title").innerText()).trim();
+    await rows.nth(0).getByRole("checkbox").check();
+    // Selection is kept across streams.
+    await page.getByTestId("stream-secondary").click();
+    await expect(page.locator(".stream-note")).toContainText("Secondary Phantoms with High or Medium Impact");
+    const t2 = (await rows.nth(0).locator("td.title").innerText()).trim();
+    await rows.nth(0).getByRole("checkbox").check();
+    await expect(page.getByRole("group", { name: "Selected entries" })).toContainText("2 selected");
+    await create.click();
+    const dialog = page.getByRole("dialog", { name: "Create newsletter" });
+    await expect(dialog).toContainText(t1);
+    await expect(dialog).toContainText(t2);
+    await dialog.getByRole("button", { name: "Create", exact: true }).click();
+    await expect(dialog.getByRole("alert")).toContainText("Name the newsletter first");
+    const name = `AI briefing ${uid()}`;
+    await dialog.getByLabel("Newsletter name").fill(name);
+    await expectAccessible(page, "/deliverables create newsletter");
+    await dialog.getByRole("button", { name: "Create", exact: true }).click();
+    await expect(page.locator(".toast").last()).toContainText(`Created newsletter “${name}”`);
+    await expect(page.getByRole("group", { name: "Selected entries" })).toContainText("0 selected");
+    await expect(list.locator("tbody tr")).toHaveCount(before + 1);
+    const nl = list.locator("tbody tr").first();
+    await expect(nl).toContainText(name);
+    await expect(nl.locator(".nl-items li")).toHaveCount(2);
+    await expect(nl.locator(".nl-items")).toContainText(t1);
+    await expect(nl.locator(".nl-items")).toContainText(t2);
+    // It opens as a side pane showing the name, bold 32 pt, and downloads.
+    await nl.getByRole("button", { name: `Open newsletter ${name}` }).click();
+    const pane = page.getByRole("dialog", { name });
+    await expect(pane.locator(".docx-host section.docx p").first()).toHaveText(name, { timeout: 15_000 });
+    const [download] = await Promise.all([page.waitForEvent("download"), pane.getByRole("button", { name: "Download .docx" }).click()]);
+    expect(download.suggestedFilename()).toBe(`${name.replace(/ /g, "-")}.docx`);
+    await page.keyboard.press("Escape");
+    await expectAccessible(page, "/deliverables newsletter");
+  });
+
   test("Inbox and Input pass automated accessibility checks", async ({ page }) => {
     for (const p of ["/inbox", "/input"]) {
       await page.goto(p);
