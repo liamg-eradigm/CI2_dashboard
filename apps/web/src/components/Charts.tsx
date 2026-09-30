@@ -175,6 +175,9 @@ export function BarChart({
   onSelect,
   footer,
   full,
+  limit,
+  expanded = false,
+  onToggle,
 }: {
   title: string;
   sub: string;
@@ -185,12 +188,20 @@ export function BarChart({
   onSelect?: (label: string) => void;
   footer?: string;
   full?: boolean;
+  /** Show only the first `limit` rows until expanded (the rows are ranked, so these are the largest). */
+  limit?: number;
+  /** Expanded state, shared by the charts of one dashboard row. */
+  expanded?: boolean;
+  onToggle?: () => void;
 }) {
   const max = Math.max(1, ...bars.map((b) => b.n));
   const id = title.replace(/\W+/g, "-").toLowerCase();
   const opts = getColumn(schema, CORE.impact)?.options ?? ["Low", "Medium", "High"];
   const hi = opts[opts.length - 1] ?? "High";
   const lo = opts[0] ?? "Low";
+  const capped = !!limit && bars.length > limit;
+  const shown = capped && !expanded ? bars.slice(0, limit) : bars;
+  const noun = variant === "sub" ? "subtrends" : variant === "comp" ? "competitors" : "rows";
   return (
     <section className={`card ${full ? "full-row" : "paired"}`} aria-labelledby={id}>
       <div className="card-head">
@@ -203,8 +214,8 @@ export function BarChart({
         {mix && <MixLegend schema={schema} />}
       </div>
       <div className="chart-body">
-        <ul className={`bars ${variant ?? ""}`} aria-label={`${title}: count per category`}>
-          {bars.map((b) => (
+        <ul className={`bars ${variant ?? ""}`} id={`${id}-bars`} aria-label={`${title}: count per category`}>
+          {shown.map((b) => (
             <li
               key={b.label}
               className={`bar-row ${mix ? "mix" : ""}`}
@@ -236,6 +247,14 @@ export function BarChart({
             </li>
           ))}
         </ul>
+        {capped && (
+          <button className="expand-btn" aria-expanded={expanded} aria-controls={`${id}-bars`} onClick={onToggle} title={expanded ? `Show the top ${limit} only` : `Show all ${bars.length} ${noun}`}>
+            <span className={`expand-chev ${expanded ? "up" : ""}`} aria-hidden="true">
+              ▾
+            </span>
+            <span className="expand-txt">{expanded ? `Show top ${limit}` : `Show all ${bars.length}`}</span>
+          </button>
+        )}
         {!bars.length && <div className="empty">No categories configured.</div>}
         {footer && <div className="foot-note">{footer}</div>}
       </div>
