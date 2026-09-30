@@ -65,6 +65,46 @@ test.describe("client role", () => {
     }
   });
 
+  test("Subtrend and Competitor charts show 10 rows until their row is expanded, keeping the pair aligned", async ({ page }) => {
+    await page.goto("/dashboard");
+    const card = (name: string) => page.locator("section.card", { has: page.getByRole("heading", { name, exact: true }) });
+    const [sm, si, comp] = [card("Signals by Subtrend"), card("Impact mix by Subtrend"), card("Competitor Composition")];
+    await expect(sm.locator(".bar-row")).toHaveCount(10);
+    await expect(si.locator(".bar-row")).toHaveCount(10);
+    const total = Number(((await sm.getByRole("button", { name: /^Show all \d+/ }).innerText()).match(/\d+/) ?? ["0"])[0]);
+    expect(total).toBeGreaterThan(10);
+    // The arrow sits in the middle of each chart, level across the pair.
+    const [a, b, sBox] = [(await sm.locator(".expand-btn").boundingBox())!, (await si.locator(".expand-btn").boundingBox())!, (await sm.boundingBox())!];
+    expect(Math.abs(a.y - b.y)).toBeLessThanOrEqual(1);
+    expect(Math.abs(a.x + a.width / 2 - (sBox.x + sBox.width / 2))).toBeLessThanOrEqual(2);
+    const collapsed = sBox.height;
+    await expectAccessible(page, "/dashboard collapsed charts");
+
+    // Expanding one Subtrend chart expands both; the Competitor chart is its own row.
+    await si.getByRole("button", { name: /^Show all/ }).click();
+    await expect(sm.locator(".bar-row")).toHaveCount(total);
+    await expect(si.locator(".bar-row")).toHaveCount(total);
+    await expect(sm.locator(".expand-btn")).toHaveAttribute("aria-expanded", "true");
+    expect((await sm.boundingBox())!.height).toBeGreaterThan(collapsed);
+    const rowsY = (c: typeof sm) => c.locator(".bar-row").evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().y)));
+    const [ya, yb] = [await rowsY(sm), await rowsY(si)];
+    ya.forEach((y, i) => expect(Math.abs(y - (yb[i] as number))).toBeLessThanOrEqual(1));
+    const compRows = await comp.locator(".bar-row").count();
+    expect(compRows).toBeLessThanOrEqual(10);
+
+    // Collapse again from the other chart.
+    await sm.getByRole("button", { name: "Show top 10" }).click();
+    await expect(si.locator(".bar-row")).toHaveCount(10);
+
+    // Competitor Composition expands on its own.
+    const more = comp.getByRole("button", { name: /^Show all/ });
+    if (await more.count()) {
+      await more.click();
+      await expect.poll(() => comp.locator(".bar-row").count()).toBeGreaterThan(10);
+      await expect(sm.locator(".bar-row")).toHaveCount(10);
+    }
+  });
+
   test("can view Phantoms and download Markdown, but not delete entries", async ({ page }) => {
     await page.goto("/phantoms");
     await expect(page.getByRole("heading", { name: "Phantoms" })).toBeVisible();

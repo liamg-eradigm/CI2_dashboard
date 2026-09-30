@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { ALL, CORE, getColumn, type Me } from "@eradigm/shared";
 import { useDashboard, useSchema, useSettings } from "../api/hooks";
 import { BarChart, SignalTimeline } from "../components/Charts";
@@ -7,6 +7,9 @@ import { RecordDrawer } from "../components/RecordDrawer";
 import { TrendTest } from "../components/TrendTest";
 import { useFilters } from "../state/filters";
 
+/** Rows shown in the Subtrend and Competitor charts until the row is expanded. */
+const CHART_ROWS = 10;
+
 export function DashboardPage({ me }: { me: Me }) {
   // Every source, Primary and Secondary, is on the Dashboard.
   const schema = useSchema("all");
@@ -14,6 +17,9 @@ export function DashboardPage({ me }: { me: Me }) {
   const f = useFilters(schema.data, settings.data?.timezone ?? me.timezone);
   const dash = useDashboard(f.filters, !!schema.data);
   const selected = f.params.get("signal");
+  // Expanded state per dashboard row: both Subtrend charts together, and Competitor Composition.
+  const [subOpen, setSubOpen] = useState(false);
+  const [compOpen, setCompOpen] = useState(false);
   const open = useCallback(
     (id: string) =>
       f.setParams(
@@ -87,8 +93,11 @@ export function DashboardPage({ me }: { me: Me }) {
                 schema={s}
                 variant="sub"
                 onSelect={(v) => f.setValue(CORE.subtrend, v)}
+                limit={CHART_ROWS}
+                expanded={subOpen}
+                onToggle={() => setSubOpen((o) => !o)}
               />
-              <BarChart title="Impact mix by Subtrend" sub={mixNote} bars={d.subBars} schema={s} variant="sub" mix />
+              <BarChart title="Impact mix by Subtrend" sub={mixNote} bars={d.subBars} schema={s} variant="sub" mix limit={CHART_ROWS} expanded={subOpen} onToggle={() => setSubOpen((o) => !o)} />
               <BarChart
                 title="Competitor Composition"
                 sub="Ranked by approved signal count · Competitor filter not applied"
@@ -97,6 +106,9 @@ export function DashboardPage({ me }: { me: Me }) {
                 variant="comp"
                 full
                 onSelect={(v) => f.setValue(CORE.competitors, v)}
+                limit={CHART_ROWS}
+                expanded={compOpen}
+                onToggle={() => setCompOpen((o) => !o)}
                 footer={`One item can involve several competitors, so these counts sum to ${d.compSum} across ${d.compItems} items.`}
               />
               <TrendTest schema={s} f={f} />
