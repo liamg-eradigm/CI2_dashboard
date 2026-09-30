@@ -4,7 +4,8 @@ import { api, request, type ApiError } from "../api/client";
 import { exportUrl, useInvalidate, useSchema, useSettings, useTracker, type TableView } from "../api/hooks";
 import { FilterHeader } from "../components/FilterHeader";
 import { MarkdownPanel, downloadMarkdown } from "../components/MarkdownPanel";
-import { RecordDrawer } from "../components/RecordDrawer";
+import { RecordDrawer, useFocusTrap } from "../components/RecordDrawer";
+import { SourceDrawer } from "../components/SnapshotFrame";
 import { StreamSwitch } from "../components/StreamSwitch";
 import { useStreamParam } from "../state/stream";
 import { GROWTH_GLYPH, IMPACT_CLASS, IMPACT_GLYPH, impactBucket } from "../lib/format";
@@ -56,13 +57,12 @@ function Cell({ col, s, impactCol, growthCol, actionCol }: { col: TrackerColumn;
   return <td style={{ minWidth: col.type === "macro" ? 150 : col.type === "sub" ? 160 : undefined }}>{text}</td>;
 }
 
-/** The Tracker and the Phantoms tabs: the same filterable table, per stream. Phantoms adds the Markdown. */
 /**
- * First cell of a Tracker/Phantoms row: opens the saved source page, or — for
+ * Source cell of a Tracker/Phantoms row: opens the saved source page in the side pane, or — for
  * an entry without one (imported from a spreadsheet) — a green plus to attach
  * the HTML file (analysts and admins).
  */
-function SourceCell({ s, canAttach }: { s: Signal; canAttach: boolean }) {
+function SourceCell({ s, canAttach, onOpen }: { s: Signal; canAttach: boolean; onOpen: () => void }) {
   const ref = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const toast = useToast();
@@ -71,12 +71,12 @@ function SourceCell({ s, canAttach }: { s: Signal; canAttach: boolean }) {
   if (s.hasSnapshot) {
     return (
       <td className="src-col">
-        <a className="src-btn open" href={`/source/${s.id}`} target="_blank" rel="noopener" aria-label={`Open saved page for ${title} (new tab)`} title="Open the saved page">
+        <button className="src-btn open" onClick={onOpen} aria-label={`Open saved page for ${title}`} title="Open the saved page">
           <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
             <path d="M5 2.5h6.5L15.5 6.5V17a.5.5 0 0 1-.5.5H5a.5.5 0 0 1-.5-.5V3a.5.5 0 0 1 .5-.5Z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
             <path d="M11.5 2.5v4h4M7 10h6M7 13h6" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
           </svg>
-        </a>
+        </button>
       </td>
     );
   }
@@ -119,6 +119,76 @@ function SourceCell({ s, canAttach }: { s: Signal; canAttach: boolean }) {
   );
 }
 
+/** Confirm and delete the selected entries (soft delete, audited; one request per entry). */
+function BulkDelete({ rows, onCancel, onDone }: { rows: Signal[]; onCancel: () => void; onDone: (deleted: string[]) => void }) {
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(0);
+  const [err, setErr] = useState<string | null>(null);
+  const toast = useToast();
+  const inv = useInvalidate();
+  const ref = useFocusTrap(true, busy ? () => undefined : onCancel);
+  const n = rows.length;
+  const noun = n === 1 ? "entry" : "entries";
+  const submit = async () => {
+    setBusy(true);
+    setErr(null);
+    const deleted: string[] = [];
+    for (const r of rows) {
+      try {
+        await api(`/api/items/${r.id}`, { method: "DELETE", json: reason.trim() ? { reason: reason.trim() } : {} });
+        deleted.push(r.id);
+        setDone(deleted.length);
+      } catch (e) {
+        setErr(`Stopped at ${r.code}: ${(e as ApiError).message}. ${deleted.length} of ${n} deleted.`);
+        break;
+      }
+    }
+    await inv();
+    if (deleted.length === n) toast(`Deleted ${n} ${noun} from the tracker`);
+    setBusy(false);
+    onDone(deleted);
+  };
+  return (
+    <>
+      <div className="scrim" onClick={busy ? undefined : onCancel} aria-hidden="true" />
+      <div className="modal delete-confirm" role="alertdialog" aria-modal="true" aria-labelledby="bulk-del-title" aria-describedby="bulk-del-desc" ref={ref}>
+        <b id="bulk-del-title">
+          Delete {n} {noun}?
+        </b>
+        <p id="bulk-del-desc">
+          {n === 1 ? "It" : "They"} will disappear from the Tracker, Phantoms, the Dashboard and exports for everyone, including clients. This can't be undone from the dashboard. History and the audit log are kept.
+        </p>
+        <ul className="bulk-del-list">
+          {rows.map((r) => (
+            <li key={r.id}>
+              <span className="mono">{r.code}</span> {String(r.values[CORE.title] ?? "")}
+            </li>
+          ))}
+        </ul>
+        <label className="field">
+          <span>Reason (optional, recorded in the audit log)</span>
+          <input className="control" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} placeholder="e.g. Duplicate entry, published in error" data-autofocus />
+        </label>
+        {err && (
+          <div className="err-msg" role="alert">
+            ✕ {err}
+          </div>
+        )}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button className="btn secondary" disabled={busy} onClick={onCancel}>
+            Cancel
+          </button>
+          <button className="btn danger confirm" disabled={busy} onClick={submit}>
+            {busy ? `Deleting… ${done} of ${n}` : `Delete ${n} ${noun}`}
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+/** The Tracker and the Phantoms tabs: the same filterable table, per stream. Phantoms adds the Markdown. */
 export function TrackerPage({ me, view = "tracker" }: { me: Me; view?: TableView }) {
   const phantoms = view === "phantoms";
   const [stream, setStream] = useStreamParam();
@@ -135,6 +205,12 @@ export function TrackerPage({ me, view = "tracker" }: { me: Me; view?: TableView
   const exportRef = useRef<HTMLDivElement>(null);
   const selected = f.params.get("signal");
   const mdOpen = f.params.get("md");
+  const savedOpen = f.params.get("saved");
+  // Rows ticked for deletion (admins and analysts), cleared when the page of rows changes.
+  const [picked, setPicked] = useState<Set<string>>(() => new Set());
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const rowKey = tracker.data?.rows.map((r) => r.id).join(",") ?? "";
+  useEffect(() => setPicked(new Set()), [rowKey, stream, view]);
 
   const setParam = useCallback(
     (patch: Record<string, string | null>, push = false) =>
@@ -168,11 +244,22 @@ export function TrackerPage({ me, view = "tracker" }: { me: Me; view?: TableView
   const s = schema.data;
   const cols = trackerColumns(s);
   const canAttach = can(me.role, "item:edit");
+  const canDelete = can(me.role, "item:delete");
   const impactCol = getColumn(s, CORE.impact);
   const growthCol = getColumn(s, CORE.growth);
   const actionCol = getColumn(s, "action");
   const t = tracker.data;
   const pages = t ? Math.max(1, Math.ceil(t.total / PAGE)) : 1;
+  const pickedRows = t?.rows.filter((r) => picked.has(r.id)) ?? [];
+  const allPicked = !!t?.rows.length && pickedRows.length === t.rows.length;
+  const toggle = (id: string) =>
+    setPicked((p) => {
+      const n = new Set(p);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  const savedRow = savedOpen ? t?.rows.find((r) => r.id === savedOpen) : undefined;
   const info = t ? (t.total ? `Showing ${page * PAGE + 1}–${Math.min(t.total, page * PAGE + PAGE)} of ${t.total} · page ${page + 1} of ${pages}` : "0 results") : "Loading…";
 
   const doExport = async (format: string) => {
@@ -209,51 +296,64 @@ export function TrackerPage({ me, view = "tracker" }: { me: Me; view?: TableView
               : `Approved entries from the ${STREAM_LABEL[stream]} Inbox`}
           </span>
         </div>
-        <section className="card flush" aria-label="Approved signals table">
+        <section className="card flush pop-host" aria-label="Approved signals table">
           <div className="table-top">
             <span className="info" aria-live="polite">
               {info}
             </span>
-            <div style={{ position: "relative" }} ref={exportRef}>
-              <button className="btn" aria-haspopup="true" aria-expanded={exportOpen} onClick={() => setExportOpen((o) => !o)}>
-                <span aria-hidden="true">⤓</span>
-                <span>Export</span>
-                <span style={{ fontSize: 10 }} aria-hidden="true">
-                  ▾
-                </span>
-              </button>
-              {exportOpen && (
-                <div className="popover" role="dialog" aria-label="Export options">
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    <span className="h">ROWS</span>
-                    <div className="seg" role="group" aria-label="Rows to export">
-                      <button aria-pressed={scope === "filtered"} onClick={() => setScope("filtered")}>
-                        Filtered ({t?.total ?? 0})
-                      </button>
-                      <button aria-pressed={scope === "all"} onClick={() => setScope("all")}>
-                        All ({t?.totalPublished ?? 0})
-                      </button>
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    <span className="h">FORMAT</span>
-                    {[
-                      ["csv", "CSV", ".csv"],
-                      ["xlsx", "Excel", ".xlsx"],
-                      ["tsv", "TSV", ".tsv"],
-                      ["json", "JSON", ".json"],
-                    ].map(([k, l, n]) => (
-                      <button key={k} className="fmt" onClick={() => doExport(k as string)}>
-                        <b>{l}</b>
-                        <span>{n}</span>
-                      </button>
-                    ))}
-                  </div>
-                  <div style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.45 }}>
-                    Includes the {cols.length} {STREAM_LABEL[stream]} {phantoms ? "Phantoms" : "Tracker"} columns plus signal ID, in the current sort order.
-                  </div>
+            <div className="table-actions">
+              {canDelete && pickedRows.length > 0 && (
+                <div className="pick-bar" role="group" aria-label="Selected entries">
+                  <span>{pickedRows.length} selected</span>
+                  <button className="link-btn" onClick={() => setPicked(new Set())}>
+                    Clear
+                  </button>
+                  <button className="btn danger small" onClick={() => setConfirmDelete(true)}>
+                    Delete selected
+                  </button>
                 </div>
               )}
+              <div style={{ position: "relative" }} ref={exportRef}>
+                <button className="btn" aria-haspopup="true" aria-expanded={exportOpen} onClick={() => setExportOpen((o) => !o)}>
+                  <span aria-hidden="true">⤓</span>
+                  <span>Export</span>
+                  <span style={{ fontSize: 10 }} aria-hidden="true">
+                    ▾
+                  </span>
+                </button>
+                {exportOpen && (
+                  <div className="popover" role="dialog" aria-label="Export options">
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      <span className="h">ROWS</span>
+                      <div className="seg" role="group" aria-label="Rows to export">
+                        <button aria-pressed={scope === "filtered"} onClick={() => setScope("filtered")}>
+                          Filtered ({t?.total ?? 0})
+                        </button>
+                        <button aria-pressed={scope === "all"} onClick={() => setScope("all")}>
+                          All ({t?.totalPublished ?? 0})
+                        </button>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      <span className="h">FORMAT</span>
+                      {[
+                        ["csv", "CSV", ".csv"],
+                        ["xlsx", "Excel", ".xlsx"],
+                        ["tsv", "TSV", ".tsv"],
+                        ["json", "JSON", ".json"],
+                      ].map(([k, l, n]) => (
+                        <button key={k} className="fmt" onClick={() => doExport(k as string)}>
+                          <b>{l}</b>
+                          <span>{n}</span>
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.45 }}>
+                      Includes the {cols.length} {STREAM_LABEL[stream]} {phantoms ? "Phantoms" : "Tracker"} columns plus signal ID, in the current sort order.
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
           <div className="table-wrap">
@@ -261,6 +361,20 @@ export function TrackerPage({ me, view = "tracker" }: { me: Me; view?: TableView
               <caption className="sr-only">Approved signals, sorted by {getColumn(s, sortKey)?.label ?? "Date"} {dir === "asc" ? "ascending" : "descending"}</caption>
               <thead>
                 <tr>
+                  {canDelete && (
+                    <th scope="col" className="pick-col">
+                      <input
+                        type="checkbox"
+                        checked={allPicked}
+                        ref={(el) => {
+                          if (el) el.indeterminate = pickedRows.length > 0 && !allPicked;
+                        }}
+                        disabled={!t?.rows.length}
+                        onChange={() => setPicked(allPicked ? new Set() : new Set(t?.rows.map((r) => r.id)))}
+                        aria-label="Select every entry on this page"
+                      />
+                    </th>
+                  )}
                   {phantoms && (
                     <th scope="col" className="md-col">
                       <span>Markdown</span>
@@ -283,7 +397,12 @@ export function TrackerPage({ me, view = "tracker" }: { me: Me; view?: TableView
               </thead>
               <tbody>
                 {t?.rows.map((r) => (
-                  <tr key={r.id}>
+                  <tr key={r.id} className={picked.has(r.id) ? "picked" : undefined}>
+                    {canDelete && (
+                      <td className="pick-col">
+                        <input type="checkbox" checked={picked.has(r.id)} onChange={() => toggle(r.id)} aria-label={`Select ${String(r.values[CORE.title] ?? r.code)}`} />
+                      </td>
+                    )}
                     {phantoms && (
                       <td className="md-col">
                         <button
@@ -301,7 +420,7 @@ export function TrackerPage({ me, view = "tracker" }: { me: Me; view?: TableView
                         </button>
                       </td>
                     )}
-                    <SourceCell s={r} canAttach={canAttach} />
+                    <SourceCell s={r} canAttach={canAttach} onOpen={() => setParam({ saved: r.id }, true)} />
                     {cols.map((c) =>
                       c.key === CORE.title ? (
                         <td key={c.key} className="title">
@@ -332,6 +451,19 @@ export function TrackerPage({ me, view = "tracker" }: { me: Me; view?: TableView
           </div>
         </section>
       </div>
+      {savedOpen && !selected && !mdOpen && (
+        <SourceDrawer itemId={savedOpen} code={savedRow?.code ?? "Saved source"} title={String(savedRow?.values[CORE.title] ?? "Saved copy of the page")} onClose={() => setParam({ saved: null })} />
+      )}
+      {confirmDelete && pickedRows.length > 0 && (
+        <BulkDelete
+          rows={pickedRows}
+          onCancel={() => setConfirmDelete(false)}
+          onDone={(ids) => {
+            setPicked((p) => new Set([...p].filter((id) => !ids.includes(id))));
+            if (ids.length === pickedRows.length) setConfirmDelete(false);
+          }}
+        />
+      )}
       {mdOpen && !selected && (
         <MarkdownPanel id={mdOpen} onClose={() => setParam({ md: null })} onOpenRecord={(id) => setParam({ md: null, signal: id }, true)} />
       )}

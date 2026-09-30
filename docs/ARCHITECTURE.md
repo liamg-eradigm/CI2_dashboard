@@ -137,11 +137,17 @@ analyst-entered information distinguishable; in the prototype every value is
   checks as an approval, unique IDs), then batches of 8 rows (the Workers Free
   plan allows 50 database queries per request). Rows are published straight
   to the Tracker, and so to Phantoms under the usual rules, with no saved page.
-- **Attaching a saved page later**: the first column of the Tracker/Phantoms
-  table opens the saved page, or shows a green plus that uploads the HTML
+- **Attaching a saved page later**: the Source column of the Tracker/Phantoms
+  table opens the saved page as a side pane (the whole pane is the sandboxed
+  page, `?saved=<id>`), or shows a green plus that uploads the HTML
   (`POST /api/items/:id/snapshot`, scanned and sanitised in the capture worker
   like any upload). Rows no longer open on click; the title opens the record
   (Tracker) or the Markdown (Phantoms).
+- **Deleting entries**: admins and analysts get a tick-box column in the
+  Tracker and Phantoms tables; *Delete selected* asks for confirmation (and an
+  optional reason) and then sends one `DELETE /api/items/:id` per entry (soft
+  delete, audited), so an entry leaves the Tracker, Phantoms, Dashboard and
+  exports together.
 
 ## Queries
 `apps/api/src/services/query.ts` builds one tenant-scoped `WHERE` clause from the

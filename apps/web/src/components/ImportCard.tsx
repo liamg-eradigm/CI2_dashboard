@@ -203,7 +203,6 @@ export function ImportCard() {
       </div>
       <p className="import-help">
         The first row must hold the column names of the {trackerName}, spelled exactly as in the tracker; each further row is one entry. Competitors are separated by commas; dates as YYYY-MM-DD (Excel dates work too).
-        Every row must pass the same checks as an approval, and IDs must be unique.{" "}
         <button className="link-btn" onClick={template} disabled={!cols.length}>
           Download the {trackerName} template (.xlsx)
         </button>

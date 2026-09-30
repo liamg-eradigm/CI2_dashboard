@@ -257,8 +257,8 @@ test.describe("analyst role", () => {
     // The Tracker uses the new order (the Inbox-only columns stay out of the Tracker).
     await page.goto("/tracker");
     const trackerFirst = (await schemaOf(page, "primary")).columns.filter((c) => c.inTracker).sort((a, b) => a.position - b.position)[0]?.label as string;
-    await expect(page.locator("table thead th:not(.src-col)").first()).toContainText(trackerFirst, { timeout: 15_000 });
-    await expect(page.locator("table thead th:not(.src-col)")).toHaveCount(9);
+    await expect(page.locator("table thead th:not(.src-col):not(.pick-col)").first()).toContainText(trackerFirst, { timeout: 15_000 });
+    await expect(page.locator("table thead th:not(.src-col):not(.pick-col)")).toHaveCount(9);
     await restoreOrder(page, "primary", original);
   });
 
@@ -311,6 +311,39 @@ test.describe("analyst role", () => {
     await expect(page.locator(".toast")).toContainText(`${code} deleted from the tracker`);
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(page.locator("table tbody td.title", { hasText: title })).toHaveCount(0);
+  });
+
+  test("selects Phantoms entries with tick boxes and deletes them", async ({ page }) => {
+    await page.goto("/phantoms");
+    const rows = page.locator("table tbody tr");
+    await expect(rows.first()).toBeVisible();
+    const titles = [(await rows.nth(0).locator("td.title").innerText()).trim(), (await rows.nth(1).locator("td.title").innerText()).trim()];
+    await rows.nth(0).getByRole("checkbox").check();
+    await rows.nth(1).getByRole("checkbox").check();
+    const bar = page.getByRole("group", { name: "Selected entries" });
+    await expect(bar).toContainText("2 selected");
+    // The header box selects the whole page, and again clears it.
+    const all = page.getByRole("checkbox", { name: "Select every entry on this page" });
+    await all.check();
+    await expect(bar).toContainText(`${await rows.count()} selected`);
+    await all.uncheck();
+    await expect(bar).toHaveCount(0);
+    await rows.nth(0).getByRole("checkbox").check();
+    await rows.nth(1).getByRole("checkbox").check();
+    await bar.getByRole("button", { name: "Delete selected" }).click();
+    const confirm = page.getByRole("alertdialog", { name: "Delete 2 entries?" });
+    await expect(confirm).toContainText("will disappear from the Tracker, Phantoms, the Dashboard and exports");
+    await expect(confirm).toContainText(titles[0]!);
+    await expectAccessible(page, "/phantoms delete confirmation");
+    await confirm.getByLabel(/Reason/).fill("E2E bulk deletion");
+    await confirm.getByRole("button", { name: "Delete 2 entries" }).click();
+    await expect(page.locator(".toast")).toContainText("Deleted 2 entries from the tracker");
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
+    for (const t of titles) await expect(page.locator("table tbody td.title", { hasText: t })).toHaveCount(0);
+    // Gone from the Tracker too.
+    await page.getByRole("navigation").getByRole("link", { name: "Tracker" }).click();
+    await page.getByRole("searchbox").fill(titles[0]!);
+    await expect(page.locator("table tbody td.title", { hasText: titles[0]! })).toHaveCount(0);
   });
 
   test("opens the saved page full-window in a new tab", async ({ page, context }) => {
@@ -399,8 +432,8 @@ test.describe("analyst role", () => {
     await page.getByTestId("stream-secondary").click();
     const row = page.locator("table tbody tr", { hasText: `${title}: Paris` });
     await expect(row).toBeVisible();
-    // The Download Markdown button is the first cell of the row.
-    await expect(row.locator("td").first().getByRole("button", { name: /Download Markdown/ })).toBeVisible();
+    // The Download Markdown button is in the Markdown column, after the selection tick box.
+    await expect(row.locator("td.md-col").getByRole("button", { name: /Download Markdown/ })).toBeVisible();
     const [download] = await Promise.all([page.waitForEvent("download"), row.getByRole("button", { name: /Download Markdown/ }).click()]);
     expect(download.suggestedFilename()).toBe(`${rid}.md`);
     const text = readFileSync((await download.path())!, "utf8");
@@ -465,17 +498,24 @@ test.describe("analyst role", () => {
 
     // No saved page yet: a green plus on the left; the row itself no longer opens anything.
     const tr = page.locator("table tbody tr", { hasText: title });
-    await expect(tr.locator("td").first().getByRole("button", { name: `Attach the HTML page for ${title}` })).toBeVisible();
+    await expect(tr.locator("td.src-col").getByRole("button", { name: `Attach the HTML page for ${title}` })).toBeVisible();
     await tr.locator("td.date").click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
     const html = htmlFile("kol.html", `<!DOCTYPE html><html><head><title>KOL notes</title><script>alert(1)</script></head><body><article><h1>KOL notes on Roche</h1><p>The KOL said Roche is piloting agentic AI in two early research sites.</p><p>Results are expected in 2027.</p></article></body></html>`);
     await tr.locator('input[type="file"]').setInputFiles(html);
     await expect(page.locator(".toast")).toContainText(/Saved page attached to SIG-\d+/);
-    const open = tr.getByRole("link", { name: `Open saved page for ${title} (new tab)` });
+    // The icon opens the saved page itself as the side pane (not a new tab).
+    const open = tr.getByRole("button", { name: `Open saved page for ${title}` });
     await expect(open).toBeVisible();
-    const [tab] = await Promise.all([page.context().waitForEvent("page"), open.click()]);
-    await expect(tab.frameLocator("iframe.snapshot-frame").getByText("piloting agentic AI")).toBeVisible();
-    await tab.close();
+    await open.click();
+    const pane = page.getByRole("dialog", { name: title });
+    await expect(pane.frameLocator("iframe.snapshot-frame").getByText("piloting agentic AI")).toBeVisible();
+    // The page fills the pane below its header.
+    const [paneBox, frameBox] = [await pane.boundingBox(), await pane.locator("iframe.snapshot-frame").boundingBox()];
+    expect(frameBox!.height).toBeGreaterThan(paneBox!.height * 0.8);
+    await expectAccessible(page, "/tracker saved-page pane");
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
     // It is in Primary Phantoms with the Primary Markdown.
     await page.getByRole("navigation").getByRole("link", { name: "Phantoms" }).click();
     await expect(page).toHaveURL(/\/phantoms\?q=/);
