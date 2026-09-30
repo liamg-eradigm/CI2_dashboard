@@ -221,6 +221,23 @@ export const RejectRequest = z.object({ reason: z.string().max(500).optional(), 
 export const ReprocessRequest = z.object({ version: z.number().int().optional() });
 export const ReviseRequest = z.object({ values: ItemValuesSchema, note: z.string().min(1).max(500) });
 export const CreateSubmissionRequest = z.object({ url: z.string().min(1).max(2048), stream: StreamSchema.default("primary") });
+/** One-off spreadsheet import into a tracker: rows keyed by the tracker's column labels, already parsed by the dashboard. */
+export const IMPORT_CHUNK_ROWS = 8;
+export const ImportRequest = z.object({
+  fileName: z.string().min(1).max(255),
+  rows: z
+    .array(z.object({ row: z.number().int().min(1), values: z.record(z.string(), z.union([z.string(), z.array(z.string()), z.null()])) }))
+    .min(1)
+    .max(200),
+  /** Only check the rows (types, taxonomy, required fields, unique IDs); nothing is written. */
+  dryRun: z.boolean().optional(),
+});
+export const ImportResponse = z.object({
+  ok: z.boolean(),
+  imported: z.number().int(),
+  errors: z.array(z.object({ row: z.number().int(), column: z.string().nullable(), message: z.string() })),
+  codes: z.array(z.string()),
+});
 export const CreateSubmissionResponse = z.object({ item: ItemSummarySchema, duplicate: z.boolean() });
 
 // ---------------------------------------------------------------------------
@@ -237,6 +254,8 @@ export const SignalSchema = z.object({
   rev: z.number().int(),
   approvedAt: isoDateTime,
   approvedBy: z.string(),
+  /** A saved copy of the source page exists (else it can be attached from the Tracker). Added in contract 1.5. */
+  hasSnapshot: z.boolean().default(false),
 });
 
 export const SignalDetailSchema = SignalSchema.extend({
@@ -499,6 +518,8 @@ export const ENDPOINTS: EndpointDef[] = [
   { method: "post", path: "/api/schema/columns", summary: "Add a column", roles: STAFF, request: AddColumnRequest, response: TrackerSchemaSchema },
   { method: "patch", path: "/api/schema/columns/{key}", summary: "Rename a column or toggle Required", roles: STAFF, request: UpdateColumnRequest, response: TrackerSchemaSchema },
   { method: "delete", path: "/api/schema/columns/{key}", summary: "Delete a non-core column", roles: STAFF, response: TrackerSchemaSchema },
+  { method: "post", path: "/api/import", summary: "Import approved entries into a tracker (query: stream). At most 200 rows per request for a dry run, 8 otherwise", roles: STAFF, request: ImportRequest, response: ImportResponse },
+  { method: "post", path: "/api/items/{id}/snapshot", summary: "Attach the saved HTML page to a tracker entry that has none (multipart: file)", roles: STAFF, response: z.object({ id: z.string(), hasSnapshot: z.boolean() }) },
   { method: "get", path: "/api/phantoms", summary: "Phantoms table (query: stream, filters, sort, page): every Primary entry, and Secondary entries at or above the admin-set Impact", roles: ALL_ROLES, response: TrackerPageSchema },
   { method: "get", path: "/api/signals/{id}/markdown", summary: "Markdown for a tracker entry (text/markdown; ?download=1 for an attachment)", roles: ALL_ROLES, raw: "text/markdown" },
   { method: "put", path: "/api/schema/columns/order", summary: "Change the column order (drafts, Tracker, exports)", roles: STAFF, request: ReorderColumnsRequest, response: TrackerSchemaSchema },

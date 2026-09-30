@@ -112,10 +112,36 @@ analyst-entered information distinguishable; in the prototype every value is
   `phantoms.secondaryMinImpact` (Administration → Workspace settings). Changing
   the setting or an entry's Impact updates Phantoms immediately.
 - **Markdown** (`GET /api/signals/:id/markdown`, `?download=1` for a file named
-  `<ID>.md`) is generated from the published field values only, with the
-  approver as `QC.Reviewed_by`. The front matter is valid YAML (two-space
-  indentation; values quoted only when YAML would misread them). See
-  `packages/shared/src/markdown.ts`.
+  `<ID>.md`) is generated from the published field values only. The front
+  matter is valid YAML (two-space indentation; values quoted only when YAML
+  would misread them). See `packages/shared/src/markdown.ts`.
+  - *Secondary*: id, title, event_date, source_type, Source (Publisher, URL,
+    Raw_ref), Source_tier, Competitors, Other_entities, Therapeutic_area,
+    Assets, Products, QC (Reviewed_by = approver, Review_date,
+    Accurate_as_of); sections Header, Key Details, CI Perspective.
+  - *Primary*: id, title, event_date, Source (Role, Company, Location,
+    Confidence, Therapeutic_area, Brand_or_asset), Action, Workstream,
+    Insight_topic; sections Key Intelligence Question, Key Details, Key
+    Metrics. The Tracker/Dashboard classification (Macrotrend, Subtrend,
+    Growth Intensity, Impact, Source Type, Competitors) is not included.
+- **Column sets differ by stream.** Primary: ID, Title, Event Date, Source
+  Role/Company/Location/Confidence, Macrotrend, Subtrend, Growth Intensity,
+  Impact, Source Type, Competitors, Action, Workstream, Source Therapeutic
+  Area, Source Brand or Asset, Insight Topic, Key Intelligence Question, Key
+  Details, Key Metrics. Both streams share the nine Tracker/Dashboard columns
+  (same keys and options).
+- **Spreadsheet import** (Input → Import spreadsheet): the browser reads the
+  first sheet of an .xlsx, or a .csv/.tsv (`packages/shared/src/sheet.ts`),
+  matches the header row to the chosen tracker's column labels and sends the
+  rows to `POST /api/import?stream=…`: first a dry run over every row (same
+  checks as an approval, unique IDs), then batches of 8 rows (the Workers Free
+  plan allows 50 database queries per request). Rows are published straight
+  to the Tracker, and so to Phantoms under the usual rules, with no saved page.
+- **Attaching a saved page later**: the first column of the Tracker/Phantoms
+  table opens the saved page, or shows a green plus that uploads the HTML
+  (`POST /api/items/:id/snapshot`, scanned and sanitised in the capture worker
+  like any upload). Rows no longer open on click; the title opens the record
+  (Tracker) or the Markdown (Phantoms).
 
 ## Queries
 `apps/api/src/services/query.ts` builds one tenant-scoped `WHERE` clause from the

@@ -62,9 +62,9 @@ test.describe("analyst role", () => {
     await expect(card.getByText("Awaiting analyst entry")).toBeVisible();
     await expect(card.getByText(/LLM draft/)).toHaveCount(0);
     await expect(card.getByRole("textbox", { name: "Title", exact: true })).toHaveValue("");
-    // Source Tier is filled automatically and read-only.
-    await expect(card.getByRole("textbox", { name: "Source Tier", exact: true })).toHaveValue("Primary");
-    await expect(card.getByRole("textbox", { name: "Source Tier", exact: true })).toHaveAttribute("readonly", "");
+    // The Primary layout: source details instead of Secondary's publisher fields.
+    await expect(card.getByRole("textbox", { name: "Source Role", exact: true })).toHaveValue("");
+    await expect(card.getByRole("textbox", { name: "Source Tier", exact: true })).toHaveCount(0);
     await expect(card.getByRole("combobox", { name: "Macrotrend", exact: true })).toHaveValue("");
     // The analyst opens the saved page to read the source.
     await expect(card.getByRole("link", { name: /Open saved page in new tab/ })).toHaveAttribute("href", /^\/source\/itm_/);
@@ -72,7 +72,7 @@ test.describe("analyst role", () => {
     await expect(card.frameLocator("iframe.snapshot-frame").getByText("pool de-identified screening data")).toBeVisible();
 
     await card.getByRole("button", { name: "✓ Approve" }).click();
-    await expect(card.getByText(/Validation failed\. Complete: ID, Macrotrend, Subtrend, Title, Event Date, Impact, Growth Intensity, Source Type, Competitors, Action/)).toBeVisible();
+    await expect(card.getByText(/Validation failed\. Complete: ID, Title, Event Date, Macrotrend, Subtrend, Growth Intensity, Impact, Source Type, Competitors, Action/)).toBeVisible();
     await fillEntry(card, { id: `P-E2E-${uid()}`, title: "AstraZeneca and Roche form pre-competitive AI alliance", extra: { "Key Details": "Shared models.\n\nEach partner keeps its own assets." } });
     await card.getByRole("button", { name: "✓ Approve" }).click();
     await expect(page.getByText(/SIG-\d+ published to the tracker as rev 1/).first()).toBeVisible();
@@ -257,8 +257,8 @@ test.describe("analyst role", () => {
     // The Tracker uses the new order (the Inbox-only columns stay out of the Tracker).
     await page.goto("/tracker");
     const trackerFirst = (await schemaOf(page, "primary")).columns.filter((c) => c.inTracker).sort((a, b) => a.position - b.position)[0]?.label as string;
-    await expect(page.locator("table thead th").first()).toContainText(trackerFirst, { timeout: 15_000 });
-    await expect(page.locator("table thead th")).toHaveCount(9);
+    await expect(page.locator("table thead th:not(.src-col)").first()).toContainText(trackerFirst, { timeout: 15_000 });
+    await expect(page.locator("table thead th:not(.src-col)")).toHaveCount(9);
     await restoreOrder(page, "primary", original);
   });
 
@@ -418,6 +418,74 @@ test.describe("analyst role", () => {
     await expect(panel.getByText("Raises the stakes for peers.")).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog")).toHaveCount(0);
+  });
+
+  test("imports a spreadsheet into the Primary Tracker, then attaches the HTML with the green plus", async ({ page }) => {
+    await page.goto("/input");
+    const card = page.getByTestId("import-card");
+    await expect(card.getByTestId("stream-primary")).toHaveAttribute("aria-pressed", "true");
+    // The template has exactly the Primary Tracker's column names.
+    const [tpl] = await Promise.all([page.waitForEvent("download"), card.getByRole("button", { name: /Download the Primary Tracker template/ }).click()]);
+    expect(tpl.suggestedFilename()).toBe("eradigm-primary-tracker-import-template.xlsx");
+    const id = `P-XL-${uid()}`;
+    const title = `Imported KOL insight ${uid()}`;
+    const header = ["ID", "Title", "Event Date", "Source Role", "Macrotrend", "Subtrend", "Growth Intensity", "Impact", "Source Type", "Competitors", "Action", "Key Intelligence Question"];
+    const row = [id, title, "2026-09-01", "Oncology KOL", "AI Investment in R&D", "Agentic AI Platforms", "Stable", "Low", "Primary Source", "Roche, Novartis", "Not Actioned", "What is Roche piloting?"];
+    // A real Excel workbook is read in the browser (first sheet, blank rows skipped).
+    await card.locator('input[type="file"]').setInputFiles(path.join(path.dirname(new URL(import.meta.url).pathname), "../packages/shared/test/fixtures/legacy.xlsx"));
+    await expect(card.getByTestId("drop-zone-import")).toContainText("3 rows ready to check and import");
+    // A mistake first: an unknown column is reported and nothing is imported.
+    const badCsv = htmlFile("bad.csv", `${[...header, "Colour"].join(",")}\n${[...row.map((v) => `"${v}"`), "blue"].join(",")}\n`);
+    await card.locator('input[type="file"]').setInputFiles(badCsv);
+    await expect(card.getByText(/Not a Primary Tracker column: “Colour”/)).toBeVisible();
+    await expect(card.getByRole("button", { name: "Check and import" })).toBeDisabled();
+    // Invalid values: every problem is listed by row and column, and nothing is written.
+    const invalid = htmlFile("invalid.csv", `${header.join(",")}\n${row.map((v, i) => (i === 4 ? '"Not a macrotrend"' : `"${v}"`)).join(",")}\n`);
+    await card.locator('input[type="file"]').setInputFiles(invalid);
+    await card.getByRole("button", { name: "Check and import" }).click();
+    await expect(card.getByText(/Nothing was imported: 2 problems to fix in invalid.csv/)).toBeVisible();
+    await expect(card.getByRole("table", { name: "Import problems" })).toContainText("Macrotrend");
+    // A good file (dropped): imported into the Primary Tracker.
+    const good = htmlFile("legacy.csv", `${header.join(",")}\n${row.map((v) => `"${v}"`).join(",")}\n`);
+    const dt = await page.evaluateHandle((text) => {
+      const d = new DataTransfer();
+      d.items.add(new File([text], "legacy.csv", { type: "text/csv" }));
+      return d;
+    }, readFileSync(good, "utf8"));
+    await card.dispatchEvent("dragenter", { dataTransfer: dt });
+    await card.dispatchEvent("dragover", { dataTransfer: dt });
+    await card.dispatchEvent("drop", { dataTransfer: dt });
+    await expect(card.getByTestId("drop-zone-import")).toContainText("1 row ready");
+    await card.getByRole("button", { name: "Check and import" }).click();
+    await expect(card.getByText(/Imported 1 entry into the Primary Tracker \(SIG-\d+\)/)).toBeVisible({ timeout: 30_000 });
+    await expectAccessible(page, "/input after import");
+    await card.getByRole("link", { name: "Open the Primary Tracker →" }).click();
+    await expect(page).toHaveURL(/\/tracker$/);
+    await page.getByRole("searchbox").fill(title);
+
+    // No saved page yet: a green plus on the left; the row itself no longer opens anything.
+    const tr = page.locator("table tbody tr", { hasText: title });
+    await expect(tr.locator("td").first().getByRole("button", { name: `Attach the HTML page for ${title}` })).toBeVisible();
+    await tr.locator("td.date").click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    const html = htmlFile("kol.html", `<!DOCTYPE html><html><head><title>KOL notes</title><script>alert(1)</script></head><body><article><h1>KOL notes on Roche</h1><p>The KOL said Roche is piloting agentic AI in two early research sites.</p><p>Results are expected in 2027.</p></article></body></html>`);
+    await tr.locator('input[type="file"]').setInputFiles(html);
+    await expect(page.locator(".toast")).toContainText(/Saved page attached to SIG-\d+/);
+    const open = tr.getByRole("link", { name: `Open saved page for ${title} (new tab)` });
+    await expect(open).toBeVisible();
+    const [tab] = await Promise.all([page.context().waitForEvent("page"), open.click()]);
+    await expect(tab.frameLocator("iframe.snapshot-frame").getByText("piloting agentic AI")).toBeVisible();
+    await tab.close();
+    // It is in Primary Phantoms with the Primary Markdown.
+    await page.getByRole("navigation").getByRole("link", { name: "Phantoms" }).click();
+    await expect(page).toHaveURL(/\/phantoms\?q=/);
+    const ph = page.locator("table tbody tr", { hasText: title });
+    await ph.locator("td.title button").click();
+    const md = page.getByRole("dialog").getByLabel("Markdown source");
+    await expect(md).toContainText(`id: ${id}`);
+    await expect(md).toContainText("Source:\n  Role: Oncology KOL");
+    await expect(md).toContainText("## Key Intelligence Question\nWhat is Roche piloting?");
+    await expect(md).not.toContainText("Agentic AI Platforms");
   });
 
   test("Inbox and Input pass automated accessibility checks", async ({ page }) => {

@@ -99,6 +99,17 @@ export const FIELDS = {
   header: "header",
   keyDetails: "key_details",
   ciPerspective: "ci_perspective",
+  // Primary stream (Phantoms Markdown for primary sources)
+  sourceRole: "source_role",
+  sourceCompany: "source_company",
+  sourceLocation: "source_location",
+  sourceConfidence: "source_confidence",
+  workstream: "workstream",
+  sourceTherapeuticArea: "source_therapeutic_area",
+  sourceBrandAsset: "source_brand_asset",
+  insightTopic: "insight_topic",
+  keyQuestion: "key_intelligence_question",
+  keyMetrics: "key_metrics",
 } as const;
 
 /** Columns whose value the platform sets itself (shown read-only in the Inbox). */
@@ -175,41 +186,87 @@ export const DEFAULT_TAXONOMY: MacrotrendGroup[] = [
   { name: "Others", subtrends: ["Others"] },
 ];
 
-export function defaultColumns(): TrackerColumn[] {
-  type Def = Omit<TrackerColumn, "position" | "aiAssist" | "core" | "inTracker"> & { core?: boolean; inTracker?: boolean };
-  // Order = Inbox order. `inTracker` marks the columns the Tracker and Phantoms tables show.
-  const cols: Def[] = [
-    { key: FIELDS.id, label: "ID", type: "text", required: true },
-    { key: CORE.macrotrend, label: "Macrotrend", type: "macro", required: true, inTracker: true },
-    { key: CORE.subtrend, label: "Subtrend", type: "sub", required: true, inTracker: true },
-    { key: CORE.title, label: "Title", type: "text", required: true, inTracker: true },
-    { key: CORE.date, label: "Event Date", type: "date", required: true, inTracker: true },
-    { key: FIELDS.reviewDate, label: "Review Date", type: "date", required: false },
-    { key: CORE.impact, label: "Impact", type: "select", required: true, inTracker: true, options: [...DEFAULT_IMPACT] },
-    { key: CORE.growth, label: "Growth Intensity", type: "select", required: true, inTracker: true, options: [...DEFAULT_GROWTH] },
-    { key: DEFAULT_KEYS.source, label: "Source Type", type: "select", required: true, inTracker: true, options: [...DEFAULT_SOURCES] },
-    { key: FIELDS.publisher, label: "Publisher", type: "text", required: false },
-    { key: FIELDS.url, label: "URL", type: "text", required: false },
-    { key: FIELDS.rawRef, label: "Raw Ref", type: "text", required: false },
-    { key: FIELDS.sourceTier, label: "Source Tier", type: "select", required: false, options: [SOURCE_TIER.primary, SOURCE_TIER.secondary] },
-    { key: CORE.competitors, label: "Competitors", type: "multi", required: true, inTracker: true, options: [...DEFAULT_COMPETITORS] },
-    { key: FIELDS.otherEntities, label: "Other Entities", type: "text", required: false },
-    { key: FIELDS.therapeuticArea, label: "Therapeutic Area", type: "text", required: false },
-    { key: FIELDS.assets, label: "Assets", type: "text", required: false },
-    { key: FIELDS.products, label: "Products", type: "text", required: false },
-    { key: DEFAULT_KEYS.action, label: "Action", type: "select", required: true, inTracker: true, core: false, options: [...DEFAULT_ACTIONS] },
-    { key: FIELDS.header, label: "Header", type: "long", required: false },
-    { key: FIELDS.keyDetails, label: "Key Details", type: "long", required: false },
-    { key: FIELDS.ciPerspective, label: "CI Perspective", type: "long", required: false },
-  ];
+type ColumnDef = Omit<TrackerColumn, "position" | "aiAssist" | "core" | "inTracker"> & { core?: boolean; inTracker?: boolean };
+
+/**
+ * The nine Tracker/Dashboard columns, shared by both streams (same keys,
+ * labels and options): Macrotrend, Subtrend, Title, Event Date, Impact, Growth
+ * Intensity, Source Type, Competitors, Action.
+ */
+const TRACKER_DEFS = {
+  macrotrend: { key: CORE.macrotrend, label: "Macrotrend", type: "macro", required: true, inTracker: true },
+  subtrend: { key: CORE.subtrend, label: "Subtrend", type: "sub", required: true, inTracker: true },
+  title: { key: CORE.title, label: "Title", type: "text", required: true, inTracker: true },
+  date: { key: CORE.date, label: "Event Date", type: "date", required: true, inTracker: true },
+  impact: { key: CORE.impact, label: "Impact", type: "select", required: true, inTracker: true, options: [...DEFAULT_IMPACT] },
+  growth: { key: CORE.growth, label: "Growth Intensity", type: "select", required: true, inTracker: true, options: [...DEFAULT_GROWTH] },
+  source: { key: DEFAULT_KEYS.source, label: "Source Type", type: "select", required: true, inTracker: true, options: [...DEFAULT_SOURCES] },
+  competitors: { key: CORE.competitors, label: "Competitors", type: "multi", required: true, inTracker: true, options: [...DEFAULT_COMPETITORS] },
+  action: { key: DEFAULT_KEYS.action, label: "Action", type: "select", required: true, inTracker: true, options: [...DEFAULT_ACTIONS] },
+} satisfies Record<string, ColumnDef>;
+
+/** Default columns of a stream, in Inbox order. `inTracker` marks the Tracker/Phantoms table columns. */
+export function defaultColumns(stream: Stream = "secondary"): TrackerColumn[] {
+  const T = TRACKER_DEFS;
+  const cols: ColumnDef[] =
+    stream === "primary"
+      ? [
+          { key: FIELDS.id, label: "ID", type: "text", required: true },
+          T.title,
+          T.date,
+          { key: FIELDS.sourceRole, label: "Source Role", type: "text", required: false },
+          { key: FIELDS.sourceCompany, label: "Source Company", type: "text", required: false },
+          { key: FIELDS.sourceLocation, label: "Source Location", type: "text", required: false },
+          { key: FIELDS.sourceConfidence, label: "Source Confidence", type: "text", required: false },
+          T.macrotrend,
+          T.subtrend,
+          T.growth,
+          // Impact is not part of the Primary Markdown, but the Dashboard, Tracker and Phantoms rules need it.
+          T.impact,
+          T.source,
+          T.competitors,
+          T.action,
+          { key: FIELDS.workstream, label: "Workstream", type: "text", required: false },
+          { key: FIELDS.sourceTherapeuticArea, label: "Source Therapeutic Area", type: "text", required: false },
+          { key: FIELDS.sourceBrandAsset, label: "Source Brand or Asset", type: "text", required: false },
+          { key: FIELDS.insightTopic, label: "Insight Topic", type: "text", required: false },
+          { key: FIELDS.keyQuestion, label: "Key Intelligence Question", type: "long", required: false },
+          { key: FIELDS.keyDetails, label: "Key Details", type: "long", required: false },
+          { key: FIELDS.keyMetrics, label: "Key Metrics", type: "long", required: false },
+        ]
+      : [
+          { key: FIELDS.id, label: "ID", type: "text", required: true },
+          T.macrotrend,
+          T.subtrend,
+          T.title,
+          T.date,
+          { key: FIELDS.reviewDate, label: "Review Date", type: "date", required: false },
+          T.impact,
+          T.growth,
+          T.source,
+          { key: FIELDS.publisher, label: "Publisher", type: "text", required: false },
+          { key: FIELDS.url, label: "URL", type: "text", required: false },
+          { key: FIELDS.rawRef, label: "Raw Ref", type: "text", required: false },
+          { key: FIELDS.sourceTier, label: "Source Tier", type: "select", required: false, options: [SOURCE_TIER.primary, SOURCE_TIER.secondary] },
+          T.competitors,
+          { key: FIELDS.otherEntities, label: "Other Entities", type: "text", required: false },
+          { key: FIELDS.therapeuticArea, label: "Therapeutic Area", type: "text", required: false },
+          { key: FIELDS.assets, label: "Assets", type: "text", required: false },
+          { key: FIELDS.products, label: "Products", type: "text", required: false },
+          // Not in the Secondary Markdown, so it can be deleted there.
+          { ...T.action, core: false },
+          { key: FIELDS.header, label: "Header", type: "long", required: false },
+          { key: FIELDS.keyDetails, label: "Key Details", type: "long", required: false },
+          { key: FIELDS.ciPerspective, label: "CI Perspective", type: "long", required: false },
+        ];
   const analystOnly = new Set<string>([DEFAULT_KEYS.action, FIELDS.id, FIELDS.reviewDate, FIELDS.sourceTier, FIELDS.rawRef]);
-  return cols.map((c, i) => ({ ...c, core: c.core ?? true, inTracker: c.inTracker ?? false, position: i, aiAssist: !analystOnly.has(c.key) }));
+  return cols.map((c, i) => ({ ...c, options: c.options ? [...c.options] : undefined, core: c.core ?? true, inTracker: c.inTracker ?? false, position: i, aiAssist: !analystOnly.has(c.key) }));
 }
 
-export function defaultSchema(): TrackerSchema {
+export function defaultSchema(stream: Stream = "secondary"): TrackerSchema {
   return {
     revision: 1,
-    columns: defaultColumns(),
+    columns: defaultColumns(stream),
     taxonomy: DEFAULT_TAXONOMY.map((g) => ({ name: g.name, subtrends: [...g.subtrends] })),
   };
 }

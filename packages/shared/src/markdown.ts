@@ -1,5 +1,7 @@
 /**
  * Phantoms Markdown: generated from a tracker entry's field values only.
+ * Primary and Secondary entries have different fields and sections (below);
+ * the layout rules are the same.
  *
  * The front matter keeps the agreed keys, order and nesting, written as valid
  * YAML (two-space indentation; a value is double-quoted only when it would
@@ -7,7 +9,7 @@
  * Empty fields are written as `key:` (YAML null). The three sections are
  * copied verbatim, keeping paragraphs and line breaks.
  */
-import { CORE, DEFAULT_KEYS, FIELDS } from "./schema.js";
+import { CORE, DEFAULT_KEYS, FIELDS, type Stream } from "./schema.js";
 import type { FieldValue, ItemValues } from "./validation.js";
 
 export interface MarkdownMeta {
@@ -52,11 +54,49 @@ function line(indent: number, key: string, v: FieldValue | undefined | string): 
   return `${"  ".repeat(indent)}${key}:${s ? ` ${s}` : ""}`;
 }
 
-/** The Markdown document for one entry. */
-export function entryMarkdown(values: ItemValues, meta: MarkdownMeta): string {
+const section = (values: ItemValues, title: string, k: string) => `## ${title}\n${text(values[k]).trim()}`;
+
+function render(frontMatter: string[], sections: string[]): string {
+  return `${["---", ...frontMatter, "---"].join("\n")}\n${sections.join("\n\n")}\n`;
+}
+
+/**
+ * Primary sources: every Primary field except the Tracker/Dashboard
+ * classification (Macrotrend, Subtrend, Growth Intensity, Impact, Source Type,
+ * Competitors). Source details are grouped under `Source:`.
+ */
+export function primaryMarkdown(values: ItemValues): string {
+  const v = (k: string) => values[k];
+  return render(
+    [
+      line(0, "id", v(FIELDS.id)),
+      line(0, "title", v(CORE.title)),
+      line(0, "event_date", v(CORE.date)),
+      "Source:",
+      line(1, "Role", v(FIELDS.sourceRole)),
+      line(1, "Company", v(FIELDS.sourceCompany)),
+      line(1, "Location", v(FIELDS.sourceLocation)),
+      line(1, "Confidence", v(FIELDS.sourceConfidence)),
+      line(1, "Therapeutic_area", v(FIELDS.sourceTherapeuticArea)),
+      line(1, "Brand_or_asset", v(FIELDS.sourceBrandAsset)),
+      line(0, "Action", v(DEFAULT_KEYS.action)),
+      line(0, "Workstream", v(FIELDS.workstream)),
+      line(0, "Insight_topic", v(FIELDS.insightTopic)),
+    ],
+    [section(values, "Key Intelligence Question", FIELDS.keyQuestion), section(values, "Key Details", FIELDS.keyDetails), section(values, "Key Metrics", FIELDS.keyMetrics)],
+  );
+}
+
+/** The Markdown document for one entry (Primary or Secondary layout). */
+export function entryMarkdown(values: ItemValues, meta: MarkdownMeta, stream: Stream = "secondary"): string {
+  if (stream === "primary") return primaryMarkdown(values);
+  return secondaryMarkdown(values, meta);
+}
+
+/** Secondary sources: the agreed layout with Source and QC groups. */
+export function secondaryMarkdown(values: ItemValues, meta: MarkdownMeta): string {
   const v = (k: string) => values[k];
   const fm = [
-    "---",
     line(0, "id", v(FIELDS.id)),
     line(0, "title", v(CORE.title)),
     line(0, "event_date", v(CORE.date)),
@@ -75,10 +115,8 @@ export function entryMarkdown(values: ItemValues, meta: MarkdownMeta): string {
     line(1, "Reviewed_by", meta.reviewedBy ?? ""),
     line(1, "Review_date", v(FIELDS.reviewDate)),
     line(1, "Accurate_as_of", v(CORE.date)),
-    "---",
   ];
-  const section = (title: string, k: string) => `## ${title}\n${text(v(k)).trim()}`;
-  return `${fm.join("\n")}\n${[section("Header", FIELDS.header), section("Key Details", FIELDS.keyDetails), section("CI Perspective", FIELDS.ciPerspective)].join("\n\n")}\n`;
+  return render(fm, [section(values, "Header", FIELDS.header), section(values, "Key Details", FIELDS.keyDetails), section(values, "CI Perspective", FIELDS.ciPerspective)]);
 }
 
 /** Safe download name: the entry's ID, else the signal code. */

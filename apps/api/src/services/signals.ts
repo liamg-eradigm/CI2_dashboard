@@ -46,6 +46,7 @@ export async function signalDetail(env: Env, schemas: Schemas, tenantId: string,
     rev: r.published_rev,
     approvedAt: r.approved_at,
     approvedBy: r.approved_by_name ?? "—",
+    hasSnapshot: !!r.current_snapshot_id,
     inboxCode: r.code,
     receivedAt: r.received_at,
     submittedUrl: r.submitted_url,
@@ -78,5 +79,5 @@ export async function signalMarkdown(env: Env, schemas: Schemas, tenantId: strin
     .first<{ signal_code: string; stream: Stream; record_id: string | null; pub_date: string; title: string | null; macrotrend: string | null; subtrend: string | null; growth: string | null; impact: string | null; extra_json: string; competitors: string | null; approved_by_name: string | null }>();
   if (!r) throw notFound("Signal");
   const values = rowValues(schemas[r.stream] ?? schemas.primary, r);
-  return { markdown: entryMarkdown(values, { reviewedBy: r.approved_by_name }), fileName: markdownFileName(values, r.signal_code), code: r.signal_code };
+  return { markdown: entryMarkdown(values, { reviewedBy: r.approved_by_name }, r.stream), fileName: markdownFileName(values, r.signal_code), code: r.signal_code };
 }

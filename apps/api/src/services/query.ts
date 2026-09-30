@@ -133,12 +133,14 @@ interface SignalRow {
   published_rev: number;
   approved_at: string;
   approved_by_name: string | null;
+  has_snapshot: number | null;
 }
 
 const SIGNAL_COLUMNS = `i.id, i.signal_code, i.stream, i.record_id, i.pub_date, i.title, i.macrotrend, i.subtrend, i.growth, i.impact, i.extra_json,
   (SELECT group_concat(c.competitor, '${SEP}') FROM item_competitors c WHERE c.item_id = i.id) AS competitors,
   substr(i.body_text, 1, 600) AS body_text, i.final_url, i.published_rev, i.approved_at,
-  (SELECT u.name FROM users u WHERE u.id = i.approved_by) AS approved_by_name`;
+  (SELECT u.name FROM users u WHERE u.id = i.approved_by) AS approved_by_name,
+  (SELECT s.retention_status = 'active' FROM source_snapshots s WHERE s.id = i.current_snapshot_id) AS has_snapshot`;
 
 export function rowValues(
   schema: TrackerSchema,
@@ -166,6 +168,7 @@ function toSignal(schema: TrackerSchema, r: SignalRow): Signal {
     rev: r.published_rev,
     approvedAt: r.approved_at,
     approvedBy: r.approved_by_name ?? "—",
+    hasSnapshot: !!r.has_snapshot,
   };
 }
 

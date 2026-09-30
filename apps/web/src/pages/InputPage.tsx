@@ -4,6 +4,7 @@ import { CAPTURE_LIMITS, IN_PROGRESS_STATUSES, STREAM_LABEL, pipelineSteps, type
 import type { ApiError } from "../api/client";
 import { api } from "../api/client";
 import { useCaptureLog, useInvalidate, useItem, useSchema } from "../api/hooks";
+import { ImportCard } from "../components/ImportCard";
 import { ModelOutputTable } from "../components/ModelOutput";
 import { localDateTime } from "../lib/format";
 
@@ -234,6 +235,7 @@ export function InputPage({ me }: { me: Me }) {
           {SOURCES.map((src) => (
             <SourceCard key={src.stream} {...src} busy={busy === src.stream} onSubmit={submit} />
           ))}
+          <ImportCard />
         </div>
         {pageErr && (
           <div className="err-msg" role="alert">

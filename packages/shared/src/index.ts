@@ -12,3 +12,4 @@ export * from "./pipeline.js";
 export * from "./export.js";
 export * from "./api.js";
 export * from "./markdown.js";
+export * from "./sheet.js";

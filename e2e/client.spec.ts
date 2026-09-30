@@ -73,7 +73,7 @@ test.describe("client role", () => {
     await expect(row.locator("td").first().getByRole("button", { name: /Download Markdown/ })).toBeVisible();
     await row.locator("td.title button").click();
     const panel = page.getByRole("dialog");
-    await expect(panel.getByLabel("Markdown source")).toContainText("Source_tier: Primary");
+    await expect(panel.getByLabel("Markdown source")).toContainText("## Key Intelligence Question");
     await expect(panel.getByLabel("Markdown source")).toContainText(/^---\nid: P-\d+/);
     await panel.getByRole("button", { name: "Open full record" }).click();
     await expect(page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true })).toHaveCount(0);
@@ -85,6 +85,12 @@ test.describe("client role", () => {
     expect(impacts.length).toBeGreaterThan(0);
     for (const i of impacts) expect(i).toMatch(/Medium|High/);
     await expectAccessible(page, "/phantoms");
+  });
+
+  test("sees the saved-page icon but cannot attach pages", async ({ page }) => {
+    await page.goto("/tracker");
+    await expect(page.locator("table tbody tr td.src-col").first()).toBeVisible();
+    await expect(page.getByRole("button", { name: /Attach the HTML page/ })).toHaveCount(0);
   });
 
   test("cannot delete tracker entries", async ({ page }) => {

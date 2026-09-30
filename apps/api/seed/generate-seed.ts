@@ -22,7 +22,8 @@ import { DEFAULT_KEYS, SOURCE_TIER, STREAMS, defaultSchema, type Stream } from "
 import { canonicalJson } from "../src/lib/crypto.js";
 import { createHash, createHmac } from "node:crypto";
 
-const schema = defaultSchema();
+// Taxonomy and options are the same in both streams; columns differ (see defaultColumns).
+const schema = defaultSchema("secondary");
 const MAC = Object.fromEntries(schema.taxonomy.map((g) => [g.name, g.subtrends]));
 const MACROS = Object.keys(MAC);
 const ALLSUBS = MACROS.flatMap((m) => MAC[m] as string[]);
@@ -78,7 +79,7 @@ for (const t of TENANTS) {
   out.push(`INSERT INTO schema_meta (tenant_id, revision) VALUES (${q(t.id)}, 1);`);
   out.push(`INSERT INTO tenant_settings (tenant_id, settings_json, updated_at) VALUES (${q(t.id)}, ${q(JSON.stringify(DEFAULT_SETTINGS))}, ${q(GEN_AT)});`);
   for (const st of STREAMS) {
-    for (const c of schema.columns) {
+    for (const c of defaultSchema(st).columns) {
       out.push(
         `INSERT INTO tracker_columns (tenant_id, stream, key, label, type, core, required, ai_assist, in_tracker, position) VALUES (${q(t.id)}, '${st}', ${q(c.key)}, ${q(c.label)}, ${q(c.type)}, ${c.core ? 1 : 0}, ${c.required ? 1 : 0}, ${c.aiAssist ? 1 : 0}, ${c.inTracker ? 1 : 0}, ${c.position});`,
       );
@@ -198,7 +199,24 @@ function gen(tenant: string, count: number, seed: number, codeStart: number, rev
     const publisher = source === "PR" ? (comps[0] as string) : source === "LinkedIn" ? "LinkedIn" : "Pharma Technology Review";
     const TA = ["Oncology", "Immunology", "Cardiometabolic", "Neuroscience", "Rare Disease"];
     // The Phantoms fields (seeded so the Markdown is realistic; all non-confidential and invented).
-    const phantom: Record<string, string> = {
+    const ROLES = ["Medical Science Liaison", "Oncology KOL", "Regional Sales Director", "Market Access Lead", "Hospital Pharmacist"];
+    const LOCATIONS = ["London, UK", "Basel, CH", "Boston, US", "Paris, FR", "Munich, DE"];
+    const WORKSTREAMS = ["Launch readiness", "Market access", "Field force effectiveness", "Digital engagement"];
+    const primaryFields: Record<string, string> = {
+      record_id: recordId,
+      source_role: pick(ROLES),
+      source_company: comps[0] as string,
+      source_location: pick(LOCATIONS),
+      source_confidence: pick(["High", "Medium", "Low"]),
+      workstream: pick(WORKSTREAMS),
+      source_therapeutic_area: pick(TA),
+      source_brand_asset: r() < 0.5 ? `${(comps[0] as string).slice(0, 2).toUpperCase()}-${100 + Math.floor(r() * 900)}` : "",
+      insight_topic: sub,
+      key_intelligence_question: `How is ${comps[0]} progressing on ${sub.toLowerCase()}?`,
+      key_details: `${text}\n\nReported in a primary interview.`,
+      key_metrics: r() < 0.5 ? `${Math.floor(r() * 40) + 5}% of respondents aware; ${Math.floor(r() * 12) + 2} sites.` : "",
+    };
+    const secondaryFields: Record<string, string> = {
       record_id: recordId,
       publisher,
       url,
@@ -212,13 +230,15 @@ function gen(tenant: string, count: number, seed: number, codeStart: number, rev
       key_details: `${text}\n\nMacrotrend: ${macro} · subtrend: ${sub}.`,
       ci_perspective: `${impact} impact for competitors tracking ${macro}; ${growth.toLowerCase()} in activity.`,
     };
+    const phantom = stream === "primary" ? primaryFields : secondaryFields;
     const phantomSql = Object.entries(phantom)
       .map(([k, v]) => `${q(k)}, ${v ? q(v) : "NULL"}`)
       .join(", ");
+    const reviewSql = stream === "secondary" ? `, 'review_date', ${daysAgo(Math.max(0, ago - 1))}` : "";
     const values = (imp: string): string =>
-      `json_object('date', ${daysAgo(ago)}, 'competitors', json(${q(JSON.stringify(comps))}), 'macrotrend', ${q(macro)}, 'subtrend', ${q(sub)}, 'title', ${q(title)}, 'growth', ${q(growth)}, 'impact', ${q(imp)}, 'source', ${q(source)}, 'action', ${q(action)}, 'review_date', ${daysAgo(Math.max(0, ago - 1))}, ${phantomSql})`;
-    const prov = JSON.stringify(Object.fromEntries(schema.columns.map((c) => [c.key, "analyst"])));
-    const extraSql = `json_object(${q(DEFAULT_KEYS.source)}, ${q(source)}, ${q(DEFAULT_KEYS.action)}, ${q(action)}, 'review_date', ${daysAgo(Math.max(0, ago - 1))}, ${phantomSql.replace(/'record_id', '[^']*', /, "")})`;
+      `json_object('date', ${daysAgo(ago)}, 'competitors', json(${q(JSON.stringify(comps))}), 'macrotrend', ${q(macro)}, 'subtrend', ${q(sub)}, 'title', ${q(title)}, 'growth', ${q(growth)}, 'impact', ${q(imp)}, 'source', ${q(source)}, 'action', ${q(action)}${reviewSql}, ${phantomSql})`;
+    const prov = JSON.stringify(Object.fromEntries(defaultSchema(stream).columns.map((c) => [c.key, "analyst"])));
+    const extraSql = `json_object(${q(DEFAULT_KEYS.source)}, ${q(source)}, ${q(DEFAULT_KEYS.action)}, ${q(action)}${reviewSql}, ${phantomSql.replace(/'record_id', '[^']*', /, "")})`;
     out.push(
       `INSERT INTO submissions (id, tenant_id, submitted_by, input_type, submitted_url, normalized_url, created_at) VALUES (${q(sid)}, ${q(tenant)}, ${q(who.id)}, 'url', ${q(url)}, ${q(url)}, ${tsAgo(ago, -60)});`,
     );
@@ -304,7 +324,7 @@ INBOX.forEach((it, i) => {
     `INSERT INTO intelligence_items (id, tenant_id, submission_id, code, stream, status, version, attempts, input_type, url_key, outlet, submitted_url, final_url, received_at, submitted_by, headline, body_text, publication_date,
       draft_json, provenance_json, extraction_json, model_warnings_json, warnings_count, created_at, updated_at)
      VALUES (${q(id)}, 't_demo', ${q(sid)}, ${q(it.code)}, '${it.stream}', 'needs_review', 2, 1, 'url', ${q(it.url.replace(/^https:\/\/(www\.)?/, ""))}, ${q(it.outlet)}, ${q(it.url)}, ${q(it.url)}, ${received}, ${q(who.id)}, ${q(it.headline)}, ${q(body)}, ${daysAgo(pubAgo)},
-      ${q(JSON.stringify({ source_tier: SOURCE_TIER[it.stream] }))}, '{}', NULL, '[]', 0, ${received}, ${received});`,
+      ${q(JSON.stringify(it.stream === "secondary" ? { source_tier: SOURCE_TIER.secondary } : {}))}, '{}', NULL, '[]', 0, ${received}, ${received});`,
   );
   out.push(`INSERT INTO snapshot_blobs (storage_key, seq, tenant_id, data) VALUES (${q(key)}, 0, 't_demo', ${q(html)});`);
   out.push(

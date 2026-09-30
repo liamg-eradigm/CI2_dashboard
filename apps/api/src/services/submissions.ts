@@ -70,7 +70,8 @@ function isUnique(err: unknown): boolean {
 }
 
 /** A new item's draft: every field empty except Source Tier, which follows the stream. */
-const initialDraft = (stream: Stream) => JSON.stringify({ [FIELDS.sourceTier]: SOURCE_TIER[stream] });
+const initialDraft = (schemas: Schemas, stream: Stream) =>
+  JSON.stringify(schemas[stream].columns.some((c) => c.key === FIELDS.sourceTier) ? { [FIELDS.sourceTier]: SOURCE_TIER[stream] } : {});
 
 export async function submitUrl(
   env: Env,
@@ -106,7 +107,7 @@ export async function submitUrl(
       env.DB.prepare(
         `INSERT INTO intelligence_items (id, tenant_id, submission_id, code, status, input_type, url_key, outlet, submitted_url, received_at, submitted_by, created_at, updated_at, stream, draft_json)
          VALUES (?1, ?2, ?3, ?4, 'queued', 'url', ?5, ?6, ?7, ?8, ?9, ?8, ?8, ?10, ?11)`,
-      ).bind(itemId, p.tenantId, subId, code, urlKey, c.host.replace(/^www\./, ""), c.url, now, p.userId, stream, initialDraft(stream)),
+      ).bind(itemId, p.tenantId, subId, code, urlKey, c.host.replace(/^www\./, ""), c.url, now, p.userId, stream, initialDraft(schemas, stream)),
       env.DB.prepare(
         "INSERT INTO processing_attempts (id, tenant_id, item_id, attempt, status, stage, requested_by, started_at, steps_json) VALUES (?1, ?2, ?3, 1, 'running', 'queued', ?4, ?5, ?6)",
       ).bind(newId("att"), p.tenantId, itemId, p.userId, now, JSON.stringify(steps)),
@@ -189,7 +190,7 @@ export async function submitFile(
         parsed.article.publicationDate,
         JSON.stringify(parsed.warnings),
         stream,
-        initialDraft(stream),
+        initialDraft(schemas, stream),
       ),
       env.DB.prepare(
         "INSERT INTO processing_attempts (id, tenant_id, item_id, attempt, status, stage, requested_by, started_at, steps_json) VALUES (?1, ?2, ?3, 1, 'running', 'queued', ?4, ?5, ?6)",

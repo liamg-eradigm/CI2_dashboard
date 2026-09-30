@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CORE, STREAM_LABEL, displayValue, getColumn, trackerColumns, type Me, type Signal, type TrackerColumn } from "@eradigm/shared";
-import { request } from "../api/client";
-import { exportUrl, useSchema, useSettings, useTracker, type TableView } from "../api/hooks";
+import { CORE, STREAM_LABEL, can, displayValue, getColumn, trackerColumns, type Me, type Signal, type TrackerColumn } from "@eradigm/shared";
+import { api, request, type ApiError } from "../api/client";
+import { exportUrl, useInvalidate, useSchema, useSettings, useTracker, type TableView } from "../api/hooks";
 import { FilterHeader } from "../components/FilterHeader";
 import { MarkdownPanel, downloadMarkdown } from "../components/MarkdownPanel";
 import { RecordDrawer } from "../components/RecordDrawer";
@@ -57,6 +57,68 @@ function Cell({ col, s, impactCol, growthCol, actionCol }: { col: TrackerColumn;
 }
 
 /** The Tracker and the Phantoms tabs: the same filterable table, per stream. Phantoms adds the Markdown. */
+/**
+ * First cell of a Tracker/Phantoms row: opens the saved source page, or — for
+ * an entry without one (imported from a spreadsheet) — a green plus to attach
+ * the HTML file (analysts and admins).
+ */
+function SourceCell({ s, canAttach }: { s: Signal; canAttach: boolean }) {
+  const ref = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const toast = useToast();
+  const inv = useInvalidate();
+  const title = String(s.values[CORE.title] ?? s.code);
+  if (s.hasSnapshot) {
+    return (
+      <td className="src-col">
+        <a className="src-btn open" href={`/source/${s.id}`} target="_blank" rel="noopener" aria-label={`Open saved page for ${title} (new tab)`} title="Open the saved page">
+          <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+            <path d="M5 2.5h6.5L15.5 6.5V17a.5.5 0 0 1-.5.5H5a.5.5 0 0 1-.5-.5V3a.5.5 0 0 1 .5-.5Z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+            <path d="M11.5 2.5v4h4M7 10h6M7 13h6" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </a>
+      </td>
+    );
+  }
+  if (!canAttach) {
+    return (
+      <td className="src-col">
+        <span className="src-none" title="No saved page for this entry" aria-label="No saved page">
+          —
+        </span>
+      </td>
+    );
+  }
+  const upload = async (f: File | null) => {
+    if (!f) return;
+    if (!/\.html?$/i.test(f.name)) return toast("Only .html or .htm files are accepted", false);
+    setBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", f);
+      await api(`/api/items/${s.id}/snapshot`, { method: "POST", body: fd });
+      toast(`Saved page attached to ${s.code}`);
+      await inv("tracker", "signal");
+    } catch (e) {
+      toast(`Could not attach the page · ${(e as ApiError).message}`, false);
+    } finally {
+      setBusy(false);
+      if (ref.current) ref.current.value = "";
+    }
+  };
+  return (
+    <td className="src-col">
+      <input ref={ref} type="file" accept=".html,.htm,text/html" className="sr-only" tabIndex={-1} aria-hidden="true" onChange={(e) => void upload(e.target.files?.[0] ?? null)} />
+      <button className="src-btn add" disabled={busy} onClick={() => ref.current?.click()} aria-label={`Attach the HTML page for ${title}`} title="No saved page yet · click to upload the HTML file">
+        <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+          <circle cx="10" cy="10" r="8.25" fill="currentColor" />
+          <path d="M10 6v8M6 10h8" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+      </button>
+    </td>
+  );
+}
+
 export function TrackerPage({ me, view = "tracker" }: { me: Me; view?: TableView }) {
   const phantoms = view === "phantoms";
   const [stream, setStream] = useStreamParam();
@@ -105,6 +167,7 @@ export function TrackerPage({ me, view = "tracker" }: { me: Me; view?: TableView
   if (!schema.data) return <div className="content"><div className="skeleton" style={{ height: 200 }} /></div>;
   const s = schema.data;
   const cols = trackerColumns(s);
+  const canAttach = can(me.role, "item:edit");
   const impactCol = getColumn(s, CORE.impact);
   const growthCol = getColumn(s, CORE.growth);
   const actionCol = getColumn(s, "action");
@@ -203,6 +266,9 @@ export function TrackerPage({ me, view = "tracker" }: { me: Me; view?: TableView
                       <span>Markdown</span>
                     </th>
                   )}
+                  <th scope="col" className="src-col">
+                    <span>Source</span>
+                  </th>
                   {cols.map((c) => {
                     const active = sortKey === c.key;
                     return (
@@ -217,7 +283,7 @@ export function TrackerPage({ me, view = "tracker" }: { me: Me; view?: TableView
               </thead>
               <tbody>
                 {t?.rows.map((r) => (
-                  <tr key={r.id} className="clickable" onClick={() => setParam(phantoms ? { md: r.id } : { signal: r.id }, true)}>
+                  <tr key={r.id}>
                     {phantoms && (
                       <td className="md-col">
                         <button
@@ -235,6 +301,7 @@ export function TrackerPage({ me, view = "tracker" }: { me: Me; view?: TableView
                         </button>
                       </td>
                     )}
+                    <SourceCell s={r} canAttach={canAttach} />
                     {cols.map((c) =>
                       c.key === CORE.title ? (
                         <td key={c.key} className="title">
