@@ -5,6 +5,7 @@ import { exportUrl, useInvalidate, useNewsletters, useSchema, useSettings, useTr
 import { FilterHeader } from "../components/FilterHeader";
 import { MarkdownPanel } from "../components/MarkdownPanel";
 import { DeleteEntries } from "../components/DeleteEntries";
+import { DatesHint } from "../components/DatesHint";
 import { RecordDrawer } from "../components/RecordDrawer";
 import { DocxButton, DocxPane, NewsletterCreate, canCreateNewsletter } from "../components/Deliverables";
 import { SourceDrawer } from "../components/SnapshotFrame";
@@ -278,6 +279,7 @@ export function TrackerPage({ me, view = "tracker", title, above }: { me: Me; vi
           <div className="table-top">
             <span className="info" aria-live="polite">
               {info}
+              <DatesHint info={t?.outsideDates} f={f} />
             </span>
             <div className="table-actions">
               {newsletter && tickable && (

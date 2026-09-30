@@ -378,6 +378,49 @@ test.describe("analyst role", () => {
     await restoreOrder(page, "primary", original, "source");
   });
 
+  test("a long-text manual entry with an old Event Date is approved, flagged and one click away", async ({ page }) => {
+    await page.goto("/input");
+    const src = page.getByTestId("source-card");
+    await src.getByTestId("stream-secondary").click();
+    await src.getByRole("button", { name: "✎ Manual entry" }).click();
+    await page.getByRole("button", { name: "Complete in Secondary Inbox →" }).click();
+    const blank = page.locator(".inbox-card", { hasText: "Manual entry" }).filter({ hasText: "Awaiting analyst entry" }).first();
+    const code = (await blank.locator(".code").innerText()).trim();
+    const card = page.locator(".inbox-card", { has: page.locator(".code", { hasText: code }) });
+    const title = `Old long entry ${uid()}`;
+    const para = "Sanofi’s “AI-first” strategy — announced on 24 Sept — covers 12 sites; it's worth €1.2bn. ✓\n\n";
+    await fillEntry(card, {
+      id: `S-OLD-${uid()}`,
+      title,
+      competitors: ["Sanofi"],
+      extra: { Publisher: para.repeat(10).replace(/\n/g, " ").slice(0, 1500), Header: para.repeat(80), "Key Details": para.repeat(80), "CI Perspective": para.repeat(80) },
+    });
+    await card.getByLabel("Event Date", { exact: true }).fill("2024-03-12");
+    await card.getByRole("button", { name: "✓ Approve" }).click();
+    await expect(page.locator(".toast").last()).toContainText(/SIG-\d+ published to the tracker as rev 1 · its Event Date \(12 Mar 2024\) is outside the default last-three-months view/);
+    // Hidden by the default dates in the Tracker, with a hint and "Show all dates".
+    await page.goto("/tracker?stream=secondary");
+    await page.getByRole("searchbox").fill(title);
+    await expect(page.locator("table tbody td.title", { hasText: title })).toHaveCount(0);
+    const hint = page.getByTestId("dates-hint");
+    await expect(hint).toContainText("1 more entry is outside these dates");
+    await hint.getByRole("button", { name: "Show all dates" }).click();
+    await expect(page.locator("table tbody td.title", { hasText: title })).toBeVisible();
+    await expect(page).toHaveURL(/from=\d{4}-\d{2}-\d{2}/);
+    // The Dashboard says so too.
+    await page.goto("/dashboard");
+    await expect(page.locator(".dates-banner")).toContainText("outside these dates");
+    // From the Inbox: View in Tracker opens the entry, with the dates widened to include it.
+    await page.goto("/inbox?stream=secondary");
+    await page.getByRole("button", { name: /^Approved & rejected/ }).click();
+    const done = page.locator(".inbox-card", { has: page.locator(".code", { hasText: code }) });
+    await done.getByRole("link", { name: "View in Tracker →" }).click();
+    await expect(page).toHaveURL(/\/tracker\?.*from=2024-03-12/);
+    await expect(page.getByRole("dialog").getByRole("heading", { name: title })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.locator("table tbody td.title", { hasText: title })).toBeVisible();
+  });
+
   test("Delete Tracker Entry from the record: gone from the Tracker, still in Phantoms", async ({ page }) => {
     await page.goto("/tracker");
     // The oldest entry (the Phantoms test below works on the newest ones).

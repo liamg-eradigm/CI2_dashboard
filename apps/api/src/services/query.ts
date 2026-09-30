@@ -22,6 +22,7 @@ import {
   type DashboardData,
   type FilterState,
   type ItemValues,
+  type OutsideDates,
   type Signal,
   type Stream,
   type TrackerSchema,
@@ -185,6 +186,22 @@ async function countPublished(env: Env, tenantId: string, scope: Scope = {}): Pr
   return r?.n ?? 0;
 }
 
+/**
+ * Entries hidden only by the date range (they match every other filter), and
+ * the Event Date span of everything matching, so the UI can say so and offer
+ * "Show all dates" (an entry dated years ago, or in the future, is otherwise
+ * easy to miss under the default last-three-months range).
+ */
+function outsideDatesStmt(env: Env, schema: TrackerSchema, tenantId: string, f: FilterState, scope: Scope = {}) {
+  const w = buildWhere(schema, tenantId, { ...f, from: "0000-01-01", to: "9999-12-31" }, [], scope);
+  return env.DB.prepare(`SELECT COUNT(*) AS n, MIN(i.pub_date) AS lo, MAX(i.pub_date) AS hi FROM intelligence_items i WHERE ${w.sql}`).bind(...w.binds);
+}
+
+function outsideDates(result: D1Result | undefined, shown: number): OutsideDates {
+  const r = ((result?.results ?? [])[0] ?? {}) as { n?: number; lo?: string | null; hi?: string | null };
+  return { count: Math.max(0, (r.n ?? 0) - shown), from: r.lo ?? null, to: r.hi ?? null };
+}
+
 export async function trackerPage(
   env: Env,
   schema: TrackerSchema,
@@ -197,13 +214,16 @@ export async function trackerPage(
 ) {
   const w = buildWhere(schema, tenantId, f, [], scope);
   const o = orderBy(schema, sort.key, sort.dir);
-  const [rows, count] = await env.DB.batch([
+  const [rows, count, span] = await env.DB.batch([
     env.DB.prepare(`SELECT ${SIGNAL_COLUMNS} FROM intelligence_items i WHERE ${w.sql} ORDER BY ${o.sql} LIMIT ? OFFSET ?`).bind(...w.binds, ...o.binds, pageSize, page * pageSize),
     env.DB.prepare(`SELECT COUNT(*) AS n FROM intelligence_items i WHERE ${w.sql}`).bind(...w.binds),
+    outsideDatesStmt(env, schema, tenantId, f, scope),
   ]);
+  const total = ((count?.results ?? [])[0] as { n: number } | undefined)?.n ?? 0;
   return {
     rows: ((rows?.results ?? []) as unknown as SignalRow[]).map((r) => toSignal(schema, r)),
-    total: ((count?.results ?? [])[0] as { n: number } | undefined)?.n ?? 0,
+    total,
+    outsideDates: outsideDates(span, total),
     totalPublished: await countPublished(env, tenantId, scope),
     page,
     pageSize,
@@ -255,6 +275,7 @@ export async function dashboard(env: Env, schema: TrackerSchema, tenantId: strin
       `SELECT c.competitor AS label, i.impact AS k, COUNT(*) AS n FROM item_competitors c JOIN intelligence_items i ON i.id = c.item_id WHERE ${wComp.sql} GROUP BY 1, 2`,
     ).bind(...wComp.binds),
     env.DB.prepare(`SELECT COUNT(*) AS n FROM intelligence_items i WHERE ${wComp.sql}`).bind(...wComp.binds),
+    outsideDatesStmt(env, schema, tenantId, f),
   ]);
   const rs = <T>(i: number) => (results[i]?.results ?? []) as unknown as T[];
   const approved = rs<{ n: number }>(0)[0]?.n ?? 0;
@@ -283,6 +304,7 @@ export async function dashboard(env: Env, schema: TrackerSchema, tenantId: strin
   const compBars = bars(compCol?.options ?? [], rs(6));
 
   return {
+    outsideDates: outsideDates(results[8], approved),
     kpis: {
       approved,
       totalPublished: await countPublished(env, tenantId),
