@@ -157,6 +157,8 @@ main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 /* ---------------------------------------------------------------- Cards */
 .card { background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .card.flush { padding: 0; gap: 0; overflow: hidden; }
+/* Lets the Export menu extend past the card when the table has few rows. */
+.card.flush.pop-host { overflow: visible; }
 .card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
 .card-title { font: 700 14px var(--sans); letter-spacing: 0.08em; text-transform: uppercase; }
 .card-sub { font-size: 12.5px; color: var(--muted); margin-top: 4px; display: block; }
@@ -209,6 +211,21 @@ main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .src-btn.add:hover { background: #e7f5ec; border-color: var(--success); }
 .src-btn:disabled { opacity: 0.5; cursor: progress; }
 .src-none { color: var(--muted-3); }
+.pick-col { width: 1%; text-align: center; padding-left: 16px !important; padding-right: 4px !important; }
+.pick-col input { width: 16px; height: 16px; accent-color: var(--teal); cursor: pointer; vertical-align: middle; }
+table.data tr.picked td { background: var(--tint-3); }
+.table-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.pick-bar { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); font-weight: 600; }
+.modal { position: fixed; z-index: 30; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(520px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow-y: auto; box-shadow: var(--shadow-pop); }
+.modal.delete-confirm { background: #fff9f8; }
+.bulk-del-list { margin: 0; padding: 8px 10px 8px 26px; max-height: 180px; overflow-y: auto; font-size: 13px; line-height: 1.5; background: #fff; border: 1px solid #efc9c5; border-radius: 6px; color: var(--ink-2); }
+.bulk-del-list .mono { font-size: 12px; color: var(--muted); margin-right: 4px; }
+.drawer.source-drawer { width: min(1100px, 94vw); overflow: hidden; }
+.source-drawer .drawer-head { flex: none; position: static; flex-wrap: wrap; row-gap: 6px; padding: 12px 20px; }
+.source-drawer .snapshot-frame { flex: 1 1 auto; min-height: 0; border: 0; border-radius: 0; width: 100%; display: block; }
+.source-drawer .skeleton { flex: 1 1 auto; margin: 16px; }
+.source-drawer .snapshot-none { margin: 24px; }
+.source-drawer-title { flex: 1 0 100%; font: 700 16px/1.35 var(--sans); margin: 0; overflow-wrap: anywhere; }
 .md-dl { white-space: nowrap; }
 .md-drawer { width: 720px; }
 .md-toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }

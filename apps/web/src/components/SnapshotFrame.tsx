@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { request } from "../api/client";
+import { useFocusTrap } from "./RecordDrawer";
 
 /**
  * Renders a stored, sanitised source snapshot in a fully sandboxed iframe
@@ -50,5 +51,39 @@ export function SnapshotActions({ itemId, code }: { itemId: string; code: string
         </span>
       )}
     </span>
+  );
+}
+
+/**
+ * Side pane showing a tracker entry's saved source page: the whole pane is the
+ * (sandboxed, scrollable) page itself, under a slim header.
+ */
+export function SourceDrawer({ itemId, code, title, onClose }: { itemId: string; code: string; title: string; onClose: () => void }) {
+  const ref = useFocusTrap(true, onClose);
+  return (
+    <>
+      <div className="scrim" onClick={onClose} aria-hidden="true" />
+      <div className="drawer source-drawer" role="dialog" aria-modal="true" aria-labelledby="source-drawer-title" ref={ref}>
+        <div className="drawer-head">
+          <span className="drawer-meta">
+            <span className="mono" style={{ color: "var(--ink)" }}>
+              {code}
+            </span>
+            <span>·</span>
+            <span>Saved source page</span>
+          </span>
+          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <SnapshotActions itemId={itemId} code={code} />
+            <button className="icon-btn" onClick={onClose} aria-label="Close saved page" data-autofocus>
+              ✕
+            </button>
+          </div>
+          <h2 id="source-drawer-title" className="source-drawer-title">
+            {title}
+          </h2>
+        </div>
+        <SnapshotFrame itemId={itemId} title={`Saved source page for ${code}`} height="100%" />
+      </div>
+    </>
   );
 }

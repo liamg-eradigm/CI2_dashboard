@@ -95,6 +95,8 @@ test.describe("client role", () => {
 
   test("cannot delete tracker entries", async ({ page }) => {
     await page.goto("/tracker");
+    await expect(page.locator("table tbody tr").first()).toBeVisible();
+    await expect(page.getByRole("checkbox")).toHaveCount(0);
     await page.locator("table tbody td.title button").first().click();
     await expect(page.getByRole("dialog")).toBeVisible();
     await expect(page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true })).toHaveCount(0);
@@ -200,6 +202,25 @@ test.describe("client role", () => {
     await page.getByRole("button", { name: /^CSV/ }).click();
     const d = await download;
     expect(d.suggestedFilename()).toMatch(/^eradigm-tracker-filtered-\d{4}-\d{2}-\d{2}\.csv$/);
+  });
+
+  test("the Export menu is not cut off when only a few rows are shown", async ({ page }) => {
+    await page.goto("/tracker");
+    const first = (await page.locator("table tbody td.title").first().innerText()).trim();
+    await page.getByRole("searchbox").fill(first);
+    await expect(page.locator("table tbody tr")).toHaveCount(1);
+    await page.getByRole("button", { name: /Export/ }).click();
+    const menu = page.getByRole("dialog", { name: "Export options" });
+    const json = menu.getByRole("button", { name: /^JSON/ });
+    await expect(json).toBeVisible();
+    // The last option is really on top (not clipped by the table card).
+    await json.scrollIntoViewIfNeeded();
+    const box = (await json.boundingBox())!;
+    const hit = await page.evaluate(([x, y]) => document.elementFromPoint(x!, y!)?.closest("button")?.textContent ?? "", [box.x + box.width / 2, box.y + box.height / 2]);
+    expect(hit).toContain("JSON");
+    const card = (await page.locator("section.card.pop-host").boundingBox())!;
+    const menuBox = (await menu.boundingBox())!;
+    expect(menuBox.y + menuBox.height).toBeGreaterThan(card.y + card.height);
   });
 
   test("runs the trend test", async ({ page }) => {
