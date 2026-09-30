@@ -70,9 +70,12 @@ test.describe("client role", () => {
     await expect(page.getByRole("heading", { name: "Phantoms" })).toBeVisible();
     await expect(page.getByTestId("stream-primary")).toHaveText("Primary Phantoms");
     const row = page.locator("table tbody tr").first();
-    await expect(row.locator("td").first().getByRole("button", { name: /Download Markdown/ })).toBeVisible();
-    await row.locator("td.title button").click();
+    // The MD icon opens the Markdown file as a side pane, with Download at the top right.
+    await row.locator("td.md-col").getByRole("button", { name: /^Open Markdown for / }).click();
     const panel = page.getByRole("dialog");
+    await expect(panel.getByRole("button", { name: "Download Markdown" })).toBeVisible();
+    const [download] = await Promise.all([page.waitForEvent("download"), panel.getByRole("button", { name: "Download Markdown" }).click()]);
+    expect(download.suggestedFilename()).toMatch(/^P-\d+\.md$/);
     await expect(panel.getByLabel("Markdown source")).toContainText("## Key Intelligence Question");
     await expect(panel.getByLabel("Markdown source")).toContainText(/^---\nid: P-\d+/);
     await panel.getByRole("button", { name: "Open full record" }).click();
@@ -81,9 +84,17 @@ test.describe("client role", () => {
     // Secondary Phantoms: only Impact at or above the admin setting (Medium by default).
     await page.getByTestId("stream-secondary").click();
     await expect(page.locator(".stream-note")).toContainText("Impact Medium or higher");
-    const impacts = await page.locator("table tbody tr td .impact").allInnerTexts();
+    await expect(page.locator("table tbody tr").first()).toBeVisible();
+    // Impact is not a Secondary Phantoms column, so check the rows' values through the API.
+    const impacts = await page.evaluate(async () => {
+      const res = await fetch("/api/phantoms?stream=secondary&from=2000-01-01&to=2100-01-01&pageSize=100", { headers: { "x-dev-user": localStorage.getItem("eradigm.devUser") ?? "" } });
+      return ((await res.json()) as { rows: { values: { impact: string } }[] }).rows.map((r) => r.values.impact);
+    });
     expect(impacts.length).toBeGreaterThan(0);
     for (const i of impacts) expect(i).toMatch(/Medium|High/);
+    // Secondary Phantoms shows its own columns, not the Tracker's.
+    await expect(page.locator("table thead")).toContainText("Publisher");
+    await expect(page.locator("table thead")).not.toContainText("Macrotrend");
     await expectAccessible(page, "/phantoms");
   });
 

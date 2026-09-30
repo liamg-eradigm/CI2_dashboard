@@ -53,9 +53,20 @@ export interface TrackerColumn {
    * (e.g. Action) are never inferred and always start empty.
    */
   aiAssist: boolean;
-  /** Shown as a column in the Tracker and Phantoms tables (every column is always in the Inbox). */
+  /** A column of the Tracker table (every column is always in the Inbox). Also drives the Tracker/Dashboard filters. */
   inTracker: boolean;
+  /** Order in the Tracker table (independent of the Inbox order). */
+  trackerPosition: number;
+  /** A column of the Phantoms table. */
+  inPhantoms: boolean;
+  /** Order in the Phantoms table. */
+  phantomsPosition: number;
 }
+
+/** The two tables whose columns are chosen from a stream's Inbox columns. */
+export const TABLES = ["tracker", "phantoms"] as const;
+export type TableName = (typeof TABLES)[number];
+export const TABLE_LABEL: Record<TableName, string> = { tracker: "Tracker", phantoms: "Phantoms" };
 
 export interface MacrotrendGroup {
   name: string;
@@ -186,7 +197,7 @@ export const DEFAULT_TAXONOMY: MacrotrendGroup[] = [
   { name: "Others", subtrends: ["Others"] },
 ];
 
-type ColumnDef = Omit<TrackerColumn, "position" | "aiAssist" | "core" | "inTracker"> & { core?: boolean; inTracker?: boolean };
+type ColumnDef = Omit<TrackerColumn, "position" | "aiAssist" | "core" | "inTracker" | "trackerPosition" | "inPhantoms" | "phantomsPosition"> & { core?: boolean };
 
 /**
  * The nine Tracker/Dashboard columns, shared by both streams (same keys,
@@ -194,18 +205,59 @@ type ColumnDef = Omit<TrackerColumn, "position" | "aiAssist" | "core" | "inTrack
  * Intensity, Source Type, Competitors, Action.
  */
 const TRACKER_DEFS = {
-  macrotrend: { key: CORE.macrotrend, label: "Macrotrend", type: "macro", required: true, inTracker: true },
-  subtrend: { key: CORE.subtrend, label: "Subtrend", type: "sub", required: true, inTracker: true },
-  title: { key: CORE.title, label: "Title", type: "text", required: true, inTracker: true },
-  date: { key: CORE.date, label: "Event Date", type: "date", required: true, inTracker: true },
-  impact: { key: CORE.impact, label: "Impact", type: "select", required: true, inTracker: true, options: [...DEFAULT_IMPACT] },
-  growth: { key: CORE.growth, label: "Growth Intensity", type: "select", required: true, inTracker: true, options: [...DEFAULT_GROWTH] },
-  source: { key: DEFAULT_KEYS.source, label: "Source Type", type: "select", required: true, inTracker: true, options: [...DEFAULT_SOURCES] },
-  competitors: { key: CORE.competitors, label: "Competitors", type: "multi", required: true, inTracker: true, options: [...DEFAULT_COMPETITORS] },
-  action: { key: DEFAULT_KEYS.action, label: "Action", type: "select", required: true, inTracker: true, options: [...DEFAULT_ACTIONS] },
+  macrotrend: { key: CORE.macrotrend, label: "Macrotrend", type: "macro", required: true },
+  subtrend: { key: CORE.subtrend, label: "Subtrend", type: "sub", required: true },
+  title: { key: CORE.title, label: "Title", type: "text", required: true },
+  date: { key: CORE.date, label: "Event Date", type: "date", required: true },
+  impact: { key: CORE.impact, label: "Impact", type: "select", required: true, options: [...DEFAULT_IMPACT] },
+  growth: { key: CORE.growth, label: "Growth Intensity", type: "select", required: true, options: [...DEFAULT_GROWTH] },
+  source: { key: DEFAULT_KEYS.source, label: "Source Type", type: "select", required: true, options: [...DEFAULT_SOURCES] },
+  competitors: { key: CORE.competitors, label: "Competitors", type: "multi", required: true, options: [...DEFAULT_COMPETITORS] },
+  action: { key: DEFAULT_KEYS.action, label: "Action", type: "select", required: true, options: [...DEFAULT_ACTIONS] },
 } satisfies Record<string, ColumnDef>;
 
-/** Default columns of a stream, in Inbox order. `inTracker` marks the Tracker/Phantoms table columns. */
+/** Default Tracker table columns, in order (both streams). */
+export const DEFAULT_TRACKER_KEYS: readonly string[] = [CORE.title, CORE.date, CORE.macrotrend, CORE.subtrend, CORE.growth, CORE.impact, DEFAULT_KEYS.source, CORE.competitors, DEFAULT_KEYS.action];
+
+/** Default Phantoms table columns, in order, per stream. */
+export const DEFAULT_PHANTOMS_KEYS: Record<Stream, readonly string[]> = {
+  primary: [
+    FIELDS.id,
+    CORE.title,
+    CORE.date,
+    FIELDS.sourceRole,
+    FIELDS.sourceCompany,
+    FIELDS.sourceLocation,
+    FIELDS.sourceConfidence,
+    FIELDS.workstream,
+    FIELDS.sourceTherapeuticArea,
+    FIELDS.sourceBrandAsset,
+    FIELDS.insightTopic,
+    FIELDS.keyQuestion,
+    FIELDS.keyDetails,
+    FIELDS.keyMetrics,
+  ],
+  secondary: [
+    FIELDS.id,
+    CORE.title,
+    CORE.date,
+    DEFAULT_KEYS.source,
+    FIELDS.publisher,
+    FIELDS.url,
+    FIELDS.rawRef,
+    FIELDS.sourceTier,
+    CORE.competitors,
+    FIELDS.otherEntities,
+    FIELDS.therapeuticArea,
+    FIELDS.assets,
+    FIELDS.products,
+    FIELDS.header,
+    FIELDS.keyDetails,
+    FIELDS.ciPerspective,
+  ],
+};
+
+/** Default columns of a stream, in Inbox order, with their default Tracker and Phantoms table membership and order. */
 export function defaultColumns(stream: Stream = "secondary"): TrackerColumn[] {
   const T = TRACKER_DEFS;
   const cols: ColumnDef[] =
@@ -260,7 +312,18 @@ export function defaultColumns(stream: Stream = "secondary"): TrackerColumn[] {
           { key: FIELDS.ciPerspective, label: "CI Perspective", type: "long", required: false },
         ];
   const analystOnly = new Set<string>([DEFAULT_KEYS.action, FIELDS.id, FIELDS.reviewDate, FIELDS.sourceTier, FIELDS.rawRef]);
-  return cols.map((c, i) => ({ ...c, options: c.options ? [...c.options] : undefined, core: c.core ?? true, inTracker: c.inTracker ?? false, position: i, aiAssist: !analystOnly.has(c.key) }));
+  const phantoms = DEFAULT_PHANTOMS_KEYS[stream];
+  return cols.map((c, i) => ({
+    ...c,
+    options: c.options ? [...c.options] : undefined,
+    core: c.core ?? true,
+    position: i,
+    aiAssist: !analystOnly.has(c.key),
+    inTracker: DEFAULT_TRACKER_KEYS.includes(c.key),
+    trackerPosition: DEFAULT_TRACKER_KEYS.includes(c.key) ? DEFAULT_TRACKER_KEYS.indexOf(c.key) : 100 + i,
+    inPhantoms: phantoms.includes(c.key),
+    phantomsPosition: phantoms.includes(c.key) ? phantoms.indexOf(c.key) : 100 + i,
+  }));
 }
 
 export function defaultSchema(stream: Stream = "secondary"): TrackerSchema {
@@ -311,14 +374,28 @@ export function hasOptions(col: TrackerColumn): boolean {
   return col.type === "select" || col.type === "multi" || col.type === "macro" || col.type === "sub";
 }
 
-/** Columns shown in the Tracker and Phantoms tables (and their exports). */
+/** Columns of the Tracker table (and its exports), in Tracker order. */
 export function trackerColumns(schema: TrackerSchema): TrackerColumn[] {
-  return sortedColumns(schema).filter((c) => c.inTracker);
+  return tableColumns(schema, "tracker");
+}
+
+/** Columns of the Phantoms table (and its exports), in Phantoms order. */
+export function phantomColumns(schema: TrackerSchema): TrackerColumn[] {
+  return tableColumns(schema, "phantoms");
+}
+
+/** A table's columns (chosen from the Inbox columns), in that table's own order. */
+export function tableColumns(schema: TrackerSchema, table: TableName): TrackerColumn[] {
+  const inT = (c: TrackerColumn) => (table === "tracker" ? c.inTracker : c.inPhantoms);
+  const pos = (c: TrackerColumn) => (table === "tracker" ? c.trackerPosition : c.phantomsPosition);
+  return sortedColumns(schema)
+    .filter(inT)
+    .sort((a, b) => pos(a) - pos(b) || a.position - b.position);
 }
 
 /** Columns that appear as dashboard/tracker filters (the dropdown-style Tracker columns). */
 export function filterableColumns(schema: TrackerSchema): TrackerColumn[] {
-  return sortedColumns(schema).filter((c) => c.inTracker && hasOptions(c));
+  return trackerColumns(schema).filter(hasOptions);
 }
 
 /**
@@ -331,7 +408,7 @@ export function mergeSchemas(primary: TrackerSchema, secondary: TrackerSchema): 
   const union = (a: string[] = [], b: string[] = []) => [...a, ...b.filter((x) => !a.includes(x))];
   const columns: TrackerColumn[] = sortedColumns(primary).map((c) => {
     const o = getColumn(secondary, c.key);
-    return { ...c, inTracker: c.inTracker || !!o?.inTracker, options: c.options || o?.options ? union(c.options, o?.options) : undefined };
+    return { ...c, inTracker: c.inTracker || !!o?.inTracker, inPhantoms: c.inPhantoms || !!o?.inPhantoms, options: c.options || o?.options ? union(c.options, o?.options) : undefined };
   });
   for (const c of sortedColumns(secondary)) if (!getColumn(primary, c.key)) columns.push({ ...c, position: columns.length });
   const taxonomy = primary.taxonomy.map((g) => ({ name: g.name, subtrends: union(g.subtrends, secondary.taxonomy.find((x) => x.name === g.name)?.subtrends) }));

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { defaultSchema, entryMarkdown, markdownFileName, mergeSchemas, normaliseValues, trackerColumns, validateValues, yamlScalar } from "../src/index";
+import { defaultSchema, entryMarkdown, filterableColumns, markdownFileName, mergeSchemas, normaliseValues, phantomColumns, sortedColumns, trackerColumns, validateValues, yamlScalar } from "../src/index";
 
 describe("Phantoms Markdown", () => {
   it("quotes only values YAML would misread", () => {
@@ -28,8 +28,22 @@ describe("Phantoms Markdown", () => {
 });
 
 describe("streams and the 22-column default", () => {
-  it("keeps the previous nine columns in the Tracker", () => {
-    expect(trackerColumns(defaultSchema()).map((c) => c.key)).toEqual(["macrotrend", "subtrend", "title", "date", "impact", "growth", "source", "competitors", "action"]);
+  it("keeps the nine Tracker columns, in the Tracker's own order, and gives Phantoms its own columns", () => {
+    const nine = ["title", "date", "macrotrend", "subtrend", "growth", "impact", "source", "competitors", "action"];
+    expect(trackerColumns(defaultSchema("secondary")).map((c) => c.key)).toEqual(nine);
+    expect(trackerColumns(defaultSchema("primary")).map((c) => c.key)).toEqual(nine);
+    // The Inbox order is separate.
+    expect(sortedColumns(defaultSchema("secondary")).map((c) => c.key).slice(0, 3)).toEqual(["record_id", "macrotrend", "subtrend"]);
+    expect(phantomColumns(defaultSchema("primary")).map((c) => c.label)).toEqual([
+      "ID", "Title", "Event Date", "Source Role", "Source Company", "Source Location", "Source Confidence", "Workstream",
+      "Source Therapeutic Area", "Source Brand or Asset", "Insight Topic", "Key Intelligence Question", "Key Details", "Key Metrics",
+    ]);
+    expect(phantomColumns(defaultSchema("secondary")).map((c) => c.label)).toEqual([
+      "ID", "Title", "Event Date", "Source Type", "Publisher", "URL", "Raw Ref", "Source Tier", "Competitors", "Other Entities",
+      "Therapeutic Area", "Assets", "Products", "Header", "Key Details", "CI Perspective",
+    ]);
+    // Filters follow the Tracker columns.
+    expect(filterableColumns(defaultSchema("secondary")).map((c) => c.key)).toEqual(["macrotrend", "subtrend", "growth", "impact", "source", "competitors", "action"]);
   });
 
   it("keeps paragraphs in long text and validates its length", () => {

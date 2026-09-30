@@ -81,7 +81,7 @@ for (const t of TENANTS) {
   for (const st of STREAMS) {
     for (const c of defaultSchema(st).columns) {
       out.push(
-        `INSERT INTO tracker_columns (tenant_id, stream, key, label, type, core, required, ai_assist, in_tracker, position) VALUES (${q(t.id)}, '${st}', ${q(c.key)}, ${q(c.label)}, ${q(c.type)}, ${c.core ? 1 : 0}, ${c.required ? 1 : 0}, ${c.aiAssist ? 1 : 0}, ${c.inTracker ? 1 : 0}, ${c.position});`,
+        `INSERT INTO tracker_columns (tenant_id, stream, key, label, type, core, required, ai_assist, in_tracker, position, tracker_position, in_phantoms, phantoms_position) VALUES (${q(t.id)}, '${st}', ${q(c.key)}, ${q(c.label)}, ${q(c.type)}, ${c.core ? 1 : 0}, ${c.required ? 1 : 0}, ${c.aiAssist ? 1 : 0}, ${c.inTracker ? 1 : 0}, ${c.position}, ${c.trackerPosition}, ${c.inPhantoms ? 1 : 0}, ${c.phantomsPosition});`,
       );
       (c.options ?? []).forEach((o, i) =>
         out.push(`INSERT INTO column_options (id, tenant_id, stream, column_key, value, parent, position, created_at) VALUES ('opt_seed${++optN}', ${q(t.id)}, '${st}', ${q(c.key)}, ${q(o)}, NULL, ${i}, ${q(GEN_AT)});`),

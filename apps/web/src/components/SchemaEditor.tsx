@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
-import { AUTO_KEYS, CORE, STREAM_LABEL, TYPE_LABEL, hasOptions, sortedColumns, type Stream, type TrackerColumn } from "@eradigm/shared";
+import { AUTO_KEYS, CORE, STREAM_LABEL, TABLE_LABEL, TYPE_LABEL, hasOptions, sortedColumns, tableColumns, type Stream, type TableName, type TrackerColumn } from "@eradigm/shared";
 import { api } from "../api/client";
 import { useInvalidate, useSchema, type SchemaWithUsage } from "../api/hooks";
 import { useToast } from "../state/toast";
+import { Combobox } from "./Combobox";
 
 const enterBlur = (e: KeyboardEvent<HTMLInputElement>) => {
   if (e.key === "Enter" || e.key === "Escape") (e.target as HTMLInputElement).blur();
@@ -40,12 +41,19 @@ function ReorderList({
   note,
   onSave,
   renderRow,
+  labelOf = (v) => v,
+  itemNoun = "option",
+  hint = "this is the order shown in every dropdown",
 }: {
   values: string[];
   what: string;
   note?: string;
   onSave: (values: string[], ok: string) => Promise<boolean>;
   renderRow: (value: string, orderCell: ReactNode) => ReactNode;
+  /** Display name of a value (values may be keys); used for sorting and messages. */
+  labelOf?: (v: string) => string;
+  itemNoun?: string;
+  hint?: string;
 }) {
   const [order, setOrder] = useState<string[] | null>(null);
   const [dragV, setDragV] = useState<string | null>(null);
@@ -60,8 +68,9 @@ function ReorderList({
     const j = i + by;
     if (i < 0 || j < 0 || j >= next.length) return;
     next.splice(j, 0, ...next.splice(i, 1));
-    void save(next, `Moved “${v}” to position ${j + 1}`);
+    void save(next, `Moved “${labelOf(v)}” to position ${j + 1}`);
   };
+  const byLabel = (dir: 1 | -1) => (a: string, b: string) => byName(dir)(labelOf(a), labelOf(b));
   const over = (e: DragEvent, target: string) => {
     if (!dragV) return;
     e.preventDefault();
@@ -85,20 +94,20 @@ function ReorderList({
     const next = order;
     const v = dragV;
     setDragV(null);
-    if (next) void save(next, `Moved “${v}” to position ${next.indexOf(v) + 1}`).finally(() => setOrder(null));
+    if (next) void save(next, `Moved “${labelOf(v)}” to position ${next.indexOf(v) + 1}`).finally(() => setOrder(null));
   };
   if (!values.length) return null;
   return (
     <>
       <div className="opt-order-bar">
         <span className="field-label">Order</span>
-        <button className="btn secondary small" aria-label={`Sort ${what} A to Z`} onClick={() => void save([...values].sort(byName(1)), `${what} sorted A → Z`)}>
+        <button className="btn secondary small" aria-label={`Sort ${what} A to Z`} onClick={() => void save([...values].sort(byLabel(1)), `${what} sorted A → Z`)}>
           A → Z
         </button>
-        <button className="btn secondary small" aria-label={`Sort ${what} Z to A`} onClick={() => void save([...values].sort(byName(-1)), `${what} sorted Z → A`)}>
+        <button className="btn secondary small" aria-label={`Sort ${what} Z to A`} onClick={() => void save([...values].sort(byLabel(-1)), `${what} sorted Z → A`)}>
           Z → A
         </button>
-        <span className="order-hint">or drag ⠿ · this is the order shown in every dropdown</span>
+        <span className="order-hint">or drag ⠿ · {hint}</span>
       </div>
       {note && <div className="order-note">⚠ {note}</div>}
       {list.map((v, i) => (
@@ -108,7 +117,7 @@ function ReorderList({
             <span className="order-cell">
               <span
                 className="drag-handle"
-                title={`Drag to move “${v}”`}
+                title={`Drag to move “${labelOf(v)}”`}
                 aria-hidden="true"
                 draggable
                 onDragStart={(e) => {
@@ -129,10 +138,10 @@ function ReorderList({
               >
                 ⠿
               </span>
-              <button className="move-btn" aria-label={`Move option ${v} up`} disabled={i === 0 || !!dragV} onClick={() => move(v, -1)}>
+              <button className="move-btn" aria-label={`Move ${itemNoun} ${labelOf(v)} up`} disabled={i === 0 || !!dragV} onClick={() => move(v, -1)}>
                 ↑
               </button>
-              <button className="move-btn" aria-label={`Move option ${v} down`} disabled={i === list.length - 1 || !!dragV} onClick={() => move(v, 1)}>
+              <button className="move-btn" aria-label={`Move ${itemNoun} ${labelOf(v)} down`} disabled={i === list.length - 1 || !!dragV} onClick={() => move(v, 1)}>
                 ↓
               </button>
             </span>,
@@ -185,7 +194,7 @@ export function SchemaEditor({ stream = "primary" }: { stream?: Stream }) {
   const byKey = new Map(saved.map((c) => [c.key, c]));
   const cols = dragOrder ? dragOrder.map((k) => byKey.get(k)).filter((c): c is TrackerColumn => !!c) : saved;
 
-  /** Save a new column order (applies to drafts, the Tracker, filters and exports). */
+  /** Save a new Inbox column order (drafts and the import template; the Tracker and Phantoms have their own). */
   const saveOrder = async (keys: string[], ok: string) => {
     if (keys.join("\u0001") === saved.map((c) => c.key).join("\u0001")) return;
     await call("/api/schema/columns/order", "PUT", { keys }, ok);
@@ -276,7 +285,7 @@ export function SchemaEditor({ stream = "primary" }: { stream?: Stream }) {
             Sort Z → A
           </button>
           <span className="order-hint">
-            or drag <span aria-hidden="true">⠿</span> to reorder (keyboard: the ↑ ↓ buttons). The order applies to drafts, the Tracker, filters and exports.
+            or drag <span aria-hidden="true">⠿</span> to reorder (keyboard: the ↑ ↓ buttons). The order applies to the Inbox drafts and the spreadsheet import template.
           </span>
         </div>
         <div className="schema-grid head" aria-hidden="true">
@@ -285,7 +294,6 @@ export function SchemaEditor({ stream = "primary" }: { stream?: Stream }) {
           <span>Type</span>
           <span>Dropdown options</span>
           <span>Entry</span>
-          <span>In Tracker</span>
           <span />
         </div>
         {cols.map((c, i) => {
@@ -318,7 +326,7 @@ export function SchemaEditor({ stream = "primary" }: { stream?: Stream }) {
                   >
                     ⠿
                   </span>
-                  <span className="mono" style={{ fontSize: 11.5, color: "var(--muted-2)", minWidth: 16 }}>
+                  <span className="mono" style={{ fontSize: 11.5, color: "var(--muted)", minWidth: 16 }}>
                     {i + 1}
                   </span>
                   <button className="move-btn" aria-label={`Move ${c.label} up`} disabled={i === 0 || !!dragKey} onClick={() => move(c.key, -1)}>
@@ -336,7 +344,7 @@ export function SchemaEditor({ stream = "primary" }: { stream?: Stream }) {
                       {count} {noun} <span className={`chev ${isOpen ? "open" : ""}`} aria-hidden="true">▶</span>
                     </button>
                   ) : (
-                    <span style={{ fontSize: 12.5, color: "var(--muted-3)" }}>Free entry</span>
+                    <span style={{ fontSize: 12.5, color: "var(--muted)" }}>Free entry</span>
                   )}
                 </div>
                 <button
@@ -347,20 +355,9 @@ export function SchemaEditor({ stream = "primary" }: { stream?: Stream }) {
                 >
                   {c.required ? "Required" : "Optional"}
                 </button>
-                <button
-                  className={`req-toggle ${c.inTracker ? "on" : "off"}`}
-                  aria-pressed={c.inTracker}
-                  aria-label={`Show ${c.label} as a column in the ${STREAM_LABEL[stream]} Tracker and Phantoms`}
-                  title="Toggle whether the Tracker and Phantoms tables show this column (the Inbox always does)"
-                  onClick={() =>
-                    call(`/api/schema/columns/${c.key}`, "PATCH", { inTracker: !c.inTracker }, `${c.label} is ${c.inTracker ? "no longer shown" : "now shown"} in the ${STREAM_LABEL[stream]} Tracker`)
-                  }
-                >
-                  {c.inTracker ? "Shown" : "Hidden"}
-                </button>
                 <div style={{ display: "flex", justifyContent: "flex-end" }}>
                   {c.core ? (
-                    <span title="Used by the Dashboard charts or the Phantoms Markdown, so it can be renamed but not deleted" style={{ fontSize: 12, color: "var(--muted-2)" }}>
+                    <span title="Used by the Dashboard charts or the Phantoms Markdown, so it can be renamed but not deleted" style={{ fontSize: 12, color: "var(--muted)" }}>
                       {lockNote(c)}
                       {AUTO_KEYS.includes(c.key) ? " · automatic" : ""}
                     </span>
@@ -420,7 +417,7 @@ export function SchemaEditor({ stream = "primary" }: { stream?: Stream }) {
           );
         })}
         <div className="add-col">
-          <span style={{ font: "700 10px var(--sans)", letterSpacing: ".12em", color: "var(--teal)", marginRight: 6 }}>ADD COLUMN</span>
+          <span className="add-col-label">ADD COLUMN</span>
           <input className="control" style={{ width: 260, height: 36 }} aria-label="New column name" placeholder="Column name" value={newCol.label} onChange={(e) => setNewCol((n) => ({ ...n, label: e.target.value }))} maxLength={60} />
           <select className="control" style={{ width: "auto", height: 36 }} aria-label="New column type" value={newCol.type} onChange={(e) => setNewCol((n) => ({ ...n, type: e.target.value }))}>
             <option value="select">Dropdown</option>
@@ -440,6 +437,82 @@ export function SchemaEditor({ stream = "primary" }: { stream?: Stream }) {
             + Add column
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The columns of the Tracker or the Phantoms table for one stream: chosen
+ * from that stream's Inbox columns, in the table's own order. Names, types and
+ * dropdown options come from the Inbox column (edit them there).
+ */
+export function TableColumnsEditor({ stream, table }: { stream: Stream; table: TableName }) {
+  const schema = useSchema(stream, true);
+  const toast = useToast();
+  const inv = useInvalidate();
+  const [adding, setAdding] = useState("");
+  const s = schema.data;
+  const name = `${STREAM_LABEL[stream]} ${TABLE_LABEL[table]}`;
+  const call = async (path: string, method: string, json: unknown, ok: string) => {
+    try {
+      await api<SchemaWithUsage>(`${path}?stream=${stream}`, { method, json });
+      await inv();
+      toast(ok);
+      return true;
+    } catch (e) {
+      toast((e as Error).message, false);
+      return false;
+    }
+  };
+  if (!s) return <div className="skeleton" style={{ height: 80, margin: 18 }} />;
+  const flag = table === "tracker" ? "inTracker" : "inPhantoms";
+  const cols = tableColumns(s, table);
+  const byKey = new Map(s.columns.map((c) => [c.key, c]));
+  const label = (k: string) => byKey.get(k)?.label ?? k;
+  const others = sortedColumns(s).filter((c) => !c[flag]);
+  const add = async () => {
+    const col = others.find((c) => c.label === adding);
+    if (!col) return toast("Choose one of the Inbox columns first", false);
+    if (await call(`/api/schema/columns/${col.key}`, "PATCH", { [flag]: true }, `Added “${col.label}” to the ${name}`)) setAdding("");
+  };
+  return (
+    <div className="table-cols" data-testid={`table-cols-${table}`}>
+      <div className="table-cols-list">
+        {cols.length ? (
+          <ReorderList
+            values={cols.map((c) => c.key)}
+            what={`${name} columns`}
+            labelOf={label}
+            itemNoun="column"
+            hint={`this is the column order of the ${name} table and its exports`}
+            onSave={(keys, ok) => call("/api/schema/columns/order", "PUT", { keys, table }, ok)}
+            renderRow={(k, cell) => {
+              const c = byKey.get(k);
+              return (
+                <div className="tcol-row" data-testid={`${table}-col-${k}`}>
+                  {cell}
+                  <span className="tcol-label">{label(k)}</span>
+                  <span className="tcol-type">{c ? TYPE_LABEL[c.type] : ""}</span>
+                  <button className="x-btn" aria-label={`Remove ${label(k)} from the ${name}`} title={`Remove from the ${name} (it stays in the Inbox)`} onClick={() => call(`/api/schema/columns/${k}`, "PATCH", { [flag]: false }, `Removed “${label(k)}” from the ${name}`)}>
+                    ✕
+                  </button>
+                </div>
+              );
+            }}
+          />
+        ) : (
+          <div className="empty">The {name} has no columns. Add some from the Inbox columns below.</div>
+        )}
+      </div>
+      <div className="add-col">
+        <span className="add-col-label">ADD AN INBOX COLUMN</span>
+        <div style={{ width: 280 }}>
+          <Combobox label={`Inbox column to add to the ${name}`} options={others.map((c) => c.label)} placeholder={others.length ? "Choose an Inbox column…" : "Every Inbox column is already here"} value={adding} onChange={setAdding} />
+        </div>
+        <button className="btn" disabled={!others.length} onClick={() => void add()}>
+          + Add to {TABLE_LABEL[table]}
+        </button>
       </div>
     </div>
   );

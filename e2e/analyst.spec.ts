@@ -289,12 +289,59 @@ test.describe("analyst role", () => {
     const handle = page.locator(".schema-row", { has: page.getByLabel(`Rename column ${third}`, { exact: true }) }).locator(".drag-handle");
     await handle.dragTo(page.locator(".schema-row").first());
     await expect.poll(async () => (await labels())[0]).toBe(third);
-    // The Tracker uses the new order (the Inbox-only columns stay out of the Tracker).
+    // The Tracker has its own order: reordering the Inbox does not change it.
     await page.goto("/tracker");
-    const trackerFirst = (await schemaOf(page, "primary")).columns.filter((c) => c.inTracker).sort((a, b) => a.position - b.position)[0]?.label as string;
-    await expect(page.locator("table thead th:not(.src-col):not(.pick-col)").first()).toContainText(trackerFirst, { timeout: 15_000 });
+    await expect(page.locator("table thead th:not(.src-col):not(.pick-col)").first()).toContainText("Title", { timeout: 15_000 });
     await expect(page.locator("table thead th:not(.src-col):not(.pick-col)")).toHaveCount(9);
     await restoreOrder(page, "primary", original);
+  });
+
+  test("edits the Tracker and Phantoms tables separately, from the Inbox columns only", async ({ page }) => {
+    await page.goto("/inbox");
+    await page.getByRole("button", { name: "Edit columns" }).click();
+    await expect(page.getByRole("heading", { name: "Primary Inbox columns" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Primary Tracker columns" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Primary Phantoms columns" })).toBeVisible();
+    const tracker = page.getByTestId("table-cols-tracker");
+    const phantoms = page.getByTestId("table-cols-phantoms");
+    const names = (t: typeof tracker) => t.locator(".tcol-label").allInnerTexts();
+    expect(await names(tracker)).toEqual(["Title", "Event Date", "Macrotrend", "Subtrend", "Growth Intensity", "Impact", "Source Type", "Competitors", "Action"]);
+    expect((await names(phantoms)).slice(0, 4)).toEqual(["ID", "Title", "Event Date", "Source Role"]);
+    await expectAccessible(page, "/inbox column tables");
+
+    // Tracker: sort A → Z, then move a column with the keyboard buttons.
+    await tracker.getByRole("button", { name: "Sort Primary Tracker columns A to Z" }).click();
+    await expect(page.locator(".toast").last()).toContainText("Primary Tracker columns sorted A → Z");
+    await expect.poll(() => names(tracker)).toEqual(["Action", "Competitors", "Event Date", "Growth Intensity", "Impact", "Macrotrend", "Source Type", "Subtrend", "Title"]);
+    await tracker.getByRole("button", { name: "Move column Title up" }).click();
+    await expect.poll(async () => (await names(tracker)).slice(-2)).toEqual(["Title", "Subtrend"]);
+
+    // Phantoms: remove Key Metrics, add Macrotrend (only Inbox columns can be added).
+    await phantoms.getByRole("button", { name: "Remove Key Metrics from the Primary Phantoms" }).click();
+    await expect(page.locator(".toast").last()).toContainText("Removed “Key Metrics” from the Primary Phantoms");
+    await choose(phantoms.getByRole("combobox", { name: "Inbox column to add to the Primary Phantoms" }), "Macrotrend");
+    await phantoms.getByRole("button", { name: "+ Add to Phantoms" }).click();
+    await expect.poll(async () => (await names(phantoms)).at(-1)).toBe("Macrotrend");
+    expect(await names(phantoms)).not.toContain("Key Metrics");
+    // Key Metrics is still an Inbox column.
+    await expect(page.getByLabel("Rename column Key Metrics", { exact: true })).toBeVisible();
+
+    // The tables follow.
+    await page.goto("/tracker");
+    const heads = () => page.locator("table thead th:not(.src-col):not(.pick-col)").allInnerTexts();
+    await expect.poll(async () => (await heads())[0]).toMatch(/^Action/i);
+    await page.goto("/phantoms");
+    await expect.poll(async () => (await heads()).at(-1)).toMatch(/^Macrotrend/i);
+    expect((await heads()).join("|").toLowerCase()).not.toContain("key metrics");
+
+    // Put the defaults back for the other tests.
+    await page.evaluate(async () => {
+      const h = { "content-type": "application/json", "x-eci-request": "1", "x-dev-user": localStorage.getItem("eradigm.devUser") ?? "" };
+      const send = (method: string, url: string, body: unknown) => fetch(url, { method, headers: h, body: JSON.stringify(body) });
+      await send("PATCH", "/api/schema/columns/macrotrend?stream=primary", { inPhantoms: false });
+      await send("PATCH", "/api/schema/columns/key_metrics?stream=primary", { inPhantoms: true });
+      await send("PUT", "/api/schema/columns/order?stream=primary", { table: "tracker", keys: ["title", "date", "macrotrend", "subtrend", "growth", "impact", "source", "competitors", "action"] });
+    });
   });
 
   test("reorders dropdown options: A–Z, Z–A, move buttons and drag and drop", async ({ page }) => {
@@ -455,11 +502,11 @@ test.describe("analyst role", () => {
     await expect(page).toHaveURL(/stream=secondary/);
     await expect(page.locator(".inbox-card", { hasText: "Partnering with employers to widen access" })).toBeVisible();
     await expect(page.locator(".inbox-card", { hasText: "AstraZeneca and Roche form pre-competitive" })).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: "Tracker columns · Secondary Inbox" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Columns · Secondary" })).toBeVisible();
     await expectAccessible(page, "/inbox secondary");
   });
 
-  test("Phantoms: approved entries appear with a Markdown panel and a Download Markdown button on the left of each row", async ({ page }) => {
+  test("Phantoms: approved entries appear with their own columns and an MD icon that opens the Markdown file as a side pane", async ({ page }) => {
     const title = `Sanofi opens AI hub ${uid()}`;
     const file = htmlFile("phantom.html", `<!DOCTYPE html><html><head><title>${title}</title></head><body><article><h1>${title}</h1><p>Sanofi has opened an AI hub in Paris with 300 staff, the company said on Monday.</p><p>The hub opens in 2027.</p></article></body></html>`);
     await page.goto("/input");
@@ -489,19 +536,28 @@ test.describe("analyst role", () => {
     await page.getByTestId("stream-secondary").click();
     const row = page.locator("table tbody tr", { hasText: `${title}: Paris` });
     await expect(row).toBeVisible();
-    // The Download Markdown button is in the Markdown column, after the selection tick box.
-    await expect(row.locator("td.md-col").getByRole("button", { name: /Download Markdown/ })).toBeVisible();
-    const [download] = await Promise.all([page.waitForEvent("download"), row.getByRole("button", { name: /Download Markdown/ }).click()]);
+    // Phantoms has its own columns (Secondary: Publisher, Header… but no Macrotrend).
+    await expect(page.locator("table thead")).toContainText("Publisher");
+    await expect(page.locator("table thead")).not.toContainText("Macrotrend");
+    // The MD icon opens the Markdown file as a full side pane; Download is at the top right.
+    await row.locator("td.md-col").getByRole("button", { name: `Open Markdown for ${title}: Paris` }).click();
+    const panel = page.getByRole("dialog", { name: `${title}: Paris` });
+    const md = panel.getByLabel("Markdown source");
+    await expect(md).toContainText(`id: ${rid}`);
+    const [paneBox, mdBox] = [(await panel.boundingBox())!, (await md.boundingBox())!];
+    expect(mdBox.height).toBeGreaterThan(paneBox.height * 0.75);
+    const dl = panel.getByRole("button", { name: "Download Markdown" });
+    const dlBox = (await dl.boundingBox())!;
+    expect(dlBox.y).toBeLessThan(paneBox.y + 80);
+    expect(dlBox.x).toBeGreaterThan(paneBox.x + paneBox.width / 2);
+    const [download] = await Promise.all([page.waitForEvent("download"), dl.click()]);
     expect(download.suggestedFilename()).toBe(`${rid}.md`);
     const text = readFileSync((await download.path())!, "utf8");
     expect(text.startsWith(`---\nid: ${rid}\ntitle: "${title}: Paris"\nevent_date: 2026-09-24\nsource_type: PR\nSource:\n  Publisher: Sanofi\n  URL: https://www.sanofi.com/ai-hub\n`)).toBe(true);
     expect(text).toContain("Source_tier: Reviewed-Secondary\nCompetitors: Sanofi\n");
     expect(text).toContain("QC:\n  Reviewed_by: L. Griffith\n");
     expect(text).toContain("## Key Details\n300 staff.\n\nOpens 2027.\n");
-    // The side panel shows the same Markdown, raw and rendered.
-    await row.locator("td.title button").click();
-    const panel = page.getByRole("dialog");
-    await expect(panel.getByLabel("Markdown source")).toContainText(`id: ${rid}`);
+    // The pane shows it raw and rendered.
     await expectAccessible(page, "/phantoms Markdown panel");
     await panel.getByRole("button", { name: "Preview" }).click();
     await expect(panel.getByRole("heading", { name: "CI Perspective" })).toBeVisible();

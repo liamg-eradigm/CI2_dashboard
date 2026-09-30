@@ -31,8 +31,12 @@ export const TrackerColumnSchema = z.object({
   position: z.number().int(),
   options: z.array(z.string()).optional(),
   aiAssist: z.boolean(),
-  /** Shown in the Tracker and Phantoms tables. Added in contract 1.4. */
+  /** A column of the Tracker table. Added in contract 1.4. */
   inTracker: z.boolean().default(true),
+  /** Order in the Tracker table; Phantoms table membership and order. Added in contract 1.6. */
+  trackerPosition: z.number().int().default(0),
+  inPhantoms: z.boolean().default(false),
+  phantomsPosition: z.number().int().default(0),
 });
 
 export const TrackerSchemaSchema = z.object({
@@ -46,8 +50,14 @@ export const AddColumnRequest = z.object({
   type: z.enum(CREATABLE_COLUMN_TYPES),
 });
 export const UpdateColumnRequest = z
-  .object({ label: z.string().min(1).max(MAX_LABEL_LENGTH).optional(), required: z.boolean().optional(), inTracker: z.boolean().optional() })
-  .refine((v) => v.label !== undefined || v.required !== undefined || v.inTracker !== undefined, "Nothing to update");
+  .object({
+    label: z.string().min(1).max(MAX_LABEL_LENGTH).optional(),
+    required: z.boolean().optional(),
+    /** Add the column to (true, at the end) or remove it from (false) the Tracker / Phantoms table. */
+    inTracker: z.boolean().optional(),
+    inPhantoms: z.boolean().optional(),
+  })
+  .refine((v) => v.label !== undefined || v.required !== undefined || v.inTracker !== undefined || v.inPhantoms !== undefined, "Nothing to update");
 /** Optional reason recorded in the audit log when an item or tracker entry is deleted. */
 export const DeleteItemRequest = z.object({
   reason: z.string().max(500).optional(),
@@ -60,7 +70,11 @@ export const DeleteItemRequest = z.object({
 });
 export type DeleteItemRequest = z.infer<typeof DeleteItemRequest>;
 /** The full new column order: every current column key exactly once. */
-export const ReorderColumnsRequest = z.object({ keys: z.array(z.string().min(1).max(64)).min(1).max(200) });
+export const ReorderColumnsRequest = z.object({
+  keys: z.array(z.string().min(1).max(64)).min(1).max(200),
+  /** Which table to reorder: the Inbox (default, every column) or the Tracker / Phantoms table (its columns only). */
+  table: z.enum(["inbox", "tracker", "phantoms"]).default("inbox"),
+});
 export const AddOptionRequest = z.object({
   value: z.string().min(1).max(MAX_OPTION_LENGTH),
   /** Macrotrend the new subtrend belongs to (subtrend column only). */
@@ -534,7 +548,7 @@ export const ENDPOINTS: EndpointDef[] = [
   { method: "post", path: "/api/items/{id}/snapshot", summary: "Attach the saved HTML page to a tracker entry that has none (multipart: file)", roles: STAFF, response: z.object({ id: z.string(), hasSnapshot: z.boolean() }) },
   { method: "get", path: "/api/phantoms", summary: "Phantoms table (query: stream, filters, sort, page): every Primary entry, and Secondary entries at or above the admin-set Impact", roles: ALL_ROLES, response: TrackerPageSchema },
   { method: "get", path: "/api/signals/{id}/markdown", summary: "Markdown for a tracker entry (text/markdown; ?download=1 for an attachment)", roles: ALL_ROLES, raw: "text/markdown" },
-  { method: "put", path: "/api/schema/columns/order", summary: "Change the column order (drafts, Tracker, exports)", roles: STAFF, request: ReorderColumnsRequest, response: TrackerSchemaSchema },
+  { method: "put", path: "/api/schema/columns/order", summary: "Change the column order of the Inbox, Tracker or Phantoms table", roles: STAFF, request: ReorderColumnsRequest, response: TrackerSchemaSchema },
   { method: "post", path: "/api/schema/columns/{key}/options", summary: "Add a dropdown option", roles: STAFF, request: AddOptionRequest, response: TrackerSchemaSchema },
   { method: "patch", path: "/api/schema/columns/{key}/options", summary: "Rename an option (propagates to signals, drafts and filters)", roles: STAFF, request: RenameOptionRequest, response: TrackerSchemaSchema },
   { method: "put", path: "/api/schema/columns/{key}/options/order", summary: "Change the order of a column's dropdown options (or of one macrotrend's subtrends)", roles: STAFF, request: ReorderOptionsRequest, response: TrackerSchemaSchema },

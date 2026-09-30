@@ -6,7 +6,7 @@
  * strings, auto-fit column widths) so the API can produce workbooks inside a
  * Worker without shipping a large spreadsheet library.
  */
-import { trackerColumns, type TrackerSchema } from "./schema.js";
+import { trackerColumns, type TrackerColumn, type TrackerSchema } from "./schema.js";
 import type { ItemValues } from "./validation.js";
 
 export const EXPORT_FORMATS = ["csv", "xlsx", "tsv", "json"] as const;
@@ -36,8 +36,7 @@ function cellText(v: ItemValues[string] | undefined): string {
 }
 
 /** Array-of-arrays with a header row. */
-export function toTable(schema: TrackerSchema, rows: ExportRow[]): string[][] {
-  const cols = trackerColumns(schema);
+export function toTable(schema: TrackerSchema, rows: ExportRow[], cols: TrackerColumn[] = trackerColumns(schema)): string[][] {
   return [["Signal ID", ...cols.map((c) => c.label)], ...rows.map((r) => [r.signalId, ...cols.map((c) => cellText(r.values[c.key]))])];
 }
 
@@ -59,8 +58,7 @@ export function toTsv(table: string[][]): string {
   return table.map((r) => r.map((x) => safeCell(x).replace(/[\t\r\n]+/g, " ")).join("\t")).join("\r\n");
 }
 
-export function toJson(schema: TrackerSchema, rows: ExportRow[]): string {
-  const cols = trackerColumns(schema);
+export function toJson(schema: TrackerSchema, rows: ExportRow[], cols: TrackerColumn[] = trackerColumns(schema)): string {
   return JSON.stringify(
     rows.map((r) => {
       const o: Record<string, unknown> = { "Signal ID": r.signalId };

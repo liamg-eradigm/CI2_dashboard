@@ -69,7 +69,11 @@ function FrontMatter({ lines }: { lines: FmLine[] }) {
   );
 }
 
-/** Side panel with a Phantoms entry's Markdown: raw or rendered, download and copy. */
+/**
+ * Side pane with a Phantoms entry's Markdown file: like the saved-page pane,
+ * the whole pane is the file (scrollable), under a slim header with Download
+ * at the top right. A Preview switch shows it rendered.
+ */
 export function MarkdownPanel({ id, onClose, onOpenRecord }: { id: string; onClose: () => void; onOpenRecord: (id: string) => void }) {
   const md = useMarkdown(id);
   const sig = useSignal(id);
@@ -78,15 +82,16 @@ export function MarkdownPanel({ id, onClose, onOpenRecord }: { id: string; onClo
   const toast = useToast();
   const doc = md.data ? parse(md.data) : null;
   const rid = doc?.fm.find((l) => l.key === "id")?.value;
+  const title = doc?.fm.find((l) => l.key === "title")?.value || sig.data?.values.title?.toString() || "Markdown";
 
   return (
     <>
       <div className="scrim" onClick={onClose} aria-hidden="true" />
-      <div className="drawer md-drawer" role="dialog" aria-modal="true" aria-labelledby="md-title" ref={ref}>
+      <div className="drawer source-drawer md-pane" role="dialog" aria-modal="true" aria-labelledby="md-title" ref={ref}>
         <div className="drawer-head">
-          <div className="drawer-meta">
+          <span className="drawer-meta">
             <span className="mono" style={{ color: "var(--ink)" }}>
-              {rid || sig.data?.code || "…"}
+              {rid || sig.data?.code || "…"}.md
             </span>
             {sig.data && (
               <>
@@ -96,17 +101,9 @@ export function MarkdownPanel({ id, onClose, onOpenRecord }: { id: string; onClo
                 <span>Published rev {sig.data.rev}</span>
               </>
             )}
-          </div>
-          <button className="icon-btn" onClick={onClose} aria-label="Close Markdown" data-autofocus>
-            ✕
-          </button>
-        </div>
-        <div className="drawer-body">
-          <h2 id="md-title" style={{ font: "700 20px/1.3 var(--sans)", textWrap: "pretty" }}>
-            {doc?.fm.find((l) => l.key === "title")?.value || sig.data?.values.title?.toString() || "Markdown"}
-          </h2>
-          <div className="md-toolbar">
-            <div className="seg" role="group" aria-label="Markdown view" style={{ width: 220 }}>
+          </span>
+          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+            <div className="seg md-seg" role="group" aria-label="Markdown view">
               <button aria-pressed={tab === "raw"} onClick={() => setTab("raw")}>
                 Markdown
               </button>
@@ -115,18 +112,7 @@ export function MarkdownPanel({ id, onClose, onOpenRecord }: { id: string; onClo
               </button>
             </div>
             <button
-              className="btn"
-              onClick={() =>
-                void downloadMarkdown(id).then(
-                  (name) => toast(`Downloaded ${name}`),
-                  (e: Error) => toast(`Download failed · ${e.message}`, false),
-                )
-              }
-            >
-              <span aria-hidden="true">⤓</span> Download Markdown
-            </button>
-            <button
-              className="btn secondary"
+              className="link-btn"
               disabled={!md.data}
               onClick={() =>
                 void navigator.clipboard.writeText(md.data ?? "").then(
@@ -137,13 +123,32 @@ export function MarkdownPanel({ id, onClose, onOpenRecord }: { id: string; onClo
             >
               Copy
             </button>
-            <button className="btn secondary" onClick={() => onOpenRecord(id)}>
+            <button className="link-btn" onClick={() => onOpenRecord(id)}>
               Open full record
             </button>
+            <button
+              className="link-btn"
+              onClick={() =>
+                void downloadMarkdown(id).then(
+                  (name) => toast(`Downloaded ${name}`),
+                  (e: Error) => toast(`Download failed · ${e.message}`, false),
+                )
+              }
+            >
+              Download Markdown
+            </button>
+            <button className="icon-btn" onClick={onClose} aria-label="Close Markdown" data-autofocus>
+              ✕
+            </button>
           </div>
-          {md.isLoading && <div className="skeleton" style={{ height: 240 }} />}
+          <h2 id="md-title" className="source-drawer-title">
+            {title}
+          </h2>
+        </div>
+        <div className="md-pane-body">
+          {md.isLoading && <div className="skeleton" style={{ height: 240, margin: 16 }} />}
           {md.isError && (
-            <p className="err-msg" role="alert">
+            <p className="err-msg" role="alert" style={{ margin: 24 }}>
               {(md.error as Error).message}
             </p>
           )}
@@ -163,7 +168,6 @@ export function MarkdownPanel({ id, onClose, onOpenRecord }: { id: string; onClo
               ))}
             </div>
           )}
-          <p className="card-sub">Generated from this entry's tracker fields only · QC Reviewed_by is the person who approved it.</p>
         </div>
       </div>
     </>

@@ -149,7 +149,7 @@ describe("exports", () => {
     // The Tracker columns (the Inbox-only Phantoms fields are not exported from the Tracker).
     expect(t[0]).toEqual(["Signal ID", ...trackerColumns(schema).map((c) => c.label)]);
     const csv = toCsv(t);
-    expect(csv.startsWith("﻿Signal ID,Macrotrend,")).toBe(true);
+    expect(csv.startsWith("\uFEFFSignal ID,Title,Event Date,Macrotrend,")).toBe(true);
     expect(csv).toContain('"Roche, Pfizer"');
     expect(csv).toContain(`"'=HYPERLINK(""x"")"`);
     expect(toTsv(t).split("\r\n")[1]?.split("\t")[0]).toBe("SIG-1");
