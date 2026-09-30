@@ -71,7 +71,7 @@ const DEFAULT_SETTINGS = {
   trendDefaults: { minSampleSize: 5, signalCountChangePct: 25, distinctCompetitorsChange: 1, impactScoreChangePct: 25, growthScoreChange: 0.2 },
   retention: { snapshotDays: 730, rejectedDays: 90, deletedDays: 30 },
   redaction: { redactEmails: true, redactPhones: true, quarantineMarkers: [] },
-  phantoms: { secondaryMinImpact: "Medium" },
+  phantoms: { secondaryMinImpact: "Low" },
 };
 let optN = 0;
 for (const t of TENANTS) {

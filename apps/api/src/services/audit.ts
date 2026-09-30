@@ -47,6 +47,8 @@ export type AuditAction =
   | "markdown.downloaded"
   | "import.completed"
   | "snapshot.attached"
+  | "deliverable.created"
+  | "deliverable.downloaded"
   | "view.saved"
   | "view.deleted"
   | "retention.purged"

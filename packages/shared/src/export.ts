@@ -25,7 +25,7 @@ export interface ExportRow {
 }
 
 /** e.g. eradigm-tracker-filtered-2026-09-24.csv, eradigm-secondary-phantoms-all-2026-09-24.xlsx */
-export function exportFilename(scope: "filtered" | "all", format: ExportFormat, today: string, view: { stream?: string; name?: "tracker" | "phantoms" } = {}): string {
+export function exportFilename(scope: "filtered" | "all", format: ExportFormat, today: string, view: { stream?: string; name?: "tracker" | "phantoms" | "alerts" | "newsletter" } = {}): string {
   const prefix = view.stream && view.stream !== "primary" ? `${view.stream}-` : "";
   return `eradigm-${prefix}${view.name ?? "tracker"}-${scope}-${today}.${format}`;
 }
@@ -91,7 +91,8 @@ function crc32(data: Uint8Array): number {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
-function zipStore(files: { name: string; data: Uint8Array }[]): Uint8Array {
+/** A ZIP archive of uncompressed ("stored") entries: enough for .xlsx and .docx packages. */
+export function zipStore(files: { name: string; data: Uint8Array }[]): Uint8Array {
   const chunks: Uint8Array[] = [];
   const central: Uint8Array[] = [];
   let offset = 0;
@@ -138,7 +139,7 @@ function zipStore(files: { name: string; data: Uint8Array }[]): Uint8Array {
   return out;
 }
 
-function xmlEscape(s: string): string {
+export function xmlEscape(s: string): string {
   return s
     // eslint-disable-next-line no-control-regex -- XML 1.0 forbids these control characters
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "")

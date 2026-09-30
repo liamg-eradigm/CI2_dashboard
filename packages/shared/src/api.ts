@@ -247,6 +247,22 @@ export const ReviseRequest = z.object({ values: ItemValuesSchema, note: z.string
 export const CreateSubmissionRequest = z.object({ url: z.string().min(1).max(2048), stream: StreamSchema.default("primary") });
 /** A blank Inbox entry, typed in by an analyst in its entirety (no source file). */
 export const CreateManualRequest = z.object({ stream: StreamSchema.default("primary") });
+/** Deliverables → Newsletter: build a newsletter from selected Newsletter entries (High / Medium impact Phantoms). */
+export const MAX_NEWSLETTER_NAME = 120;
+export const CreateNewsletterRequest = z.object({
+  name: z.string().trim().min(1, "Name the newsletter").max(MAX_NEWSLETTER_NAME),
+  itemIds: z.array(z.string().min(1).max(64)).min(1, "Select at least one entry").max(200),
+});
+export const NewsletterSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  createdAt: isoDateTime,
+  createdBy: z.string(),
+  /** The Phantoms it was built from, in the order they were used (deleted ones stay listed). */
+  items: z.array(z.object({ id: z.string(), code: z.string().nullable(), recordId: z.string().nullable(), title: z.string(), stream: StreamSchema, deleted: z.boolean() })),
+});
+export type Newsletter = z.infer<typeof NewsletterSchema>;
+
 /** One-off spreadsheet import into a tracker: rows keyed by the tracker's column labels, already parsed by the dashboard. */
 export const IMPORT_CHUNK_ROWS = 8;
 export const ImportRequest = z.object({
@@ -282,6 +298,8 @@ export const SignalSchema = z.object({
   approvedBy: z.string(),
   /** A saved copy of the source page exists (else it can be attached from the Tracker). Added in contract 1.5. */
   hasSnapshot: z.boolean().default(false),
+  /** Deliverables → Alerts rows only: the stored .docx alert. Added in contract 1.7. */
+  alertId: z.string().nullable().optional(),
 });
 
 export const SignalDetailSchema = SignalSchema.extend({
@@ -427,7 +445,7 @@ export const TenantSettingsSchema = z.object({
     quarantineMarkers: z.array(z.string().min(3).max(80)).max(100),
   }),
   /** Which Secondary Tracker entries also appear in Phantoms (Primary entries always do). Added in contract 1.4. */
-  phantoms: z.object({ secondaryMinImpact: z.string().min(1).max(MAX_OPTION_LENGTH) }).default({ secondaryMinImpact: "Medium" }),
+  phantoms: z.object({ secondaryMinImpact: z.string().min(1).max(MAX_OPTION_LENGTH) }).default({ secondaryMinImpact: "Low" }),
 });
 export const UpdateSettingsRequest = TenantSettingsSchema.partial();
 
@@ -547,6 +565,11 @@ export const ENDPOINTS: EndpointDef[] = [
   { method: "post", path: "/api/import", summary: "Import approved entries into a tracker (query: stream). At most 200 rows per request for a dry run, 8 otherwise", roles: STAFF, request: ImportRequest, response: ImportResponse },
   { method: "post", path: "/api/items/{id}/snapshot", summary: "Attach the saved HTML page to a tracker entry that has none (multipart: file)", roles: STAFF, response: z.object({ id: z.string(), hasSnapshot: z.boolean() }) },
   { method: "get", path: "/api/phantoms", summary: "Phantoms table (query: stream, filters, sort, page): every Primary entry, and Secondary entries at or above the admin-set Impact", roles: ALL_ROLES, response: TrackerPageSchema },
+  { method: "get", path: "/api/deliverables/alerts", summary: "Deliverables → Alerts: Phantoms with the highest Impact (High), each with its stored .docx alert (generated automatically)", roles: ALL_ROLES, response: TrackerPageSchema },
+  { method: "get", path: "/api/deliverables/newsletter", summary: "Deliverables → Newsletter: Phantoms with High or Medium Impact, to build newsletters from", roles: ALL_ROLES, response: TrackerPageSchema },
+  { method: "get", path: "/api/newsletters", summary: "Newsletters created so far, newest first", roles: ALL_ROLES, response: z.array(NewsletterSchema) },
+  { method: "post", path: "/api/newsletters", summary: "Create a newsletter (.docx) from selected Newsletter entries", roles: STAFF, request: CreateNewsletterRequest, response: NewsletterSchema },
+  { method: "get", path: "/api/deliverables/{id}/docx", summary: "A stored alert or newsletter .docx (inline for the viewer, ?download=1 as a file)", roles: ALL_ROLES },
   { method: "get", path: "/api/signals/{id}/markdown", summary: "Markdown for a tracker entry (text/markdown; ?download=1 for an attachment)", roles: ALL_ROLES, raw: "text/markdown" },
   { method: "put", path: "/api/schema/columns/order", summary: "Change the column order of the Inbox, Tracker or Phantoms table", roles: STAFF, request: ReorderColumnsRequest, response: TrackerSchemaSchema },
   { method: "post", path: "/api/schema/columns/{key}/options", summary: "Add a dropdown option", roles: STAFF, request: AddOptionRequest, response: TrackerSchemaSchema },

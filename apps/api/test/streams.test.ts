@@ -79,7 +79,13 @@ describe("Phantoms", () => {
     const b = await json(approveWith(w.a.analyst, low2, { impact: "Low" }));
     const c = await json(approveWith(w.a.analyst, med, { impact: "Medium" }));
     const ids = async (stream: string) => (await json(call(w.a.client, "GET", `/api/phantoms?stream=${stream}&${RANGE}`))).rows.map((r: any) => r.id);
+    // The default minimum is Low: every Secondary entry is a Phantom.
+    expect((await json(call(w.a.client, "GET", "/api/settings"))).phantoms.secondaryMinImpact).toBe("Low");
     expect(await ids("primary")).toContain(a.id);
+    expect(await ids("secondary")).toContain(c.id);
+    expect(await ids("secondary")).toContain(b.id);
+    // At Medium, Low drops out.
+    await call(w.a.admin, "PATCH", "/api/settings", { body: { phantoms: { secondaryMinImpact: "Medium" } } });
     expect(await ids("secondary")).toContain(c.id);
     expect(await ids("secondary")).not.toContain(b.id);
     // Admins raise the threshold to High: Medium drops out. Analysts and clients cannot change it.
@@ -92,8 +98,9 @@ describe("Phantoms", () => {
     await call(w.a.analyst, "PATCH", "/api/schema/columns/impact/options?stream=secondary", { body: { from: "High", to: "Very high" } });
     expect((await json(call(w.a.client, "GET", "/api/settings"))).phantoms.secondaryMinImpact).toBe("Very high");
     await call(w.a.analyst, "PATCH", "/api/schema/columns/impact/options?stream=secondary", { body: { from: "Very high", to: "High" } });
-    await call(w.a.admin, "PATCH", "/api/settings", { body: { phantoms: { secondaryMinImpact: "Medium" } } });
+    await call(w.a.admin, "PATCH", "/api/settings", { body: { phantoms: { secondaryMinImpact: "Low" } } });
     expect(await ids("secondary")).toContain(c.id);
+    expect(await ids("secondary")).toContain(b.id);
   });
 
   it("generates the Markdown from the tracker fields only, as valid YAML front matter", async () => {

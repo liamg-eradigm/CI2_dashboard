@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { CORE, FIELDS, STREAM_LABEL, can, displayValue, getColumn, phantomColumns, trackerColumns, type Me, type Signal, type TrackerColumn } from "@eradigm/shared";
 import { api, request, type ApiError } from "../api/client";
-import { exportUrl, useInvalidate, useSchema, useSettings, useTracker, type TableView } from "../api/hooks";
+import { exportUrl, useInvalidate, useNewsletters, useSchema, useSettings, useTracker, type TableView } from "../api/hooks";
 import { FilterHeader } from "../components/FilterHeader";
 import { MarkdownPanel } from "../components/MarkdownPanel";
 import { DeleteEntries } from "../components/DeleteEntries";
 import { RecordDrawer } from "../components/RecordDrawer";
+import { DocxButton, DocxPane, NewsletterCreate, canCreateNewsletter } from "../components/Deliverables";
 import { SourceDrawer } from "../components/SnapshotFrame";
 import { StreamSwitch } from "../components/StreamSwitch";
 import { useStreamParam } from "../state/stream";
@@ -129,9 +130,18 @@ function SourceCell({ s, canAttach, onOpen }: { s: Signal; canAttach: boolean; o
   );
 }
 
-/** The Tracker and the Phantoms tabs: the same filterable table, per stream. Phantoms adds the Markdown. */
-export function TrackerPage({ me, view = "tracker" }: { me: Me; view?: TableView }) {
-  const phantoms = view === "phantoms";
+const NOUN: Record<TableView, string> = { tracker: "Tracker", phantoms: "Phantoms", alerts: "Phantoms", newsletter: "Phantoms" };
+
+/**
+ * The Tracker and Phantoms tabs, and the two Deliverables tables (Alerts and
+ * Newsletter, built from Phantoms): the same filterable table, per stream.
+ * Phantoms-based tables add the Markdown; Alerts add the .docx alert; the
+ * Newsletter table's tick boxes build a newsletter.
+ */
+export function TrackerPage({ me, view = "tracker", title, above }: { me: Me; view?: TableView; title?: string; above?: ReactNode }) {
+  // Phantoms and the Deliverables tables share the Phantoms columns, Markdown and rules.
+  const phantoms = view !== "tracker";
+  const newsletter = view === "newsletter";
   const [stream, setStream] = useStreamParam();
   const schema = useSchema(stream);
   const settings = useSettings();
@@ -147,11 +157,18 @@ export function TrackerPage({ me, view = "tracker" }: { me: Me; view?: TableView
   const selected = f.params.get("signal");
   const mdOpen = f.params.get("md");
   const savedOpen = f.params.get("saved");
-  // Rows ticked for deletion (admins and analysts), cleared when the page of rows changes.
-  const [picked, setPicked] = useState<Set<string>>(() => new Set());
+  const docxOpen = f.params.get("docx");
+  const newsletters = useNewsletters(newsletter);
+  // Ticked rows: for deletion (Tracker/Phantoms, cleared when the page of rows
+  // changes) or, on the Newsletter table, the entries of the next newsletter
+  // (kept across pages and both streams).
+  const [picked, setPicked] = useState<Map<string, Signal>>(() => new Map());
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [creating, setCreating] = useState(false);
   const rowKey = tracker.data?.rows.map((r) => r.id).join(",") ?? "";
-  useEffect(() => setPicked(new Set()), [rowKey, stream, view]);
+  useEffect(() => {
+    if (!newsletter) setPicked(new Map());
+  }, [rowKey, stream, view, newsletter]);
 
   const setParam = useCallback(
     (patch: Record<string, string | null>, push = false) =>
@@ -187,21 +204,35 @@ export function TrackerPage({ me, view = "tracker" }: { me: Me; view?: TableView
   const cols = phantoms ? phantomColumns(s) : trackerColumns(s);
   const canAttach = can(me.role, "item:edit");
   const canDelete = can(me.role, "item:delete");
+  const tickable = newsletter ? canCreateNewsletter(me) : (view === "tracker" || view === "phantoms") && canDelete;
   const impactCol = getColumn(s, CORE.impact);
   const growthCol = getColumn(s, CORE.growth);
   const actionCol = getColumn(s, "action");
   const t = tracker.data;
   const pages = t ? Math.max(1, Math.ceil(t.total / PAGE)) : 1;
-  const pickedRows = t?.rows.filter((r) => picked.has(r.id)) ?? [];
-  const allPicked = !!t?.rows.length && pickedRows.length === t.rows.length;
-  const toggle = (id: string) =>
+  const pickedRows = [...picked.values()];
+  const onPage = t?.rows.filter((r) => picked.has(r.id)).length ?? 0;
+  const allPicked = !!t?.rows.length && onPage === t.rows.length;
+  const toggle = (r: Signal) =>
     setPicked((p) => {
-      const n = new Set(p);
-      if (n.has(id)) n.delete(id);
-      else n.add(id);
+      const n = new Map(p);
+      if (n.has(r.id)) n.delete(r.id);
+      else n.set(r.id, r);
+      return n;
+    });
+  const togglePage = () =>
+    setPicked((p) => {
+      const n = new Map(p);
+      for (const r of t?.rows ?? []) {
+        if (allPicked) n.delete(r.id);
+        else n.set(r.id, r);
+      }
       return n;
     });
   const savedRow = savedOpen ? t?.rows.find((r) => r.id === savedOpen) : undefined;
+  const docxRow = docxOpen ? t?.rows.find((r) => r.alertId === docxOpen) : undefined;
+  const docxNewsletter = docxOpen ? newsletters.data?.find((n) => n.id === docxOpen) : undefined;
+  const titleOf = (r: Signal) => String(r.values[CORE.title] ?? r.code);
   const info = t ? (t.total ? `Showing ${page * PAGE + 1}–${Math.min(t.total, page * PAGE + PAGE)} of ${t.total} · page ${page + 1} of ${pages}` : "0 results") : "Loading…";
 
   const doExport = async (format: string) => {
@@ -226,16 +257,21 @@ export function TrackerPage({ me, view = "tracker" }: { me: Me; view?: TableView
 
   return (
     <>
-      <FilterHeader title={phantoms ? "Phantoms" : "Tracker"} schema={s} f={f} viewKind="tracker" />
+      <FilterHeader title={title ?? (phantoms ? "Phantoms" : "Tracker")} schema={s} f={f} viewKind="tracker" />
       <div className="content">
+        {above}
         <div className="stream-bar">
-          <StreamSwitch noun={phantoms ? "Phantoms" : "Tracker"} value={stream} onChange={setStream} label={`${phantoms ? "Phantoms" : "Tracker"} to show`} />
+          <StreamSwitch noun={NOUN[view]} value={stream} onChange={setStream} label={`${NOUN[view]} to show`} />
           <span className="stream-note">
-            {phantoms
-              ? stream === "primary"
-                ? "Every Primary Tracker entry · open the Markdown from the MD icon"
-                : `Secondary Tracker entries with Impact ${settings.data?.phantoms.secondaryMinImpact ?? "Medium"} or higher (set by admins) · open the Markdown from the MD icon`
-              : `Approved entries from the ${STREAM_LABEL[stream]} Inbox`}
+            {view === "alerts"
+              ? `${STREAM_LABEL[stream]} Phantoms with High Impact · each gets a .docx alert automatically`
+              : newsletter
+                ? `${STREAM_LABEL[stream]} Phantoms with High or Medium Impact · tick entries from either stream, then Create Newsletter`
+                : phantoms
+                  ? stream === "primary"
+                    ? "Every Primary Tracker entry · open the Markdown from the MD icon"
+                    : `Secondary Tracker entries with Impact ${settings.data?.phantoms.secondaryMinImpact ?? "Low"} or higher (set by admins) · open the Markdown from the MD icon`
+                  : `Approved entries from the ${STREAM_LABEL[stream]} Inbox`}
           </span>
         </div>
         <section className="card flush pop-host" aria-label="Approved signals table">
@@ -244,10 +280,23 @@ export function TrackerPage({ me, view = "tracker" }: { me: Me; view?: TableView
               {info}
             </span>
             <div className="table-actions">
-              {canDelete && pickedRows.length > 0 && (
+              {newsletter && tickable && (
                 <div className="pick-bar" role="group" aria-label="Selected entries">
                   <span>{pickedRows.length} selected</span>
-                  <button className="link-btn" onClick={() => setPicked(new Set())}>
+                  {pickedRows.length > 0 && (
+                    <button className="link-btn" onClick={() => setPicked(new Map())}>
+                      Clear
+                    </button>
+                  )}
+                  <button className="btn small" disabled={!pickedRows.length} onClick={() => setCreating(true)} title={pickedRows.length ? undefined : "Tick one or more entries first"}>
+                    Create Newsletter
+                  </button>
+                </div>
+              )}
+              {!newsletter && tickable && pickedRows.length > 0 && (
+                <div className="pick-bar" role="group" aria-label="Selected entries">
+                  <span>{pickedRows.length} selected</span>
+                  <button className="link-btn" onClick={() => setPicked(new Map())}>
                     Clear
                   </button>
                   <button className="btn danger small" onClick={() => setConfirmDelete(true)}>
@@ -299,22 +348,27 @@ export function TrackerPage({ me, view = "tracker" }: { me: Me; view?: TableView
             </div>
           </div>
           <div className="table-wrap">
-            <table className="data" style={{ minWidth: Math.max(1100, cols.length * 125 + (phantoms ? 150 : 0)) }}>
+            <table className="data" style={{ minWidth: Math.max(1100, cols.length * 125 + (phantoms ? 150 : 0) + (view === "alerts" ? 70 : 0)) }}>
               <caption className="sr-only">Approved signals, sorted by {getColumn(s, sortKey)?.label ?? "Date"} {dir === "asc" ? "ascending" : "descending"}</caption>
               <thead>
                 <tr>
-                  {canDelete && (
+                  {tickable && (
                     <th scope="col" className="pick-col">
                       <input
                         type="checkbox"
                         checked={allPicked}
                         ref={(el) => {
-                          if (el) el.indeterminate = pickedRows.length > 0 && !allPicked;
+                          if (el) el.indeterminate = onPage > 0 && !allPicked;
                         }}
                         disabled={!t?.rows.length}
-                        onChange={() => setPicked(allPicked ? new Set() : new Set(t?.rows.map((r) => r.id)))}
+                        onChange={togglePage}
                         aria-label="Select every entry on this page"
                       />
+                    </th>
+                  )}
+                  {view === "alerts" && (
+                    <th scope="col" className="md-col">
+                      <span>Alert</span>
                     </th>
                   )}
                   {phantoms && (
@@ -340,10 +394,13 @@ export function TrackerPage({ me, view = "tracker" }: { me: Me; view?: TableView
               <tbody>
                 {t?.rows.map((r) => (
                   <tr key={r.id} className={picked.has(r.id) ? "picked" : undefined}>
-                    {canDelete && (
+                    {tickable && (
                       <td className="pick-col">
-                        <input type="checkbox" checked={picked.has(r.id)} onChange={() => toggle(r.id)} aria-label={`Select ${String(r.values[CORE.title] ?? r.code)}`} />
+                        <input type="checkbox" checked={picked.has(r.id)} onChange={() => toggle(r)} aria-label={`Select ${titleOf(r)}`} />
                       </td>
+                    )}
+                    {view === "alerts" && (
+                      <td className="md-col">{r.alertId ? <DocxButton label={`Open the alert for ${titleOf(r)}`} onClick={() => setParam({ docx: r.alertId ?? null }, true)} /> : <span className="src-none">—</span>}</td>
                     )}
                     {phantoms && (
                       <td className="md-col">
@@ -390,14 +447,32 @@ export function TrackerPage({ me, view = "tracker" }: { me: Me; view?: TableView
       {savedOpen && !selected && !mdOpen && (
         <SourceDrawer itemId={savedOpen} code={savedRow?.code ?? "Saved source"} title={String(savedRow?.values[CORE.title] ?? "Saved copy of the page")} onClose={() => setParam({ saved: null })} />
       )}
-      {confirmDelete && pickedRows.length > 0 && (
+      {docxOpen && !selected && (
+        <DocxPane
+          id={docxOpen}
+          kind={docxNewsletter ? "Newsletter" : "Alert"}
+          title={docxNewsletter?.name ?? (docxRow ? titleOf(docxRow) : "Document")}
+          onClose={() => setParam({ docx: null })}
+        />
+      )}
+      {creating && pickedRows.length > 0 && (
+        <NewsletterCreate
+          entries={pickedRows.map((r) => ({ id: r.id, code: String(r.values[FIELDS.id] ?? "") || r.code, label: titleOf(r) }))}
+          onCancel={() => setCreating(false)}
+          onCreated={() => {
+            setCreating(false);
+            setPicked(new Map());
+          }}
+        />
+      )}
+      {confirmDelete && pickedRows.length > 0 && (view === "tracker" || view === "phantoms") && (
         <DeleteEntries
           modal
           table={view}
           entries={pickedRows.map((r) => ({ id: r.id, code: r.code, title: String(r.values[CORE.title] ?? "") }))}
           onCancel={() => setConfirmDelete(false)}
           onDone={(ids) => {
-            setPicked((p) => new Set([...p].filter((id) => !ids.includes(id))));
+            setPicked((p) => new Map([...p].filter(([id]) => !ids.includes(id))));
             if (ids.length === pickedRows.length) setConfirmDelete(false);
           }}
         />
@@ -405,7 +480,7 @@ export function TrackerPage({ me, view = "tracker" }: { me: Me; view?: TableView
       {mdOpen && !selected && (
         <MarkdownPanel id={mdOpen} onClose={() => setParam({ md: null })} onOpenRecord={(id) => setParam({ md: null, signal: id }, true)} />
       )}
-      {selected && <RecordDrawer id={selected} schema={s} me={me} table={view} onClose={() => setParam({ signal: null })} onOpen={(id) => setParam({ signal: id }, true)} />}
+      {selected && <RecordDrawer id={selected} schema={s} me={me} table={view === "tracker" || view === "phantoms" ? view : undefined} onClose={() => setParam({ signal: null })} onOpen={(id) => setParam({ signal: id }, true)} />}
     </>
   );
 }

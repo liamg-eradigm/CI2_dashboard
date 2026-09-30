@@ -113,7 +113,7 @@ export const DEFAULT_SETTINGS: TenantSettings = {
   trendDefaults: DEFAULT_TREND_THRESHOLDS,
   retention: { snapshotDays: 730, rejectedDays: 90, deletedDays: 30 },
   redaction: { redactEmails: true, redactPhones: true, quarantineMarkers: [] },
-  phantoms: { secondaryMinImpact: "Medium" },
+  phantoms: { secondaryMinImpact: "Low" },
 };
 
 export async function loadSettings(env: Env, tenantId: string): Promise<TenantSettings> {

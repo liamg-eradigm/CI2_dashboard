@@ -121,9 +121,9 @@ test.describe("client role", () => {
     await panel.getByRole("button", { name: "Open full record" }).click();
     await expect(page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true })).toHaveCount(0);
     await page.keyboard.press("Escape");
-    // Secondary Phantoms: only Impact at or above the admin setting (Medium by default).
+    // Secondary Phantoms: only Impact at or above the admin setting (Low by default).
     await page.getByTestId("stream-secondary").click();
-    await expect(page.locator(".stream-note")).toContainText("Impact Medium or higher");
+    await expect(page.locator(".stream-note")).toContainText("Impact Low or higher");
     await expect(page.locator("table tbody tr").first()).toBeVisible();
     // Impact is not a Secondary Phantoms column, so check the rows' values through the API.
     const impacts = await page.evaluate(async () => {
@@ -131,11 +131,31 @@ test.describe("client role", () => {
       return ((await res.json()) as { rows: { values: { impact: string } }[] }).rows.map((r) => r.values.impact);
     });
     expect(impacts.length).toBeGreaterThan(0);
-    for (const i of impacts) expect(i).toMatch(/Medium|High/);
+    // Low by default: every Secondary entry, including Low ones.
+    for (const i of impacts) expect(i).toMatch(/Low|Medium|High/);
+    expect(impacts).toContain("Low");
     // Secondary Phantoms shows its own columns, not the Tracker's.
     await expect(page.locator("table thead")).toContainText("Publisher");
     await expect(page.locator("table thead")).not.toContainText("Macrotrend");
     await expectAccessible(page, "/phantoms");
+  });
+
+  test("views and downloads Deliverables, but cannot create newsletters", async ({ page }) => {
+    await page.goto("/deliverables");
+    await expect(page.getByRole("heading", { name: "Deliverables" })).toBeVisible();
+    await expect(page.getByTestId("deliv-alerts")).toHaveAttribute("aria-pressed", "true");
+    const row = page.locator("table tbody tr").first();
+    await row.getByRole("button", { name: /^Open the alert for / }).click();
+    const pane = page.getByRole("dialog");
+    await expect(pane.locator(".docx-host section.docx")).toBeVisible({ timeout: 15_000 });
+    const [download] = await Promise.all([page.waitForEvent("download"), pane.getByRole("button", { name: "Download .docx" }).click()]);
+    expect(download.suggestedFilename()).toMatch(/-alert\.docx$/);
+    await page.keyboard.press("Escape");
+    await page.getByTestId("deliv-newsletter").click();
+    await expect(page.getByRole("heading", { name: "Newsletters" })).toBeVisible();
+    await expect(page.getByRole("checkbox")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Create Newsletter" })).toHaveCount(0);
+    await expectAccessible(page, "/deliverables newsletter (client)");
   });
 
   test("sees the saved-page icon but cannot attach pages", async ({ page }) => {

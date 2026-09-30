@@ -9,6 +9,7 @@ import {
   type ItemDetail,
   type ItemSummary,
   type Me,
+  type Newsletter,
   type QualityMetrics,
   type SavedView,
   type SignalDetail,
@@ -43,18 +44,23 @@ const qs = (f: FilterState, extra: Record<string, string | number> = {}) => {
 export const useDashboard = (f: FilterState, enabled = true) =>
   useQuery({ queryKey: ["dashboard", f], queryFn: () => api<DashboardData>(`/api/dashboard?${qs(f)}`), placeholderData: keepPreviousData, enabled });
 
-export type TableView = "tracker" | "phantoms";
+/** The Tracker, Phantoms and the two Deliverables tables (built from Phantoms). */
+export type TableView = "tracker" | "phantoms" | "alerts" | "newsletter";
+const TABLE_PATH: Record<TableView, string> = { tracker: "/api/tracker", phantoms: "/api/phantoms", alerts: "/api/deliverables/alerts", newsletter: "/api/deliverables/newsletter" };
 
 export const useTracker = (f: FilterState, sort: { key: string; dir: "asc" | "desc" }, page: number, pageSize = 10, stream: Stream = "primary", view: TableView = "tracker", enabled = true) =>
   useQuery({
     queryKey: ["tracker", view, stream, f, sort, page, pageSize],
-    queryFn: () => api<TrackerPage>(`/api/${view}?${qs(f, { sort: sort.key, dir: sort.dir, page, pageSize, stream })}`),
+    queryFn: () => api<TrackerPage>(`${TABLE_PATH[view]}?${qs(f, { sort: sort.key, dir: sort.dir, page, pageSize, stream })}`),
     placeholderData: keepPreviousData,
     enabled,
   });
 
 export const exportUrl = (f: FilterState, sort: { key: string; dir: string }, scope: "filtered" | "all", format: string, stream: Stream = "primary", view: TableView = "tracker") =>
   `/api/tracker/export?${qs(f, { sort: sort.key, dir: sort.dir, scope, format, stream, view })}`;
+
+/** Newsletters created on Deliverables → Newsletter, newest first. */
+export const useNewsletters = (enabled = true) => useQuery({ queryKey: ["newsletters"], queryFn: () => api<Newsletter[]>("/api/newsletters"), enabled });
 
 /** The Phantoms Markdown of an entry (text). */
 export const useMarkdown = (id: string | null) =>
