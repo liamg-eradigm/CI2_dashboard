@@ -29,7 +29,7 @@ export interface ItemRow {
   version: number;
   op_token: string | null;
   attempts: number;
-  input_type: "url" | "file";
+  input_type: "url" | "file" | "manual";
   url_key: string | null;
   file_sha256: string | null;
   content_sha256: string | null;
@@ -58,6 +58,8 @@ export interface ItemRow {
   subtrend: string | null;
   growth: string | null;
   impact: string | null;
+  tracker_hidden_at: string | null;
+  phantoms_hidden_at: string | null;
   extra_json: string;
   approved_at: string | null;
   approved_by: string | null;

@@ -30,7 +30,7 @@ export async function signalDetail(env: Env, schemas: Schemas, tenantId: string,
   const related = await env.DB.prepare(
     `SELECT i.id, i.signal_code, i.title, i.pub_date, CASE WHEN i.subtrend = ?3 THEN 'Same subtrend' ELSE 'Same macrotrend and competitor' END AS why
        FROM intelligence_items i
-      WHERE i.tenant_id = ?1 AND i.id <> ?2 AND i.status = 'approved' AND i.deleted_at IS NULL
+      WHERE i.tenant_id = ?1 AND i.id <> ?2 AND i.status = 'approved' AND i.deleted_at IS NULL AND i.tracker_hidden_at IS NULL
         AND (i.subtrend = ?3 OR (i.macrotrend = ?4 AND EXISTS (SELECT 1 FROM item_competitors c WHERE c.item_id = i.id AND c.competitor IN (SELECT value FROM json_each(?5)))))
       ORDER BY (i.subtrend = ?3) DESC, i.pub_date DESC LIMIT 3`,
   )

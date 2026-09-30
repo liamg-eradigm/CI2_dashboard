@@ -126,6 +126,42 @@ export async function submitUrl(
   return { item, duplicate: false };
 }
 
+/**
+ * A blank Inbox entry for an analyst to fill in entirely (no source file). It
+ * goes straight to Needs review with an empty draft; the saved page can be
+ * attached later from the tracker. No capture step, so no capture-log row.
+ */
+export async function submitManual(env: Env, schemas: Schemas, p: Principal, idemKey: string | null, stream: Stream = "primary"): Promise<SubmitResult> {
+  const prior = await byIdempotencyKey(env, p.tenantId, idemKey);
+  if (prior) return replay(env, schemas, p.tenantId, prior);
+  const now = nowIso();
+  const subId = newId("sub");
+  const itemId = newId("itm");
+  const code = await nextCode(env, p.tenantId, "inbox");
+  try {
+    await env.DB.batch([
+      env.DB.prepare("INSERT INTO submissions (id, tenant_id, submitted_by, input_type, file_name, idempotency_key, created_at) VALUES (?1, ?2, ?3, 'file', 'Manual entry', ?4, ?5)").bind(
+        subId,
+        p.tenantId,
+        p.userId,
+        idemKey,
+        now,
+      ),
+      env.DB.prepare(
+        `INSERT INTO intelligence_items (id, tenant_id, submission_id, code, status, input_type, outlet, received_at, submitted_by, created_at, updated_at, stream, draft_json)
+         VALUES (?1, ?2, ?3, ?4, 'needs_review', 'manual', 'Manual entry', ?5, ?6, ?5, ?5, ?7, ?8)`,
+      ).bind(itemId, p.tenantId, subId, code, now, p.userId, stream, initialDraft(schemas, stream)),
+    ]);
+  } catch (err) {
+    if (!isUnique(err)) throw err;
+    const winner = await byIdempotencyKey(env, p.tenantId, idemKey);
+    if (winner) return replay(env, schemas, p.tenantId, winner);
+    throw err;
+  }
+  await audit(env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "submission.created", targetType: "item", targetId: itemId, details: { code, inputType: "manual", stream } });
+  return { item: await getSummary(env, schemas, p.tenantId, itemId), duplicate: false };
+}
+
 export async function submitFile(
   env: Env,
   ctx: ExecutionContext | null,

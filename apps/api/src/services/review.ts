@@ -17,6 +17,7 @@ import {
   type ItemStatus,
   type ItemSummary,
   type ItemValues,
+  type Stream,
   type TrackerSchema,
 } from "@eradigm/shared";
 import type { Principal } from "../auth/context.js";
@@ -341,6 +342,7 @@ export async function reprocess(env: Env, ctx: ExecutionContext | null, schemas:
   const row = await getItemRow(env, p.tenantId, id);
   assertTransition(row.status, "queued", "reprocessed");
   if (row.quarantined) throw conflict("Quarantined items cannot be reprocessed; their content was deleted under the data policy");
+  if (row.input_type === "manual") throw conflict("Manual entries have no source file to process; fill in the fields instead");
   if (row.input_type === "file" && !row.current_snapshot_id && !row.body_text) throw conflict("The uploaded file is no longer stored; upload it again");
   assertVersion(row, version);
   const attempt = row.attempts + 1;
@@ -379,7 +381,7 @@ export async function reprocess(env: Env, ctx: ExecutionContext | null, schemas:
  * the audit trail are kept (soft delete); the saved page follows the normal
  * retention policy.
  */
-export async function softDelete(env: Env, schemas: Schemas, p: Principal, id: string, reason?: string): Promise<ItemSummary> {
+export async function softDelete(env: Env, schemas: Schemas, p: Principal, id: string, reason?: string, requestedFrom?: "tracker" | "phantoms"): Promise<ItemSummary> {
   const row = await getItemRow(env, p.tenantId, id);
   assertTransition(row.status, "deleted", "deleted");
   const now = nowIso();
@@ -387,6 +389,38 @@ export async function softDelete(env: Env, schemas: Schemas, p: Principal, id: s
     .bind(now, p.tenantId, id, row.status)
     .run();
   if ((res.meta.changes ?? 0) === 0) throw conflict("This item was changed by someone else. Reload to see the latest version.");
-  await audit(env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "item.deleted", targetType: "item", targetId: id, details: { from: row.status, signalCode: row.signal_code, ...(reason?.trim() ? { reason: reason.trim() } : {}) } });
+  await audit(env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "item.deleted", targetType: "item", targetId: id, details: { from: row.status, signalCode: row.signal_code, table: "global", ...(requestedFrom ? { requestedFrom } : {}), ...(reason?.trim() ? { reason: reason.trim() } : {}) } });
+  return getSummary(env, schemas, p.tenantId, id);
+}
+
+const TABLE_NAME = { tracker: "Tracker", phantoms: "Phantoms" } as const;
+
+/**
+ * Remove an approved entry from one table only: from the Tracker (and so the
+ * Dashboard, Trend Test and Tracker exports) while it stays in Phantoms, or
+ * from Phantoms while it stays in the Tracker. If that would leave it in
+ * neither table (already removed from the other one, or a Secondary entry
+ * below the Phantoms Impact threshold), it is deleted globally instead.
+ */
+export async function deleteFromTable(
+  env: Env,
+  schemas: Schemas,
+  p: Principal,
+  id: string,
+  table: "tracker" | "phantoms",
+  qualifiesForPhantoms: (stream: Stream, impact: string | null) => Promise<boolean>,
+  reason?: string,
+): Promise<ItemSummary> {
+  const row = await getItemRow(env, p.tenantId, id);
+  if (row.status !== "approved") throw conflict("Only tracker entries can be deleted from one table");
+  const inOther = table === "tracker" ? !row.phantoms_hidden_at && (await qualifiesForPhantoms(row.stream, row.impact)) : !row.tracker_hidden_at;
+  if (!inOther) return softDelete(env, schemas, p, id, reason, table);
+  const col = table === "tracker" ? "tracker_hidden_at" : "phantoms_hidden_at";
+  const now = nowIso();
+  const res = await env.DB.prepare(`UPDATE intelligence_items SET ${col} = ?1, version = version + 1, updated_at = ?1 WHERE tenant_id = ?2 AND id = ?3 AND status = 'approved' AND ${col} IS NULL`)
+    .bind(now, p.tenantId, id)
+    .run();
+  if ((res.meta.changes ?? 0) === 0) throw conflict(`${row.signal_code ?? "This entry"} is already deleted from ${TABLE_NAME[table]}`);
+  await audit(env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "item.deleted", targetType: "item", targetId: id, details: { from: row.status, signalCode: row.signal_code, table, ...(reason?.trim() ? { reason: reason.trim() } : {}) } });
   return getSummary(env, schemas, p.tenantId, id);
 }

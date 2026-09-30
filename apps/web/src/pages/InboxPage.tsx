@@ -140,6 +140,8 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
   const pending = item.status === "needs_review";
   const canReview = can(me.role, "item:review");
   const manual = me.features.prefill === "manual";
+  // A blank entry typed in from scratch (Input → Manual entry): no source file to view or re-capture.
+  const typedIn = item.inputType === "manual";
   const emptyDraft = pending && sortedColumns(schema).filter((c) => !AUTO_KEYS.includes(c.key)).every((c) => item.draft[c.key] == null || item.draft[c.key] === "" || (Array.isArray(item.draft[c.key]) && (item.draft[c.key] as unknown[]).length === 0));
 
   // Latest version this card knows about, and the values last persisted. Saves
@@ -250,12 +252,18 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
   return (
     <section className={`inbox-card ${item.status}`} aria-labelledby={`t-${item.id}`}>
       <div className="inbox-head">
-        <button className="icon-btn" aria-expanded={open} aria-controls={`src-${item.id}`} onClick={() => setOpen((o) => !o)} title={open ? "Hide source" : "View source HTML"} style={open ? { background: "var(--tint)" } : undefined}>
-          <span className={`chev ${open ? "open" : ""}`} aria-hidden="true">
-            ▶
+        {typedIn ? (
+          <span className="icon-btn manual-glyph" title="Manual entry · no source file" aria-hidden="true">
+            ✎
           </span>
-          <span className="sr-only">{open ? "Hide source" : "View source"}</span>
-        </button>
+        ) : (
+          <button className="icon-btn" aria-expanded={open} aria-controls={`src-${item.id}`} onClick={() => setOpen((o) => !o)} title={open ? "Hide source" : "View source HTML"} style={open ? { background: "var(--tint)" } : undefined}>
+            <span className={`chev ${open ? "open" : ""}`} aria-hidden="true">
+              ▶
+            </span>
+            <span className="sr-only">{open ? "Hide source" : "View source"}</span>
+          </button>
+        )}
         <div style={{ minWidth: 0 }}>
           <div className="inbox-meta">
             <span className="code">{item.code}</span>
@@ -296,14 +304,16 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
         <div className="inbox-actions">
           {pending && canReview && (
             <>
-              <button
-                className="btn secondary"
-                disabled={busy}
-                title={manual ? "Capture the source again · values you entered are kept" : "Run capture and AI pre-fill again"}
-                onClick={() => act("/reprocess", { version: versionRef.current }, () => `${item.code} queued for another processing attempt`)}
-              >
-                ↻ {manual ? "Re-capture" : "Reprocess"}
-              </button>
+              {!typedIn && (
+                <button
+                  className="btn secondary"
+                  disabled={busy}
+                  title={manual ? "Capture the source again · values you entered are kept" : "Run capture and AI pre-fill again"}
+                  onClick={() => act("/reprocess", { version: versionRef.current }, () => `${item.code} queued for another processing attempt`)}
+                >
+                  ↻ {manual ? "Re-capture" : "Reprocess"}
+                </button>
+              )}
               <button
                 className="btn danger"
                 disabled={busy}
@@ -319,7 +329,7 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
               </button>
             </>
           )}
-          {(item.status === "failed" || item.status === "rejected") && canReview && !item.quarantined && (
+          {(item.status === "failed" || item.status === "rejected") && canReview && !item.quarantined && !typedIn && (
             <button className="btn secondary" disabled={busy} onClick={() => act("/reprocess", { version: versionRef.current }, () => `${item.code} queued for retry`)}>
               ↻ {item.status === "failed" ? "Retry" : "Reprocess"}
             </button>
@@ -396,7 +406,7 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
             <div className="section-h">
               Tracker draft
-              {pending && !extraction && <span className="section-note"> · enter every required field from the saved page</span>}
+              {pending && !extraction && <span className="section-note">{typedIn ? " · manual entry: fill in every required field (attach the HTML later from the tracker if you have it)" : " · enter every required field from the saved page"}</span>}
             </div>
             {extraction && (
               <button className="link-btn" aria-expanded={evidence} onClick={() => setEvidence((e) => !e)}>

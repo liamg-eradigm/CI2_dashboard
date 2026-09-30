@@ -44,6 +44,14 @@ async function schemaOf(page: Page, stream: "primary" | "secondary") {
   }, stream);
 }
 
+/** Upload an HTML file through the one Input source card, as a Primary or a Secondary source. */
+async function uploadTo(page: Page, stream: "primary" | "secondary", file: string) {
+  const card = page.getByTestId("source-card");
+  await card.getByTestId(`stream-${stream}`).click();
+  await card.locator('input[type="file"]').setInputFiles(file);
+  await card.getByRole("button", { name: `Process file for ${stream === "primary" ? "Primary" : "Secondary"} Source` }).click();
+}
+
 function htmlFile(name: string, html: string) {
   const dir = mkdtempSync(path.join(tmpdir(), "e2e-"));
   const file = path.join(dir, name);
@@ -128,35 +136,63 @@ test.describe("analyst role", () => {
     await expect(again.getByRole("combobox", { name: "Subtrend", exact: true })).toHaveValue(/Tiered AI accreditation/);
   });
 
-  test("Input has two identical, aligned HTML sources and no URL option; each goes to its own inbox", async ({ page }) => {
+  test("Input has one HTML source card with a Primary/Secondary switch and no URL option; each goes to its own inbox", async ({ page }) => {
     await page.goto("/input");
-    const primary = page.getByTestId("source-primary");
-    const secondary = page.getByTestId("source-secondary");
-    await expect(primary.getByRole("heading", { name: "Primary Source" })).toBeVisible();
-    await expect(secondary.getByRole("heading", { name: "Secondary Source" })).toBeVisible();
+    const card = page.getByTestId("source-card");
+    await expect(page.getByTestId("source-primary")).toHaveCount(0);
+    await expect(card.getByRole("heading", { name: "Add a source" })).toBeVisible();
+    // The same Primary/Secondary switch as the spreadsheet import.
+    await expect(card.getByTestId("stream-primary")).toHaveText("Primary Source");
+    await expect(card.getByTestId("stream-primary")).toHaveAttribute("aria-pressed", "true");
+    await expect(card).toContainText("Sent to the Primary Inbox");
     await expect(page.getByRole("textbox", { name: /url/i })).toHaveCount(0);
     await expect(page.getByRole("button", { name: /Capture source|^URL$/ })).toHaveCount(0);
-    const [pb, sb] = [(await primary.boundingBox())!, (await secondary.boundingBox())!];
-    expect(Math.abs(pb.x - sb.x)).toBeLessThanOrEqual(1);
-    expect(Math.abs(pb.width - sb.width)).toBeLessThanOrEqual(1);
-    expect(Math.abs(pb.height - sb.height)).toBeLessThanOrEqual(1);
-    expect(sb.y).toBeGreaterThan(pb.y + pb.height - 1);
-    const [pz, sz] = [(await page.getByTestId("drop-zone-primary").boundingBox())!, (await page.getByTestId("drop-zone-secondary").boundingBox())!];
-    expect(Math.abs(pz.x - sz.x)).toBeLessThanOrEqual(1);
-    expect(Math.abs(pz.width - sz.width)).toBeLessThanOrEqual(1);
+    await card.getByTestId("stream-secondary").click();
+    await expect(card).toContainText("Sent to the Secondary Inbox · Source Tier: Reviewed-Secondary");
+    await expect(card.getByRole("button", { name: "Process file for Secondary Source" })).toBeVisible();
+    await expectAccessible(page, "/input source card");
 
     const title = `Pfizer secondary routing ${uid()}`;
     const file = htmlFile("secondary.html", `<!DOCTYPE html><html><head><title>${title}</title></head><body><article><h1>${title}</h1><p>Pfizer has piloted an AI assistant for field teams in two regions, the company said.</p><p>The pilot runs until 2027.</p></article></body></html>`);
-    await secondary.locator('input[type="file"]').setInputFiles(file);
-    await secondary.getByRole("button", { name: "Process file for Secondary Source" }).click();
+    await uploadTo(page, "secondary", file);
     await expect(page.getByText("Complete · sent to the Secondary Inbox")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole("table", { name: "Capture log" }).locator("tr", { hasText: "secondary.html" }).first()).toContainText("Secondary");
     await page.getByRole("button", { name: "Complete in Secondary Inbox →" }).click();
     await expect(page).toHaveURL(/\/inbox\?stream=secondary/);
-    const card = page.locator(".inbox-card", { hasText: title });
-    await expect(card.getByRole("textbox", { name: "Source Tier", exact: true })).toHaveValue("Reviewed-Secondary");
+    const inbox = page.locator(".inbox-card", { hasText: title });
+    await expect(inbox.getByRole("textbox", { name: "Source Tier", exact: true })).toHaveValue("Reviewed-Secondary");
     await page.getByTestId("stream-primary").click();
     await expect(page.locator(".inbox-card", { hasText: title })).toHaveCount(0);
+  });
+
+  test("sends a blank manual entry to the chosen Inbox, filled in entirely there and approved", async ({ page }) => {
+    await page.goto("/input");
+    const card = page.getByTestId("source-card");
+    await card.getByTestId("stream-secondary").click();
+    await card.getByRole("button", { name: "✎ Manual entry" }).click();
+    await expect(page.getByRole("heading", { name: "Blank entry sent to the Secondary Inbox" })).toBeVisible();
+    await expect(page.getByText("blank manual entry, no source file")).toBeVisible();
+    // No capture steps for a manual entry.
+    await expect(page.getByRole("heading", { name: /Capture · / })).toHaveCount(0);
+    await page.getByRole("button", { name: "Complete in Secondary Inbox →" }).click();
+    await expect(page).toHaveURL(/\/inbox\?stream=secondary/);
+    const blank = page.locator(".inbox-card", { hasText: "Manual entry" }).filter({ hasText: "Awaiting analyst entry" }).first();
+    await expect(blank).toBeVisible();
+    await expect(blank.getByText("manual entry: fill in every required field")).toBeVisible();
+    await expect(blank.getByRole("button", { name: /Re-capture|Reprocess/ })).toHaveCount(0);
+    await expect(blank.getByRole("button", { name: "View source" })).toHaveCount(0);
+    await expect(blank.getByRole("textbox", { name: "Source Tier", exact: true })).toHaveValue("Reviewed-Secondary");
+    const code = (await blank.locator(".code").innerText()).trim();
+    const entry = page.locator(".inbox-card", { has: page.locator(".code", { hasText: code }) });
+    const title = `Manual Sanofi entry ${uid()}`;
+    await fillEntry(entry, { id: `S-MAN-${uid()}`, title, impact: "High", competitors: ["Sanofi"], extra: { Publisher: "Sanofi", Header: "Typed in by hand." } });
+    await expectAccessible(page, "/inbox manual entry");
+    await entry.getByRole("button", { name: "✓ Approve" }).click();
+    await expect(page.getByText(/SIG-\d+ published to the tracker/).first()).toBeVisible();
+    // In the Secondary Tracker with a green plus to attach the HTML later.
+    await page.goto("/tracker?stream=secondary");
+    await page.getByRole("searchbox").fill(title);
+    await expect(page.locator("table tbody tr", { hasText: title }).getByRole("button", { name: `Attach the HTML page for ${title}` })).toBeVisible();
   });
 
   test("processes a SingleFile upload end-to-end into Needs review", async ({ page }) => {
@@ -167,8 +203,7 @@ test.describe("analyst role", () => {
       `<!DOCTYPE html><html><!--\n Page saved with SingleFile \n url: https://newsroom.example.com/e2e-roche-lab-${Date.now().toString(36)} \n saved date: Wed Sep 24 2026\n--><head><title>Roche opens robotics-enabled lab</title><meta property="article:published_time" content="2026-09-24"><script>alert(1)</script></head><body><article><h1>Roche opens robotics-enabled autonomous lab in Basel ${Date.now().toString(36)}</h1><p>Roche has opened an autonomous laboratory where robotics-enabled labs run design-make-test cycles for small molecules around the clock.</p><p>The company said the lab will double experimental throughput for its early discovery teams by 2027.</p></article></body></html>`,
     );
     await page.goto("/input");
-    await page.getByTestId("source-primary").locator('input[type="file"]').setInputFiles(file);
-    await page.getByRole("button", { name: "Process file for Primary Source" }).click();
+    await uploadTo(page, "primary", file);
     await expect(page.getByText("Complete · sent to the Primary Inbox")).toBeVisible({ timeout: 30_000 });
     await expect(page.locator(".step", { hasText: "Content scan before storage" })).toContainText("script(s) stripped");
     await expect(page.locator(".step", { hasText: "Data policy check" })).toContainText("nothing sent to any external service");
@@ -190,12 +225,13 @@ test.describe("analyst role", () => {
       d.items.add(new File([h], "dropped.html", { type: "text/html" }));
       return d;
     }, html);
-    const card = page.getByTestId("source-secondary");
+    const card = page.getByTestId("source-card");
+    await card.getByTestId("stream-secondary").click();
     await card.dispatchEvent("dragenter", { dataTransfer: dt });
     await card.dispatchEvent("dragover", { dataTransfer: dt });
     await card.dispatchEvent("drop", { dataTransfer: dt });
-    await expect(page.getByTestId("drop-zone-secondary")).toContainText("dropped.html");
-    await expect(page.getByTestId("drop-zone-primary")).not.toContainText("dropped.html");
+    await expect(page.getByTestId("drop-zone-html")).toContainText("dropped.html");
+    await expect(page.getByTestId("drop-zone-import")).not.toContainText("dropped.html");
     await card.getByRole("button", { name: "Process file for Secondary Source" }).click();
     await expect(page.getByText("Complete · sent to the Secondary Inbox")).toBeVisible({ timeout: 30_000 });
   });
@@ -209,8 +245,7 @@ test.describe("analyst role", () => {
       `<!DOCTYPE html><html><!--\n Page saved with SingleFile \n url: https://source.example.com/sig-1100 \n saved date: Wed Sep 24 2026\n--><head><title>Roche DTP again</title></head><body><article><h1>Roche brings DTP offering to a national retail pharmacy chain (re-saved)</h1><p>Roche has extended its direct-to-patient offering to a national retail pharmacy chain, the company said.</p><p>The roll-out covers all stores by 2027.</p></article></body></html>`,
     );
     await page.goto("/input");
-    await page.getByTestId("source-primary").locator('input[type="file"]').setInputFiles(file);
-    await page.getByRole("button", { name: "Process file for Primary Source" }).click();
+    await uploadTo(page, "primary", file);
     await expect(page.getByText(/Possible duplicate: this source is already in the tracker as SIG-1100/)).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(/sent to the Primary Inbox/).first()).toBeVisible();
 
@@ -296,54 +331,77 @@ test.describe("analyst role", () => {
     await restoreOrder(page, "primary", original, "source");
   });
 
-  test("deletes a tracker entry after an explicit confirmation", async ({ page }) => {
+  test("Delete Tracker Entry from the record: gone from the Tracker, still in Phantoms", async ({ page }) => {
     await page.goto("/tracker");
+    // The oldest entry (the Phantoms test below works on the newest ones).
+    await page.locator("table thead").getByRole("button", { name: /^Event Date/ }).click();
+    await expect(page).toHaveURL(/dir=asc/);
     const firstRow = page.locator("table tbody tr").first();
     const title = (await firstRow.locator("td.title").innerText()).trim();
     await firstRow.locator("td.title button").click();
     const drawer = page.getByRole("dialog");
     await drawer.getByRole("button", { name: "Delete", exact: true }).click();
     const confirm = drawer.getByRole("alertdialog");
-    await expect(confirm).toContainText("will disappear from the Tracker, the Dashboard and exports for everyone");
-    await confirm.getByLabel(/Reason/).fill("E2E test deletion");
-    const code = (await confirm.locator("b").innerText()).match(/SIG-\d+/)?.[0] as string;
-    await confirm.getByRole("button", { name: `Delete ${code}` }).click();
-    await expect(page.locator(".toast")).toContainText(`${code} deleted from the tracker`);
+    await expect(confirm).toContainText("Delete Tracker Entry removes it from the Tracker, the Dashboard and Tracker exports. It stays in Phantoms.");
+    await expect(confirm).toContainText("Delete Globally removes it from the Tracker, Phantoms, the Dashboard and all exports");
+    await expect(confirm.getByRole("button", { name: "Delete Globally" })).toBeVisible();
+    await expectAccessible(page, "/tracker delete choice");
+    await confirm.getByLabel(/Reason/).fill("E2E tracker-only deletion");
+    const code = (await confirm.locator("#del-title").innerText()).match(/SIG-\d+/)?.[0] as string;
+    await confirm.getByRole("button", { name: "Delete Tracker Entry" }).click();
+    await expect(page.locator(".toast")).toContainText(`Deleted ${code} from the Tracker · still in Phantoms`);
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(page.locator("table tbody td.title", { hasText: title })).toHaveCount(0);
+    await page.getByRole("navigation").getByRole("link", { name: "Phantoms" }).click();
+    await page.getByRole("searchbox").fill(title);
+    await expect(page.locator("table tbody td.title", { hasText: title })).toBeVisible();
   });
 
-  test("selects Phantoms entries with tick boxes and deletes them", async ({ page }) => {
+  test("selects Phantoms entries with tick boxes: Delete Phantom Entry, then Delete Globally", async ({ page }) => {
     await page.goto("/phantoms");
     const rows = page.locator("table tbody tr");
     await expect(rows.first()).toBeVisible();
-    const titles = [(await rows.nth(0).locator("td.title").innerText()).trim(), (await rows.nth(1).locator("td.title").innerText()).trim()];
-    await rows.nth(0).getByRole("checkbox").check();
-    await rows.nth(1).getByRole("checkbox").check();
     const bar = page.getByRole("group", { name: "Selected entries" });
-    await expect(bar).toContainText("2 selected");
     // The header box selects the whole page, and again clears it.
     const all = page.getByRole("checkbox", { name: "Select every entry on this page" });
     await all.check();
     await expect(bar).toContainText(`${await rows.count()} selected`);
     await all.uncheck();
     await expect(bar).toHaveCount(0);
+
+    // One entry from Phantoms only: it stays in the Tracker.
+    const only = (await rows.nth(0).locator("td.title").innerText()).trim();
+    await rows.nth(0).getByRole("checkbox").check();
+    await expect(bar).toContainText("1 selected");
+    await bar.getByRole("button", { name: "Delete selected" }).click();
+    const one = page.getByRole("alertdialog", { name: /^Delete SIG-\d+\?$/ });
+    await expect(one).toContainText("Delete Phantom Entry removes it from Phantoms only. It stays in the Tracker and on the Dashboard.");
+    await one.getByRole("button", { name: "Delete Phantom Entry" }).click();
+    await expect(page.locator(".toast")).toContainText(/Deleted SIG-\d+ from Phantoms · still in the Tracker/);
+    await expect(page.locator("table tbody td.title", { hasText: only })).toHaveCount(0);
+
+    // Two entries globally: gone from the Tracker too.
+    const titles = [(await rows.nth(0).locator("td.title").innerText()).trim(), (await rows.nth(1).locator("td.title").innerText()).trim()];
     await rows.nth(0).getByRole("checkbox").check();
     await rows.nth(1).getByRole("checkbox").check();
+    await expect(bar).toContainText("2 selected");
     await bar.getByRole("button", { name: "Delete selected" }).click();
     const confirm = page.getByRole("alertdialog", { name: "Delete 2 entries?" });
-    await expect(confirm).toContainText("will disappear from the Tracker, Phantoms, the Dashboard and exports");
+    await expect(confirm.getByRole("button", { name: "Delete Phantom Entries" })).toBeVisible();
     await expect(confirm).toContainText(titles[0]!);
     await expectAccessible(page, "/phantoms delete confirmation");
     await confirm.getByLabel(/Reason/).fill("E2E bulk deletion");
-    await confirm.getByRole("button", { name: "Delete 2 entries" }).click();
-    await expect(page.locator(".toast")).toContainText("Deleted 2 entries from the tracker");
+    await confirm.getByRole("button", { name: "Delete Globally" }).click();
+    await expect(page.locator(".toast")).toContainText("Deleted 2 entries globally");
     await expect(page.getByRole("alertdialog")).toHaveCount(0);
     for (const t of titles) await expect(page.locator("table tbody td.title", { hasText: t })).toHaveCount(0);
-    // Gone from the Tracker too.
     await page.getByRole("navigation").getByRole("link", { name: "Tracker" }).click();
-    await page.getByRole("searchbox").fill(titles[0]!);
+    const search = page.getByRole("searchbox");
+    await search.fill(titles[0]!);
     await expect(page.locator("table tbody td.title", { hasText: titles[0]! })).toHaveCount(0);
+    // The Phantom-only deletion is still in the Tracker.
+    await search.fill(only);
+    await expect(page.locator("table tbody td.title", { hasText: only })).toBeVisible();
   });
 
   test("opens the saved page full-window in a new tab", async ({ page, context }) => {
@@ -405,8 +463,7 @@ test.describe("analyst role", () => {
     const title = `Sanofi opens AI hub ${uid()}`;
     const file = htmlFile("phantom.html", `<!DOCTYPE html><html><head><title>${title}</title></head><body><article><h1>${title}</h1><p>Sanofi has opened an AI hub in Paris with 300 staff, the company said on Monday.</p><p>The hub opens in 2027.</p></article></body></html>`);
     await page.goto("/input");
-    await page.getByTestId("source-secondary").locator('input[type="file"]').setInputFiles(file);
-    await page.getByRole("button", { name: "Process file for Secondary Source" }).click();
+    await uploadTo(page, "secondary", file);
     await expect(page.getByText("Complete · sent to the Secondary Inbox")).toBeVisible({ timeout: 30_000 });
     await page.goto("/inbox?stream=secondary");
     const first = page.locator(".inbox-card", { hasText: title });
