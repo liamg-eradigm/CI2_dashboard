@@ -381,6 +381,11 @@ export function TrackerPage({ me, view = "tracker", title, above }: { me: Me; vi
                   <th scope="col" className="src-col">
                     <span>Source</span>
                   </th>
+                  {canAttach && (
+                    <th scope="col" className="src-col">
+                      <span>Edit</span>
+                    </th>
+                  )}
                   {cols.map((c) => {
                     const active = sortKey === c.key;
                     return (
@@ -416,6 +421,16 @@ export function TrackerPage({ me, view = "tracker", title, above }: { me: Me; vi
                       </td>
                     )}
                     <SourceCell s={r} canAttach={canAttach} onOpen={() => setParam({ saved: r.id }, true)} />
+                    {canAttach && (
+                      <td className="src-col">
+                        <button className="src-btn open edit-btn" onClick={() => setParam({ signal: r.id, edit: "1" }, true)} aria-label={`Edit ${titleOf(r)}`} title="Edit, then approve again">
+                          <svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true">
+                            <path d="M13.6 3.2l3.2 3.2-9.4 9.4-3.9.7.7-3.9 9.4-9.4Z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+                            <path d="M11.8 5l3.2 3.2" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                          </svg>
+                        </button>
+                      </td>
+                    )}
                     {cols.map((c) =>
                       c.key === CORE.title ? (
                         <td key={c.key} className="title">
@@ -480,9 +495,25 @@ export function TrackerPage({ me, view = "tracker", title, above }: { me: Me; vi
         />
       )}
       {mdOpen && !selected && (
-        <MarkdownPanel id={mdOpen} onClose={() => setParam({ md: null })} onOpenRecord={(id) => setParam({ md: null, signal: id }, true)} />
+        <MarkdownPanel
+          id={mdOpen}
+          onClose={() => setParam({ md: null })}
+          onOpenRecord={(id) => setParam({ md: null, signal: id }, true)}
+          onEdit={canAttach ? (id) => setParam({ md: null, signal: id, edit: "1" }, true) : undefined}
+        />
       )}
-      {selected && <RecordDrawer id={selected} schema={s} me={me} table={view === "tracker" || view === "phantoms" ? view : undefined} onClose={() => setParam({ signal: null })} onOpen={(id) => setParam({ signal: id }, true)} />}
+      {selected && (
+        <RecordDrawer
+          key={`${selected}-${f.params.get("edit") ?? ""}`}
+          id={selected}
+          schema={s}
+          me={me}
+          table={view === "tracker" || view === "phantoms" ? view : undefined}
+          startEditing={canAttach && f.params.get("edit") === "1"}
+          onClose={() => setParam({ signal: null, edit: null })}
+          onOpen={(id) => setParam({ signal: id, edit: null }, true)}
+        />
+      )}
     </>
   );
 }

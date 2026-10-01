@@ -1,6 +1,6 @@
-import { useRef, useState, type DragEvent } from "react";
+import { useMemo, useRef, useState, type DragEvent } from "react";
 import { Link } from "react-router-dom";
-import { AUTO_KEYS, IMPORT_CHUNK_ROWS, STREAM_LABEL, parseSpreadsheet, sortedColumns, toXlsx, type Stream } from "@eradigm/shared";
+import { IMPORT_CHUNK_ROWS, STREAM_LABEL, importRules, listOptions, optionSheets, parseSpreadsheet, toXlsxSheets, type Grid, type ImportColumnRule, type Stream, type TrackerSchema } from "@eradigm/shared";
 import { api, type ApiError } from "../api/client";
 import { useInvalidate, useSchema } from "../api/hooks";
 import { StreamSwitch } from "./StreamSwitch";
@@ -21,6 +21,35 @@ const norm = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
 const DRY_RUN_ROWS = 200;
 
 /**
+ * The sheet's rows keyed by the current column names, and any header
+ * problems. Worked out from the stream's columns as they are now, so a column
+ * renamed under Inbox → Edit columns applies without choosing the file again.
+ */
+function prepare(grid: Grid, rules: ImportColumnRule[], streamName: string): { rows: Row[]; problems: string[] } {
+  const header = (grid[0] ?? []).map((h) => h.trim());
+  const labels = new Map(rules.map((c) => [norm(c.label), c.label]));
+  const problems: string[] = [];
+  if (!header.some(Boolean)) problems.push("The first row must hold the column names.");
+  const unknown = header.filter((h) => h && !labels.has(norm(h)));
+  if (unknown.length) problems.push(`Not a ${streamName} Tracker column: ${unknown.map((u) => `“${u}”`).join(", ")}. Column names must match the ${streamName} Inbox columns (see “What each column accepts” or download the template).`);
+  const dupes = header.filter((h, i) => h && header.findIndex((x) => norm(x) === norm(h)) !== i);
+  if (dupes.length) problems.push(`Column named twice: ${[...new Set(dupes)].map((u) => `“${u}”`).join(", ")}.`);
+  const missing = rules.filter((r) => r.required && !header.some((h) => norm(h) === norm(r.label)));
+  if (missing.length) problems.push(`Missing required column${missing.length === 1 ? "" : "s"}: ${missing.map((m) => `“${m.label}”`).join(", ")}.`);
+  const rows: Row[] = [];
+  grid.slice(1).forEach((cells, i) => {
+    if (!cells.some((c) => c && c.trim())) return;
+    const values: Record<string, string> = {};
+    header.forEach((h, j) => {
+      if (h) values[labels.get(norm(h)) ?? h] = (cells[j] ?? "").trim();
+    });
+    rows.push({ row: i + 2, values });
+  });
+  if (!rows.length && header.some(Boolean)) problems.push("No rows to import below the column names.");
+  return { rows, problems };
+}
+
+/**
  * One-off import of existing entries into the Primary or Secondary Tracker
  * from a spreadsheet (.xlsx, .csv or .tsv). The first row must hold the
  * tracker's column names; each further row becomes a published entry.
@@ -30,8 +59,9 @@ export function ImportCard() {
   const schema = useSchema(stream);
   const inv = useInvalidate();
   const [file, setFile] = useState<File | null>(null);
-  const [rows, setRows] = useState<Row[] | null>(null);
-  const [headerErrors, setHeaderErrors] = useState<string[]>([]);
+  // The sheet as read; its rows and header checks follow the current columns.
+  const [grid, setGrid] = useState<Grid | null>(null);
+  const [readError, setReadError] = useState<string | null>(null);
   const [errors, setErrors] = useState<RowError[]>([]);
   const [status, setStatus] = useState<string | null>(null);
   const [done, setDone] = useState<{ n: number; first?: string; last?: string } | null>(null);
@@ -39,54 +69,45 @@ export function ImportCard() {
   const [dragging, setDragging] = useState(false);
   const depth = useRef(0);
   const inputRef = useRef<HTMLInputElement>(null);
-  const cols = schema.data ? sortedColumns(schema.data).filter((c) => !AUTO_KEYS.includes(c.key)) : [];
+  const rules = useMemo(() => (schema.data ? importRules(schema.data) : []), [schema.data]);
   const trackerName = `${STREAM_LABEL[stream]} Tracker`;
+  const prepared = useMemo(() => (grid ? prepare(grid, rules, STREAM_LABEL[stream]) : null), [grid, rules, stream]);
+  const rows = prepared?.rows ?? null;
+  const headerErrors = readError ? [readError] : (prepared?.problems ?? []);
 
   const reset = () => {
-    setRows(null);
-    setHeaderErrors([]);
+    setGrid(null);
+    setReadError(null);
     setErrors([]);
     setStatus(null);
     setDone(null);
     setProgress(null);
   };
 
-  const read = async (f: File | null, forStream = stream) => {
+  const read = async (f: File | null) => {
     reset();
     setFile(f);
     if (!f) return;
-    if (!/\.(xlsx|csv|tsv)$/i.test(f.name)) return setHeaderErrors(["Choose an .xlsx, .csv or .tsv file."]);
+    if (!/\.(xlsx|csv|tsv)$/i.test(f.name)) return setReadError("Choose an .xlsx, .csv or .tsv file.");
     try {
-      const grid = await parseSpreadsheet(new Uint8Array(await f.arrayBuffer()), f.name);
-      const header = (grid[0] ?? []).map((h) => h.trim());
-      const labels = new Map(cols.map((c) => [norm(c.label), c.label]));
-      const problems: string[] = [];
-      if (!header.some(Boolean)) problems.push("The first row must hold the column names.");
-      const unknown = header.filter((h) => h && !labels.has(norm(h)));
-      if (unknown.length) problems.push(`Not a ${STREAM_LABEL[forStream]} Tracker column: ${unknown.map((u) => `“${u}”`).join(", ")}. Column names must match the tracker exactly (download the template).`);
-      const dupes = header.filter((h, i) => h && header.findIndex((x) => norm(x) === norm(h)) !== i);
-      if (dupes.length) problems.push(`Column named twice: ${[...new Set(dupes)].map((u) => `“${u}”`).join(", ")}.`);
-      const data: Row[] = [];
-      grid.slice(1).forEach((cells, i) => {
-        if (!cells.some((c) => c && c.trim())) return;
-        const values: Record<string, string> = {};
-        header.forEach((h, j) => {
-          if (h) values[labels.get(norm(h)) ?? h] = (cells[j] ?? "").trim();
-        });
-        data.push({ row: i + 2, values });
-      });
-      if (!data.length) problems.push("No rows to import below the column names.");
-      setHeaderErrors(problems);
-      setRows(data);
+      setGrid(await parseSpreadsheet(new Uint8Array(await f.arrayBuffer()), f.name));
     } catch (e) {
-      setHeaderErrors([`Could not read the file · ${(e as Error).message}`]);
+      setReadError(`Could not read the file · ${(e as Error).message}`);
     }
   };
 
   const run = async () => {
-    if (!rows || !file) return;
+    if (!grid || !file) return;
     setErrors([]);
     setDone(null);
+    // Always check against the columns and options as they are now (they may
+    // have just been changed under Inbox → Edit columns, here or elsewhere).
+    setStatus("Loading the latest columns and options…");
+    const fresh = (await schema.refetch()).data ?? schema.data;
+    const cur = prepare(grid, fresh ? importRules(fresh) : rules, STREAM_LABEL[stream]);
+    if (cur.problems.length) return setStatus(null);
+    const rows = cur.rows;
+    const cols = fresh ? importRules(fresh) : rules;
     // IDs must be unique across the whole file (the server also checks each request and the tracker).
     const idLabel = cols.find((c) => c.key === "record_id")?.label ?? "ID";
     const seen = new Map<string, number>();
@@ -129,7 +150,7 @@ export function ImportCard() {
       }
       setDone({ n: codes.length, first: codes[0], last: codes[codes.length - 1] });
       setStatus(null);
-      setRows(null);
+      setGrid(null);
       setFile(null);
       if (inputRef.current) inputRef.current.value = "";
       await inv("tracker", "dashboard", "schema");
@@ -139,7 +160,9 @@ export function ImportCard() {
   };
 
   const template = () => {
-    const bytes = toXlsx([cols.map((c) => c.label)], `${STREAM_LABEL[stream]} Tracker`);
+    if (!schema.data) return;
+    // The column names, plus the current dropdown options and subtrends for reference.
+    const bytes = toXlsxSheets([{ name: `${STREAM_LABEL[stream]} Tracker`, table: [rules.map((c) => c.label)] }, ...optionSheets(schema.data as TrackerSchema)]);
     const url = URL.createObjectURL(new Blob([bytes as unknown as ArrayBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
     const a = document.createElement("a");
     a.href = url;
@@ -193,20 +216,53 @@ export function ImportCard() {
           noun="Tracker"
           value={stream}
           onChange={(s) => {
+            // Keep the chosen file: it is checked again against the other stream's columns.
             setStream(s);
-            reset();
-            setFile(null);
-            if (inputRef.current) inputRef.current.value = "";
+            setErrors([]);
+            setStatus(null);
+            setDone(null);
+            setProgress(null);
           }}
           label="Tracker to import into"
         />
       </div>
       <p className="import-help">
         The first row must hold the column names of the {trackerName}, spelled exactly as in the tracker; each further row is one entry. Competitors are separated by commas; dates as YYYY-MM-DD (Excel dates work too).
-        <button className="link-btn" onClick={template} disabled={!cols.length}>
+        <button className="link-btn" onClick={template} disabled={!rules.length}>
           Download the {trackerName} template (.xlsx)
         </button>
       </p>
+      <details className="import-rules" data-testid="import-rules">
+        <summary>What each {STREAM_LABEL[stream]} column accepts · follows Inbox → Edit columns ({STREAM_LABEL[stream]} Inbox)</summary>
+        <div className="table-wrap" tabIndex={0} role="region" aria-label={`What each ${STREAM_LABEL[stream]} column accepts`}>
+          <table className="data" style={{ fontSize: 12.5 }}>
+            <caption className="sr-only">{trackerName} import columns</caption>
+            <thead>
+              <tr>
+                <th scope="col">Column</th>
+                <th scope="col">Required</th>
+                <th scope="col">Accepts</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rules.map((r) => (
+                <tr key={r.key}>
+                  <td className="nowrap">
+                    <b>{r.label}</b>
+                  </td>
+                  <td>{r.required ? "Required" : "Optional"}</td>
+                  <td>
+                    {r.accepts}
+                    {r.options && r.key !== "subtrend" ? `: ${listOptions(r.options, 40)}` : ""}
+                    {r.key === "subtrend" ? " (see the template's Subtrends sheet)" : ""}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="card-sub" style={{ margin: "6px 0 0" }}>Dropdown values match whatever their capitals, spacing, quotes or dashes. Each Inbox has its own options, so add missing ones to the {STREAM_LABEL[stream]} Inbox.</p>
+      </details>
       <div className="source-row">
         <label className={`drop${dragging ? " over" : ""}`} data-testid="drop-zone-import">
           <input ref={inputRef} type="file" accept=".xlsx,.csv,.tsv,text/csv,text/tab-separated-values,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="sr-only" onChange={(e) => void read(e.target.files?.[0] ?? null)} aria-label={`Spreadsheet to import into the ${trackerName}`} />

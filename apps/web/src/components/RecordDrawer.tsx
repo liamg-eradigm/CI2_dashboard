@@ -49,6 +49,7 @@ export function RecordDrawer({
   schema: pageSchema,
   me,
   table,
+  startEditing = false,
   onClose,
   onOpen,
 }: {
@@ -57,6 +58,8 @@ export function RecordDrawer({
   me: Me;
   /** The table the drawer was opened from; deleting then offers "that table only". None on the Dashboard. */
   table?: DeleteTable;
+  /** Open straight into the edit form (from an Edit button). */
+  startEditing?: boolean;
   onClose: () => void;
   onOpen: (id: string) => void;
 }) {
@@ -65,7 +68,8 @@ export function RecordDrawer({
   const own = useSchema(sig.data?.stream ?? "primary");
   const schema = own.data ?? pageSchema;
   const ref = useFocusTrap(true, onClose);
-  const [editing, setEditing] = useState(false);
+  // Opened from an Edit button: start in the edit form.
+  const [editing, setEditing] = useState(startEditing);
   const [deleting, setDeleting] = useState(false);
   const s = sig.data;
   const cols = sortedColumns(schema);
@@ -97,7 +101,7 @@ export function RecordDrawer({
           <div style={{ display: "flex", gap: 8 }}>
             {canRevise && s && !editing && !deleting && (
               <button className="btn secondary small" onClick={() => setEditing(true)}>
-                Revise
+                ✎ Edit
               </button>
             )}
             {canDelete && s && !editing && !deleting && (
@@ -136,7 +140,7 @@ export function RecordDrawer({
             </div>
 
             {editing ? (
-              <ReviseForm id={id} schema={schema} values={s.values} onDone={() => setEditing(false)} />
+              <EditForm id={id} code={s.code} schema={schema} values={s.values} onDone={() => setEditing(false)} />
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 <div className="section-h">Classifications</div>
@@ -276,63 +280,89 @@ export function RecordDrawer({
   );
 }
 
-function ReviseForm({ id, schema, values, onDone }: { id: string; schema: TrackerSchema; values: Record<string, unknown>; onDone: () => void }) {
+/**
+ * Edit an approved entry, then approve it again: the new version is validated
+ * like an approval and published as a new revision, so the Tracker, Phantoms,
+ * Markdown, Dashboard and alerts are regenerated from it.
+ */
+function EditForm({ id, code, schema, values, onDone }: { id: string; code: string; schema: TrackerSchema; values: Record<string, unknown>; onDone: () => void }) {
   const [v, setV] = useState<Record<string, unknown>>(() => ({ ...values, [CORE.competitors]: ((values[CORE.competitors] as string[]) ?? []).join(", ") }));
   const [note, setNote] = useState("");
   const [err, setErr] = useState<string | null>(null);
+  const [fieldErr, setFieldErr] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
   const toast = useToast();
   const inv = useInvalidate();
   const submit = async () => {
     setErr(null);
+    setFieldErr({});
+    setBusy(true);
     try {
-      await api(`/api/signals/${id}/revise`, { method: "POST", json: { values: normaliseValues(schema, v), note } });
+      const r = await api<{ rev: number }>(`/api/signals/${id}/revise`, { method: "POST", json: { values: normaliseValues(schema, v), ...(note.trim() ? { note: note.trim() } : {}) } });
       await inv();
-      toast("Published a new revision");
+      toast(`${code} approved again as rev ${r.rev} · Markdown and deliverables updated`);
       onDone();
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : "Could not save");
+      if (e instanceof ApiError) {
+        setErr(e.fields.length ? `${e.fields.length === 1 ? "One field needs" : `${e.fields.length} fields need`} attention before approval.` : e.message);
+        setFieldErr(Object.fromEntries(e.fields.map((f) => [f.key, f.message])));
+      } else setErr("Could not save");
+      setBusy(false);
     }
   };
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      <div className="section-h">Revise classification</div>
+    <div className="edit-form" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div className="section-h">Edit entry</div>
+      <p className="card-sub" style={{ margin: 0 }}>
+        Change any field, then approve. The new version is checked like a new approval and published as a new revision: the Tracker, Phantoms, Markdown, Dashboard and alerts all update.
+      </p>
       {sortedColumns(schema).map((c) => {
         const val = String(v[c.key] ?? "");
         const set = (x: string) => setV((p) => ({ ...p, [c.key]: x, ...(c.type === "macro" ? { [CORE.subtrend]: "" } : {}) }));
         const opts = c.type === "sub" ? subtrendsOf(schema, String(v[CORE.macrotrend] ?? "")) : optionsOf(schema, c);
+        const fe = fieldErr[c.key];
+        const errId = fe ? `edit-err-${c.key}` : undefined;
         return (
           <label className="field" key={c.key}>
-            <span>{c.label}</span>
+            <span>
+              {c.label}
+              {c.required ? " *" : ""}
+            </span>
             {AUTO_KEYS.includes(c.key) ? (
               <input className="control" value={val} readOnly aria-readonly="true" />
             ) : c.type === "text" ? (
-              <input className="control" value={val} onChange={(e) => set(e.target.value)} />
+              <input className="control" value={val} onChange={(e) => set(e.target.value)} aria-invalid={!!fe} aria-describedby={errId} />
             ) : c.type === "long" ? (
-              <textarea className="control" rows={4} style={{ height: "auto", padding: 8, lineHeight: 1.45 }} value={val} onChange={(e) => set(e.target.value)} />
+              <textarea className="control" rows={6} style={{ height: "auto", padding: 8, lineHeight: 1.45, resize: "vertical" }} value={val} onChange={(e) => set(e.target.value)} aria-invalid={!!fe} aria-describedby={errId} />
             ) : c.type === "multi" ? (
-              <Combobox multiple label={c.label} options={opts} placeholder="Select…" value={splitMulti(val)} onChange={(list) => set(list.join(", "))} />
+              <Combobox multiple label={c.label} options={opts} placeholder="Select…" value={splitMulti(val)} onChange={(list) => set(list.join(", "))} invalid={!!fe} describedBy={errId} />
             ) : c.type === "date" ? (
-              <input className="control" type="date" value={val} onChange={(e) => set(e.target.value)} />
+              <input className="control" type="date" value={val} onChange={(e) => set(e.target.value)} aria-invalid={!!fe} aria-describedby={errId} />
             ) : (
-              <Combobox label={c.label} options={opts} placeholder="Select…" pinned={val ? [{ value: "", label: "— Clear —" }] : []} value={val} onChange={set} />
+              <Combobox label={c.label} options={opts} placeholder="Select…" pinned={val ? [{ value: "", label: "— Clear —" }] : []} value={val} onChange={set} invalid={!!fe} describedBy={errId} />
+            )}
+            {fe && (
+              <span className="err-msg field-err" id={errId}>
+                ✕ {fe}
+              </span>
             )}
           </label>
         );
       })}
       <label className="field">
-        <span>Reason for revision (required)</span>
-        <input className="control" value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Impact reclassified after client call" />
+        <span>Note (optional, kept in the revision history)</span>
+        <input className="control" value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} placeholder="e.g. Impact reclassified after client call" />
       </label>
       {err && (
         <div className="err-msg" role="alert">
           ✕ {err}
         </div>
       )}
-      <div style={{ display: "flex", gap: 8 }}>
-        <button className="btn" disabled={!note.trim()} onClick={submit}>
-          Publish revision
+      <div className="edit-actions">
+        <button className="btn" disabled={busy} onClick={() => void submit()}>
+          {busy ? "Approving…" : "✓ Approve"}
         </button>
-        <button className="btn secondary" onClick={onDone}>
+        <button className="btn secondary" disabled={busy} onClick={onDone}>
           Cancel
         </button>
       </div>

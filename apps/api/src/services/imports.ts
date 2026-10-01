@@ -20,10 +20,19 @@ import {
   checkAndNormaliseUrl,
   dedupeKey,
   excelDate,
+  hasOptions,
+  listOptions,
+  matchOption,
   normaliseValues,
+  optionsOf,
+  splitMulti,
+  subtrendsOf,
   validateValues,
+  type FieldError,
+  type ItemValues,
   type Stream,
   type TrackerColumn,
+  type TrackerSchema,
 } from "@eradigm/shared";
 import type { Principal } from "../auth/context.js";
 import type { Env } from "../env.js";
@@ -59,6 +68,65 @@ function cell(col: TrackerColumn, v: string | string[] | null | undefined): stri
   return s;
 }
 
+const STREAM_NAME: Record<Stream, string> = { primary: "Primary", secondary: "Secondary" };
+
+/**
+ * Dropdown values as the configured options: "press release" or "Press  release"
+ * mean "Press Release" (case, spacing, quote and dash styles do not matter).
+ * Values that match nothing are left as they are, for the checks to report.
+ */
+function canonicalise(schema: TrackerSchema, values: ItemValues): ItemValues {
+  const out: ItemValues = { ...values };
+  const macroCol = schema.columns.find((c) => c.key === CORE.macrotrend);
+  const m = out[CORE.macrotrend];
+  if (macroCol && typeof m === "string") out[CORE.macrotrend] = matchOption(m, optionsOf(schema, macroCol)) ?? m;
+  for (const col of schema.columns) {
+    const v = out[col.key];
+    if (v == null || col.key === CORE.macrotrend) continue;
+    if (col.type === "multi") {
+      const opts = optionsOf(schema, col);
+      out[col.key] = splitMulti(v).map((x) => matchOption(x, opts) ?? x);
+    } else if (col.type === "sub" && typeof v === "string") {
+      const macro = out[CORE.macrotrend];
+      out[col.key] = (typeof macro === "string" ? matchOption(v, subtrendsOf(schema, macro)) : null) ?? matchOption(v, optionsOf(schema, col)) ?? v;
+    } else if ((col.type === "select" || col.type === "macro") && typeof v === "string") {
+      out[col.key] = matchOption(v, optionsOf(schema, col)) ?? v;
+    }
+  }
+  return out;
+}
+
+/**
+ * An import problem in plain words: for a dropdown, the value, the allowed
+ * options (of this stream) and where to add one; and whether the value is an
+ * option of the other stream instead (each Inbox has its own options).
+ */
+function explain(schema: TrackerSchema, other: TrackerSchema, stream: Stream, values: ItemValues, e: FieldError): string {
+  const col = schema.columns.find((c) => c.key === e.key);
+  if (!col || (e.code !== "not_in_taxonomy" && e.code !== "subtrend_mismatch")) return e.message;
+  const name = STREAM_NAME[stream];
+  const otherName = STREAM_NAME[stream === "primary" ? "secondary" : "primary"];
+  const where = `Add or rename options under Inbox → Edit columns (${name} Inbox), then check again.`;
+  const otherCol = other.columns.find((c) => c.key === e.key);
+  const otherHas = (v: string) => !!otherCol && hasOptions(otherCol) && !!matchOption(v, optionsOf(other, otherCol));
+  const hint = (v: string) => (otherHas(v) ? ` “${v}” is a ${otherName} option: did you mean to import into the ${otherName} Tracker?` : "");
+  if (col.type === "multi") {
+    const opts = optionsOf(schema, col);
+    const bad = splitMulti(values[col.key]).filter((x) => !opts.includes(x));
+    return `${bad.map((b) => `“${b}”`).join(", ")} ${bad.length === 1 ? "is not a" : "are not"} ${name} ${col.label} option${bad.length === 1 ? "" : "s"}. Options: ${listOptions(opts)}. ${where}${bad.map(hint).join("")}`;
+  }
+  const v = String(values[col.key] ?? "");
+  if (col.type === "sub") {
+    const macro = typeof values[CORE.macrotrend] === "string" ? (values[CORE.macrotrend] as string) : "";
+    const macroLabel = schema.columns.find((c) => c.key === CORE.macrotrend)?.label ?? "Macrotrend";
+    const owner = schema.taxonomy.find((g) => g.subtrends.includes(v))?.name;
+    const subs = macro ? subtrendsOf(schema, macro) : [];
+    if (owner && macro && owner !== macro) return `“${v}” belongs to the ${macroLabel} “${owner}”, not “${macro}”. Subtrends of “${macro}”: ${listOptions(subs)}. ${where}`;
+    return `“${v}” is not a ${name} ${col.label}${macro ? ` of “${macro}”` : ""}. ${macro ? `Subtrends of “${macro}”: ${listOptions(subs)}` : `${macroLabel} must be set first`}. ${where}${hint(v)}`;
+  }
+  return `“${v}” is not a ${name} ${col.label} option. Options: ${listOptions(optionsOf(schema, col))}. ${where}${hint(v)}`;
+}
+
 async function allocCodes(env: Env, tenantId: string, name: "inbox" | "signal", n: number): Promise<string[]> {
   const bump = () => env.DB.prepare("UPDATE counters SET value = value + ?3 WHERE tenant_id = ?1 AND name = ?2 RETURNING value").bind(tenantId, name, n).first<{ value: number }>();
   let r = await bump();
@@ -80,6 +148,7 @@ export async function importRows(
   dryRun: boolean,
 ): Promise<{ ok: boolean; imported: number; errors: ImportError[]; codes: string[] }> {
   const schema = schemas[stream];
+  const other = schemas[stream === "primary" ? "secondary" : "primary"];
   const byLabel = new Map(schema.columns.map((c) => [norm(c.label), c]));
   const errors: ImportError[] = [];
   const unknown = new Set<string>();
@@ -97,10 +166,10 @@ export async function importRows(
       }
       raw[col.key] = cell(col, v);
     }
-    const values = normaliseValues(schema, raw);
+    const values = canonicalise(schema, normaliseValues(schema, raw));
     if (hasTier) values[FIELDS.sourceTier] = SOURCE_TIER[stream];
     if (hasReviewDate && !values[FIELDS.reviewDate]) values[FIELDS.reviewDate] = today;
-    for (const e of validateValues(schema, values, { forApproval: true })) errors.push({ row: r.row, column: e.label, message: e.message });
+    for (const e of validateValues(schema, values, { forApproval: true })) errors.push({ row: r.row, column: e.label, message: explain(schema, other, stream, values, e) });
     return { row: r.row, values };
   });
   for (const u of unknown) errors.push({ row: 1, column: u, message: `“${u}” is not a column of the ${stream === "primary" ? "Primary" : "Secondary"} Tracker` });

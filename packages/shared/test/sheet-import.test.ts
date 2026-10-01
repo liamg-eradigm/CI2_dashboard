@@ -55,3 +55,35 @@ describe("Primary layout", () => {
     expect(md.endsWith("## Key Metrics\n5%\n")).toBe(true);
   });
 });
+
+describe("import rules (follow the Inbox columns)", () => {
+  it("matches dropdown values whatever their capitals, spacing, quotes or dashes, but only to one option", async () => {
+    const { matchOption, foldOption } = await import("../src/index");
+    expect(matchOption("  press   RELEASE ", ["PR", "Press Release"])).toBe("Press Release");
+    expect(matchOption("Pfizer’s pick – AI", ["Pfizer's pick - AI"])).toBe("Pfizer's pick - AI");
+    expect(matchOption("Unknown", ["PR"])).toBeNull();
+    expect(matchOption("ab", ["AB", "ab ", "Ab"])).toBeNull(); // ambiguous
+    expect(foldOption("R&D  Hub")).toBe("r&d hub");
+  });
+
+  it("describes every column from the current schema and writes the options into the template", async () => {
+    const { defaultSchema, importRules, optionSheets, toXlsxSheets, parseXlsx } = await import("../src/index");
+    const s = defaultSchema("secondary");
+    s.columns.find((c) => c.key === "source")!.options!.push("Analyst Call");
+    const rules = importRules(s);
+    expect(rules.map((r) => r.label)).not.toContain("Source Tier"); // set automatically
+    const src = rules.find((r) => r.key === "source")!;
+    expect(src).toMatchObject({ required: true, accepts: "One of the options" });
+    expect(src.options).toContain("Analyst Call");
+    expect(rules.find((r) => r.key === "competitors")!.accepts).toMatch(/separated by commas/);
+    const sheets = optionSheets(s);
+    expect(sheets.map((x) => x.name)).toEqual(["Options", "Subtrends"]);
+    const col = sheets[0]!.table[0]!.indexOf("Source Type");
+    expect(sheets[0]!.table.map((r) => r[col])).toContain("Analyst Call");
+    expect(sheets[1]!.table[0]).toEqual(["Macrotrend", "Subtrend"]);
+    // A real multi-sheet workbook; the first sheet (the template) is what an import reads.
+    const bytes = toXlsxSheets([{ name: "Secondary Tracker", table: [rules.map((r) => r.label)] }, ...sheets]);
+    const grid = await parseXlsx(bytes);
+    expect(grid[0]).toEqual(rules.map((r) => r.label));
+  });
+});

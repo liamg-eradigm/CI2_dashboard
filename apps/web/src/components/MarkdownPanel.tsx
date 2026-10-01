@@ -74,7 +74,7 @@ function FrontMatter({ lines }: { lines: FmLine[] }) {
  * the whole pane is the file (scrollable), under a slim header with Download
  * at the top right. A Preview switch shows it rendered.
  */
-export function MarkdownPanel({ id, onClose, onOpenRecord }: { id: string; onClose: () => void; onOpenRecord: (id: string) => void }) {
+export function MarkdownPanel({ id, onClose, onOpenRecord, onEdit }: { id: string; onClose: () => void; onOpenRecord: (id: string) => void; onEdit?: (id: string) => void }) {
   const md = useMarkdown(id);
   const sig = useSignal(id);
   const ref = useFocusTrap(true, onClose);
@@ -126,6 +126,11 @@ export function MarkdownPanel({ id, onClose, onOpenRecord }: { id: string; onClo
             <button className="link-btn" onClick={() => onOpenRecord(id)}>
               Open full record
             </button>
+            {onEdit && (
+              <button className="link-btn" onClick={() => onEdit(id)}>
+                ✎ Edit
+              </button>
+            )}
             <button
               className="link-btn"
               onClick={() =>

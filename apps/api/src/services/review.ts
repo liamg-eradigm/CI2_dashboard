@@ -269,18 +269,30 @@ export async function approve(
   return getSummary(env, schemas, p.tenantId, id);
 }
 
-export async function revise(env: Env, schemas: Schemas, p: Principal, id: string, raw: Record<string, unknown>, note: string): Promise<void> {
+/**
+ * Edit an approved entry and approve it again. The new version goes through
+ * the approval checks again (required fields, options, dates, unique ID), is
+ * published as a new revision, and is re-stamped as approved by the editor
+ * (QC Reviewed_by) today (Review Date, unless the editor set it). The Tracker,
+ * Phantoms, Markdown, Dashboard and alerts all follow the new revision.
+ */
+export async function revise(env: Env, schemas: Schemas, p: Principal, id: string, raw: Record<string, unknown>, note?: string): Promise<void> {
   const row = await getItemRow(env, p.tenantId, id);
   const schema = schemas[row.stream];
-  if (row.status !== "approved") throw conflict("Only approved signals can be revised");
+  if (row.status !== "approved") throw conflict("Only approved entries can be edited here");
   const values = withAutoValues(schema, row, normaliseValues(schema, raw));
+  const current = normaliseValues(schema, JSON.parse(row.draft_json || "{}"));
+  const changed = changedKeys(schema, current, values);
+  if (!changed.length) throw new ApiError("BAD_REQUEST", "Nothing changed");
+  // Re-approved today, unless the editor chose the Review Date themselves.
+  if (schema.columns.some((c) => c.key === FIELDS.reviewDate) && (!values[FIELDS.reviewDate] || !changed.includes(FIELDS.reviewDate))) {
+    values[FIELDS.reviewDate] = await todayIn(env, p.tenantId);
+    if (current[FIELDS.reviewDate] !== values[FIELDS.reviewDate] && !changed.includes(FIELDS.reviewDate)) changed.push(FIELDS.reviewDate);
+  }
   const errors = validateValues(schema, values, { forApproval: true });
   if (errors.length) throw validationError(errors);
   const idLabel = schema.columns.find((c) => c.key === FIELDS.id)?.label ?? "ID";
   await assertUniqueId(env, p.tenantId, id, values, idLabel);
-  const current = normaliseValues(schema, JSON.parse(row.draft_json || "{}"));
-  const changed = changedKeys(schema, current, values);
-  if (!changed.length) throw new ApiError("BAD_REQUEST", "Nothing changed");
   const prov = JSON.parse(row.provenance_json || "{}") as Record<string, string | null>;
   for (const k of changed) prov[k] = values[k] == null ? null : "analyst";
   const pub = await env.DB.prepare("SELECT COALESCE(MAX(published_rev), 0) + 1 AS n FROM item_revisions WHERE item_id = ?1").bind(id).first<{ n: number }>();
@@ -292,13 +304,13 @@ export async function revise(env: Env, schemas: Schemas, p: Principal, id: strin
   try {
     res = await env.DB.batch([
     env.DB.prepare(
-      "UPDATE intelligence_items SET draft_json = ?1, provenance_json = ?2, published_rev = ?3, version = version + 1, op_token = ?4, updated_at = ?5 WHERE tenant_id = ?6 AND id = ?7 AND version = ?8 AND status = 'approved'",
-    ).bind(JSON.stringify(values), JSON.stringify(prov), rev, token, now, p.tenantId, id, row.version),
+      "UPDATE intelligence_items SET draft_json = ?1, provenance_json = ?2, published_rev = ?3, approved_at = ?5, approved_by = ?9, version = version + 1, op_token = ?4, updated_at = ?5 WHERE tenant_id = ?6 AND id = ?7 AND version = ?8 AND status = 'approved'",
+    ).bind(JSON.stringify(values), JSON.stringify(prov), rev, token, now, p.tenantId, id, row.version, p.userId),
     ...projectionStatements(env, schema, p.tenantId, id, values, token),
     env.DB.prepare(
       `INSERT INTO item_revisions (id, tenant_id, item_id, seq, kind, published_rev, values_json, provenance_json, changed_keys, created_by, created_at, note)
        SELECT ?, ?, ?, ?, 'published', ?, ?, ?, ?, ?, ?, ? WHERE ${g.sql}`,
-    ).bind(newId("rev"), p.tenantId, id, await nextSeq(env, id), rev, JSON.stringify(values), JSON.stringify(prov), JSON.stringify(changed), p.userId, now, note.trim(), ...g.binds),
+    ).bind(newId("rev"), p.tenantId, id, await nextSeq(env, id), rev, JSON.stringify(values), JSON.stringify(prov), JSON.stringify(changed), p.userId, now, note?.trim() || "Edited and re-approved", ...g.binds),
   ]);
   } catch (err) {
     if (isUniqueViolation(err)) throw idTaken(String(values[FIELDS.id]), idLabel);
