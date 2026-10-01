@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { defaultSchema, entryMarkdown, filterableColumns, markdownFileName, mergeSchemas, normaliseValues, phantomColumns, sortedColumns, trackerColumns, validateValues, yamlScalar } from "../src/index";
+import { defaultSchema, entryMarkdown, filterableColumns, markdownFileName, mergeSchemas, tellMeMoreKey, normaliseValues, phantomColumns, sortedColumns, trackerColumns, validateValues, yamlScalar } from "../src/index";
 
 describe("Phantoms Markdown", () => {
   it("quotes only values YAML would misread", () => {
@@ -18,6 +18,18 @@ describe("Phantoms Markdown", () => {
     const md = entryMarkdown({ record_id: "P-1", title: "T" }, { reviewedBy: null });
     expect(md.split("\n").slice(0, 6)).toEqual(["---", "id: P-1", "title: T", "event_date:", "source_type:", "Source:"]);
     expect(md).toContain("QC:\n  Reviewed_by:\n  Review_date:\n  Accurate_as_of:\n---\n## Header\n\n\n## Key Details\n\n\n## CI Perspective\n\n");
+  });
+
+  it("prints Tell Me More under Key Details, as part of that section (Secondary)", () => {
+    const cols = [{ key: "x_tell_me_more_ab12c", label: "Tell Me More" }, { key: "key_details", label: "Key Details" }];
+    expect(tellMeMoreKey(cols)).toBe("x_tell_me_more_ab12c");
+    expect(tellMeMoreKey([{ key: "x", label: "tell me more…" }])).toBe("x");
+    expect(tellMeMoreKey([{ key: "x", label: "Tell" }])).toBeNull();
+    const md = entryMarkdown({ key_details: "Pfizer signed.", x_tell_me_more_ab12c: "Deal terms:\n\n- $1bn upfront", ci_perspective: "Watch." }, { reviewedBy: null, tellMeMoreKey: "x_tell_me_more_ab12c" });
+    expect(md).toContain("## Key Details\nPfizer signed.\n\nDeal terms:\n\n- $1bn upfront\n\n## CI Perspective\nWatch.\n");
+    expect(md).not.toMatch(/tell me more/i);
+    // Empty: Key Details as before.
+    expect(entryMarkdown({ key_details: "Pfizer signed." }, { reviewedBy: null, tellMeMoreKey: "x_tell_me_more_ab12c" })).toContain("## Key Details\nPfizer signed.\n\n## CI Perspective");
   });
 
   it("names the file after the ID, safely", () => {

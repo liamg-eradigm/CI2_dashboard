@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { can, type Me } from "@eradigm/shared";
 import { useItem } from "../api/hooks";
 import { SnapshotActions, SnapshotFrame } from "../components/SnapshotFrame";
@@ -12,6 +12,8 @@ import { localDateTime } from "../lib/format";
  */
 export function SourcePage({ me }: { me: Me }) {
   const { id = "" } = useParams();
+  const [params] = useSearchParams();
+  const pageId = params.get("page");
   const staff = can(me.role, "inbox:read");
   const item = useItem(staff ? id : null);
   const d = item.data;
@@ -32,9 +34,9 @@ export function SourcePage({ me }: { me: Me }) {
             </div>
           )}
         </div>
-        <SnapshotActions itemId={id} code={d?.code ?? "source"} />
+        <SnapshotActions itemId={id} code={d?.code ?? "source"} pageId={pageId} />
       </header>
-      <SnapshotFrame itemId={id} title={`Saved source${d ? ` for ${d.code}` : ""}`} height="calc(100vh - 120px)" />
+      <SnapshotFrame itemId={id} pageId={pageId} title={`Saved source${d ? ` for ${d.code}` : ""}`} height="calc(100vh - 120px)" />
     </div>
   );
 }

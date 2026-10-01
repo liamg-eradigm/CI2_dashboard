@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  todayIso,
-  defaultDateRange,
   CORE,
   IN_PROGRESS_STATUSES,
   LOW_CONFIDENCE,
@@ -31,30 +29,17 @@ import { Combobox } from "../components/Combobox";
 import { ModelOutputTable } from "../components/ModelOutput";
 import { SchemaEditor, TableColumnsEditor } from "../components/SchemaEditor";
 import { SnapshotActions, SnapshotFrame } from "../components/SnapshotFrame";
-import { formatDate, localDateTime, pct } from "../lib/format";
+import { localDateTime, pct } from "../lib/format";
 import { useToast } from "../state/toast";
 
 
-/** Whether an Event Date falls outside the default date range (the last three months), which hides it from the tables and the Dashboard. */
-function outsideDefaultDates(date: unknown): boolean {
-  if (typeof date !== "string" || !date) return false;
-  const d = defaultDateRange(todayIso());
-  return date < d.from || date > d.to;
-}
-
-/** The approved entry in its Tracker (searched for, with the dates widened to include it when needed). */
+/** The approved entry in its Tracker (searched for; the default dates cover every entry). */
 function trackerLink(item: ItemSummary): string {
   const p = new URLSearchParams({ signal: item.id });
   if (item.stream === "secondary") p.set("stream", "secondary");
   // Search for it too, so the table behind the record shows exactly this entry.
   const title = String(item.draft[CORE.title] ?? "").trim();
   if (title) p.set("q", title.slice(0, 200));
-  const date = item.draft[CORE.date];
-  if (typeof date === "string" && outsideDefaultDates(date)) {
-    const d = defaultDateRange(todayIso());
-    p.set("from", date < d.from ? date : d.from);
-    p.set("to", date > d.to ? date : d.to);
-  }
   return `/tracker?${p.toString()}`;
 }
 
@@ -289,11 +274,7 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
       "/approve",
       { values: valuesRef.current, version: versionRef.current, ...(overrideDuplicate ? { overrideDuplicate: true } : {}) },
       (r) =>
-        `${r.signalCode} published to the tracker as rev ${r.publishedRev}${overrideDuplicate ? " (duplicate confirmed)" : ""}${
-          outsideDefaultDates(r.draft[CORE.date])
-            ? ` · its Event Date (${formatDate(String(r.draft[CORE.date]))}) is outside the default last-three-months view, so use “Show all dates” or View in Tracker to see it`
-            : ""
-        }`,
+        `${r.signalCode} published to the tracker as rev ${r.publishedRev}${overrideDuplicate ? " (duplicate confirmed)" : ""}`,
     );
   };
 

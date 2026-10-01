@@ -187,7 +187,7 @@ describe("attaching the saved page to a tracker entry", () => {
     const html = await (await call(w.a.client, "GET", `/api/items/${row.id}/snapshot`)).text();
     expect(html).toContain("Sanofi agreed to buy a biotech");
     expect(html).not.toContain("evil()");
-    // A second page cannot replace it; non-HTML files are refused.
+    // The same page twice is refused (other pages are added to the list: saved-pages test); non-HTML files are refused.
     expect((await call(w.a.analyst, "POST", `/api/items/${row.id}/snapshot`, { form: form() })).status).toBe(409);
     const txt = new FormData();
     txt.append("file", new File(["hello"], "notes.txt", { type: "text/plain" }));

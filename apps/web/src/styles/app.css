@@ -170,7 +170,7 @@ main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .grid-charts > .card.paired { display: grid; grid-row: span 2; grid-template-rows: subgrid; row-gap: 14px; align-content: start; }
 .chart-body { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 /* Same label and value columns in every paired chart, so bars start and end at the same x. */
-.card.paired .bar-row, .card.paired .bar-row.mix { grid-template-columns: 200px minmax(0, 1fr) 64px; }
+.card.paired .bar-row, .card.paired .bar-row.mix { grid-template-columns: 200px minmax(0, 1fr) 84px; }
 .full-row { grid-column: 1 / -1; }
 .legend { display: flex; gap: 12px; align-items: center; font-size: 12px; color: var(--ink-2); flex-wrap: wrap; }
 .legend .item { display: flex; align-items: center; gap: 6px; }
@@ -296,7 +296,7 @@ td.long .clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient
 
 .bars { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
 .bar-row { display: grid; grid-template-columns: 200px minmax(0, 1fr) 30px; gap: 12px; align-items: center; padding: 5px 0; }
-.bar-row.mix { grid-template-columns: 200px minmax(0, 1fr) 64px; }
+.bar-row.mix { grid-template-columns: 200px minmax(0, 1fr) 84px; }
 .bar-row .lbl { font-size: 12.5px; line-height: 1.25; text-wrap: pretty; }
 /* Clickable labels (filter buttons) must wrap exactly like plain labels, so paired charts' rows stay level. */
 .bar-row .lbl button { line-height: inherit; font-family: inherit; display: block; }
@@ -318,7 +318,7 @@ td.long .clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient
 .expand-chev { font-size: 16px; transition: transform 0.15s; }
 .expand-chev.up { transform: rotate(180deg); }
 .expand-txt { font: 600 11px var(--sans); letter-spacing: 0.02em; padding: 2px 0 3px; }
-.bar-row.mix .n { font-size: 11px; color: var(--ink-2); }
+.bar-row.mix .n { font-size: 11px; color: var(--ink-2); white-space: nowrap; }
 .foot-note { font-size: 12px; color: var(--muted); line-height: 1.45; padding-top: 10px; border-top: 1px solid var(--rule); }
 .empty { padding: 32px 20px; text-align: center; color: var(--muted); font-size: 14px; }
 
@@ -631,3 +631,26 @@ a.link-btn { text-decoration: none; }
 .invite-box { margin: 0 20px 14px; padding: 12px 14px; border: 1px solid var(--dashed); background: var(--tint-3); border-radius: 8px; display: grid; gap: 8px; font-size: 13px; }
 .invite-box .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .invite-box input { flex: 1 1 320px; font-family: var(--mono); font-size: 12px; }
+
+/* Tracker / Phantoms "Display all": one long table, scrolled inside the card with the header kept in view. */
+.pager-gap { flex: 1; }
+.pager-row:has(.pager-gap) { justify-content: flex-start; }
+.table-wrap.all { max-height: calc(100vh - 140px); overflow: auto; }
+.table-wrap.all thead th { position: sticky; top: 0; z-index: 2; background: var(--thead); }
+
+/* Several saved pages: the page icon extends into a list (components/SavedPages.tsx). */
+.src-btn.multi { width: auto; gap: 3px; padding: 0 7px 0 6px; }
+.src-btn.multi.on { background: var(--tint); border-color: var(--focus); }
+.src-count { font: 700 11px var(--mono); color: var(--navy-700); }
+.src-caret { font-size: 9px; color: var(--muted); }
+.pages-menu { position: fixed; z-index: 60; width: 320px; max-height: 360px; overflow: auto; background: #fff; border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-pop); padding: 6px; text-align: left; }
+.pages-menu-head { font: 700 10px var(--sans); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); padding: 6px 8px 4px; }
+.pages-menu-note { padding: 8px; font-size: 12.5px; color: var(--muted); }
+.pages-item, .pages-add { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; background: none; padding: 8px; border-radius: 7px; text-align: left; color: var(--ink); }
+.pages-item:hover, .pages-item:focus-visible, .pages-add:hover, .pages-add:focus-visible { background: var(--tint); }
+.pages-n { flex: none; width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; background: var(--tint); color: var(--teal); font: 700 11px var(--mono); }
+.pages-name { display: flex; flex-direction: column; min-width: 0; }
+.pages-name b { font-size: 13px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pages-name span { font-size: 11.5px; color: var(--muted); }
+.pages-add { margin-top: 4px; border-top: 1px solid var(--rule); border-radius: 0 0 7px 7px; color: var(--success); font-weight: 700; font-size: 12.5px; }
+.page-pick .control { height: 30px; max-width: 260px; }

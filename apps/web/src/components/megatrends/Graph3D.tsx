@@ -317,16 +317,10 @@ export function Graph3D({
     for (const id of [...parts.current.keys()]) if (!keep.has(id)) parts.current.delete(id);
     g.graphData({ nodes: want, links });
 
-    // Emphasis: the open branch is bright, the rest recedes.
+    // Emphasis: the open branch is bright, the rest recedes (nodes drawn later get it in buildNode).
     for (const n of want) {
       const p = parts.current.get(n.id);
-      if (!p) continue;
-      const lit = !sel.macro || n.kind === "core" || n.macro === sel.macro;
-      // With a Subtrend open, its siblings and its Macrotrend step back.
-      const recede = sel.sub != null && ((n.kind === "sub" && n.sub !== sel.sub) || n.kind === "macro");
-      const k = !lit ? 0.22 : recede ? 0.4 : 1;
-      for (const { m, base } of p.materials) m.opacity = base * k;
-      if (p.ring) p.ring.visible = (n.kind === "macro" && n.name === sel.macro && !sel.sub) || (n.kind === "sub" && n.sub === sel.sub);
+      if (p) emphasise(n, p, sel);
     }
 
     // Camera: fly to what was just selected.
@@ -418,11 +412,22 @@ export function Graph3D({
       ring.visible = false;
       group.add(ring);
     }
-    parts.current.set(n.id, { group, materials, ring });
+    const p = { group, materials, ring };
+    emphasise(n, p, live.current.sel);
+    parts.current.set(n.id, p);
     return group;
   }
 
   return <div ref={host} className="mg-canvas" aria-hidden="true" data-testid="mg-canvas" />;
+}
+
+/** The open branch is bright; the rest recedes. With a Subtrend open, its siblings and its Macrotrend step back. */
+function emphasise(n: GNode, p: Parts, sel: Selection) {
+  const lit = !sel.macro || n.kind === "core" || n.macro === sel.macro;
+  const recede = sel.sub != null && ((n.kind === "sub" && n.sub !== sel.sub) || n.kind === "macro");
+  const k = !lit ? 0.22 : recede ? 0.4 : 1;
+  for (const { m, base } of p.materials) m.opacity = base * k;
+  if (p.ring) p.ring.visible = (n.kind === "macro" && n.name === sel.macro && !sel.sub) || (n.kind === "sub" && n.sub === sel.sub);
 }
 
 function webglAvailable(): boolean {

@@ -92,10 +92,11 @@ describe("dashboard totals reconcile with the filtered tracker", () => {
     expect(dash.subBars.map((b: any) => b.label).sort()).toEqual(["Licensing & Co-Development Deals", "Mergers & Acquisitions"]);
   });
 
-  it("defaults to the last three months when no dates are given", async () => {
+  it("defaults to everything in view (oldest entry to today) when no dates are given", async () => {
     const t = await json(call(w.a.client, "GET", "/api/tracker?pageSize=100"));
-    const cutoff = new Date(Date.now() - 95 * 86_400_000).toISOString().slice(0, 10);
-    for (const r of t.rows) expect(r.values.date >= cutoff).toBe(true);
+    const all = await json(call(w.a.client, "GET", "/api/tracker?pageSize=100&from=1900-01-01&to=2999-12-31"));
+    expect(t.total).toBe(all.total);
+    expect(t.outsideDates.count).toBe(0);
   });
 
   it("sorts by dropdown order and paginates", async () => {

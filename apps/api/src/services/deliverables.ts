@@ -17,7 +17,7 @@ import { ApiError, notFound } from "../lib/errors.js";
 import { newId, nowIso } from "../lib/ids.js";
 import { audit } from "./audit.js";
 
-/** D1 allows 50 queries per request on the free plan: generate at most this many alerts per listing. */
+/** D1 allows 50 queries per request on the free plan: generate at most this many alerts per listing (the rest on the next one). */
 export const ALERTS_PAGE_MAX = 25;
 
 function toBase64(u: Uint8Array): string {
@@ -51,6 +51,8 @@ export async function ensureAlerts(env: Env, tenantId: string, rows: Signal[]): 
   for (const r of rows) {
     const cur = have.get(r.id);
     if (cur && cur.source_rev === r.rev) continue;
+    // A long page ("Display all") is completed over the next listings.
+    if (stmts.length >= ALERTS_PAGE_MAX) break;
     const doc = titleDocx(String(r.values[CORE.title] ?? ""));
     const name = alertName(r.values[FIELDS.id] as string | null, r.code);
     stmts.push(

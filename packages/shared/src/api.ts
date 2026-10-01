@@ -354,6 +354,8 @@ export const SignalSchema = z.object({
   approvedBy: z.string(),
   /** A saved copy of the source page exists (else it can be attached from the Tracker). Added in contract 1.5. */
   hasSnapshot: z.boolean().default(false),
+  /** Saved HTML pages of the entry (1 = just its first page; more → a list to pick from). Added in contract 1.11. */
+  pages: z.number().int().default(0),
   /** Deliverables → Alerts rows only: the stored .docx alert. Added in contract 1.7. */
   alertId: z.string().nullable().optional(),
 });
@@ -380,6 +382,14 @@ export const SignalDetailSchema = SignalSchema.extend({
  * them), and the Event Date span of all matching entries, for "Show all dates".
  * Added in contract 1.8.
  */
+/** Saved HTML pages per Tracker entry (contract 1.11). */
+export const MAX_SAVED_PAGES = 10;
+export const SavedPageSchema = z.object({ id: z.string(), name: z.string(), first: z.boolean(), bytes: z.number().int(), savedAt: isoDateTime });
+export type SavedPage = z.infer<typeof SavedPageSchema>;
+/** Tracker / Phantoms "Display all": at most this many rows on one page. */
+export const TABLE_ALL_MAX = 1000;
+/** Event Dates of the oldest and newest Tracker entries: the default date filter (contract 1.11). */
+export const DateBoundsSchema = z.object({ oldest: isoDate.nullable(), newest: isoDate.nullable() });
 export const OutsideDatesSchema = z.object({ count: z.number().int(), from: z.string().nullable(), to: z.string().nullable() });
 export type OutsideDates = z.infer<typeof OutsideDatesSchema>;
 
@@ -650,7 +660,8 @@ export const ENDPOINTS: EndpointDef[] = [
   { method: "patch", path: "/api/schema/columns/{key}", summary: "Rename a column or toggle Required", roles: STAFF, request: UpdateColumnRequest, response: TrackerSchemaSchema },
   { method: "delete", path: "/api/schema/columns/{key}", summary: "Delete a non-core column", roles: STAFF, response: TrackerSchemaSchema },
   { method: "post", path: "/api/import", summary: "Import approved entries into a tracker (query: stream). At most 200 rows per request for a dry run, 8 otherwise", roles: STAFF, request: ImportRequest, response: ImportResponse },
-  { method: "post", path: "/api/items/{id}/snapshot", summary: "Attach the saved HTML page to a tracker entry that has none (multipart: file)", roles: STAFF, response: z.object({ id: z.string(), hasSnapshot: z.boolean() }) },
+  { method: "post", path: "/api/items/{id}/snapshot", summary: `Attach a saved HTML page to a tracker entry (multipart: file). The first becomes the entry's page; later ones are added to its list (at most ${MAX_SAVED_PAGES})`, roles: STAFF, response: z.object({ id: z.string(), hasSnapshot: z.boolean(), pages: z.number().int() }) },
+  { method: "get", path: "/api/items/{id}/snapshots", summary: "The saved HTML pages of an entry, first page first", roles: ALL_ROLES, response: z.array(SavedPageSchema) },
   { method: "get", path: "/api/phantoms", summary: "Phantoms table (query: stream, filters, sort, page): every Primary entry, and Secondary entries at or above the admin-set Impact", roles: ALL_ROLES, response: TrackerPageSchema },
   { method: "get", path: "/api/deliverables/alerts", summary: "Deliverables → Alerts: Phantoms with the highest Impact (High), each with its stored .docx alert (generated automatically)", roles: ALL_ROLES, response: TrackerPageSchema },
   { method: "get", path: "/api/deliverables/newsletter", summary: "Deliverables → Newsletter: Phantoms with High or Medium Impact, to build newsletters from", roles: ALL_ROLES, response: TrackerPageSchema },
@@ -666,6 +677,7 @@ export const ENDPOINTS: EndpointDef[] = [
   { method: "patch", path: "/api/schema/columns/{key}/options", summary: "Rename an option (propagates to signals, drafts and filters)", roles: STAFF, request: RenameOptionRequest, response: TrackerSchemaSchema },
   { method: "put", path: "/api/schema/columns/{key}/options/order", summary: "Change the order of a column's dropdown options (or of one macrotrend's subtrends)", roles: STAFF, request: ReorderOptionsRequest, response: TrackerSchemaSchema },
   { method: "delete", path: "/api/schema/columns/{key}/options", summary: "Delete an unused option", roles: STAFF, request: DeleteOptionRequest, response: TrackerSchemaSchema },
+  { method: "get", path: "/api/tracker/bounds", summary: "Event Dates of the oldest and newest Tracker entries (the default date filter: everything in view)", roles: ALL_ROLES, response: DateBoundsSchema },
   { method: "get", path: "/api/tracker", summary: "Server-side filtered, sorted, paginated approved signals", roles: ALL_ROLES, query: ["q", "from", "to", "f.<column>", "sort", "dir", "page", "pageSize"], response: TrackerPageSchema },
   { method: "get", path: "/api/tracker/export", summary: "Export approved signals (audited)", roles: ALL_ROLES, query: ["scope", "format", "q", "from", "to", "f.<column>", "sort", "dir"], raw: `One of ${EXPORT_FORMATS.join(", ")}` },
   { method: "get", path: "/api/signals/{id}", summary: "Approved signal detail with provenance and history", roles: ALL_ROLES, response: SignalDetailSchema },

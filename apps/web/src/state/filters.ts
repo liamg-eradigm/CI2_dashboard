@@ -2,12 +2,15 @@
  * Shared filter state for the Dashboard and Tracker, stored in the URL so it
  * survives navigation, deep links and opening a record.
  *
- * "Date to" defaults to today and "Date from" to three months before today, in
- * the tenant's time zone. When the URL has no explicit dates the defaults are
- * recomputed as the day changes, so a dashboard left open overnight updates.
+ * The dates default to everything in view: "Date from" = the oldest Tracker
+ * entry's Event Date, "Date to" = today (in the tenant's time zone) or the
+ * newest entry if later. When the URL has no explicit dates the defaults are
+ * recomputed as the day changes and as entries are added. `ready` is false
+ * until the oldest date is known, so pages do not load the wrong range first.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useDateBounds } from "../api/hooks";
 import { ALL, FILTER_PARAM_PREFIX, defaultDateRange, filtersFromParams, setFilterValue, todayIso, type FilterState, type TrackerSchema } from "@eradigm/shared";
 
 export function useToday(timeZone?: string): string {
@@ -32,8 +35,11 @@ const FILTER_KEYS = (k: string) => k === "q" || k === "from" || k === "to" || k.
 export function useFilters(schema: TrackerSchema | undefined, timeZone?: string) {
   const [params, setParams] = useSearchParams();
   const today = useToday(timeZone);
-  const filters: FilterState = useMemo(() => filtersFromParams(params, { today, schema }), [params, today, schema]);
-  const defaults = useMemo(() => defaultDateRange(today), [today]);
+  const b = useDateBounds();
+  const bounds = b.data ?? null;
+  const ready = !!b.data || b.isError;
+  const filters: FilterState = useMemo(() => filtersFromParams(params, { today, schema, bounds }), [params, today, schema, bounds]);
+  const defaults = useMemo(() => defaultDateRange(today, bounds), [today, bounds]);
 
   const update = useCallback(
     (fn: (p: URLSearchParams) => void) => {
@@ -81,5 +87,5 @@ export function useFilters(schema: TrackerSchema | undefined, timeZone?: string)
     [update, defaults],
   );
   const isDefault = !filters.q && filters.from === defaults.from && filters.to === defaults.to && Object.keys(filters.values).length === 0;
-  return { filters, today, defaults, setValue, setQuery, setDate, reset, apply, isDefault, params, setParams };
+  return { filters, today, defaults, ready, setValue, setQuery, setDate, reset, apply, isDefault, params, setParams };
 }

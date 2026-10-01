@@ -165,6 +165,12 @@ analyst-entered information distinguishable; in the prototype every value is
     Macrotrend is selected; filtered by the selection. Clicking an entry
     slides its Tracker row (the entry's Tracker columns, from
     `GET /api/signals/:id`) up from the bottom; the timeline stays in view.
+    Scroll (or + / −) zooms in on the dates under the pointer, drag moves
+    across them, Reset shows all dates; the bar at the top resizes it (drag,
+    or ↑ ↓) and Minimise hides it. Size and minimised state are kept per
+    browser.
+  - The summary of the trend in view is a band at the top of the page, in
+    large type, above the graph.
   - Summaries (`trend_summaries`, migration 0010) are keyed by name and shared
     by both trackers. Defaults ship in `packages/shared/src/megatrends.ts`; a
     stored row overrides them: written by hand (`PUT /api/megatrends/summaries`,
@@ -186,7 +192,10 @@ analyst-entered information distinguishable; in the prototype every value is
   - *Secondary*: id, title, event_date, source_type, Source (Publisher, URL,
     Raw_ref), Source_tier, Competitors, Other_entities, Therapeutic_area,
     Assets, Products, QC (Reviewed_by = approver, Review_date,
-    Accurate_as_of); sections Header, Key Details, CI Perspective.
+    Accurate_as_of); sections Header, Key Details, CI Perspective. If the
+    Secondary Inbox has a column labelled "Tell Me More" (any case), its text
+    is printed under Key Details as part of that section, with no heading of
+    its own (`tellMeMoreKey`).
   - *Primary*: id, title, event_date, Source (Role, Company, Location,
     Confidence, Therapeutic_area, Brand_or_asset), Action, Workstream,
     Insight_topic; sections Key Intelligence Question, Key Details, Key
@@ -211,6 +220,23 @@ analyst-entered information distinguishable; in the prototype every value is
   (`POST /api/items/:id/snapshot`, scanned and sanitised in the capture worker
   like any upload). Rows no longer open on click; the title opens the record
   (Tracker) or the Markdown (Phantoms).
+- **Several saved pages per entry** (migration 0011, up to 10): the first page
+  stays `intelligence_items.current_snapshot_id`; pages attached after it are
+  `source_snapshots` rows with `extra = 1` and their `file_name`. Each row
+  carries `pages`; with more than one, the page icon shows the count and opens
+  a list (`GET /api/items/:id/snapshots`) to pick from, plus "Attach another
+  HTML page" for analysts and admins (also in the saved-page pane, which has a
+  page picker). A page opens with `GET /api/items/:id/snapshot?page=<id>`
+  (default: the first page). The same file twice is refused.
+- **Default dates: everything in view.** Dashboard, Tracker, Phantoms and
+  Deliverables default to "Date from" = the oldest entry's Event Date and
+  "Date to" = today, or the newest entry if later (`GET /api/tracker/bounds`;
+  requests without dates use the same defaults). The "outside these dates"
+  hint only appears when someone narrows the dates.
+- **Display all** (Tracker, Phantoms, Deliverables tables): `?all=1` asks for up
+  to 1,000 rows on one page (`pageSize`), shown as one table that scrolls inside
+  its card with the header kept in view. Alerts on a long page are written 25
+  per request (free-plan query limit); the page fetches again until all exist.
 - **Editing approved entries**: analysts and admins get an Edit (pencil)
   column in the Tracker, Phantoms and Deliverables tables, and ✎ Edit in the
   record drawer and the Markdown pane. The form has every Inbox field and ends

@@ -86,6 +86,17 @@ describe("date defaults (Date to = today, Date from = 3 months before)", () => {
 
 describe("filter state", () => {
   const schema = defaultSchema();
+  it("defaults the dates to everything in view: oldest entry to today (or the newest entry, if later)", () => {
+    expect(defaultDateRange("2026-09-28", { oldest: "2019-04-02", newest: "2026-09-20" })).toEqual({ from: "2019-04-02", to: "2026-09-28" });
+    expect(defaultDateRange("2026-09-28", { oldest: "2026-01-15", newest: "2026-12-01" })).toEqual({ from: "2026-01-15", to: "2026-12-01" });
+    // No entries yet: the last three months.
+    expect(defaultDateRange("2026-09-28", { oldest: null, newest: null })).toEqual({ from: "2026-06-28", to: "2026-09-28" });
+    expect(defaultDateRange("2026-09-28")).toEqual({ from: "2026-06-28", to: "2026-09-28" });
+    const f = filtersFromParams(new URLSearchParams(""), { today: "2026-09-28", bounds: { oldest: "2020-02-02", newest: "2026-09-01" } });
+    expect([f.from, f.to]).toEqual(["2020-02-02", "2026-09-28"]);
+    expect(isDefaultFilters(f, "2026-09-28", { oldest: "2020-02-02", newest: "2026-09-01" })).toBe(true);
+  });
+
   it("resets the subtrend when the macrotrend changes and drops 'All'", () => {
     let f = defaultFilters("2026-09-28");
     f = setFilterValue(f, "subtrend", "Industry Awards");

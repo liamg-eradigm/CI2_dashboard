@@ -142,7 +142,7 @@ export function ImportCard() {
         if (!r.ok) {
           setErrors(r.errors);
           setStatus(`Stopped after ${codes.length} of ${rows.length} rows. The first ${codes.length} are in the ${trackerName}: remove them from the file, fix the rows below and import the rest.`);
-          await inv("tracker", "dashboard");
+          await inv("tracker", "dashboard", "bounds", "megatrends");
           return;
         }
         codes.push(...r.codes);
@@ -153,7 +153,7 @@ export function ImportCard() {
       setGrid(null);
       setFile(null);
       if (inputRef.current) inputRef.current.value = "";
-      await inv("tracker", "dashboard", "schema");
+      await inv("tracker", "dashboard", "schema", "bounds", "megatrends");
     } catch (e) {
       setStatus(`Import failed · ${(e as ApiError).message}`);
     }

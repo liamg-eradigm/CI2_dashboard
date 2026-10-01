@@ -40,6 +40,7 @@ import {
   UpdateSettingsRequest,
   UpdateUserRequest,
   CORE,
+  TABLE_ALL_MAX,
   can,
   exportFilename,
   isStream,
@@ -72,7 +73,7 @@ import { readSnapshot, snapshotBackend } from "./pipeline/snapshots.js";
 import { audit, listAudit, verifyChain } from "./services/audit.js";
 import { getDetail, getItemRow, inboxCounts, listItems } from "./services/items.js";
 import { qualityMetrics } from "./services/metrics.js";
-import { dashboard, exportRows, trackerPage, trendTest, type Scope } from "./services/query.js";
+import { dashboard, dateBounds, exportRows, trackerPage, trendTest, type Scope } from "./services/query.js";
 import { approve, deleteFromTable, reject, reprocess, revise, saveDraft, softDelete } from "./services/review.js";
 import {
   addColumn,
@@ -93,7 +94,8 @@ import { signalDetail, signalMarkdown } from "./services/signals.js";
 import { attachSnapshot, importRows } from "./services/imports.js";
 import { submitFile, submitManual, submitUrl } from "./services/submissions.js";
 import { generateSummary, megatrends, writeSummary } from "./services/megatrends.js";
-import { ALERTS_PAGE_MAX, createNewsletter, ensureAlerts, listNewsletters, readDeliverable } from "./services/deliverables.js";
+import { listPages, pageSnapshotId } from "./services/pages.js";
+import { createNewsletter, ensureAlerts, listNewsletters, readDeliverable } from "./services/deliverables.js";
 import { createInvite, createUser, listUsers, revokeSessions, updateUser } from "./services/users.js";
 
 type Vars = { principal: Principal; requestId: string };
@@ -240,6 +242,13 @@ async function scopeFor(c: C, view: TableView, stream: Stream, schema: TrackerSc
   return { stream };
 }
 
+/** Filters from the query string; missing dates default to everything in view (oldest entry → today). */
+async function filtersOf(c: C, schema: TrackerSchema, today?: string) {
+  const params = new URL(c.req.url).searchParams;
+  const bounds = params.get("from") && params.get("to") ? null : await dateBounds(c.env, P(c).tenantId);
+  return filtersFromParams(params, { schema, today: today ?? (await todayFor(c)), bounds });
+}
+
 async function todayFor(c: C): Promise<string> {
   const s = await loadSettings(c.env, P(c).tenantId);
   try {
@@ -376,16 +385,20 @@ async function tablePage(c: C, view: TableView) {
   const stream = streamOf(c);
   const schema = await schemaFor(c, stream);
   const scope = await scopeFor(c, view, stream, schema);
-  const url = new URL(c.req.url);
-  const f = filtersFromParams(url.searchParams, { schema, today: await todayFor(c) });
+  const f = await filtersOf(c, schema);
   const page = Math.max(0, Number.parseInt(c.req.query("page") ?? "0", 10) || 0);
-  const pageSize = Math.min(view === "alerts" ? ALERTS_PAGE_MAX : 100, Math.max(1, Number.parseInt(c.req.query("pageSize") ?? "10", 10) || 10));
+  // "Display all" asks for up to TABLE_ALL_MAX rows on one page.
+  const pageSize = Math.min(TABLE_ALL_MAX, Math.max(1, Number.parseInt(c.req.query("pageSize") ?? "10", 10) || 10));
   const result = await trackerPage(c.env, schema, P(c).tenantId, f, sortOf(c, schema), page, pageSize, scope);
   // Each alert row carries its .docx, created (or refreshed after a revision) on first sight.
   if (view === "alerts") result.rows = await ensureAlerts(c.env, P(c).tenantId, result.rows);
   return c.json(result);
 }
 
+app.get("/api/tracker/bounds", async (c) => {
+  requirePermission(P(c), "tracker:read");
+  return c.json(await dateBounds(c.env, P(c).tenantId));
+});
 app.get("/api/tracker", (c) => tablePage(c, "tracker"));
 app.get("/api/phantoms", (c) => tablePage(c, "phantoms"));
 app.get("/api/deliverables/alerts", (c) => tablePage(c, "alerts"));
@@ -470,8 +483,7 @@ app.get("/api/tracker/export", async (c) => {
   if (!(EXPORT_FORMATS as readonly string[]).includes(format)) throw badRequest("Unknown export format");
   const scope = c.req.query("scope") === "all" ? "all" : "filtered";
   const today = await todayFor(c);
-  const url = new URL(c.req.url);
-  const f = scope === "all" ? null : filtersFromParams(url.searchParams, { schema, today });
+  const f = scope === "all" ? null : await filtersOf(c, schema, today);
   const rows = await exportRows(c.env, schema, p.tenantId, f, sortOf(c, schema), rowScope);
   // Deliverables tables show the Phantoms columns.
   const cols = view === "tracker" ? trackerColumns(schema) : phantomColumns(schema);
@@ -524,7 +536,7 @@ app.post("/api/signals/:id/revise", async (c) => {
 app.get("/api/dashboard", async (c) => {
   requirePermission(P(c), "dashboard:read");
   const schema = await mergedSchema(c);
-  const f = filtersFromParams(new URL(c.req.url).searchParams, { schema, today: await todayFor(c) });
+  const f = await filtersOf(c, schema);
   return c.json(await dashboard(c.env, schema, P(c).tenantId, f));
 });
 
@@ -582,7 +594,7 @@ app.post("/api/import", async (c) => {
   return c.json(await importRows(c.env, await schemasFor(c), p, streamOf(c), b.fileName, b.rows, !!b.dryRun));
 });
 
-/** Attach the saved HTML page to a tracker entry that has none (e.g. an imported row). */
+/** Attach a saved HTML page to a tracker entry: its first page, or another page for its list. */
 app.post("/api/items/:id/snapshot", async (c) => {
   const p = P(c);
   requirePermission(p, "item:edit");
@@ -626,13 +638,21 @@ app.get("/api/items/:id", async (c) => {
   return c.json(await getDetail(c.env, await schemasFor(c), P(c).tenantId, c.req.param("id")));
 });
 
+app.get("/api/items/:id/snapshots", async (c) => {
+  const p = P(c);
+  const row = await getItemRow(c.env, p.tenantId, c.req.param("id"));
+  if (!can(p.role, "inbox:read") && row.status !== "approved") throw notFound("Item");
+  return c.json(await listPages(c.env, p.tenantId, row.id));
+});
+
 app.get("/api/items/:id/snapshot", async (c) => {
   const p = P(c);
   const row = await getItemRow(c.env, p.tenantId, c.req.param("id"));
   // Clients may only see the snapshot of a published (approved) signal.
   if (!can(p.role, "inbox:read") && row.status !== "approved") throw notFound("Item");
-  if (!row.current_snapshot_id) throw notFound("Snapshot");
-  const html = await readSnapshot(c.env, p.tenantId, row.current_snapshot_id);
+  // ?page=<id> opens one of the entry's other saved pages (default: its first page).
+  const snapshotId = await pageSnapshotId(c.env, p.tenantId, row, c.req.query("page"));
+  const html = await readSnapshot(c.env, p.tenantId, snapshotId);
   if (html == null) throw notFound("Snapshot");
   const download = c.req.query("download") === "1";
   if (download) {
