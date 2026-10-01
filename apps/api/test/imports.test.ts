@@ -99,6 +99,40 @@ describe("spreadsheet import", () => {
     expect((await json(call(w.a.client, "GET", `/api/tracker?stream=primary&${RANGE}`))).rows.map((r: any) => r.code)).not.toContain(res.codes[0]);
   });
 
+  it("matches dropdown values whatever their capitals, spacing, quotes or dashes", async () => {
+    const r = await json(
+      importRows("primary", [primaryRow(2, { Macrotrend: "ai investment in r&d", Subtrend: "  agentic   ai platforms ", Impact: "high", "Source Type": "primary source", Competitors: "roche; PFIZER", Action: "not actioned" })]),
+    );
+    expect(r).toMatchObject({ ok: true, imported: 1 });
+    const t = await json(call(w.a.client, "GET", `/api/tracker?stream=primary&${RANGE}`));
+    const row = t.rows.find((x: any) => x.code === r.codes[0]);
+    expect(row.values).toMatchObject({ macrotrend: "AI Investment in R&D", subtrend: "Agentic AI Platforms", impact: "High", source: "Primary Source", competitors: ["Pfizer", "Roche"], action: "Not Actioned" });
+  });
+
+  it("explains option problems with the allowed values, and uses options added since (no new upload needed)", async () => {
+    const row = primaryRow(2, { "Source Type": "Analyst Call", Competitors: "Roche, Moderna" });
+    const first = await json(importRows("primary", [row], true));
+    expect(first.ok).toBe(false);
+    const src = first.errors.find((e: any) => e.column === "Source Type");
+    expect(src.message).toMatch(/^“Analyst Call” is not a Primary Source Type option\. Options: .*PR.*\. Add or rename options under Inbox → Edit columns \(Primary Inbox\), then check again\.$/);
+    expect(first.errors.find((e: any) => e.column === "Competitors").message).toMatch(/^“Moderna” is not a Primary Competitors option\. Options: /);
+
+    // Added to the Secondary Inbox only: the message says so.
+    await call(w.a.analyst, "POST", "/api/schema/columns/source/options?stream=secondary", { body: { value: "Analyst Call" } });
+    const second = await json(importRows("primary", [row], true));
+    expect(second.errors.find((e: any) => e.column === "Source Type").message).toContain("“Analyst Call” is a Secondary option: did you mean to import into the Secondary Tracker?");
+
+    // Added to the Primary Inbox: the same rows now pass.
+    await call(w.a.analyst, "POST", "/api/schema/columns/source/options?stream=primary", { body: { value: "Analyst Call" } });
+    await call(w.a.analyst, "POST", "/api/schema/columns/competitors/options?stream=primary", { body: { value: "Moderna" } });
+    expect(await json(importRows("primary", [row], true))).toMatchObject({ ok: true, errors: [] });
+  });
+
+  it("says which macrotrend a subtrend belongs to", async () => {
+    const r = await json(importRows("primary", [primaryRow(2, { Macrotrend: "Portfolio Restructuring", Subtrend: "Agentic AI Platforms" })], true));
+    expect(r.errors[0].message).toMatch(/^“Agentic AI Platforms” belongs to the Macrotrend “AI Investment in R&D”, not “Portfolio Restructuring”\. Subtrends of “Portfolio Restructuring”: /);
+  });
+
   it("writes nothing when any row is invalid, and explains every problem by row and column", async () => {
     const before = (await json(call(w.a.client, "GET", `/api/tracker?stream=primary&${RANGE}`))).total;
     const bad = [

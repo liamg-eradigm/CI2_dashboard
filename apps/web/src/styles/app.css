@@ -506,6 +506,10 @@ a.link-btn { text-decoration: none; }
 .source-row { display: grid; grid-template-columns: minmax(0, 1fr) 160px; gap: 12px; align-items: stretch; }
 .source-row .drop { min-height: 96px; }
 .source-row .btn.lg { align-self: center; width: 100%; justify-content: center; }
+.import-rules { border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; background: var(--tint-3); }
+.import-rules summary { cursor: pointer; font-size: 13px; font-weight: 700; color: var(--navy-700); }
+.import-rules .table-wrap { margin-top: 8px; max-height: 360px; overflow: auto; background: #fff; border-radius: 6px; }
+.import-rules td { vertical-align: top; }
 .import-help { margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink-2); }
 .import-progress { height: 8px; border-radius: 4px; background: var(--page); overflow: hidden; }
 .import-progress > div { height: 100%; background: var(--teal); transition: width 0.2s; }

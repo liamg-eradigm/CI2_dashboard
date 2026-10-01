@@ -609,6 +609,61 @@ test.describe("analyst role", () => {
     await expect(page.getByRole("dialog")).toHaveCount(0);
   });
 
+  test("import follows the Inbox columns: option changes apply on the next check, without choosing the file again", async ({ page }) => {
+    await page.goto("/input");
+    const card = page.getByTestId("import-card");
+    const header = ["ID", "Title", "Event Date", "Source Role", "Macrotrend", "Subtrend", "Growth Intensity", "Impact", "Source Type", "Competitors", "Action"];
+    const title = `Analyst call insight ${uid()}`;
+    // An option name no other test uses; the sheet has it in lower case.
+    const option = `Expert Call ${uid().toUpperCase()}`;
+    const row = [`P-AC-${uid()}`, title, "2026-09-02", "Oncology KOL", "ai investment in r&d", "Agentic AI Platforms", "stable", "LOW", option.toLowerCase(), "roche", "Not actioned"];
+    await card.locator('input[type="file"]').setInputFiles(htmlFile("analyst.csv", `${header.join(",")}\n${row.map((v) => `"${v}"`).join(",")}\n`));
+    await expect(card.getByTestId("drop-zone-import")).toContainText("1 row ready");
+    // What each column accepts, from the current Primary Inbox columns.
+    const rules = card.getByTestId("import-rules");
+    await rules.locator("summary").click();
+    const sourceRule = rules.locator("tr", { has: page.getByText("Source Type", { exact: true }) });
+    await expect(sourceRule).toContainText("One of the options: ");
+    await expect(sourceRule).not.toContainText(option);
+    await expectAccessible(page, "/input import rules");
+    // It is not an option yet: the problem names the value and the allowed options.
+    await card.getByRole("button", { name: "Check and import" }).click();
+    const problems = card.getByRole("table", { name: "Import problems" });
+    await expect(problems).toContainText(`“${option.toLowerCase()}” is not a Primary Source Type option. Options: `);
+    await expect(problems).toContainText("Add or rename options under Inbox → Edit columns (Primary Inbox), then check again.");
+    await expect(problems.locator("tbody tr")).toHaveCount(1); // the other values match despite their capitals
+    // The option is added in the Primary Inbox (here through the API, as from another tab)…
+    await page.evaluate(async (value) => {
+      const res = await fetch("/api/schema/columns/source/options?stream=primary", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-eci-request": "1", "x-dev-user": localStorage.getItem("eradigm.devUser") ?? "" },
+        body: JSON.stringify({ value }),
+      });
+      if (!res.ok) throw new Error(`add option failed ${res.status}`);
+    }, option);
+    // …and the same file passes on the next check, with the value stored as the option.
+    await card.getByRole("button", { name: "Check and import" }).click();
+    await expect(card.getByText(/Imported 1 entry into the Primary Tracker \(SIG-\d+\)/)).toBeVisible({ timeout: 30_000 });
+    await expect(sourceRule).toContainText(option);
+    await page.goto("/tracker");
+    await page.getByRole("searchbox").fill(title);
+    const tr = page.locator("table tbody tr", { hasText: title });
+    await expect(tr).toContainText(option);
+    await expect(tr).toContainText("AI Investment in R&D");
+  });
+
+  test("the import keeps the chosen file when switching between the Primary and Secondary Tracker", async ({ page }) => {
+    await page.goto("/input");
+    const card = page.getByTestId("import-card");
+    await card.locator('input[type="file"]').setInputFiles(htmlFile("cols.csv", "ID,Title,Source Role\nP-1,Hello,KOL\n"));
+    await expect(card.getByText(/Missing required columns?: /)).toBeVisible();
+    await card.getByTestId("stream-secondary").click();
+    await expect(card.getByText(/Not a Secondary Tracker column: “Source Role”/)).toBeVisible();
+    await card.getByTestId("stream-primary").click();
+    await expect(card.getByText(/Not a Secondary Tracker column/)).toHaveCount(0);
+    await expect(card.getByTestId("drop-zone-import")).toContainText("cols.csv");
+  });
+
   test("imports a spreadsheet into the Primary Tracker, then attaches the HTML with the green plus", async ({ page }) => {
     await page.goto("/input");
     const card = page.getByTestId("import-card");
@@ -622,7 +677,9 @@ test.describe("analyst role", () => {
     const row = [id, title, "2026-09-01", "Oncology KOL", "AI Investment in R&D", "Agentic AI Platforms", "Stable", "Low", "Primary Source", "Roche, Novartis", "Not Actioned", "What is Roche piloting?"];
     // A real Excel workbook is read in the browser (first sheet, blank rows skipped).
     await card.locator('input[type="file"]').setInputFiles(path.join(path.dirname(new URL(import.meta.url).pathname), "../packages/shared/test/fixtures/legacy.xlsx"));
-    await expect(card.getByTestId("drop-zone-import")).toContainText("3 rows ready to check and import");
+    // Its header is read: it has only five columns, so the required ones it lacks are listed up front.
+    await expect(card.getByText(/Missing required columns: “Macrotrend”, “Subtrend”, /)).toBeVisible();
+    await expect(card.getByRole("button", { name: "Check and import" })).toBeDisabled();
     // A mistake first: an unknown column is reported and nothing is imported.
     const badCsv = htmlFile("bad.csv", `${[...header, "Colour"].join(",")}\n${[...row.map((v) => `"${v}"`), "blue"].join(",")}\n`);
     await card.locator('input[type="file"]').setInputFiles(badCsv);
