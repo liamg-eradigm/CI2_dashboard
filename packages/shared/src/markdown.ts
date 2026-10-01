@@ -15,6 +15,16 @@ import type { FieldValue, ItemValues } from "./validation.js";
 export interface MarkdownMeta {
   /** Name of the person who approved the entry (QC.Reviewed_by). */
   reviewedBy: string | null;
+  /**
+   * Secondary: the key of the "Tell Me More" column, if the Inbox has one. Its
+   * text is printed under Key Details, as part of that section (no heading).
+   */
+  tellMeMoreKey?: string | null;
+}
+
+/** The Secondary Inbox column labelled "Tell Me More" (any case or punctuation), if there is one. */
+export function tellMeMoreKey(columns: readonly { key: string; label: string }[]): string | null {
+  return columns.find((c) => c.label.toLowerCase().replace(/[^a-z]/g, "") === "tellmemore")?.key ?? null;
 }
 
 const RESERVED = /^(true|false|yes|no|on|off|y|n|null|~)$/i;
@@ -116,7 +126,10 @@ export function secondaryMarkdown(values: ItemValues, meta: MarkdownMeta): strin
     line(1, "Review_date", v(FIELDS.reviewDate)),
     line(1, "Accurate_as_of", v(CORE.date)),
   ];
-  return render(fm, [section(values, "Header", FIELDS.header), section(values, "Key Details", FIELDS.keyDetails), section(values, "CI Perspective", FIELDS.ciPerspective)]);
+  // Key Details, continued with Tell Me More (when the column exists and has text).
+  const more = meta.tellMeMoreKey ? text(values[meta.tellMeMoreKey]).trim() : "";
+  const details = section(values, "Key Details", FIELDS.keyDetails);
+  return render(fm, [section(values, "Header", FIELDS.header), more ? `${details}\n\n${more}` : details, section(values, "CI Perspective", FIELDS.ciPerspective)]);
 }
 
 /** Safe download name: the entry's ID, else the signal code. */

@@ -10,7 +10,9 @@
   height: 100vh;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  /* Fits the window; scrolls only when the timeline is made very tall. */
+  overflow-x: hidden;
+  overflow-y: auto;
   color: var(--mg-ink);
   background:
     radial-gradient(ellipse 70% 55% at 18% -5%, rgba(15, 76, 102, 0.6), transparent 70%),
@@ -51,7 +53,7 @@
 }
 
 /* Header */
-.mg-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; padding: 22px 28px 14px; }
+.mg-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; padding: 18px 28px 12px; }
 .mg-head .eyebrow { color: var(--cyan-2); }
 .mg-head h1 { font: 700 26px/1.15 var(--sans); letter-spacing: 0.04em; text-transform: uppercase; margin-top: 6px; color: #fff; }
 .mg-controls { display: flex; gap: 10px; flex-wrap: wrap; }
@@ -64,7 +66,7 @@
 .mg-stage {
   position: relative;
   flex: 1 1 auto;
-  min-height: 300px;
+  min-height: 280px;
   margin: 0 20px;
   border-radius: 18px;
   overflow: hidden;
@@ -74,7 +76,7 @@
 .mg-canvas { position: absolute; inset: 0; cursor: grab; }
 .mg-canvas:active { cursor: grabbing; }
 .mg-canvas canvas { display: block; outline: none; }
-.mg-loading, .mg-nogl { position: absolute; inset: 0; display: grid; place-items: center; color: var(--mg-ink-3); font-size: 13px; padding: 0 300px; text-align: center; }
+.mg-loading, .mg-nogl { position: absolute; inset: 0; display: grid; place-items: center; color: var(--mg-ink-3); font-size: 13px; padding: 0 40px 0 300px; text-align: center; }
 
 .mg-glass, .mg-rail, .mg-panel, .mg-crumbs, .mg-timeline, .mg-sheet {
   background: var(--mg-glass);
@@ -85,7 +87,7 @@
 }
 .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; flex: none; box-shadow: 0 0 0 2px rgba(3, 15, 26, 0.9), 0 0 10px currentColor; }
 
-.mg-crumbs { position: absolute; top: 14px; left: 16px; z-index: 2; display: flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: 999px; font-size: 12.5px; color: var(--mg-ink-3); max-width: calc(100% - 420px); overflow: hidden; }
+.mg-crumbs { position: absolute; top: 14px; left: 16px; z-index: 2; display: flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: 999px; font-size: 12.5px; color: var(--mg-ink-3); max-width: calc(100% - 32px); overflow: hidden; }
 .mg-crumbs button, .mg-crumbs .here { border: 0; background: none; color: var(--mg-ink-2); font: 700 12.5px var(--sans); padding: 3px 8px; border-radius: 999px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mg-crumbs button:hover { color: #fff; background: rgba(127, 211, 216, 0.12); }
 .mg-crumbs [aria-current="page"] { color: #fff; }
@@ -103,11 +105,15 @@
 .mg-subs button { font-size: 12px; padding: 5px 8px; }
 .mg-subs .dot { width: 8px; height: 8px; }
 
-.mg-panel { position: absolute; z-index: 2; right: 16px; top: 14px; width: 344px; max-height: calc(100% - 28px); overflow: auto; border-radius: 16px; padding: 18px 20px 16px; animation: mg-in 0.35s ease both; }
+/* The summary of the trend in view: a band at the top, in large type. */
+.mg-panel { flex: none; position: relative; z-index: 3; display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); gap: 8px 36px; margin: 0 20px 12px; border-radius: 18px; padding: 20px 28px 18px; max-height: 38vh; overflow: auto; animation: mg-in 0.35s ease both; }
+.mg-panel-id { min-width: 0; padding-top: 2px; }
+.mg-panel-body { min-width: 0; }
+.mg-panel-body > .mg-summary:first-child { margin-top: 0; }
 .mg-kicker { display: flex; align-items: center; gap: 8px; font: 700 10.5px var(--sans); letter-spacing: 0.14em; text-transform: uppercase; color: var(--cyan-2); }
-.mg-panel-title { font: 800 19px/1.25 var(--sans); color: #fff; margin-top: 9px; }
-.mg-count { margin: 5px 0 0; font-size: 12.5px; color: var(--mg-ink-3); }
-.mg-summary { margin: 14px 0 0; font-size: 14px; line-height: 1.6; color: var(--mg-ink); }
+.mg-panel-title { font: 800 24px/1.22 var(--sans); color: #fff; margin-top: 10px; }
+.mg-count { margin: 7px 0 0; font-size: 13px; color: var(--mg-ink-3); }
+.mg-summary { margin: 0; font: 400 19px/1.6 var(--sans); color: #f4fafb; max-width: 76ch; text-wrap: pretty; }
 .mg-summary.muted { color: var(--mg-ink-3); font-style: italic; }
 .mg-prov { margin: 10px 0 0; font-size: 11.5px; color: var(--mg-ink-3); }
 .mg-hint { margin: 12px 0 0; font-size: 11.5px; color: var(--mg-ink-3); }
@@ -192,7 +198,24 @@
   .mg-page { height: auto; min-height: 100vh; overflow: visible; }
   .mg-stage { min-height: 420px; }
   .mg-rail { position: static; width: auto; margin: 56px 12px 0; max-height: 220px; }
-  .mg-panel { position: static; width: auto; margin: 12px; max-height: none; }
+  .mg-panel { grid-template-columns: 1fr; max-height: none; padding: 16px 18px; }
+  .mg-summary { font-size: 17px; }
   .mg-stage { display: flex; flex-direction: column; justify-content: flex-end; }
   .mg-crumbs { max-width: calc(100% - 32px); }
 }
+
+/* Timeline: resize bar, zoom tools, panning, minimised */
+.mg-tl-grip { position: absolute; top: -1px; left: 50%; transform: translateX(-50%); width: 120px; height: 14px; display: grid; place-items: center; cursor: ns-resize; touch-action: none; border-radius: 0 0 8px 8px; }
+.mg-tl-grip span { width: 44px; height: 4px; border-radius: 4px; background: rgba(181, 207, 218, 0.4); transition: background 0.15s ease, width 0.15s ease; }
+.mg-tl-grip:hover span, .mg-tl-grip:focus-visible span { background: var(--cyan-2); width: 64px; }
+.mg-tl-grip:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.mg-tl-tools { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.mg-tl-range { font: 600 11.5px var(--mono); color: var(--mg-ink-3); margin-right: 4px; white-space: nowrap; }
+.mg-icon.sm { width: 28px; height: 28px; font-size: 15px; }
+.mg-btn.sm { height: 28px; padding: 0 10px; font-size: 12px; }
+.mg-icon:disabled, .mg-btn:disabled { opacity: 0.45; cursor: default; }
+.mg-tl-plot { touch-action: pan-y; user-select: none; }
+.mg-tl-plot.zoomed { cursor: grab; }
+.mg-tl-plot.panning, .mg-tl-plot.panning .mg-ball { cursor: grabbing; }
+.mg-tl-plot.panning .mg-stack { animation: none; }
+.mg-timeline.minimised { padding-bottom: 10px; }

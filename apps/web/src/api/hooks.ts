@@ -4,6 +4,7 @@ import {
   type AuditEvent,
   type CaptureLogEntry,
   type DashboardData,
+  type DateBounds,
   type FilterState,
   type Incident,
   type ItemDetail,
@@ -34,6 +35,8 @@ export const useSchema = (stream: Stream | "all" = "primary", withUsage = false)
     queryFn: () => api<SchemaWithUsage>(`/api/schema?stream=${stream}${withUsage ? "&usage=1" : ""}`),
     staleTime: 30_000,
   });
+/** Oldest and newest Tracker entry dates (the default date filter). */
+export const useDateBounds = () => useQuery({ queryKey: ["bounds"], queryFn: () => api<DateBounds>("/api/tracker/bounds"), staleTime: 60_000 });
 export const useSettings = () => useQuery({ queryKey: ["settings"], queryFn: () => api<TenantSettings>("/api/settings"), staleTime: 60_000 });
 
 const qs = (f: FilterState, extra: Record<string, string | number> = {}) => {
@@ -118,7 +121,7 @@ export const runTrend = (cfg: TrendConfig) => api<TrendResult & { counts: { curr
 /** Invalidate everything derived from published signals or the schema. */
 export function useInvalidate() {
   const qc = useQueryClient();
-  return (...keys: string[]) => Promise.all((keys.length ? keys : ["dashboard", "tracker", "items", "item", "signal", "schema", "counts", "megatrends"]).map((k) => qc.invalidateQueries({ queryKey: [k] })));
+  return (...keys: string[]) => Promise.all((keys.length ? keys : ["dashboard", "tracker", "items", "item", "signal", "schema", "counts", "megatrends", "bounds"]).map((k) => qc.invalidateQueries({ queryKey: [k] })));
 }
 
 export function useApiMutation<TVars, TRes>(fn: (v: TVars) => Promise<TRes>, invalidate: string[] = []) {

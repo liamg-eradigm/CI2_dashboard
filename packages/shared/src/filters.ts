@@ -2,8 +2,9 @@
  * Shared dashboard filter state. The tracker, KPIs and every chart are driven
  * by the same state so counts reconcile across the page.
  *
- * Date defaults (5_UX_&_Data_Visualisation): "Date to" = today, "Date from" =
- * three months before today, evaluated on the day the platform is used.
+ * Date defaults: everything in view. "Date from" = the oldest Tracker entry's
+ * Event Date, "Date to" = today (or the newest entry, if later), evaluated on
+ * the day the platform is used. With no entries yet: the last three months.
  */
 import { ALL, CORE, filterableColumns, type TrackerSchema } from "./schema.js";
 import { isIsoDate } from "./validation.js";
@@ -50,16 +51,24 @@ export function daysBetween(a: string, b: string): number {
   return Math.round((new Date(`${b}T00:00:00Z`).getTime() - new Date(`${a}T00:00:00Z`).getTime()) / 86_400_000);
 }
 
-export function defaultDateRange(today: string = todayIso()): { from: string; to: string } {
-  return { from: minusMonths(today, 3), to: today };
+/** The Event Dates of the oldest and newest Tracker entries (null with no entries). */
+export interface DateBounds {
+  oldest: string | null;
+  newest: string | null;
 }
 
-export function defaultFilters(today: string = todayIso()): FilterState {
-  return { q: "", ...defaultDateRange(today), values: {} };
+export function defaultDateRange(today: string = todayIso(), bounds?: DateBounds | null): { from: string; to: string } {
+  const to = bounds?.newest && bounds.newest > today ? bounds.newest : today;
+  const from = bounds?.oldest ? (bounds.oldest < to ? bounds.oldest : to) : minusMonths(today, 3);
+  return { from, to };
 }
 
-export function isDefaultFilters(f: FilterState, today: string = todayIso()): boolean {
-  const d = defaultDateRange(today);
+export function defaultFilters(today: string = todayIso(), bounds?: DateBounds | null): FilterState {
+  return { q: "", ...defaultDateRange(today, bounds), values: {} };
+}
+
+export function isDefaultFilters(f: FilterState, today: string = todayIso(), bounds?: DateBounds | null): boolean {
+  const d = defaultDateRange(today, bounds);
   return f.q === "" && f.from === d.from && f.to === d.to && activeValueKeys(f).length === 0;
 }
 
@@ -100,9 +109,9 @@ export function filtersToParams(f: FilterState, params = new URLSearchParams()):
  */
 export function filtersFromParams(
   params: URLSearchParams,
-  opts: { today?: string; schema?: TrackerSchema } = {},
+  opts: { today?: string; schema?: TrackerSchema; bounds?: DateBounds | null } = {},
 ): FilterState {
-  const d = defaultDateRange(opts.today);
+  const d = defaultDateRange(opts.today, opts.bounds);
   let from = params.get("from") ?? "";
   let to = params.get("to") ?? "";
   if (!isIsoDate(from)) from = d.from;

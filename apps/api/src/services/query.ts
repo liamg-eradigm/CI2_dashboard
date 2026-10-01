@@ -19,6 +19,7 @@ import {
   sortedColumns,
   subtrendsOf,
   type Bar,
+  type DateBounds,
   type DashboardData,
   type FilterState,
   type ItemValues,
@@ -140,13 +141,15 @@ interface SignalRow {
   approved_at: string;
   approved_by_name: string | null;
   has_snapshot: number | null;
+  page_count: number | null;
 }
 
 const SIGNAL_COLUMNS = `i.id, i.signal_code, i.stream, i.record_id, i.pub_date, i.title, i.macrotrend, i.subtrend, i.growth, i.impact, i.extra_json,
   (SELECT group_concat(c.competitor, '${SEP}') FROM item_competitors c WHERE c.item_id = i.id) AS competitors,
   substr(i.body_text, 1, 600) AS body_text, i.final_url, i.published_rev, i.approved_at,
   (SELECT u.name FROM users u WHERE u.id = i.approved_by) AS approved_by_name,
-  (SELECT s.retention_status = 'active' FROM source_snapshots s WHERE s.id = i.current_snapshot_id) AS has_snapshot`;
+  (SELECT s.retention_status = 'active' FROM source_snapshots s WHERE s.id = i.current_snapshot_id) AS has_snapshot,
+  (SELECT COUNT(*) FROM source_snapshots s WHERE s.item_id = i.id AND s.retention_status = 'active' AND (s.id = i.current_snapshot_id OR s.extra = 1)) AS page_count`;
 
 export function rowValues(
   schema: TrackerSchema,
@@ -175,6 +178,7 @@ function toSignal(schema: TrackerSchema, r: SignalRow): Signal {
     approvedAt: r.approved_at,
     approvedBy: r.approved_by_name ?? "—",
     hasSnapshot: !!r.has_snapshot,
+    pages: r.page_count ?? 0,
   };
 }
 
@@ -228,6 +232,19 @@ export async function trackerPage(
     page,
     pageSize,
   };
+}
+
+/**
+ * Event Dates of the oldest and newest approved entries (either tracker,
+ * either table): the default date filter, so that everything is in view.
+ */
+export async function dateBounds(env: Env, tenantId: string): Promise<DateBounds> {
+  const r = await env.DB.prepare(
+    "SELECT MIN(pub_date) AS oldest, MAX(pub_date) AS newest FROM intelligence_items WHERE tenant_id = ?1 AND status = 'approved' AND deleted_at IS NULL AND pub_date IS NOT NULL AND pub_date <> ''",
+  )
+    .bind(tenantId)
+    .first<{ oldest: string | null; newest: string | null }>();
+  return { oldest: r?.oldest ?? null, newest: r?.newest ?? null };
 }
 
 export const EXPORT_MAX_ROWS = 50_000;

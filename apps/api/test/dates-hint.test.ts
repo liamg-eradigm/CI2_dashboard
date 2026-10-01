@@ -9,7 +9,7 @@ beforeAll(async () => {
 const para = "Sanofi’s “AI-first” strategy — announced on 24 Sept — covers 12 sites; it's worth €1.2bn (≈ $1.3bn). ✓ 🚀\tTabbed\u00a0text.\n\n";
 
 describe("entries outside the date range", () => {
-  it("publishes a long-text Secondary manual entry, and says when the default dates hide it", async () => {
+  it("publishes a long-text Secondary manual entry, in view by default, and says when narrower dates hide it", async () => {
     const { item } = await json(call(w.a.analyst, "POST", "/api/submissions/manual", { body: { stream: "secondary" } }));
     const long = para.repeat(200).slice(0, 19_990);
     const text = para.repeat(20).slice(0, 1_990);
@@ -30,8 +30,12 @@ describe("entries outside the date range", () => {
     expect(res.status).toBe(200);
     expect((await json(res)).status).toBe("approved");
 
-    // Default range (last three months): hidden, but counted.
-    const t = await json(call(w.a.client, "GET", "/api/tracker?stream=secondary"));
+    // The default range starts at the oldest entry: it is in view.
+    const def = await json(call(w.a.client, "GET", "/api/tracker?stream=secondary&pageSize=100"));
+    expect(def.rows.map((r: { id: string }) => r.id)).toContain(item.id);
+    expect(def.outsideDates.count).toBe(0);
+    // Narrower dates: hidden, but counted.
+    const t = await json(call(w.a.client, "GET", "/api/tracker?stream=secondary&from=2026-01-01&to=2026-12-31"));
     expect(t.rows.map((r: { id: string }) => r.id)).not.toContain(item.id);
     expect(t.outsideDates.count).toBeGreaterThanOrEqual(1);
     expect(t.outsideDates.from <= "2024-01-15").toBe(true);
@@ -44,8 +48,9 @@ describe("entries outside the date range", () => {
       const d = await json(call(w.a.client, "GET", `${p}?stream=secondary&from=2024-01-01&to=2024-01-31`));
       expect(d.rows.map((r: { id: string }) => r.id)).toContain(item.id);
     }
-    const dash = await json(call(w.a.client, "GET", "/api/dashboard"));
+    const dash = await json(call(w.a.client, "GET", "/api/dashboard?from=2026-01-01&to=2026-12-31"));
     expect(dash.outsideDates.count).toBeGreaterThanOrEqual(1);
+    expect((await json(call(w.a.client, "GET", "/api/dashboard"))).outsideDates.count).toBe(0);
     // The Markdown and the alert handle the long text too.
     expect((await call(w.a.client, "GET", `/api/signals/${item.id}/markdown`)).status).toBe(200);
   });

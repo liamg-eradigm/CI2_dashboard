@@ -2,10 +2,11 @@
  * Approved signal detail (record drawer): source, snapshot, provenance,
  * company associations, classifications, revision history and related signals.
  */
-import { CORE, entryMarkdown, markdownFileName, type ExtractedFieldView, type SignalDetail, type Stream } from "@eradigm/shared";
+import { CORE, entryMarkdown, markdownFileName, tellMeMoreKey, type ExtractedFieldView, type SignalDetail, type Stream } from "@eradigm/shared";
 import type { Env } from "../env.js";
 import { notFound } from "../lib/errors.js";
 import { revisions, snapshotMeta } from "./items.js";
+import { listPages } from "./pages.js";
 import { rowValues } from "./query.js";
 import type { Schemas } from "./schema.js";
 
@@ -47,6 +48,7 @@ export async function signalDetail(env: Env, schemas: Schemas, tenantId: string,
     approvedAt: r.approved_at,
     approvedBy: r.approved_by_name ?? "—",
     hasSnapshot: !!r.current_snapshot_id,
+    pages: r.current_snapshot_id ? (await listPages(env, tenantId, id)).length : 0,
     inboxCode: r.code,
     receivedAt: r.received_at,
     submittedUrl: r.submitted_url,
@@ -78,6 +80,7 @@ export async function signalMarkdown(env: Env, schemas: Schemas, tenantId: strin
     .bind(tenantId, id)
     .first<{ signal_code: string; stream: Stream; record_id: string | null; pub_date: string; title: string | null; macrotrend: string | null; subtrend: string | null; growth: string | null; impact: string | null; extra_json: string; competitors: string | null; approved_by_name: string | null }>();
   if (!r) throw notFound("Signal");
-  const values = rowValues(schemas[r.stream] ?? schemas.primary, r);
-  return { markdown: entryMarkdown(values, { reviewedBy: r.approved_by_name }, r.stream), fileName: markdownFileName(values, r.signal_code), code: r.signal_code };
+  const schema = schemas[r.stream] ?? schemas.primary;
+  const values = rowValues(schema, r);
+  return { markdown: entryMarkdown(values, { reviewedBy: r.approved_by_name, tellMeMoreKey: tellMeMoreKey(schema.columns) }, r.stream), fileName: markdownFileName(values, r.signal_code), code: r.signal_code };
 }

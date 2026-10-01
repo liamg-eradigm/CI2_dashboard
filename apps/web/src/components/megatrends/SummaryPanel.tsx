@@ -59,15 +59,19 @@ export function SummaryPanel({
 
   if (!node) {
     return (
-      <aside className="mg-panel" aria-live="polite" data-testid="mg-panel">
-        <span className="mg-kicker">Knowledge graph</span>
-        <h2 className="mg-panel-title">Megatrends</h2>
-        <p className="mg-count">
-          {plural(total, "Tracker entry", "Tracker entries")} · {plural(macros, "macrotrend")}
-        </p>
-        <p className="mg-summary">Each sphere is a Macrotrend, sized by its number of Tracker entries. Select one to reveal its Subtrends and a short summary of what is happening in that space.</p>
-        <p className="mg-hint">Drag to rotate · scroll to zoom in on a node · drag a node to move it</p>
-      </aside>
+      <section className="mg-panel" aria-live="polite" aria-label="Summary" data-testid="mg-panel">
+        <div className="mg-panel-id">
+          <span className="mg-kicker">Knowledge graph</span>
+          <h2 className="mg-panel-title">Megatrends</h2>
+          <p className="mg-count">
+            {plural(total, "Tracker entry", "Tracker entries")} · {plural(macros, "macrotrend")}
+          </p>
+        </div>
+        <div className="mg-panel-body">
+          <p className="mg-summary">Each sphere is a Macrotrend, sized by its number of Tracker entries. Select one to read what is happening in that space, and to reveal its Subtrends.</p>
+          <p className="mg-hint">Drag to rotate · scroll to zoom in on a node · drag a node to move it</p>
+        </div>
+      </section>
     );
   }
 
@@ -88,84 +92,88 @@ export function SummaryPanel({
   const ref = { level: node.level, name: node.name, ...(node.parent ? { parent: node.parent } : {}) };
 
   return (
-    <aside className="mg-panel" aria-live="polite" aria-labelledby="mg-panel-title" data-testid="mg-panel">
-      <span className="mg-kicker">
-        <span className="dot" style={{ background: node.colour }} aria-hidden="true" />
-        {node.level === "macro" ? "Macrotrend" : `Subtrend${node.parent ? ` · ${node.parent}` : ""}`}
-        {focused ? " · in view" : ""}
-      </span>
-      <h2 className="mg-panel-title" id="mg-panel-title">
-        {node.name}
-      </h2>
-      <p className="mg-count">
-        {plural(node.count, "Tracker entry", "Tracker entries")}
-        {node.level === "macro" ? ` · ${plural(node.children, "subtrend")}` : ""}
-      </p>
-      {editing ? (
-        <div className="mg-edit">
-          <label className="sr-only" htmlFor="mg-summary-text">
-            Summary of {node.name}
-          </label>
-          <textarea id="mg-summary-text" value={text} maxLength={MAX_SUMMARY_LENGTH} rows={6} onChange={(e) => setText(e.target.value)} autoFocus />
-          <div className="mg-actions">
-            <button className="mg-btn" disabled={!!busy} onClick={() => void run("save", { ...ref, text: text.trim() })}>
-              {busy === "save" ? "Saving…" : "Save"}
-            </button>
-            <button className="mg-btn ghost" disabled={!!busy} onClick={() => setEditing(false)}>
-              Cancel
-            </button>
-            {node.summary && node.summary.source !== "default" && (
-              <button className="mg-btn ghost" disabled={!!busy} onClick={() => void run("save", { ...ref, text: "" })} title="Go back to the summary provided with the dashboard">
-                Reset
-              </button>
-            )}
-          </div>
-        </div>
-      ) : node.summary?.text ? (
-        <>
-          <p className="mg-summary" data-testid="mg-summary">
-            {node.summary.text}
-          </p>
-          <p className="mg-prov">{provenance(node.summary)}</p>
-        </>
-      ) : (
-        <p className="mg-summary muted">No summary yet.</p>
-      )}
-      {err && (
-        <p className="mg-err" role="alert">
-          {err}
+    <section className="mg-panel" aria-live="polite" aria-labelledby="mg-panel-title" data-testid="mg-panel">
+      <div className="mg-panel-id">
+        <span className="mg-kicker">
+          <span className="dot" style={{ background: node.colour }} aria-hidden="true" />
+          {node.level === "macro" ? "Macrotrend" : `Subtrend${node.parent ? ` · ${node.parent}` : ""}`}
+          {focused ? " · in view" : ""}
+        </span>
+        <h2 className="mg-panel-title" id="mg-panel-title">
+          {node.name}
+        </h2>
+        <p className="mg-count">
+          {plural(node.count, "Tracker entry", "Tracker entries")}
+          {node.level === "macro" ? ` · ${plural(node.children, "subtrend")}` : ""}
         </p>
-      )}
-      <div className="mg-actions">
-        {node.level === "macro" && focused && (
-          <button className="mg-btn" onClick={onExplore}>
-            Explore subtrends
-          </button>
-        )}
-        {canEdit && !editing && (
-          <>
-            <button
-              className="mg-btn ghost"
-              onClick={() => {
-                setText(node.summary?.text ?? "");
-                setEditing(true);
-              }}
-            >
-              Edit summary
-            </button>
-            <button
-              className="mg-btn ghost"
-              disabled={!aiConnected || !!busy || node.count < 1}
-              aria-disabled={!aiConnected}
-              title={aiConnected ? "Write this summary with Claude from the recent entries (Administration → Megatrends sets the time frame and length)" : "Connect the Claude API to write summaries with AI"}
-              onClick={() => void run("ai", ref)}
-            >
-              {busy === "ai" ? "Writing…" : "✦ Write with AI"}
-            </button>
-          </>
-        )}
       </div>
-      {canEdit && !aiConnected && !editing && <p className="mg-hint">AI summaries switch on once the Claude API is connected.</p>}
-    </aside>
+      <div className="mg-panel-body">
+        {editing ? (
+          <div className="mg-edit">
+            <label className="sr-only" htmlFor="mg-summary-text">
+              Summary of {node.name}
+            </label>
+            <textarea id="mg-summary-text" value={text} maxLength={MAX_SUMMARY_LENGTH} rows={6} onChange={(e) => setText(e.target.value)} autoFocus />
+            <div className="mg-actions">
+              <button className="mg-btn" disabled={!!busy} onClick={() => void run("save", { ...ref, text: text.trim() })}>
+                {busy === "save" ? "Saving…" : "Save"}
+              </button>
+              <button className="mg-btn ghost" disabled={!!busy} onClick={() => setEditing(false)}>
+                Cancel
+              </button>
+              {node.summary && node.summary.source !== "default" && (
+                <button className="mg-btn ghost" disabled={!!busy} onClick={() => void run("save", { ...ref, text: "" })} title="Go back to the summary provided with the dashboard">
+                  Reset
+                </button>
+              )}
+            </div>
+          </div>
+        ) : node.summary?.text ? (
+          <>
+            <p className="mg-summary" data-testid="mg-summary">
+              {node.summary.text}
+            </p>
+            <p className="mg-prov">{provenance(node.summary)}</p>
+          </>
+        ) : (
+          <p className="mg-summary muted">No summary yet.</p>
+        )}
+        {err && (
+          <p className="mg-err" role="alert">
+            {err}
+          </p>
+        )}
+        <div className="mg-actions">
+          {node.level === "macro" && focused && (
+            <button className="mg-btn" onClick={onExplore}>
+              Explore subtrends
+            </button>
+          )}
+          {canEdit && !editing && (
+            <>
+              <button
+                className="mg-btn ghost"
+                onClick={() => {
+                  setText(node.summary?.text ?? "");
+                  setEditing(true);
+                }}
+              >
+                Edit summary
+              </button>
+              <button
+                className="mg-btn ghost"
+                disabled={!aiConnected || !!busy || node.count < 1}
+                aria-disabled={!aiConnected}
+                title={aiConnected ? "Write this summary with Claude from the recent entries (Administration → Megatrends sets the time frame and length)" : "Connect the Claude API to write summaries with AI"}
+                onClick={() => void run("ai", ref)}
+              >
+                {busy === "ai" ? "Writing…" : "✦ Write with AI"}
+              </button>
+            </>
+          )}
+        </div>
+        {canEdit && !aiConnected && !editing && <p className="mg-hint">AI summaries switch on once the Claude API is connected.</p>}
+      </div>
+    </section>
   );
 }

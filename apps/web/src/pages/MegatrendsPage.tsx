@@ -197,6 +197,16 @@ export function MegatrendsPage({ me }: { me: Me }) {
         </div>
       </header>
 
+      <SummaryPanel
+        node={panel}
+        total={total}
+        macros={visible.length}
+        canEdit={can(me.role, "item:edit")}
+        aiConnected={!!data?.aiConnected}
+        focused={panelFocused}
+        onExplore={() => panel && select({ macro: panel.parent ?? panel.name, sub: panel.level === "sub" ? panel.name : null })}
+      />
+
       <section className="mg-stage" aria-label="Megatrends knowledge graph">
         {!noGl && (
           <Suspense fallback={<div className="mg-loading">Loading the knowledge graph…</div>}>
@@ -257,15 +267,7 @@ export function MegatrendsPage({ me }: { me: Me }) {
             })}
           </ul>
         </div>
-        <SummaryPanel
-          node={panel}
-          total={total}
-          macros={visible.length}
-          canEdit={can(me.role, "item:edit")}
-          aiConnected={!!data?.aiConnected}
-          focused={panelFocused}
-          onExplore={() => panel && select({ macro: panel.parent ?? panel.name, sub: panel.level === "sub" ? panel.name : null })}
-        />
+
       </section>
 
       <Timeline

@@ -16,6 +16,7 @@ import {
   CAPTURE_LIMITS,
   CORE,
   FIELDS,
+  MAX_SAVED_PAGES,
   SOURCE_TIER,
   checkAndNormaliseUrl,
   dedupeKey,
@@ -43,6 +44,7 @@ import { parseUploadIsolated } from "../pipeline/capture-client.js";
 import { storeSnapshot } from "../pipeline/snapshots.js";
 import { audit } from "./audit.js";
 import { contentFingerprintInput, getItemRow } from "./items.js";
+import { listPages } from "./pages.js";
 import { todayIn } from "./review.js";
 import { PHYSICAL, loadSettings, type Schemas } from "./schema.js";
 
@@ -290,13 +292,21 @@ export async function importRows(
 }
 
 /** Attach the saved HTML page to a tracker entry that has none (e.g. an imported row). */
-export async function attachSnapshot(env: Env, p: Principal, id: string, file: { name: string; bytes: ArrayBuffer; type: string }): Promise<{ id: string; hasSnapshot: boolean }> {
+/**
+ * Attach a saved HTML page to a Tracker entry. The first page becomes the
+ * entry's page (and fills in its text, URL and fingerprint when missing);
+ * pages attached after it are added to the entry's list of pages.
+ */
+export async function attachSnapshot(env: Env, p: Principal, id: string, file: { name: string; bytes: ArrayBuffer; type: string }): Promise<{ id: string; hasSnapshot: boolean; pages: number }> {
   const row = await getItemRow(env, p.tenantId, id);
   if (row.status !== "approved") throw notFound("Tracker entry");
+  let hasFirst = false;
   if (row.current_snapshot_id) {
     const s = await env.DB.prepare("SELECT retention_status FROM source_snapshots WHERE id = ?1").bind(row.current_snapshot_id).first<{ retention_status: string }>();
-    if (s?.retention_status === "active") throw conflict("This entry already has a saved page");
+    hasFirst = s?.retention_status === "active";
   }
+  const before = hasFirst ? (await listPages(env, p.tenantId, id)).length : 0;
+  if (before >= MAX_SAVED_PAGES) throw conflict(`This entry already has ${MAX_SAVED_PAGES} saved pages (the most allowed)`);
   if (!/\.html?$/i.test(file.name)) throw new ApiError("UNSUPPORTED_MEDIA", "Only .html or .htm files are accepted");
   if (file.bytes.byteLength > CAPTURE_LIMITS.maxBytes) throw new ApiError("PAYLOAD_TOO_LARGE", `File exceeds the ${CAPTURE_LIMITS.maxBytes / 1048576} MB limit`);
   // Scan and sanitise in the isolated worker before anything is stored.
@@ -317,6 +327,24 @@ export async function attachSnapshot(env: Env, p: Principal, id: string, file: {
     singleFile: parsed.singleFile.detected,
     retentionDays: settings.retention.snapshotDays,
   });
+  const name = file.name.slice(0, 200);
+  if (hasFirst) {
+    // Another page for an entry that has one: add it to the list (the same file twice is refused).
+    const known = snap.id === row.current_snapshot_id || !!(await env.DB.prepare("SELECT 1 AS x FROM source_snapshots WHERE id = ?1 AND extra = 1 AND retention_status = 'active'").bind(snap.id).first());
+    if (known) throw conflict("This page is already attached to the entry");
+    await env.DB.prepare("UPDATE source_snapshots SET extra = 1, file_name = ?1, retention_status = 'active', deleted_at = NULL WHERE tenant_id = ?2 AND id = ?3").bind(name, p.tenantId, snap.id).run();
+    await audit(env, {
+      tenantId: p.tenantId,
+      actorId: p.userId,
+      actorEmail: p.email,
+      action: "snapshot.attached",
+      targetType: "item",
+      targetId: id,
+      details: { code: row.signal_code, file: file.name.slice(0, 120), page: before + 1, singleFile: parsed.singleFile.detected },
+    });
+    return { id, hasSnapshot: true, pages: before + 1 };
+  }
+  await env.DB.prepare("UPDATE source_snapshots SET file_name = ?1 WHERE tenant_id = ?2 AND id = ?3").bind(name, p.tenantId, snap.id).run();
   const fileSha = await sha256Hex(file.bytes);
   await env.DB.prepare(
     `UPDATE intelligence_items SET current_snapshot_id = ?1, file_sha256 = COALESCE(file_sha256, ?2), final_url = COALESCE(final_url, ?3),
@@ -334,5 +362,5 @@ export async function attachSnapshot(env: Env, p: Principal, id: string, file: {
     targetId: id,
     details: { code: row.signal_code, file: file.name.slice(0, 120), singleFile: parsed.singleFile.detected },
   });
-  return { id, hasSnapshot: true };
+  return { id, hasSnapshot: true, pages: 1 };
 }

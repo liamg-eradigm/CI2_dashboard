@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { CORE, FIELDS, STREAM_LABEL, can, displayValue, getColumn, phantomColumns, trackerColumns, type Me, type Signal, type TrackerColumn } from "@eradigm/shared";
-import { api, request, type ApiError } from "../api/client";
-import { exportUrl, useInvalidate, useNewsletters, useSchema, useSettings, useTracker, type TableView } from "../api/hooks";
+import { CORE, FIELDS, STREAM_LABEL, TABLE_ALL_MAX, can, displayValue, getColumn, phantomColumns, trackerColumns, type Me, type Signal, type TrackerColumn } from "@eradigm/shared";
+import { request } from "../api/client";
+import { exportUrl, useNewsletters, useSchema, useSettings, useTracker, type TableView } from "../api/hooks";
 import { FilterHeader } from "../components/FilterHeader";
 import { MarkdownPanel } from "../components/MarkdownPanel";
 import { DeleteEntries } from "../components/DeleteEntries";
@@ -9,6 +9,7 @@ import { DatesHint } from "../components/DatesHint";
 import { RecordDrawer } from "../components/RecordDrawer";
 import { DocxButton, DocxPane, NewsletterCreate, canCreateNewsletter } from "../components/Deliverables";
 import { SourceDrawer } from "../components/SnapshotFrame";
+import { SavedPagesButton, useAttachPage } from "../components/SavedPages";
 import { StreamSwitch } from "../components/StreamSwitch";
 import { useStreamParam } from "../state/stream";
 import { GROWTH_GLYPH, IMPACT_CLASS, IMPACT_GLYPH, impactBucket } from "../lib/format";
@@ -74,21 +75,13 @@ function Cell({ col, s, impactCol, growthCol, actionCol }: { col: TrackerColumn;
  * an entry without one (imported from a spreadsheet) — a green plus to attach
  * the HTML file (analysts and admins).
  */
-function SourceCell({ s, canAttach, onOpen }: { s: Signal; canAttach: boolean; onOpen: () => void }) {
-  const ref = useRef<HTMLInputElement>(null);
-  const [busy, setBusy] = useState(false);
-  const toast = useToast();
-  const inv = useInvalidate();
+function SourceCell({ s, canAttach, onOpen }: { s: Signal; canAttach: boolean; onOpen: (pageId: string | null) => void }) {
   const title = String(s.values[CORE.title] ?? s.code);
+  const attach = useAttachPage(s);
   if (s.hasSnapshot) {
     return (
       <td className="src-col">
-        <button className="src-btn open" onClick={onOpen} aria-label={`Open saved page for ${title}`} title="Open the saved page">
-          <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
-            <path d="M5 2.5h6.5L15.5 6.5V17a.5.5 0 0 1-.5.5H5a.5.5 0 0 1-.5-.5V3a.5.5 0 0 1 .5-.5Z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-            <path d="M11.5 2.5v4h4M7 10h6M7 13h6" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
-        </button>
+        <SavedPagesButton entry={{ id: s.id, code: s.code, title }} pages={s.pages} canAttach={canAttach} onOpen={onOpen} />
       </td>
     );
   }
@@ -101,27 +94,10 @@ function SourceCell({ s, canAttach, onOpen }: { s: Signal; canAttach: boolean; o
       </td>
     );
   }
-  const upload = async (f: File | null) => {
-    if (!f) return;
-    if (!/\.html?$/i.test(f.name)) return toast("Only .html or .htm files are accepted", false);
-    setBusy(true);
-    try {
-      const fd = new FormData();
-      fd.append("file", f);
-      await api(`/api/items/${s.id}/snapshot`, { method: "POST", body: fd });
-      toast(`Saved page attached to ${s.code}`);
-      await inv("tracker", "signal");
-    } catch (e) {
-      toast(`Could not attach the page · ${(e as ApiError).message}`, false);
-    } finally {
-      setBusy(false);
-      if (ref.current) ref.current.value = "";
-    }
-  };
   return (
     <td className="src-col">
-      <input ref={ref} type="file" accept=".html,.htm,text/html" className="sr-only" tabIndex={-1} aria-hidden="true" onChange={(e) => void upload(e.target.files?.[0] ?? null)} />
-      <button className="src-btn add" disabled={busy} onClick={() => ref.current?.click()} aria-label={`Attach the HTML page for ${title}`} title="No saved page yet · click to upload the HTML file">
+      {attach.input}
+      <button className="src-btn add" disabled={attach.busy} onClick={attach.pick} aria-label={`Attach the HTML page for ${title}`} title="No saved page yet · click to upload the HTML file">
         <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
           <circle cx="10" cy="10" r="8.25" fill="currentColor" />
           <path d="M10 6v8M6 10h8" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
@@ -150,8 +126,11 @@ export function TrackerPage({ me, view = "tracker", title, above }: { me: Me; vi
   const toast = useToast();
   const sortKey = f.params.get("sort") ?? "date";
   const dir = (f.params.get("dir") as "asc" | "desc") ?? "desc";
-  const page = Math.max(0, Number(f.params.get("page") ?? 0) || 0);
-  const tracker = useTracker(f.filters, { key: sortKey, dir }, page, PAGE, stream, view, !!schema.data);
+  // "Display all": one long, scrollable table instead of pages of 10.
+  const showAll = f.params.get("all") === "1";
+  const page = showAll ? 0 : Math.max(0, Number(f.params.get("page") ?? 0) || 0);
+  const size = showAll ? TABLE_ALL_MAX : PAGE;
+  const tracker = useTracker(f.filters, { key: sortKey, dir }, page, size, stream, view, !!schema.data && f.ready);
   const [exportOpen, setExportOpen] = useState(false);
   const [scope, setScope] = useState<"filtered" | "all">("filtered");
   const exportRef = useRef<HTMLDivElement>(null);
@@ -199,6 +178,14 @@ export function TrackerPage({ me, view = "tracker", title, above }: { me: Me; vi
     };
   }, [exportOpen]);
 
+  // Alerts on a long page are written a batch at a time: fetch again until every row has one.
+  const missingAlerts = view === "alerts" && !!tracker.data?.rows.some((r) => !r.alertId);
+  useEffect(() => {
+    if (!missingAlerts) return;
+    const id = setTimeout(() => void tracker.refetch(), 1200);
+    return () => clearTimeout(id);
+  }, [missingAlerts, tracker, tracker.data]);
+
   if (!schema.data) return <div className="content"><div className="skeleton" style={{ height: 200 }} /></div>;
   const s = schema.data;
   // Each table has its own columns, chosen from the Inbox columns (Inbox → Edit columns).
@@ -210,7 +197,7 @@ export function TrackerPage({ me, view = "tracker", title, above }: { me: Me; vi
   const growthCol = getColumn(s, CORE.growth);
   const actionCol = getColumn(s, "action");
   const t = tracker.data;
-  const pages = t ? Math.max(1, Math.ceil(t.total / PAGE)) : 1;
+  const pages = t ? Math.max(1, Math.ceil(t.total / size)) : 1;
   const pickedRows = [...picked.values()];
   const onPage = t?.rows.filter((r) => picked.has(r.id)).length ?? 0;
   const allPicked = !!t?.rows.length && onPage === t.rows.length;
@@ -234,7 +221,16 @@ export function TrackerPage({ me, view = "tracker", title, above }: { me: Me; vi
   const docxRow = docxOpen ? t?.rows.find((r) => r.alertId === docxOpen) : undefined;
   const docxNewsletter = docxOpen ? newsletters.data?.find((n) => n.id === docxOpen) : undefined;
   const titleOf = (r: Signal) => String(r.values[CORE.title] ?? r.code);
-  const info = t ? (t.total ? `Showing ${page * PAGE + 1}–${Math.min(t.total, page * PAGE + PAGE)} of ${t.total} · page ${page + 1} of ${pages}` : "0 results") : "Loading…";
+  const info = t
+    ? !t.total
+      ? "0 results"
+      : showAll
+        ? t.total > size
+          ? `Showing the first ${size} of ${t.total}`
+          : `Showing all ${t.total}`
+        : `Showing ${page * PAGE + 1}–${Math.min(t.total, page * PAGE + PAGE)} of ${t.total} · page ${page + 1} of ${pages}`
+    : "Loading…";
+
 
   const doExport = async (format: string) => {
     setExportOpen(false);
@@ -349,7 +345,7 @@ export function TrackerPage({ me, view = "tracker", title, above }: { me: Me; vi
               </div>
             </div>
           </div>
-          <div className="table-wrap">
+          <div className={showAll ? "table-wrap all" : "table-wrap"} tabIndex={showAll ? 0 : undefined} role={showAll ? "region" : undefined} aria-label={showAll ? "All entries (scrollable)" : undefined}>
             <table className="data" style={{ minWidth: Math.max(1100, cols.length * 125 + (phantoms ? 150 : 0) + (view === "alerts" ? 70 : 0)) }}>
               <caption className="sr-only">Approved signals, sorted by {getColumn(s, sortKey)?.label ?? "Date"} {dir === "asc" ? "ascending" : "descending"}</caption>
               <thead>
@@ -420,7 +416,7 @@ export function TrackerPage({ me, view = "tracker", title, above }: { me: Me; vi
                         </button>
                       </td>
                     )}
-                    <SourceCell s={r} canAttach={canAttach} onOpen={() => setParam({ saved: r.id }, true)} />
+                    <SourceCell s={r} canAttach={canAttach} onOpen={(pageId) => setParam({ saved: r.id, savedPage: pageId }, true)} />
                     {canAttach && (
                       <td className="src-col">
                         <button className="src-btn open edit-btn" onClick={() => setParam({ signal: r.id, edit: "1" }, true)} aria-label={`Edit ${titleOf(r)}`} title="Edit, then approve again">
@@ -452,17 +448,38 @@ export function TrackerPage({ me, view = "tracker", title, above }: { me: Me; vi
           </div>
           {t && !t.rows.length && <div className="empty">No approved signals match these filters.</div>}
           <div className="pager-row">
-            <button className="btn pager" disabled={page <= 0} onClick={() => setParam({ page: String(page - 1) })}>
-              ← Previous
-            </button>
-            <button className="btn pager" disabled={page >= pages - 1} onClick={() => setParam({ page: String(page + 1) })}>
-              Next →
-            </button>
+            {showAll ? (
+              <button className="btn pager" onClick={() => setParam({ all: null, page: null })} data-testid="show-pages">
+                Show 10 per page
+              </button>
+            ) : (
+              <>
+                <button className="btn pager" onClick={() => setParam({ all: "1", page: null })} disabled={!t || t.total <= PAGE} data-testid="display-all" title="Show every entry in one long table">
+                  Display all
+                </button>
+                <span className="pager-gap" />
+                <button className="btn pager" disabled={page <= 0} onClick={() => setParam({ page: String(page - 1) })}>
+                  ← Previous
+                </button>
+                <button className="btn pager" disabled={page >= pages - 1} onClick={() => setParam({ page: String(page + 1) })}>
+                  Next →
+                </button>
+              </>
+            )}
           </div>
         </section>
       </div>
       {savedOpen && !selected && !mdOpen && (
-        <SourceDrawer itemId={savedOpen} code={savedRow?.code ?? "Saved source"} title={String(savedRow?.values[CORE.title] ?? "Saved copy of the page")} onClose={() => setParam({ saved: null })} />
+        <SourceDrawer
+          itemId={savedOpen}
+          pageId={f.params.get("savedPage")}
+          pages={savedRow?.pages ?? 1}
+          canAttach={canAttach}
+          code={savedRow?.code ?? "Saved source"}
+          title={String(savedRow?.values[CORE.title] ?? "Saved copy of the page")}
+          onPage={(id) => setParam({ savedPage: id })}
+          onClose={() => setParam({ saved: null, savedPage: null })}
+        />
       )}
       {docxOpen && !selected && (
         <DocxPane

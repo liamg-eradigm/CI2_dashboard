@@ -181,17 +181,17 @@ test.describe("client role", () => {
     await expect(page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true })).toHaveCount(0);
   });
 
-  test("dashboard defaults to the last three months and reconciles with the Primary + Secondary trackers", async ({ page }) => {
+  test("dashboard defaults to everything in view (oldest entry to today) and reconciles with the Primary + Secondary trackers", async ({ page }) => {
     await page.goto("/dashboard");
     const bar = page.getByRole("region", { name: "Filters", exact: true });
     const to = bar.getByLabel("Date to");
     const from = bar.getByLabel("Date from");
     const today = new Date();
     const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    await expect(to).toHaveValue(iso(today));
-    const threeAgo = new Date(today);
-    threeAgo.setMonth(today.getMonth() - 3);
-    expect(Math.abs(new Date(await from.inputValue()).getTime() - threeAgo.getTime()) / 86_400_000).toBeLessThan(3);
+    const bounds = await page.evaluate(async () => (await fetch("/api/tracker/bounds", { headers: { "x-dev-user": "client@example.com" } })).json());
+    await expect(to).toHaveValue(bounds.newest > iso(today) ? bounds.newest : iso(today));
+    await expect(from).toHaveValue(bounds.oldest);
+    await expect(page.locator(".dates-banner")).toHaveCount(0);
 
     await expect(page.locator(".kpi .v").first()).toHaveText(/^\d+$/);
     const kpi = await page.locator(".kpi .v").first().innerText();

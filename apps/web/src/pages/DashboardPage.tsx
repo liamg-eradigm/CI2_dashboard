@@ -16,7 +16,7 @@ export function DashboardPage({ me }: { me: Me }) {
   const schema = useSchema("all");
   const settings = useSettings();
   const f = useFilters(schema.data, settings.data?.timezone ?? me.timezone);
-  const dash = useDashboard(f.filters, !!schema.data);
+  const dash = useDashboard(f.filters, !!schema.data && f.ready);
   const selected = f.params.get("signal");
   // Expanded state per dashboard row: both Subtrend charts together, and Competitor Composition.
   const [subOpen, setSubOpen] = useState(false);

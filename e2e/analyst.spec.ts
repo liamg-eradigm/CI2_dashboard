@@ -397,25 +397,24 @@ test.describe("analyst role", () => {
     });
     await card.getByLabel("Event Date", { exact: true }).fill("2024-03-12");
     await card.getByRole("button", { name: "✓ Approve" }).click();
-    await expect(page.locator(".toast").last()).toContainText(/SIG-\d+ published to the tracker as rev 1 · its Event Date \(12 Mar 2024\) is outside the default last-three-months view/);
-    // Hidden by the default dates in the Tracker, with a hint and "Show all dates".
+    await expect(page.locator(".toast").last()).toContainText(/SIG-\d+ published to the tracker as rev 1/);
+    // The default dates start at the oldest entry, so it is in view straight away (no date hint).
     await page.goto("/tracker?stream=secondary");
+    await expect(page.getByLabel("Date from")).toHaveValue("2024-03-12");
     await page.getByRole("searchbox").fill(title);
-    await expect(page.locator("table tbody td.title", { hasText: title })).toHaveCount(0);
-    const hint = page.getByTestId("dates-hint");
-    await expect(hint).toContainText("1 more entry is outside these dates");
-    await hint.getByRole("button", { name: "Show all dates" }).click();
     await expect(page.locator("table tbody td.title", { hasText: title })).toBeVisible();
-    await expect(page).toHaveURL(/from=\d{4}-\d{2}-\d{2}/);
-    // The Dashboard says so too.
+    await expect(page.getByTestId("dates-hint")).toHaveCount(0);
+    await expect(page).not.toHaveURL(/from=/);
+    // The Dashboard counts it too, with no "outside these dates" banner.
     await page.goto("/dashboard");
-    await expect(page.locator(".dates-banner")).toContainText("outside these dates");
-    // From the Inbox: View in Tracker opens the entry, with the dates widened to include it.
+    await expect(page.getByRole("region", { name: "Filters", exact: true }).getByLabel("Date from")).toHaveValue("2024-03-12");
+    await expect(page.locator(".dates-banner")).toHaveCount(0);
+    // From the Inbox: View in Tracker opens the entry.
     await page.goto("/inbox?stream=secondary");
     await page.getByRole("button", { name: /^Approved & rejected/ }).click();
     const done = page.locator(".inbox-card", { has: page.locator(".code", { hasText: code }) });
     await done.getByRole("link", { name: "View in Tracker →" }).click();
-    await expect(page).toHaveURL(/\/tracker\?.*from=2024-03-12/);
+    await expect(page).toHaveURL(/\/tracker\?.*signal=/);
     await expect(page.getByRole("dialog").getByRole("heading", { name: title })).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(page.locator("table tbody td.title", { hasText: title })).toBeVisible();
