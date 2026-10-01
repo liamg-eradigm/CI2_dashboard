@@ -72,7 +72,7 @@ test.describe("Megatrends", () => {
     await expect(page).toHaveURL(/t=primary/);
     await page.getByRole("group", { name: "Event Date period" }).getByRole("button", { name: "3M" }).click();
     await expect(page).toHaveURL(/p=3m/);
-    expect(await page.getByTestId("mg-ball").count()).toBeLessThan(total);
+    await expect.poll(() => page.getByTestId("mg-ball").count()).toBeLessThan(total);
   });
 
   test("analyst: writes a summary by hand and resets it; AI is off until the API is connected", async ({ page }) => {

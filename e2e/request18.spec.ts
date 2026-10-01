@@ -97,7 +97,7 @@ test.describe("request 18", () => {
     await page.mouse.move(plot.x + plot.width / 2, plot.y + plot.height / 2);
     await page.mouse.wheel(0, -300);
     await expect(tl.locator(".mg-tl-range")).not.toHaveText(range1);
-    expect(await balls.count()).toBeLessThan(all);
+    await expect.poll(() => balls.count()).toBeLessThan(all);
     const range2 = await tl.locator(".mg-tl-range").innerText();
     await page.mouse.down();
     await page.mouse.move(plot.x + plot.width / 2 + 220, plot.y + plot.height / 2, { steps: 6 });
