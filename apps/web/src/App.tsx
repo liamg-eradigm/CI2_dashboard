@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { can } from "@eradigm/shared";
 import { useMe } from "./api/hooks";
@@ -13,7 +13,10 @@ import { AdminPage } from "./pages/AdminPage";
 import { InvitePage, SignInPage } from "./pages/SignInPage";
 import { SourcePage } from "./pages/SourcePage";
 
-const TITLES: Record<string, string> = { "/dashboard": "Dashboard", "/tracker": "Tracker", "/phantoms": "Phantoms", "/deliverables": "Deliverables", "/inbox": "Inbox", "/input": "Input", "/admin": "Administration" };
+// Loaded on first visit: it carries the 3D graph (three.js).
+const MegatrendsPage = lazy(() => import("./pages/MegatrendsPage").then((m) => ({ default: m.MegatrendsPage })));
+
+const TITLES: Record<string, string> = { "/dashboard": "Dashboard", "/tracker": "Tracker", "/phantoms": "Phantoms", "/deliverables": "Deliverables", "/megatrends": "Megatrends", "/inbox": "Inbox", "/input": "Input", "/admin": "Administration" };
 
 export function App() {
   const loc = useLocation();
@@ -69,6 +72,14 @@ function SignedIn() {
           <Route path="/tracker" element={<TrackerPage me={me.data} view="tracker" />} />
           <Route path="/phantoms" element={<TrackerPage key="phantoms" me={me.data} view="phantoms" />} />
           <Route path="/deliverables" element={<DeliverablesPage me={me.data} />} />
+          <Route
+            path="/megatrends"
+            element={
+              <Suspense fallback={<div className="empty" role="status">Loading Megatrends…</div>}>
+                <MegatrendsPage me={me.data} />
+              </Suspense>
+            }
+          />
           {/* Staff-only pages do not exist for clients: the routes redirect to the dashboard (the API also refuses them). */}
           <Route path="/inbox" element={staff ? <InboxPage me={me.data} /> : <Navigate to="/dashboard" replace />} />
           <Route path="/input" element={can(role, "submission:create") ? <InputPage me={me.data} /> : <Navigate to="/dashboard" replace />} />

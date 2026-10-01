@@ -9,6 +9,7 @@ import {
   type ItemDetail,
   type ItemSummary,
   type Me,
+  type Megatrends,
   type Newsletter,
   type QualityMetrics,
   type SavedView,
@@ -60,6 +61,12 @@ export const exportUrl = (f: FilterState, sort: { key: string; dir: string }, sc
   `/api/tracker/export?${qs(f, { sort: sort.key, dir: sort.dir, scope, format, stream, view })}`;
 
 /** Newsletters created on Deliverables → Newsletter, newest first. */
+export const useMegatrends = (stream: Stream | "all", from: string | null, to: string | null) =>
+  useQuery({
+    queryKey: ["megatrends", stream, from, to],
+    queryFn: () => api<Megatrends>(`/api/megatrends?${new URLSearchParams({ stream, ...(from ? { from } : {}), ...(to ? { to } : {}) })}`),
+    placeholderData: keepPreviousData,
+  });
 export const useNewsletters = (enabled = true) => useQuery({ queryKey: ["newsletters"], queryFn: () => api<Newsletter[]>("/api/newsletters"), enabled });
 
 /** The Phantoms Markdown of an entry (text). */
@@ -111,7 +118,7 @@ export const runTrend = (cfg: TrendConfig) => api<TrendResult & { counts: { curr
 /** Invalidate everything derived from published signals or the schema. */
 export function useInvalidate() {
   const qc = useQueryClient();
-  return (...keys: string[]) => Promise.all((keys.length ? keys : ["dashboard", "tracker", "items", "item", "signal", "schema", "counts"]).map((k) => qc.invalidateQueries({ queryKey: [k] })));
+  return (...keys: string[]) => Promise.all((keys.length ? keys : ["dashboard", "tracker", "items", "item", "signal", "schema", "counts", "megatrends"]).map((k) => qc.invalidateQueries({ queryKey: [k] })));
 }
 
 export function useApiMutation<TVars, TRes>(fn: (v: TVars) => Promise<TRes>, invalidate: string[] = []) {

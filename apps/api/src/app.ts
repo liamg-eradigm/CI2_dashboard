@@ -18,6 +18,9 @@ import {
   CreateManualRequest,
   CreateNewsletterRequest,
   DOCX_MIME,
+  GenerateTrendSummaryRequest,
+  UpdateTrendSummaryRequest,
+  normaliseNavOrder,
   DeleteItemRequest,
   CONTRACT_VERSION,
   CreateSavedViewRequest,
@@ -89,6 +92,7 @@ import {
 import { signalDetail, signalMarkdown } from "./services/signals.js";
 import { attachSnapshot, importRows } from "./services/imports.js";
 import { submitFile, submitManual, submitUrl } from "./services/submissions.js";
+import { generateSummary, megatrends, writeSummary } from "./services/megatrends.js";
 import { ALERTS_PAGE_MAX, createNewsletter, ensureAlerts, listNewsletters, readDeliverable } from "./services/deliverables.js";
 import { createInvite, createUser, listUsers, revokeSessions, updateUser } from "./services/users.js";
 
@@ -386,6 +390,39 @@ app.get("/api/tracker", (c) => tablePage(c, "tracker"));
 app.get("/api/phantoms", (c) => tablePage(c, "phantoms"));
 app.get("/api/deliverables/alerts", (c) => tablePage(c, "alerts"));
 app.get("/api/deliverables/newsletter", (c) => tablePage(c, "newsletter"));
+
+// ---------------------------------------------------------------------------
+// Megatrends: entries per Macrotrend / Subtrend, their summaries, the timeline
+// ---------------------------------------------------------------------------
+
+app.get("/api/megatrends", async (c) => {
+  requirePermission(P(c), "tracker:read");
+  const raw = c.req.query("stream") ?? "all";
+  if (raw !== "all" && !isStream(raw)) throw badRequest("stream must be “all”, “primary” or “secondary”");
+  const date = (k: "from" | "to") => {
+    const v = c.req.query(k);
+    if (!v) return null;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) throw badRequest(`${k} must be YYYY-MM-DD`);
+    return v;
+  };
+  return c.json(await megatrends(c.env, P(c).tenantId, { stream: raw, from: date("from"), to: date("to") }, prefillMode(c.env) === "llm"));
+});
+
+app.put("/api/megatrends/summaries", async (c) => {
+  const p = P(c);
+  requirePermission(p, "item:edit");
+  return c.json(await writeSummary(c.env, p, await body(c, UpdateTrendSummaryRequest)));
+});
+
+app.post("/api/megatrends/summaries/generate", async (c) => {
+  const p = P(c);
+  requirePermission(p, "item:edit");
+  const b = await body(c, GenerateTrendSummaryRequest);
+  if (prefillMode(c.env) !== "llm") {
+    throw new ApiError("CONFLICT", "The AI writer is not connected yet (set LLM_PROVIDER and ANTHROPIC_API_KEY on the API). Write the summary by hand for now.");
+  }
+  return c.json(await generateSummary(c.env, p, b, await todayFor(c)));
+});
 
 app.get("/api/newsletters", async (c) => {
   requirePermission(P(c), "tracker:read");
@@ -719,6 +756,8 @@ app.patch("/api/settings", async (c) => {
     retention: { ...current.retention, ...b.retention },
     redaction: { ...current.redaction, ...b.redaction },
     phantoms: { ...current.phantoms, ...b.phantoms },
+    navOrder: normaliseNavOrder(b.navOrder ?? current.navOrder),
+    megatrends: { ...current.megatrends, ...b.megatrends },
   };
   await saveSettings(c.env, p.tenantId, next, p.userId);
   await audit(c.env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "settings.changed", targetType: "settings", details: { sections: Object.keys(b) } });

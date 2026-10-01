@@ -7,13 +7,16 @@
 import {
   ALL,
   CORE,
+  DEFAULT_NAV_ORDER,
   DEFAULT_TREND_THRESHOLDS,
   STREAMS,
   checkColumnLabel,
   checkOptionName,
   defaultSchema,
+  defaultSummary,
   getColumn,
   hasOptions,
+  normaliseNavOrder,
   splitMulti,
   tableColumns,
   type CreatableColumnType,
@@ -22,6 +25,7 @@ import {
   type TenantSettings,
   type TrackerColumn,
   type TrackerSchema,
+  type TrendLevel,
 } from "@eradigm/shared";
 import type { Env } from "../env.js";
 import { ApiError, badRequest, notFound } from "../lib/errors.js";
@@ -114,6 +118,8 @@ export const DEFAULT_SETTINGS: TenantSettings = {
   retention: { snapshotDays: 730, rejectedDays: 90, deletedDays: 30 },
   redaction: { redactEmails: true, redactPhones: true, quarantineMarkers: [] },
   phantoms: { secondaryMinImpact: "Low" },
+  navOrder: [...DEFAULT_NAV_ORDER],
+  megatrends: { summaryDays: 90, summarySentences: 2, model: "claude-opus-5-5", perspective: "AbbVie" },
 };
 
 export async function loadSettings(env: Env, tenantId: string): Promise<TenantSettings> {
@@ -127,6 +133,8 @@ export async function loadSettings(env: Env, tenantId: string): Promise<TenantSe
     retention: { ...DEFAULT_SETTINGS.retention, ...s.retention },
     redaction: { ...DEFAULT_SETTINGS.redaction, ...s.redaction },
     phantoms: { ...DEFAULT_SETTINGS.phantoms, ...s.phantoms },
+    navOrder: normaliseNavOrder(s.navOrder),
+    megatrends: { ...DEFAULT_SETTINGS.megatrends, ...s.megatrends },
   };
 }
 
@@ -379,6 +387,29 @@ export async function reorderOptions(env: Env, tenantId: string, stream: Stream,
   ]);
 }
 
+/**
+ * A renamed Macrotrend / Subtrend keeps its Megatrends summary (stored, else
+ * the default text). The old name keeps its own too: the other tracker may
+ * still use it.
+ */
+function summaryRename(env: Env, tenantId: string, type: string, from: string, to: string): D1PreparedStatement[] {
+  const level: TrendLevel | null = type === "macro" ? "macro" : type === "sub" ? "sub" : null;
+  if (!level) return [];
+  const stmts = [
+    env.DB.prepare(
+      `INSERT OR IGNORE INTO trend_summaries (tenant_id, level, name, parent, text, source, model, window_days, entries, updated_by, updated_at)
+       SELECT tenant_id, level, ?4, parent, text, source, model, window_days, entries, updated_by, updated_at FROM trend_summaries WHERE tenant_id = ?1 AND level = ?2 AND name = ?3`,
+    ).bind(tenantId, level, from, to),
+  ];
+  const text = defaultSummary(level, from);
+  if (text) {
+    stmts.push(
+      env.DB.prepare("INSERT OR IGNORE INTO trend_summaries (tenant_id, level, name, text, source, updated_at) VALUES (?1, ?2, ?3, ?4, 'manual', ?5)").bind(tenantId, level, to, text, nowIso()),
+    );
+  }
+  return stmts;
+}
+
 export async function renameOption(env: Env, tenantId: string, stream: Stream, key: string, from: string, to: string) {
   const schema = await loadSchema(env, tenantId, stream);
   const col = requireColumn(schema, key);
@@ -392,6 +423,7 @@ export async function renameOption(env: Env, tenantId: string, stream: Stream, k
   const stmts: D1PreparedStatement[] = [
     env.DB.prepare("UPDATE column_options SET value = ?1 WHERE tenant_id = ?2 AND column_key = ?3 AND value = ?4 AND stream = ?5").bind(v, tenantId, key, from, stream),
     bump(env, tenantId),
+    ...summaryRename(env, tenantId, col.type, from, v),
   ];
   if (col.type === "macro") {
     stmts.push(env.DB.prepare("UPDATE column_options SET parent = ?1 WHERE tenant_id = ?2 AND column_key = ?3 AND parent = ?4 AND stream = ?5").bind(v, tenantId, CORE.subtrend, from, stream));

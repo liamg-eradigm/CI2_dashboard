@@ -9,6 +9,33 @@ export interface LlmProvider {
   readonly name: string;
   readonly model: string;
   extract(input: ExtractionInput, opts?: { signal?: AbortSignal }): Promise<LlmExtractionResult>;
+  /** A short Megatrends summary of one Macrotrend / Subtrend from its recent entries. */
+  summarize(input: SummaryInput, opts?: { signal?: AbortSignal; model?: string }): Promise<LlmSummaryResult>;
+}
+
+export interface SummaryEntry {
+  date: string;
+  title: string;
+  competitors?: string[];
+  /** Key details or an excerpt of the source (kept short by the caller). */
+  details?: string;
+}
+
+export interface SummaryInput {
+  level: "macro" | "sub";
+  name: string;
+  parent?: string;
+  /** At most this many sentences. */
+  sentences: number;
+  /** The company the summary is written for ("For AbbVie, …"). */
+  perspective: string;
+  windowDays: number;
+  entries: SummaryEntry[];
+}
+
+export interface LlmSummaryResult {
+  text: string;
+  meta: { provider: string; model: string; promptVersion: string; inputTokens?: number; outputTokens?: number; latencyMs: number };
 }
 
 export interface LlmExtractionResult {

@@ -149,6 +149,36 @@ analyst-entered information distinguishable; in the prototype every value is
     entry's Title (alert) or the newsletter's name, bold 32 pt
     (`packages/shared/src/docx.ts`, `titleDocx`). Stored as base64 text in D1
     (no R2 needed).
+- **Megatrends** (tab, all roles; `GET /api/megatrends?stream=all|primary|secondary&from&to`)
+  is a 3D knowledge graph of the Tracker entries (same rows as the Tracker:
+  approved, not deleted from the Tracker) with a timeline below.
+  - Macrotrend spheres around a central core, sized by their number of
+    entries (only those with 1 or more); selecting one reveals its Subtrends
+    (also 1 or more), selecting a Subtrend its entries. Zooming in on a node
+    shows its summary. Built with three.js / `3d-force-graph`, loaded only
+    on this page; without WebGL the list, summaries and timeline still work.
+  - Colours: a fixed 8-hue categorical palette validated on the dark surface,
+    assigned in taxonomy order (colour follows the entity; "Others" and any
+    9th value are neutral grey); names are always shown next to colours.
+  - Timeline: one lollipop per entry at its Event Date, same-day entries
+    stacked on one skewer; coloured by Macrotrend, or by Subtrend once a
+    Macrotrend is selected; filtered by the selection. Clicking an entry
+    slides its Tracker row (the entry's Tracker columns, from
+    `GET /api/signals/:id`) up from the bottom; the timeline stays in view.
+  - Summaries (`trend_summaries`, migration 0010) are keyed by name and shared
+    by both trackers. Defaults ship in `packages/shared/src/megatrends.ts`; a
+    stored row overrides them: written by hand (`PUT /api/megatrends/summaries`,
+    analysts and admins; empty text = back to the default) or by the AI writer
+    (`POST /api/megatrends/summaries/generate`, 409 until `LLM_PROVIDER` is
+    set). The AI writer reads the trend's entries of the last
+    `megatrends.summaryDays` days (at most 40), and writes at most
+    `megatrends.summarySentences` sentences for `megatrends.perspective`
+    with `megatrends.model` (Administration → Workspace settings →
+    Megatrends · AI summaries). Renaming a Macrotrend / Subtrend keeps its
+    summary.
+- **Tab order** (`navOrder` in tenant settings; Administration → Tabs, admins)
+  sets the order of the menu for everyone in a workspace; roles still only see
+  the tabs they may use.
 - **Markdown** (`GET /api/signals/:id/markdown`, `?download=1` for a file named
   `<ID>.md`) is generated from the published field values only. The front
   matter is valid YAML (two-space indentation; values quoted only when YAML
