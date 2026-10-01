@@ -353,5 +353,12 @@ LOG.forEach((l, i) =>
 // Counters: next codes follow the seeded ones.
 out.push("INSERT INTO counters (tenant_id, name, value) VALUES ('t_demo', 'inbox', 2207), ('t_demo', 'signal', 1177), ('t_north', 'inbox', 2200), ('t_north', 'signal', 1111);");
 
+// Each published entry's Phantom: frozen as first pushed to the Tracker (migration 0012).
+out.push(
+  `INSERT OR IGNORE INTO phantom_snapshots (item_id, tenant_id, pub_date, title, macrotrend, subtrend, growth, impact, record_id, extra_json, competitors_json, published_rev, approved_at, approved_by, created_at)
+   SELECT i.id, i.tenant_id, i.pub_date, i.title, i.macrotrend, i.subtrend, i.growth, i.impact, i.record_id, COALESCE(i.extra_json, '{}'),
+          COALESCE((SELECT json_group_array(c.competitor) FROM item_competitors c WHERE c.item_id = i.id), '[]'), COALESCE(i.published_rev, 1), i.approved_at, i.approved_by, ${q(GEN_AT)}
+     FROM intelligence_items i WHERE i.status = 'approved';`,
+);
 writeFileSync(new URL("./seed.sql", import.meta.url), out.join("\n") + "\n");
 console.log(`seed.sql written: ${out.length} statements`);

@@ -35,11 +35,15 @@ export const ACTIONS = [
   "settings:edit",
   "incident:read",
   "metrics:read",
+  /** The Client Inbox: entries Eradigm sent to the client to check (contract 1.12). */
+  "clientInbox:read",
+  /** Comment on them, send them back to Eradigm or push them to the Tracker. */
+  "clientInbox:act",
 ] as const;
 export type Action = (typeof ACTIONS)[number];
 
 const MATRIX: Record<Role, readonly Action[]> = {
-  client: ["dashboard:read", "tracker:read", "tracker:export", "savedView:write"],
+  client: ["dashboard:read", "tracker:read", "tracker:export", "savedView:write", "clientInbox:read", "clientInbox:act"],
   analyst: [
     "dashboard:read",
     "tracker:read",

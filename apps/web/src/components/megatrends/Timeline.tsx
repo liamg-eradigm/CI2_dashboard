@@ -9,7 +9,7 @@
  * across them. Drag the bar at the top to make the timeline taller or
  * shorter, or minimise it. Size and minimised state are remembered per browser.
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import type { MegatrendEntry } from "@eradigm/shared";
 import { formatDate } from "../../lib/format";
 import { plural, shade } from "./model";
@@ -76,6 +76,7 @@ export function Timeline({
   to,
   openId,
   activeLegend,
+  tools,
   onOpen,
   onLegend,
 }: {
@@ -87,6 +88,8 @@ export function Timeline({
   to: string | null;
   openId: string | null;
   activeLegend: string | null;
+  /** Extra controls at the start of the timeline's tools (e.g. what to colour by). */
+  tools?: ReactNode;
   onOpen: (id: string) => void;
   onLegend: (name: string) => void;
 }) {
@@ -162,7 +165,9 @@ export function Timeline({
     const { lo, hi } = win;
     const span = Math.max(1, hi - lo);
     const x = (d: number) => PAD.l + ((d - lo) / span) * innerW;
-    const r = Math.max(4.6, Math.min(9, (innerW / span) * 0.45));
+    // The lollipops grow with the timeline: a taller timeline, bigger spheres on longer stems.
+    const r = Math.max(4.6, Math.min(16, plotH * 0.075, Math.max(9, (innerW / span) * 0.45)));
+    const stem = Math.max(STEM, Math.round(plotH * 0.22));
     const base = PAD.t + plotH;
     // Same-day entries share a skewer, ordered by legend then code.
     const byDay = new Map<number, TimelineItem[]>();
@@ -171,7 +176,7 @@ export function Timeline({
       if (d < lo - 1 || d > hi + 1) continue;
       byDay.set(d, [...(byDay.get(d) ?? []), it]);
     }
-    const room = plotH - STEM - r - 4;
+    const room = plotH - stem - r - 4;
     const stacks = [...byDay.entries()]
       .sort((a, b) => a[0] - b[0])
       .map(([d, list]) => {
@@ -179,7 +184,7 @@ export function Timeline({
         // Compress a tall stack so it fits (the surface ring keeps spheres apart).
         const step = Math.min(r * 2 + 1.5, list.length > 1 ? room / (list.length - 1) : r * 2);
         const cx = x(d);
-        const balls = list.map((it, i) => ({ it, cx, cy: base - STEM - i * step }));
+        const balls = list.map((it, i) => ({ it, cx, cy: base - stem - i * step }));
         const top = balls[balls.length - 1]!.cy;
         const one = new Set(list.map((l) => l.colour)).size === 1 ? list[0]!.colour : null;
         return { d, cx, top, balls, stem: one };
@@ -326,6 +331,7 @@ export function Timeline({
           <p>{subtitle}</p>
         </div>
         <div className="mg-tl-tools">
+          {!saved.minimised && tools}
           {!saved.minimised && layout && (
             <>
               <span className="mg-tl-range" aria-live="polite">

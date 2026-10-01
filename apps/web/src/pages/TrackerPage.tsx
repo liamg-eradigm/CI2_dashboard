@@ -191,6 +191,8 @@ export function TrackerPage({ me, view = "tracker", title, above }: { me: Me; vi
   // Each table has its own columns, chosen from the Inbox columns (Inbox → Edit columns).
   const cols = phantoms ? phantomColumns(s) : trackerColumns(s);
   const canAttach = can(me.role, "item:edit");
+  // Phantoms (and the Deliverables built from them) are an evergreen snapshot: only Tracker entries are edited.
+  const canEdit = canAttach && view === "tracker";
   const canDelete = can(me.role, "item:delete");
   const tickable = newsletter ? canCreateNewsletter(me) : (view === "tracker" || view === "phantoms") && canDelete;
   const impactCol = getColumn(s, CORE.impact);
@@ -377,7 +379,7 @@ export function TrackerPage({ me, view = "tracker", title, above }: { me: Me; vi
                   <th scope="col" className="src-col">
                     <span>Source</span>
                   </th>
-                  {canAttach && (
+                  {canEdit && (
                     <th scope="col" className="src-col">
                       <span>Edit</span>
                     </th>
@@ -417,7 +419,7 @@ export function TrackerPage({ me, view = "tracker", title, above }: { me: Me; vi
                       </td>
                     )}
                     <SourceCell s={r} canAttach={canAttach} onOpen={(pageId) => setParam({ saved: r.id, savedPage: pageId }, true)} />
-                    {canAttach && (
+                    {canEdit && (
                       <td className="src-col">
                         <button className="src-btn open edit-btn" onClick={() => setParam({ signal: r.id, edit: "1" }, true)} aria-label={`Edit ${titleOf(r)}`} title="Edit, then approve again">
                           <svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true">
@@ -516,7 +518,7 @@ export function TrackerPage({ me, view = "tracker", title, above }: { me: Me; vi
           id={mdOpen}
           onClose={() => setParam({ md: null })}
           onOpenRecord={(id) => setParam({ md: null, signal: id }, true)}
-          onEdit={canAttach ? (id) => setParam({ md: null, signal: id, edit: "1" }, true) : undefined}
+          onEdit={canEdit ? (id) => setParam({ md: null, signal: id, edit: "1" }, true) : undefined}
         />
       )}
       {selected && (
@@ -526,7 +528,8 @@ export function TrackerPage({ me, view = "tracker", title, above }: { me: Me; vi
           schema={s}
           me={me}
           table={view === "tracker" || view === "phantoms" ? view : undefined}
-          startEditing={canAttach && f.params.get("edit") === "1"}
+          startEditing={canEdit && f.params.get("edit") === "1"}
+          editable={view === "tracker"}
           onClose={() => setParam({ signal: null, edit: null })}
           onOpen={(id) => setParam({ signal: id, edit: null }, true)}
         />

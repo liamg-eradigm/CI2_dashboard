@@ -19,6 +19,9 @@ import {
   CreateNewsletterRequest,
   DOCX_MIME,
   GenerateTrendSummaryRequest,
+  CreateCommentRequest,
+  UpdateCommentRequest,
+  VersionRequest,
   UpdateTrendSummaryRequest,
   normaliseNavOrder,
   DeleteItemRequest,
@@ -71,7 +74,7 @@ import { log, metric } from "./lib/log.js";
 import { prefillMode } from "./pipeline/prefill.js";
 import { readSnapshot, snapshotBackend } from "./pipeline/snapshots.js";
 import { audit, listAudit, verifyChain } from "./services/audit.js";
-import { getDetail, getItemRow, inboxCounts, listItems } from "./services/items.js";
+import { clientInboxCount, getDetail, getItemRow, inboxCounts, listItems } from "./services/items.js";
 import { qualityMetrics } from "./services/metrics.js";
 import { dashboard, dateBounds, exportRows, trackerPage, trendTest, type Scope } from "./services/query.js";
 import { approve, deleteFromTable, reject, reprocess, revise, saveDraft, softDelete } from "./services/review.js";
@@ -95,6 +98,7 @@ import { attachSnapshot, importRows } from "./services/imports.js";
 import { submitFile, submitManual, submitUrl } from "./services/submissions.js";
 import { generateSummary, megatrends, writeSummary } from "./services/megatrends.js";
 import { listPages, pageSnapshotId } from "./services/pages.js";
+import { addComment, backToEradigm, clientPush, listComments, sendToClient, updateComment } from "./services/clientInbox.js";
 import { createNewsletter, ensureAlerts, listNewsletters, readDeliverable } from "./services/deliverables.js";
 import { createInvite, createUser, listUsers, revokeSessions, updateUser } from "./services/users.js";
 
@@ -638,18 +642,88 @@ app.get("/api/items/:id", async (c) => {
   return c.json(await getDetail(c.env, await schemasFor(c), P(c).tenantId, c.req.param("id")));
 });
 
+// ---------------------------------------------------------------------------
+// Eradigm Inbox ⇄ Client Inbox, and comments on an entry's text
+// ---------------------------------------------------------------------------
+
+app.post("/api/items/:id/send-to-client", async (c) => {
+  requirePermission(P(c), "item:review");
+  const b = await body(c, VersionRequest);
+  return c.json(await sendToClient(c.env, await schemasFor(c), P(c), c.req.param("id"), b.version));
+});
+
+/** Eradigm takes an entry back from the Client Inbox (without the client sending it). */
+app.post("/api/items/:id/recall", async (c) => {
+  requirePermission(P(c), "item:review");
+  const b = await body(c, VersionRequest);
+  return c.json(await backToEradigm(c.env, await schemasFor(c), P(c), c.req.param("id"), b.version, "eradigm"));
+});
+
+app.get("/api/client-inbox", async (c) => {
+  requirePermission(P(c), "clientInbox:read");
+  return c.json(await listItems(c.env, await schemasFor(c), P(c).tenantId, ["needs_review"], null, 200, true));
+});
+
+app.get("/api/client-inbox/count", async (c) => {
+  requirePermission(P(c), "clientInbox:read");
+  return c.json({ count: await clientInboxCount(c.env, P(c).tenantId) });
+});
+
+app.get("/api/client-inbox/:id", async (c) => {
+  const p = P(c);
+  requirePermission(p, "clientInbox:read");
+  const row = await getItemRow(c.env, p.tenantId, c.req.param("id"));
+  if (!row.with_client_at || row.status !== "needs_review") throw notFound("Item");
+  return c.json(await getDetail(c.env, await schemasFor(c), p.tenantId, row.id));
+});
+
+app.post("/api/client-inbox/:id/send-to-eradigm", async (c) => {
+  requirePermission(P(c), "clientInbox:act");
+  const b = await body(c, VersionRequest);
+  return c.json(await backToEradigm(c.env, await schemasFor(c), P(c), c.req.param("id"), b.version, "client"));
+});
+
+app.post("/api/client-inbox/:id/push", async (c) => {
+  requirePermission(P(c), "clientInbox:act");
+  const b = await body(c, VersionRequest);
+  return c.json(await clientPush(c.env, await schemasFor(c), P(c), c.req.param("id"), b.version));
+});
+
+const canComment = (p: Principal) => can(p.role, "item:review") || can(p.role, "clientInbox:act");
+
+app.get("/api/items/:id/comments", async (c) => {
+  if (!canComment(P(c))) throw forbidden();
+  return c.json(await listComments(c.env, P(c), c.req.param("id")));
+});
+
+app.post("/api/items/:id/comments", async (c) => {
+  if (!canComment(P(c))) throw forbidden();
+  return c.json(await addComment(c.env, P(c), c.req.param("id"), await body(c, CreateCommentRequest)), 201);
+});
+
+app.patch("/api/items/:id/comments/:cid", async (c) => {
+  if (!canComment(P(c))) throw forbidden();
+  const b = await body(c, UpdateCommentRequest);
+  return c.json(await updateComment(c.env, P(c), c.req.param("id"), c.req.param("cid"), b));
+});
+
+app.delete("/api/items/:id/comments/:cid", async (c) => {
+  if (!canComment(P(c))) throw forbidden();
+  return c.json(await updateComment(c.env, P(c), c.req.param("id"), c.req.param("cid"), "delete"));
+});
+
 app.get("/api/items/:id/snapshots", async (c) => {
   const p = P(c);
   const row = await getItemRow(c.env, p.tenantId, c.req.param("id"));
-  if (!can(p.role, "inbox:read") && row.status !== "approved") throw notFound("Item");
+  if (!can(p.role, "inbox:read") && row.status !== "approved" && !row.with_client_at) throw notFound("Item");
   return c.json(await listPages(c.env, p.tenantId, row.id));
 });
 
 app.get("/api/items/:id/snapshot", async (c) => {
   const p = P(c);
   const row = await getItemRow(c.env, p.tenantId, c.req.param("id"));
-  // Clients may only see the snapshot of a published (approved) signal.
-  if (!can(p.role, "inbox:read") && row.status !== "approved") throw notFound("Item");
+  // Clients may only see the snapshot of a published (approved) signal, or of one in their inbox.
+  if (!can(p.role, "inbox:read") && row.status !== "approved" && !row.with_client_at) throw notFound("Item");
   // ?page=<id> opens one of the entry's other saved pages (default: its first page).
   const snapshotId = await pageSnapshotId(c.env, p.tenantId, row, c.req.query("page"));
   const html = await readSnapshot(c.env, p.tenantId, snapshotId);

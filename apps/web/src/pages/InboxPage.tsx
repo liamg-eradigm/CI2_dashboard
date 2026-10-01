@@ -16,15 +16,18 @@ import {
   splitMulti,
   subtrendsOf,
   validateValues,
+  type ItemComment,
   type ItemStatus,
   type ItemSummary,
   type Me,
+  type Stream,
   type TrackerSchema,
 } from "@eradigm/shared";
 import { api, ApiError } from "../api/client";
-import { useInboxCounts, useInvalidate, useItem, useItems, useSchema } from "../api/hooks";
+import { useComments, useInvalidate, useItem, useItems, useSchema } from "../api/hooks";
 import { StreamSwitch } from "../components/StreamSwitch";
-import { useStreamParam } from "../state/stream";
+import { CommentsMargin, useCommentNumbers } from "../components/Comments";
+import { LIST_HINT, ListTextarea } from "../components/ListTextarea";
 import { Combobox } from "../components/Combobox";
 import { ModelOutputTable } from "../components/ModelOutput";
 import { SchemaEditor, TableColumnsEditor } from "../components/SchemaEditor";
@@ -36,34 +39,50 @@ import { useToast } from "../state/toast";
 /** The approved entry in its Tracker (searched for; the default dates cover every entry). */
 function trackerLink(item: ItemSummary): string {
   const p = new URLSearchParams({ signal: item.id });
-  if (item.stream === "secondary") p.set("stream", "secondary");
+  p.set("stream", item.stream);
   // Search for it too, so the table behind the record shows exactly this entry.
   const title = String(item.draft[CORE.title] ?? "").trim();
   if (title) p.set("q", title.slice(0, 200));
   return `/tracker?${p.toString()}`;
 }
 
-const TABS: { key: string; label: string; statuses: ItemStatus[] }[] = [
-  { key: "review", label: "Needs review", statuses: ["needs_review"] },
+const TABS: { key: string; label: string; statuses: ItemStatus[]; withClient?: boolean }[] = [
+  { key: "review", label: "Needs review", statuses: ["needs_review"], withClient: false },
+  { key: "client", label: "With client", statuses: ["needs_review"], withClient: true },
   { key: "processing", label: "Processing", statuses: [...IN_PROGRESS_STATUSES] },
   { key: "failed", label: "Failed", statuses: ["failed"] },
-  { key: "decided", label: "Approved & rejected", statuses: ["approved", "rejected"] },
+  { key: "decided", label: "Pushed & rejected", statuses: ["approved", "rejected"] },
 ];
 const ALL_STATUSES: ItemStatus[] = ["needs_review", "queued", "fetching", "extracting", "failed", "approved", "rejected"];
+const inTab = (t: (typeof TABS)[number], i: ItemSummary) => t.statuses.includes(i.status) && (t.withClient == null || t.withClient === i.withClient);
+const STREAM_FILTER: [Stream | "all", string][] = [
+  ["all", "All"],
+  ["secondary", "Secondary"],
+  ["primary", "Primary"],
+];
 
+/**
+ * The Eradigm Inbox: one inbox for both trackers. Each entry shows its own
+ * tracker's fields. Reject, Send to Client (to the Client Inbox) or Push to
+ * Tracker (approve).
+ */
 export function InboxPage({ me }: { me: Me }) {
-  const [stream, setStream] = useStreamParam();
-  const schema = useSchema(stream);
+  const primary = useSchema("primary");
+  const secondary = useSchema("secondary");
   const [tab, setTab] = useState("review");
+  const [show, setShow] = useState<Stream | "all">("all");
   const [schemaOpen, setSchemaOpen] = useState(false);
-  const all = useItems(ALL_STATUSES, true, true, stream);
-  const unprocessed = useInboxCounts(true);
-  const items = all.data ?? [];
-  const counts = Object.fromEntries(TABS.map((t) => [t.key, items.filter((i) => t.statuses.includes(i.status)).length]));
+  // The column editor works on one tracker at a time (Secondary first).
+  const [colStream, setColStream] = useState<Stream>("secondary");
+  const all = useItems(ALL_STATUSES, true, true);
+  const items = (all.data ?? []).filter((i) => show === "all" || i.stream === show);
+  const counts = Object.fromEntries(TABS.map((t) => [t.key, items.filter((i) => inTab(t, i)).length]));
   const today = new Date().toISOString().slice(0, 10);
   const approvedToday = items.filter((i) => i.status === "approved" && i.decision?.at.slice(0, 10) === today).length;
-  const shown = items.filter((i) => TABS.find((t) => t.key === tab)?.statuses.includes(i.status));
-  const s = schema.data;
+  const current = TABS.find((t) => t.key === tab) ?? TABS[0]!;
+  const shown = items.filter((i) => inTab(current, i));
+  const schemaOf = (st: Stream) => (st === "primary" ? primary.data : secondary.data);
+  const s = schemaOf(colStream);
   const manual = me.features.prefill === "manual";
 
   return (
@@ -72,64 +91,71 @@ export function InboxPage({ me }: { me: Me }) {
         <div className="band-row">
           <div>
             <span className="eyebrow">
-              {STREAM_LABEL[stream]} Inbox · {counts.review ?? 0} awaiting review · {approvedToday} approved today
+              {counts.review ?? 0} awaiting review · {counts.client ?? 0} with the client · {approvedToday} pushed today
             </span>
-            <h1 id="page-title">Inbox</h1>
+            <h1 id="page-title">Eradigm Inbox</h1>
           </div>
           <div className="band-copy">
             {manual
-              ? "Each captured source arrives with its tracker fields empty. Open the saved page, enter every field, then approve. Approval validates the entry, records reviewer and time, and publishes a new revision. The saved page and processing history are kept."
-              : "Check each tracker draft against its source, edit any field, then approve. Approval validates the entry, records reviewer and time, and publishes a new revision. The source snapshot and processing history are kept."}
+              ? "Primary and Secondary entries in one place, each with its own fields. Fill in every field from the saved page, then Push to Tracker, Send to Client for them to check and comment, or Reject."
+              : "Primary and Secondary entries in one place, each with its own fields. Check each draft against its source, then Push to Tracker, Send to Client for them to check and comment, or Reject."}
           </div>
         </div>
       </section>
       <div className="content" style={{ gap: 14 }}>
         <div className="stream-bar">
-          <StreamSwitch noun="Inbox" value={stream} onChange={setStream} counts={unprocessed.data} label="Inbox to show" />
-          <span className="stream-note">
-            {stream === "primary" ? "Uploads to the Primary Source · approved entries go to the Primary Tracker" : "Uploads to the Secondary Source · approved entries go to the Secondary Tracker"}
-          </span>
+          <div className="seg" role="group" aria-label="Show entries from" style={{ display: "flex" }}>
+            {STREAM_FILTER.map(([k, label]) => (
+              <button key={k} aria-pressed={show === k} onClick={() => setShow(k)} style={{ padding: "0 14px" }}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <span className="stream-note">Primary and Secondary sources arrive in this one inbox; pushed entries go to their own Tracker.</span>
         </div>
         {can(me.role, "schema:edit") && (
           <section className="card flush" aria-labelledby="cols-title">
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "14px 18px", flexWrap: "wrap" }}>
               <div>
                 <h2 className="card-title" id="cols-title">
-                  Columns · {STREAM_LABEL[stream]}
+                  Columns · {STREAM_LABEL[colStream]}
                 </h2>
                 <span className="card-sub">
                   {s
-                    ? `${s.columns.length} Inbox columns · ${s.columns.filter((c) => c.inTracker).length} in the Tracker · ${s.columns.filter((c) => c.inPhantoms).length} in Phantoms · changes apply to the ${STREAM_LABEL[stream]} Inbox, Tracker and Phantoms only`
+                    ? `${s.columns.length} Inbox columns · ${s.columns.filter((c) => c.inTracker).length} in the Tracker · ${s.columns.filter((c) => c.inPhantoms).length} in Phantoms · changes apply to ${STREAM_LABEL[colStream]} entries only`
                     : ""}
                 </span>
               </div>
-              <button className="btn secondary" aria-expanded={schemaOpen} onClick={() => setSchemaOpen((o) => !o)} style={schemaOpen ? { background: "var(--tint)" } : undefined}>
-                {schemaOpen ? "Done" : "Edit columns"}
-              </button>
+              <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                {schemaOpen && <StreamSwitch noun="columns" value={colStream} onChange={setColStream} label="Columns of" />}
+                <button className="btn secondary" aria-expanded={schemaOpen} onClick={() => setSchemaOpen((o) => !o)} style={schemaOpen ? { background: "var(--tint)" } : undefined}>
+                  {schemaOpen ? "Done" : "Edit columns"}
+                </button>
+              </div>
             </div>
             {schemaOpen && (
               <>
                 <div className="cols-section-h" id="cols-inbox">
-                  <h3>{STREAM_LABEL[stream]} Inbox columns</h3>
+                  <h3>{STREAM_LABEL[colStream]} Inbox columns</h3>
                   <span>Every field of an entry: names, types, dropdown options and whether approval requires it. One input fills all of them.</span>
                 </div>
-                <SchemaEditor key={stream} stream={stream} />
+                <SchemaEditor key={colStream} stream={colStream} />
                 <div className="cols-section-h" id="cols-tracker">
-                  <h3>{STREAM_LABEL[stream]} Tracker columns</h3>
+                  <h3>{STREAM_LABEL[colStream]} Tracker columns</h3>
                   <span>The columns of the Tracker table, filters and exports, chosen from the Inbox columns.</span>
                 </div>
-                <TableColumnsEditor key={`t-${stream}`} stream={stream} table="tracker" />
+                <TableColumnsEditor key={`t-${colStream}`} stream={colStream} table="tracker" />
                 <div className="cols-section-h" id="cols-phantoms">
-                  <h3>{STREAM_LABEL[stream]} Phantoms columns</h3>
+                  <h3>{STREAM_LABEL[colStream]} Phantoms columns</h3>
                   <span>The columns of the Phantoms table and its exports, chosen from the Inbox columns. The Markdown files are not affected.</span>
                 </div>
-                <TableColumnsEditor key={`p-${stream}`} stream={stream} table="phantoms" />
+                <TableColumnsEditor key={`p-${colStream}`} stream={colStream} table="phantoms" />
               </>
             )}
           </section>
         )}
 
-        <div className="seg inbox-tabs" role="group" aria-label="Inbox views" style={{ alignSelf: "flex-start", display: "flex" }}>
+        <div className="seg inbox-tabs" role="group" aria-label="Inbox views" style={{ alignSelf: "flex-start", display: "flex", flexWrap: "wrap" }}>
           {TABS.map((t) => (
             <button key={t.key} aria-pressed={tab === t.key} onClick={() => setTab(t.key)} style={{ padding: "0 14px" }}>
               {t.label} ({counts[t.key] ?? 0})
@@ -143,8 +169,11 @@ export function InboxPage({ me }: { me: Me }) {
             {(all.error as Error).message}
           </div>
         )}
-        {s && shown.filter((it) => it.stream === stream).map((it) => <InboxCard key={it.id} item={it} schema={s} me={me} />)}
-        {s && !all.isLoading && shown.length === 0 && <div className="empty">Nothing here.</div>}
+        {shown.map((it) => {
+          const sch = schemaOf(it.stream);
+          return sch ? <InboxCard key={it.id} item={it} schema={sch} me={me} /> : null;
+        })}
+        {!all.isLoading && shown.length === 0 && <div className="empty">{tab === "client" ? "Nothing is with the client." : "Nothing here."}</div>}
       </div>
     </>
   );
@@ -170,6 +199,23 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
   const detail = useItem(open ? item.id : null);
   const pending = item.status === "needs_review";
   const canReview = can(me.role, "item:review");
+  // With the client: read-only here until they send it back (or it is recalled).
+  const withClient = pending && item.withClient;
+  const actionable = pending && !item.withClient;
+  const comments = useComments(item.id, item.comments > 0 || !!item.returnedByClient);
+  const allComments = comments.data ?? [];
+  const fieldOrder = useMemo(() => [...sortedColumns(schema).map((c) => c.key), "_text"], [schema]);
+  const { numberOf } = useCommentNumbers(allComments, fieldOrder);
+  const openOn = (k: string) => allComments.filter((c) => c.field === k && !c.resolved).length;
+  /** Jump to a comment's words in its field. */
+  const showComment = (c: ItemComment) => {
+    const el = document.getElementById(`f-${item.id}-${c.field}`) as HTMLInputElement | HTMLTextAreaElement | null;
+    if (!el) return;
+    el.scrollIntoView({ block: "center", behavior: "smooth" });
+    el.focus();
+    const i = "setSelectionRange" in el ? el.value.indexOf(c.quote) : -1;
+    if (i >= 0) el.setSelectionRange(i, i + c.quote.length);
+  };
   const manual = me.features.prefill === "manual";
   // A blank entry typed in from scratch (Input → Manual entry): no source file to view or re-capture.
   const typedIn = item.inputType === "manual";
@@ -198,7 +244,7 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
   const values = useMemo(() => normaliseValues(schema, draft), [schema, draft]);
   const valuesRef = useRef(values);
   valuesRef.current = values;
-  const missingNow = new Set(pending ? validateValues(schema, values, { forApproval: true }).filter((e) => e.code === "required").map((e) => e.key) : []);
+  const missingNow = new Set(actionable ? validateValues(schema, values, { forApproval: true }).filter((e) => e.code === "required").map((e) => e.key) : []);
 
   const set = (k: string, v: string) => {
     setDraft((d) => ({ ...d, [k]: v, ...(k === CORE.macrotrend ? { [CORE.subtrend]: "" } : {}) }));
@@ -209,7 +255,7 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
   const persist = async () => {
     const v = valuesRef.current;
     const json = JSON.stringify(v);
-    if (json === savedRef.current || !pending) return;
+    if (json === savedRef.current || !actionable) return;
     if (validateValues(schema, v, { forApproval: false }).length) return;
     try {
       const r = await api<ItemSummary>(`/api/items/${item.id}/draft`, { method: "PATCH", json: { values: v, version: versionRef.current } });
@@ -299,6 +345,9 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
         <div style={{ minWidth: 0 }}>
           <div className="inbox-meta">
             <span className="code">{item.code}</span>
+            <span className={`tag ${item.stream === "primary" ? "info" : "ok"}`} data-testid="stream-tag">
+              {STREAM_LABEL[item.stream]}
+            </span>
             <span aria-hidden="true">·</span>
             <span>{item.outlet ?? "Unknown source"}</span>
             <span aria-hidden="true">·</span>
@@ -321,6 +370,17 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
             {!extraction && emptyDraft && <span className="tag info">Awaiting analyst entry</span>}
             {item.duplicateOf && pending && <span className="tag err">⚠ Duplicate of {item.duplicateOf}</span>}
             {item.attempts > 1 && <span className="tag info">Attempt {item.attempts}</span>}
+            {withClient && item.sentToClient && (
+              <span className="tag info">
+                ↗ With the client · sent by {item.sentToClient.by} {localDateTime(item.sentToClient.at)}
+              </span>
+            )}
+            {actionable && item.returnedByClient && (
+              <span className="tag warn">
+                ↩ Back from {item.returnedByClient.by} · {localDateTime(item.returnedByClient.at)}
+              </span>
+            )}
+            {item.comments > 0 && <span className="tag warn">💬 {item.comments} open comment{item.comments === 1 ? "" : "s"}</span>}
           </div>
           <div className="inbox-title" id={`t-${item.id}`}>
             {String(item.draft[CORE.title] ?? "") || item.title || item.url || "Untitled submission"}
@@ -334,7 +394,12 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
           )}
         </div>
         <div className="inbox-actions">
-          {pending && canReview && (
+          {withClient && canReview && (
+            <button className="btn secondary" disabled={busy} onClick={() => act("/recall", { version: versionRef.current }, () => `${item.code} recalled from the Client Inbox`)} title="Take it back without waiting for the client">
+              ↙ Recall from client
+            </button>
+          )}
+          {actionable && canReview && (
             <>
               {!typedIn && (
                 <button
@@ -356,8 +421,16 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
               >
                 ✕ Reject
               </button>
+              <button
+                className="btn secondary"
+                disabled={busy}
+                onClick={() => void chainRef.current.then(() => act("/send-to-client", { version: versionRef.current }, () => `${item.code} sent to the Client Inbox`))}
+                title="Send it to the client to check and comment on"
+              >
+                ↗ Send to Client
+              </button>
               <button className="btn" style={{ height: 38, padding: "0 18px", fontSize: 14 }} disabled={busy} onClick={() => void approve()}>
-                ✓ Approve
+                ✓ Push to Tracker
               </button>
             </>
           )}
@@ -374,7 +447,7 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
           {item.decision && !pending && (
             <div className={`decided ${item.status === "approved" ? "" : "bad"}`}>
               <b>
-                {item.status === "approved" ? `✓ Approved · ${item.signalCode} rev ${item.publishedRev}` : item.status === "rejected" ? "✕ Rejected" : ""}
+                {item.status === "approved" ? `✓ Pushed to Tracker · ${item.signalCode} rev ${item.publishedRev}` : item.status === "rejected" ? "✕ Rejected" : ""}
               </b>
               <span>
                 {item.decision.by} · {localDateTime(item.decision.at)}
@@ -390,7 +463,7 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
         </div>
       </div>
 
-      {pending && (dupConfirm || item.duplicateOf) && (
+      {actionable && (dupConfirm || item.duplicateOf) && (
         <DuplicateWarning
           code={item.code}
           dup={dupConfirm ?? { signalCode: item.duplicateOf ?? "", id: item.duplicateItemId, basis: item.duplicateBasis }}
@@ -451,6 +524,18 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
               </button>
             )}
           </div>
+          {allComments.length > 0 && (
+            <CommentsMargin
+              itemId={item.id}
+              comments={allComments}
+              labelOf={(f) => (f === "_text" ? "Page text" : (schema.columns.find((c) => c.key === f)?.label ?? f))}
+              numberOf={numberOf}
+              canResolve={canReview}
+              onShow={showComment}
+              title="Client comments"
+            />
+          )}
+          {actionable && cols.some((c) => c.type === "long") && <div className="list-hint">{LIST_HINT}</div>}
           <div className="draft-grid" role="group" aria-label={`Tracker fields for ${item.code}`}>
             {cols.map((c) => {
               const v = draft[c.key] ?? "";
@@ -460,8 +545,9 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
               const auto = AUTO_KEYS.includes(c.key);
               const cls = `dcell ${invalid ? "invalid" : missing ? "missing" : ""}`;
               const common = {
+                id: `f-${item.id}-${c.key}`,
                 className: cls,
-                disabled: !pending || !canReview,
+                disabled: !actionable || !canReview,
                 "aria-label": c.label,
                 "aria-invalid": invalid || undefined,
                 "aria-describedby": `n-${item.id}-${c.key}`,
@@ -476,13 +562,19 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
                   <span className="dlabel" id={`h-${item.id}-${c.key}`}>
                     {c.label}
                     {auto ? " (automatic)" : c.required ? "" : " (optional)"}
+                    {openOn(c.key) > 0 && (
+                      <span className="dlabel-c" title="Open client comments on this field">
+                        {" "}
+                        💬 {openOn(c.key)}
+                      </span>
+                    )}
                   </span>
                   {auto ? (
                     <input className="dcell auto" aria-label={c.label} readOnly value={SOURCE_TIER[item.stream]} aria-describedby={`n-${item.id}-${c.key}`} />
                   ) : c.type === "date" ? (
                     <input type="date" {...common} value={v} onChange={(e) => set(c.key, e.target.value)} />
                   ) : c.type === "long" ? (
-                    <textarea {...common} className={`${cls} long`} rows={4} value={v} onChange={(e) => set(c.key, e.target.value)} />
+                    <ListTextarea {...common} className={`${cls} long`} rows={4} value={v} onValueChange={(x) => set(c.key, x)} />
                   ) : c.type === "text" ? (
                     <input {...common} value={v} onChange={(e) => set(c.key, e.target.value)} />
                   ) : c.type === "multi" ? (

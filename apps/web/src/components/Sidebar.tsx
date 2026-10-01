@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { DEFAULT_NAV_ORDER, NAV_LABEL, ROLE_LABEL, can, type Me, type NavTab } from "@eradigm/shared";
-import { useInboxCounts, useSettings } from "../api/hooks";
+import { DEFAULT_NAV_ORDER, NAV_LABEL, NAV_PATH, ROLE_LABEL, can, canSeeTab, type Me, type NavTab } from "@eradigm/shared";
+import { useClientInboxCount, useInboxCounts, useSettings } from "../api/hooks";
 import { DEV_AUTH, devUserStore, signOut, tenantStore } from "../api/client";
 
 const DEV_USERS = [
@@ -17,6 +17,7 @@ export function Sidebar({ me }: { me: Me }) {
   const qc = useQueryClient();
   const staff = can(me.role, "inbox:read");
   const counts = useInboxCounts(staff);
+  const clientCount = useClientInboxCount(canSeeTab(me.role, "clientinbox"));
   const settings = useSettings();
   const n = (counts.data?.primary ?? 0) + (counts.data?.secondary ?? 0);
   const loc = useLocation();
@@ -41,18 +42,9 @@ export function Sidebar({ me }: { me: Me }) {
       </aside>
     );
   }
-  // The tabs, in the order an admin set (Administration → Tabs); tabs a role cannot use stay hidden.
-  const show: Record<NavTab, boolean> = {
-    dashboard: true,
-    tracker: true,
-    phantoms: true,
-    deliverables: true,
-    megatrends: true,
-    inbox: staff,
-    input: can(me.role, "submission:create"),
-    admin: can(me.role, "user:read"),
-  };
-  const links: [string, string, boolean][] = (settings.data?.navOrder ?? DEFAULT_NAV_ORDER).map((k) => [`/${k}`, NAV_LABEL[k], show[k]]);
+  // The tabs, in the order an admin set (Administration → Tabs); each role sees only its own tabs.
+  const links: [string, string, boolean][] = (settings.data?.navOrder ?? DEFAULT_NAV_ORDER).map((k: NavTab) => [NAV_PATH[k], NAV_LABEL[k], canSeeTab(me.role, k)]);
+  const waiting = clientCount.data?.count ?? 0;
   return (
     <aside className="sidebar" aria-label="Main menu">
       <button className="side-close" onClick={() => setOpen(false)} title="Close menu" aria-label="Close menu" aria-expanded="true">
@@ -79,6 +71,11 @@ export function Sidebar({ me }: { me: Me }) {
               {to === "/inbox" && n > 0 && (
                 <span className="badge" aria-label={`${n} unprocessed`}>
                   {n}
+                </span>
+              )}
+              {to === "/client-inbox" && waiting > 0 && (
+                <span className="badge" aria-label={`${waiting} to check`}>
+                  {waiting}
                 </span>
               )}
             </NavLink>

@@ -25,9 +25,12 @@ import {
 } from "../src/index.js";
 
 describe("permission rules", () => {
-  it("gives clients read/export access only", () => {
+  it("gives clients read/export access, plus their Client Inbox", () => {
     const allowed = ACTIONS.filter((a) => can("client", a));
-    expect(allowed).toEqual(["dashboard:read", "tracker:read", "tracker:export", "savedView:write"]);
+    expect(allowed).toEqual(["dashboard:read", "tracker:read", "tracker:export", "savedView:write", "clientInbox:read", "clientInbox:act"]);
+    // Analysts work in the Eradigm Inbox, not the client's.
+    expect(can("analyst", "clientInbox:read")).toBe(false);
+    expect(can("admin", "clientInbox:act")).toBe(true);
   });
 
   it("restricts input, review and schema editing to analysts and admins", () => {

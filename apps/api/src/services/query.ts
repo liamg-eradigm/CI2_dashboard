@@ -56,6 +56,24 @@ export interface Scope {
 /** Entries removed from one table only stay out of that table (see migration 0007). */
 export const visibleIn = (table: "tracker" | "phantoms" = "tracker") => (table === "phantoms" ? "i.phantoms_hidden_at IS NULL" : "i.tracker_hidden_at IS NULL");
 
+/**
+ * Phantoms read the evergreen snapshot of each entry (its values as first
+ * pushed to the Tracker, migration 0012) under the same column names, so one
+ * set of filters, sorts and columns serves both tables.
+ */
+const PHANTOM_SOURCE = `(SELECT i.id, i.tenant_id, i.status, i.deleted_at, i.stream, i.tracker_hidden_at, i.phantoms_hidden_at, i.signal_code,
+    i.body_text, i.final_url, i.current_snapshot_id,
+    p.pub_date, p.title, p.macrotrend, p.subtrend, p.growth, p.impact, p.record_id, p.extra_json, p.competitors_json,
+    p.published_rev, p.approved_at, p.approved_by
+  FROM intelligence_items i JOIN phantom_snapshots p ON p.item_id = i.id)`;
+
+/** The rows a view reads: the Tracker's live entries, or the Phantoms snapshot. */
+export const itemsFrom = (scope: Scope = {}) => (scope.table === "phantoms" ? `${PHANTOM_SOURCE} i` : "intelligence_items i");
+const isPhantoms = (scope: Scope = {}) => scope.table === "phantoms";
+/** The entry's competitors, joined by SEP. */
+const competitorsExpr = (scope: Scope = {}) =>
+  isPhantoms(scope) ? `(SELECT group_concat(value, '${SEP}') FROM json_each(i.competitors_json))` : `(SELECT group_concat(c.competitor, '${SEP}') FROM item_competitors c WHERE c.item_id = i.id)`;
+
 function scopeWhere(scope: Scope): Where {
   const parts: string[] = [visibleIn(scope.table)];
   const binds: unknown[] = [];
@@ -91,7 +109,7 @@ export function buildWhere(schema: TrackerSchema, tenantId: string, f: FilterSta
     const v = f.values[col.key];
     if (!v || v === ALL) continue;
     if (col.type === "multi") {
-      parts.push("EXISTS (SELECT 1 FROM item_competitors c WHERE c.item_id = i.id AND c.competitor = ?)");
+      parts.push(isPhantoms(scope) ? "EXISTS (SELECT 1 FROM json_each(i.competitors_json) WHERE value = ?)" : "EXISTS (SELECT 1 FROM item_competitors c WHERE c.item_id = i.id AND c.competitor = ?)");
       binds.push(v);
     } else if (PHYSICAL[col.key]) {
       parts.push(`i.${PHYSICAL[col.key]} = ?`);
@@ -105,12 +123,12 @@ export function buildWhere(schema: TrackerSchema, tenantId: string, f: FilterSta
 }
 
 /** ORDER BY for a column: dropdowns sort by option order, multi by first competitor. */
-function orderBy(schema: TrackerSchema, key: string, dir: "asc" | "desc"): Where {
+function orderBy(schema: TrackerSchema, key: string, dir: "asc" | "desc", scope: Scope = {}): Where {
   const col = getColumn(schema, key) ?? getColumn(schema, CORE.date);
   const d = dir === "asc" ? "ASC" : "DESC";
   const tie = "i.pub_date DESC, i.signal_code DESC";
   if (!col) return { sql: tie, binds: [] };
-  const expr = PHYSICAL[col.key] ? `i.${PHYSICAL[col.key]}` : col.type === "multi" ? "(SELECT MIN(c.competitor) FROM item_competitors c WHERE c.item_id = i.id)" : "json_extract(i.extra_json, ?)";
+  const expr = PHYSICAL[col.key] ? `i.${PHYSICAL[col.key]}` : col.type === "multi" ? isPhantoms(scope) ? "(SELECT MIN(value) FROM json_each(i.competitors_json))" : "(SELECT MIN(c.competitor) FROM item_competitors c WHERE c.item_id = i.id)" : "json_extract(i.extra_json, ?)";
   const binds: unknown[] = PHYSICAL[col.key] || col.type === "multi" ? [] : [jsonPath(col.key)];
   if (col.type === "select" && col.options?.length) {
     const cases = col.options.map(() => "WHEN ? THEN ?").join(" ");
@@ -144,8 +162,8 @@ interface SignalRow {
   page_count: number | null;
 }
 
-const SIGNAL_COLUMNS = `i.id, i.signal_code, i.stream, i.record_id, i.pub_date, i.title, i.macrotrend, i.subtrend, i.growth, i.impact, i.extra_json,
-  (SELECT group_concat(c.competitor, '${SEP}') FROM item_competitors c WHERE c.item_id = i.id) AS competitors,
+const signalColumns = (scope: Scope = {}) => `i.id, i.signal_code, i.stream, i.record_id, i.pub_date, i.title, i.macrotrend, i.subtrend, i.growth, i.impact, i.extra_json,
+  ${competitorsExpr(scope)} AS competitors,
   substr(i.body_text, 1, 600) AS body_text, i.final_url, i.published_rev, i.approved_at,
   (SELECT u.name FROM users u WHERE u.id = i.approved_by) AS approved_by_name,
   (SELECT s.retention_status = 'active' FROM source_snapshots s WHERE s.id = i.current_snapshot_id) AS has_snapshot,
@@ -184,7 +202,7 @@ function toSignal(schema: TrackerSchema, r: SignalRow): Signal {
 
 async function countPublished(env: Env, tenantId: string, scope: Scope = {}): Promise<number> {
   const sc = scopeWhere(scope);
-  const r = await env.DB.prepare(`SELECT COUNT(*) AS n FROM intelligence_items i WHERE i.tenant_id = ? AND i.status = 'approved' AND i.deleted_at IS NULL${sc.sql ? ` AND ${sc.sql}` : ""}`)
+  const r = await env.DB.prepare(`SELECT COUNT(*) AS n FROM ${itemsFrom(scope)} WHERE i.tenant_id = ? AND i.status = 'approved' AND i.deleted_at IS NULL${sc.sql ? ` AND ${sc.sql}` : ""}`)
     .bind(tenantId, ...sc.binds)
     .first<{ n: number }>();
   return r?.n ?? 0;
@@ -198,7 +216,7 @@ async function countPublished(env: Env, tenantId: string, scope: Scope = {}): Pr
  */
 function outsideDatesStmt(env: Env, schema: TrackerSchema, tenantId: string, f: FilterState, scope: Scope = {}) {
   const w = buildWhere(schema, tenantId, { ...f, from: "0000-01-01", to: "9999-12-31" }, [], scope);
-  return env.DB.prepare(`SELECT COUNT(*) AS n, MIN(i.pub_date) AS lo, MAX(i.pub_date) AS hi FROM intelligence_items i WHERE ${w.sql}`).bind(...w.binds);
+  return env.DB.prepare(`SELECT COUNT(*) AS n, MIN(i.pub_date) AS lo, MAX(i.pub_date) AS hi FROM ${itemsFrom(scope)} WHERE ${w.sql}`).bind(...w.binds);
 }
 
 function outsideDates(result: D1Result | undefined, shown: number): OutsideDates {
@@ -217,10 +235,10 @@ export async function trackerPage(
   scope: Scope = {},
 ) {
   const w = buildWhere(schema, tenantId, f, [], scope);
-  const o = orderBy(schema, sort.key, sort.dir);
+  const o = orderBy(schema, sort.key, sort.dir, scope);
   const [rows, count, span] = await env.DB.batch([
-    env.DB.prepare(`SELECT ${SIGNAL_COLUMNS} FROM intelligence_items i WHERE ${w.sql} ORDER BY ${o.sql} LIMIT ? OFFSET ?`).bind(...w.binds, ...o.binds, pageSize, page * pageSize),
-    env.DB.prepare(`SELECT COUNT(*) AS n FROM intelligence_items i WHERE ${w.sql}`).bind(...w.binds),
+    env.DB.prepare(`SELECT ${signalColumns(scope)} FROM ${itemsFrom(scope)} WHERE ${w.sql} ORDER BY ${o.sql} LIMIT ? OFFSET ?`).bind(...w.binds, ...o.binds, pageSize, page * pageSize),
+    env.DB.prepare(`SELECT COUNT(*) AS n FROM ${itemsFrom(scope)} WHERE ${w.sql}`).bind(...w.binds),
     outsideDatesStmt(env, schema, tenantId, f, scope),
   ]);
   const total = ((count?.results ?? [])[0] as { n: number } | undefined)?.n ?? 0;
@@ -254,8 +272,8 @@ export async function exportRows(env: Env, schema: TrackerSchema, tenantId: stri
   const w = f
     ? buildWhere(schema, tenantId, f, [], scope)
     : { sql: `i.tenant_id = ? AND i.status = 'approved' AND i.deleted_at IS NULL${sc.sql ? ` AND ${sc.sql}` : ""}`, binds: [tenantId, ...sc.binds] };
-  const o = orderBy(schema, sort.key, sort.dir);
-  const res = await env.DB.prepare(`SELECT ${SIGNAL_COLUMNS} FROM intelligence_items i WHERE ${w.sql} ORDER BY ${o.sql} LIMIT ${EXPORT_MAX_ROWS}`)
+  const o = orderBy(schema, sort.key, sort.dir, scope);
+  const res = await env.DB.prepare(`SELECT ${signalColumns(scope)} FROM ${itemsFrom(scope)} WHERE ${w.sql} ORDER BY ${o.sql} LIMIT ${EXPORT_MAX_ROWS}`)
     .bind(...w.binds, ...o.binds)
     .all<SignalRow>();
   return (res.results ?? []).map((r) => ({ signalId: r.signal_code, values: rowValues(schema, r) }));

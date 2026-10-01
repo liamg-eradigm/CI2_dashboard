@@ -56,14 +56,17 @@ describe("Deliverables → Alerts", () => {
     expect((await call(w.b.admin, "GET", `/api/deliverables/${row.alertId}/docx`)).status).toBe(404);
   });
 
-  it("regenerates the alert when the entry is revised, and leaves out entries deleted from Phantoms", async () => {
+  it("keeps the alert as first pushed when the Tracker entry is edited, and leaves out entries deleted from Phantoms", async () => {
     const before = (await rows("/api/deliverables/alerts", "primary")).find((r) => r.id === high)!;
     const sig = await json(call(w.a.analyst, "GET", `/api/signals/${high}`));
     const rev = await call(w.a.analyst, "POST", `/api/signals/${high}/revise`, { body: { values: { ...sig.values, title: "Roche expands its AI lab" }, note: "Retitled" } });
     expect(rev.status).toBe(200);
     const after = (await rows("/api/deliverables/alerts", "primary")).find((r) => r.id === high)!;
     expect(after.alertId).toBe(before.alertId);
-    expect(await docxText(await call(w.a.client, "GET", `/api/deliverables/${after.alertId}/docx`))).toContain("Roche expands its AI lab");
+    // Phantoms (and their alerts) are an evergreen snapshot.
+    const text = await docxText(await call(w.a.client, "GET", `/api/deliverables/${after.alertId}/docx`));
+    expect(text).toContain("Roche launches an AI lab &amp; &lt;pilot&gt;");
+    expect(text).not.toContain("Roche expands its AI lab");
 
     await call(w.a.analyst, "DELETE", `/api/items/${secHigh}`, { body: { from: "phantoms" } });
     expect((await rows("/api/deliverables/alerts", "secondary")).map((r) => r.id)).not.toContain(secHigh);
@@ -73,7 +76,8 @@ describe("Deliverables → Alerts", () => {
     const csv = await (await call(w.a.analyst, "GET", `/api/tracker/export?stream=primary&format=csv&scope=all&view=alerts`)).text();
     const [head, ...lines] = csv.replace(/^\uFEFF/, "").split("\r\n");
     expect(head?.startsWith("Signal ID,ID,Title,Event Date,Source Role,")).toBe(true);
-    expect(lines.join("\n")).toContain("Roche expands its AI lab");
+    expect(lines.join("\n")).toContain("Roche launches an AI lab & <pilot>");
+    expect(lines.join("\n")).not.toContain("Roche expands its AI lab");
     expect(lines.join("\n")).not.toContain("Novartis hires an AI lead");
   });
 });

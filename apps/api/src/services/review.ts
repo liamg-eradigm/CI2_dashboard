@@ -27,6 +27,7 @@ import { newId, nowIso } from "../lib/ids.js";
 import { metric } from "../lib/log.js";
 import { enqueue } from "../pipeline/process.js";
 import { audit } from "./audit.js";
+import { snapshotPhantom } from "./phantoms.js";
 import { DUPLICATE_BASIS_LABEL, NO_PUBLISHED_DUPLICATE, getItemRow, getSummary, nextCode, publishedDuplicate, type ItemRow, type PublishedDuplicate } from "./items.js";
 import { PHYSICAL, loadSettings, type Schemas } from "./schema.js";
 
@@ -41,6 +42,11 @@ function changedKeys(schema: TrackerSchema, a: ItemValues, b: ItemValues): strin
 
 function assertTransition(from: ItemStatus, to: ItemStatus, what: string) {
   if (!canTransition(from, to)) throw conflict(`This item is ${from.replace("_", " ")} and cannot be ${what}`);
+}
+
+/** While an entry is with the client, Eradigm cannot change it (recall it first). */
+export function assertNotWithClient(row: ItemRow) {
+  if (row.with_client_at) throw conflict(`${row.code} is with the client. Recall it to the Eradigm Inbox first.`);
 }
 
 function assertVersion(row: ItemRow, version: number | undefined) {
@@ -146,6 +152,7 @@ function validationError(errors: ReturnType<typeof validateValues>): ApiError {
 
 export async function saveDraft(env: Env, schemas: Schemas, p: Principal, id: string, raw: Record<string, unknown>, version: number): Promise<ItemSummary> {
   const row = await getItemRow(env, p.tenantId, id);
+  assertNotWithClient(row);
   const schema = schemas[row.stream];
   if (row.status !== "needs_review") throw conflict("Only drafts awaiting review can be edited");
   assertVersion(row, version);
@@ -183,11 +190,15 @@ export async function approve(
   version: number,
   note?: string,
   overrideDuplicate = false,
+  /** Pushed to the Tracker from the Client Inbox (by the client), not the Eradigm Inbox. */
+  fromClientInbox = false,
 ): Promise<ItemSummary> {
   const row = await getItemRow(env, p.tenantId, id);
   const schema = schemas[row.stream];
   assertTransition(row.status, "approved", "approved");
   if (row.status !== "needs_review") throw conflict("Only drafts awaiting review can be approved");
+  if (fromClientInbox && !row.with_client_at) throw conflict(`${row.code} is no longer in the Client Inbox`);
+  if (!fromClientInbox) assertNotWithClient(row);
   assertVersion(row, version);
   const values = withAutoValues(schema, row, normaliseValues(schema, raw));
   // Review Date defaults to the day of approval when the analyst leaves it empty.
@@ -220,9 +231,11 @@ export async function approve(
     res = await env.DB.batch([
     env.DB.prepare(
       `UPDATE intelligence_items SET status = 'approved', draft_json = ?, provenance_json = ?, signal_code = ?, published_rev = ?, approved_at = ?, approved_by = ?,
-              version = version + 1, op_token = ?, updated_at = ? WHERE tenant_id = ? AND id = ? AND version = ? AND status = 'needs_review'${overrideDuplicate ? "" : ` AND ${NO_PUBLISHED_DUPLICATE}`}`,
+              with_client_at = NULL, version = version + 1, op_token = ?, updated_at = ? WHERE tenant_id = ? AND id = ? AND version = ? AND status = 'needs_review'${overrideDuplicate ? "" : ` AND ${NO_PUBLISHED_DUPLICATE}`}`,
     ).bind(JSON.stringify(values), JSON.stringify(prov), signalCode, rev, now, p.userId, token, now, p.tenantId, id, version, ...(overrideDuplicate ? [] : [id])),
     ...projectionStatements(env, schema, p.tenantId, id, values, token),
+    // Its Phantom: frozen as first pushed to the Tracker.
+    snapshotPhantom(env, p.tenantId, id),
     env.DB.prepare(
       `INSERT INTO item_revisions (id, tenant_id, item_id, seq, kind, published_rev, values_json, provenance_json, changed_keys, created_by, created_at, note)
        SELECT ?, ?, ?, ?, 'published', ?, ?, ?, ?, ?, ?, ? WHERE ${g.sql}`,
@@ -237,7 +250,12 @@ export async function approve(
       JSON.stringify(corrected),
       p.userId,
       now,
-      note?.trim() || (dup ? `Approved from Inbox · confirmed although ${dup.signalCode} is already in the tracker` : "Approved from Inbox · validation passed"),
+      note?.trim() ||
+        (fromClientInbox
+          ? "Pushed to the Tracker from the Client Inbox · validation passed"
+          : dup
+            ? `Pushed to the Tracker from the Eradigm Inbox · confirmed although ${dup.signalCode} is already in the tracker`
+            : "Pushed to the Tracker from the Eradigm Inbox · validation passed"),
       ...g.binds,
     ),
     env.DB.prepare(
@@ -274,7 +292,8 @@ export async function approve(
  * the approval checks again (required fields, options, dates, unique ID), is
  * published as a new revision, and is re-stamped as approved by the editor
  * (QC Reviewed_by) today (Review Date, unless the editor set it). The Tracker,
- * Phantoms, Markdown, Dashboard and alerts all follow the new revision.
+ * Dashboard and Megatrends follow the new revision; Phantoms (with their
+ * Markdown, alerts and newsletters) keep the entry as first pushed.
  */
 export async function revise(env: Env, schemas: Schemas, p: Principal, id: string, raw: Record<string, unknown>, note?: string): Promise<void> {
   const row = await getItemRow(env, p.tenantId, id);
@@ -322,6 +341,7 @@ export async function revise(env: Env, schemas: Schemas, p: Principal, id: strin
 
 export async function reject(env: Env, schemas: Schemas, p: Principal, id: string, reason: string | undefined, version: number): Promise<ItemSummary> {
   const row = await getItemRow(env, p.tenantId, id);
+  assertNotWithClient(row);
   assertTransition(row.status, "rejected", "rejected");
   assertVersion(row, version);
   const token = newId("op");
@@ -352,6 +372,7 @@ export async function reject(env: Env, schemas: Schemas, p: Principal, id: strin
 
 export async function reprocess(env: Env, ctx: ExecutionContext | null, schemas: Schemas, p: Principal, id: string, version?: number): Promise<ItemSummary> {
   const row = await getItemRow(env, p.tenantId, id);
+  assertNotWithClient(row);
   assertTransition(row.status, "queued", "reprocessed");
   if (row.quarantined) throw conflict("Quarantined items cannot be reprocessed; their content was deleted under the data policy");
   if (row.input_type === "manual") throw conflict("Manual entries have no source file to process; fill in the fields instead");

@@ -1,3 +1,5 @@
+import type { Role } from "./permissions.js";
+
 /**
  * Megatrends: the knowledge graph of tracker entries by Macrotrend and
  * Subtrend, with a short summary of each (added in contract 1.10).
@@ -89,7 +91,7 @@ export const defaultSummary = (level: TrendLevel, name: string): string | null =
 // Navigation (the tab order is an admin setting since contract 1.10)
 // ---------------------------------------------------------------------------
 
-export const NAV_TABS = ["dashboard", "tracker", "phantoms", "deliverables", "megatrends", "inbox", "input", "admin"] as const;
+export const NAV_TABS = ["dashboard", "tracker", "phantoms", "deliverables", "megatrends", "inbox", "clientinbox", "input", "admin"] as const;
 export type NavTab = (typeof NAV_TABS)[number];
 export const NAV_LABEL: Record<NavTab, string> = {
   dashboard: "Dashboard",
@@ -97,11 +99,43 @@ export const NAV_LABEL: Record<NavTab, string> = {
   phantoms: "Phantoms",
   deliverables: "Deliverables",
   megatrends: "Megatrends",
-  inbox: "Inbox",
+  inbox: "Eradigm Inbox",
+  clientinbox: "Client Inbox",
   input: "Input",
   admin: "Administration",
 };
 export const DEFAULT_NAV_ORDER: NavTab[] = [...NAV_TABS];
+
+/** The page of each tab. */
+export const NAV_PATH: Record<NavTab, string> = {
+  dashboard: "/dashboard",
+  tracker: "/tracker",
+  phantoms: "/phantoms",
+  deliverables: "/deliverables",
+  megatrends: "/megatrends",
+  inbox: "/inbox",
+  clientinbox: "/client-inbox",
+  input: "/input",
+  admin: "/admin",
+};
+
+/**
+ * Which roles see each tab (contract 1.12): clients see Dashboard, Tracker,
+ * Megatrends, Phantoms and the Client Inbox; analysts the same with the
+ * Eradigm Inbox instead; admins see everything.
+ */
+const TAB_ROLES: Record<NavTab, readonly Role[]> = {
+  dashboard: ["admin", "analyst", "client"],
+  tracker: ["admin", "analyst", "client"],
+  phantoms: ["admin", "analyst", "client"],
+  megatrends: ["admin", "analyst", "client"],
+  inbox: ["admin", "analyst"],
+  clientinbox: ["admin", "client"],
+  deliverables: ["admin"],
+  input: ["admin"],
+  admin: ["admin"],
+};
+export const canSeeTab = (role: Role | null | undefined, tab: NavTab): boolean => !!role && TAB_ROLES[tab].includes(role);
 
 /** A stored tab order made whole: unknown or repeated tabs dropped, tabs added since appended at the end. */
 export function normaliseNavOrder(order: readonly string[] | undefined): NavTab[] {

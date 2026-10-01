@@ -55,7 +55,7 @@ function prepare(grid: Grid, rules: ImportColumnRule[], streamName: string): { r
  * tracker's column names; each further row becomes a published entry.
  */
 export function ImportCard() {
-  const [stream, setStream] = useState<Stream>("primary");
+  const [stream, setStream] = useState<Stream>("secondary");
   const schema = useSchema(stream);
   const inv = useInvalidate();
   const [file, setFile] = useState<File | null>(null);
@@ -326,7 +326,7 @@ export function ImportCard() {
           </b>
           <span>
             They have no saved page yet: attach one from the tracker with the green <span aria-hidden="true">+</span> on each row.{" "}
-            <Link to={`/tracker${stream === "secondary" ? "?stream=secondary" : ""}`}>Open the {trackerName} →</Link>
+            <Link to={`/tracker?stream=${stream}`}>Open the {trackerName} →</Link>
           </span>
         </div>
       )}

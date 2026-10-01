@@ -30,6 +30,7 @@ import {
 import type { Env } from "../env.js";
 import { ApiError, badRequest, notFound } from "../lib/errors.js";
 import { newId, nowIso } from "../lib/ids.js";
+import { renamePhantomOption } from "./phantoms.js";
 
 /** Core columns stored as physical columns on intelligence_items (published projection). */
 export const PHYSICAL: Record<string, string> = {
@@ -427,6 +428,10 @@ export async function renameOption(env: Env, tenantId: string, stream: Stream, k
   ];
   if (col.type === "macro") {
     stmts.push(env.DB.prepare("UPDATE column_options SET parent = ?1 WHERE tenant_id = ?2 AND column_key = ?3 AND parent = ?4 AND stream = ?5").bind(v, tenantId, CORE.subtrend, from, stream));
+  }
+  // Phantoms keep their content, but take the new name of an option.
+  if (col.type === "multi" || col.type === "select" || col.type === "macro" || col.type === "sub") {
+    stmts.push(renamePhantomOption(env, tenantId, stream, col.type === "multi" ? { multi: true } : PHYSICAL[key] ? { physical: PHYSICAL[key] } : { extraPath: jsonPath(key) }, from, v));
   }
   // Published signals (of this stream only: the other stream has its own options).
   if (col.type === "multi") {

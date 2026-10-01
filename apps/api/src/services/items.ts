@@ -66,6 +66,11 @@ export interface ItemRow {
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
+  /** Client Inbox (migration 0012). */
+  with_client_at: string | null;
+  sent_to_client_by: string | null;
+  client_returned_at: string | null;
+  client_returned_by: string | null;
 }
 
 type Enriched = ItemRow & {
@@ -76,6 +81,9 @@ type Enriched = ItemRow & {
   decision_at: string | null;
   decision_note: string | null;
   snapshot_status: string | null;
+  sent_by_name: string | null;
+  returned_by_name: string | null;
+  open_comments: number;
 };
 
 export type DuplicateBasis = "url" | "file" | "content";
@@ -124,7 +132,10 @@ const SELECT_ENRICHED = `SELECT i.*,
   (SELECT u.name FROM users u WHERE u.id = i.submitted_by) AS submitted_by_name,
   CASE WHEN i.status IN ('approved', 'deleted') THEN NULL ELSE (${DUP_SELECT}) END AS published_dup,
   (SELECT s.retention_status FROM source_snapshots s WHERE s.id = i.current_snapshot_id) AS snapshot_status,
-  rd.decision AS decision, (SELECT u.name FROM users u WHERE u.id = rd.reviewer_id) AS decision_by, rd.decided_at AS decision_at, rd.note AS decision_note
+  rd.decision AS decision, (SELECT u.name FROM users u WHERE u.id = rd.reviewer_id) AS decision_by, rd.decided_at AS decision_at, rd.note AS decision_note,
+  (SELECT u.name FROM users u WHERE u.id = i.sent_to_client_by) AS sent_by_name,
+  (SELECT u.name FROM users u WHERE u.id = i.client_returned_by) AS returned_by_name,
+  (SELECT COUNT(*) FROM item_comments m WHERE m.item_id = i.id AND m.deleted_at IS NULL AND m.resolved_at IS NULL) AS open_comments
   FROM intelligence_items i
   LEFT JOIN review_decisions rd ON rd.id = (SELECT id FROM review_decisions x WHERE x.item_id = i.id ORDER BY x.decided_at DESC LIMIT 1)`;
 
@@ -169,6 +180,10 @@ export function toSummary(schemas: Schemas, r: Enriched): ItemSummary {
       ? { decision: r.decision as "approve" | "reject" | "reprocess", by: r.decision_by ?? "—", at: r.decision_at ?? "", note: r.decision_note }
       : null,
     hasSnapshot: !!r.current_snapshot_id && r.snapshot_status === "active",
+    withClient: !!r.with_client_at,
+    sentToClient: r.sent_to_client_by && r.with_client_at ? { by: r.sent_by_name ?? "—", at: r.with_client_at } : null,
+    returnedByClient: r.client_returned_at ? { by: r.returned_by_name ?? "—", at: r.client_returned_at } : null,
+    comments: r.open_comments ?? 0,
   };
 }
 
@@ -184,10 +199,20 @@ export async function getSummary(env: Env, schemas: Schemas, tenantId: string, i
   return toSummary(schemas, r);
 }
 
-export async function listItems(env: Env, schemas: Schemas, tenantId: string, statuses: ItemStatus[], stream: Stream | null = null, limit = 200): Promise<ItemSummary[]> {
+export async function listItems(
+  env: Env,
+  schemas: Schemas,
+  tenantId: string,
+  statuses: ItemStatus[],
+  stream: Stream | null = null,
+  limit = 200,
+  /** true: only entries with the client (the Client Inbox). */
+  withClientOnly = false,
+): Promise<ItemSummary[]> {
   const ph = statuses.map((_, i) => `?${i + 3}`).join(",");
   const res = await env.DB.prepare(
-    `${SELECT_ENRICHED} WHERE i.tenant_id = ?1 AND (?2 IS NULL OR i.stream = ?2) AND i.status IN (${ph}) ORDER BY i.received_at DESC LIMIT ${Math.min(500, limit)}`,
+    `${SELECT_ENRICHED} WHERE i.tenant_id = ?1 AND (?2 IS NULL OR i.stream = ?2) AND i.status IN (${ph})${withClientOnly ? " AND i.with_client_at IS NOT NULL" : ""}
+      ORDER BY ${withClientOnly ? "i.with_client_at DESC" : "i.received_at DESC"} LIMIT ${Math.min(500, limit)}`,
   )
     .bind(tenantId, stream, ...statuses)
     .all<Enriched>();
@@ -197,13 +222,21 @@ export async function listItems(env: Env, schemas: Schemas, tenantId: string, st
 /** Items awaiting the analyst (Needs review or still processing) per stream: the Inbox badges. */
 export async function inboxCounts(env: Env, tenantId: string): Promise<Record<Stream, number>> {
   const res = await env.DB.prepare(
-    "SELECT stream, COUNT(*) AS n FROM intelligence_items WHERE tenant_id = ?1 AND status IN ('needs_review', 'queued', 'fetching', 'extracting') GROUP BY stream",
+    "SELECT stream, COUNT(*) AS n FROM intelligence_items WHERE tenant_id = ?1 AND status IN ('needs_review', 'queued', 'fetching', 'extracting') AND with_client_at IS NULL GROUP BY stream",
   )
     .bind(tenantId)
     .all<{ stream: Stream; n: number }>();
   const out: Record<Stream, number> = { primary: 0, secondary: 0 };
   for (const r of res.results ?? []) out[r.stream] = r.n;
   return out;
+}
+
+/** Entries waiting in the Client Inbox (its badge). */
+export async function clientInboxCount(env: Env, tenantId: string): Promise<number> {
+  const r = await env.DB.prepare("SELECT COUNT(*) AS n FROM intelligence_items WHERE tenant_id = ?1 AND status = 'needs_review' AND with_client_at IS NOT NULL")
+    .bind(tenantId)
+    .first<{ n: number }>();
+  return r?.n ?? 0;
 }
 
 export async function revisions(env: Env, tenantId: string, itemId: string): Promise<Revision[]> {

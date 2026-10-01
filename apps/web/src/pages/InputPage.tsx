@@ -18,8 +18,8 @@ const DUP_BASIS: Record<"url" | "file" | "content", string> = {
 const STAGE_OF_CODE: Record<string, number> = { TOO_LARGE: 0, CONTENT_TYPE: 0, MALICIOUS_CONTENT: 4 };
 
 const SOURCE_NOTE: Record<Stream, string> = {
-  primary: "Sent to the Primary Inbox",
-  secondary: "Sent to the Secondary Inbox · Source Tier: Reviewed-Secondary",
+  primary: "Sent to the Eradigm Inbox as a Primary entry",
+  secondary: "Sent to the Eradigm Inbox as a Secondary entry · Source Tier: Reviewed-Secondary",
 };
 
 interface LocalRun {
@@ -49,7 +49,7 @@ function SourceCard({
   onSubmit: (stream: Stream, file: File) => Promise<boolean>;
   onManual: (stream: Stream) => Promise<void>;
 }) {
-  const [stream, setStream] = useState<Stream>("primary");
+  const [stream, setStream] = useState<Stream>("secondary");
   const [file, setFile] = useState<File | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -140,7 +140,7 @@ function SourceCard({
       </div>
       <div className="manual-row">
         <span>
-          <b>No HTML file?</b> Send a blank entry to the {STREAM_LABEL[stream]} Inbox and fill in every field there. You can attach the HTML later from the tracker.
+          <b>No HTML file?</b> Send a blank {STREAM_LABEL[stream]} entry to the Eradigm Inbox and fill in every field there. You can attach the HTML later from the tracker.
         </span>
         <button className="btn secondary" onClick={() => void onManual(stream)} disabled={!!busy}>
           {busy === "manual" ? "Creating…" : "✎ Manual entry"}
@@ -225,8 +225,8 @@ export function InputPage({ me }: { me: Me }) {
   const serverSteps = d?.attemptsDetail[0]?.steps ?? [];
   const failedIdx = run?.failAt ?? (d?.status === "failed" ? serverSteps.findIndex((s) => !s.ok) : -1);
   const doneAll = d?.status === "needs_review" || d?.status === "approved";
-  const inboxName = `${STREAM_LABEL[run?.stream ?? "primary"]} Inbox`;
-  const inboxLink = `/inbox${run?.stream === "secondary" ? "?stream=secondary" : ""}`;
+  const inboxName = "Eradigm Inbox";
+  const inboxLink = "/inbox";
 
   const stepState = (i: number) => {
     if (run?.failAt != null) {
@@ -273,8 +273,8 @@ export function InputPage({ me }: { me: Me }) {
           </div>
           <div className="band-copy">
             {manual
-              ? "Upload an HTML file saved with SingleFile as a Primary or a Secondary source, or send a blank manual entry. Either goes to that source's Inbox with every tracker field empty for an analyst to complete. Nothing is published automatically."
-              : "Upload an HTML file saved with SingleFile as a Primary or a Secondary source. Every extracted draft goes to that source's Inbox for review and is never published automatically."}
+              ? "Upload an HTML file saved with SingleFile as a Primary or a Secondary source, or send a blank manual entry. Either goes to the Eradigm Inbox with every tracker field empty for an analyst to complete. Nothing is published automatically."
+              : "Upload an HTML file saved with SingleFile as a Primary or a Secondary source. Every extracted draft goes to the Eradigm Inbox for review and is never published automatically."}
           </div>
         </div>
       </section>
@@ -293,7 +293,7 @@ export function InputPage({ me }: { me: Me }) {
           <div className="banner warn dup-banner" role="alert">
             <b>⚠ Possible duplicate: this source is already in the tracker as {d.duplicateOf}</b>
             <span>
-              {DUP_BASIS[d.duplicateBasis ?? "url"]}. It has still been sent to the Inbox as {d.code}. When it is approved, the reviewer will be asked to confirm before a second tracker entry is created.
+              {DUP_BASIS[d.duplicateBasis ?? "url"]}. It has still been sent to the Eradigm Inbox as {d.code}. When it is approved, the reviewer will be asked to confirm before a second tracker entry is created.
             </span>
           </div>
         )}
@@ -366,7 +366,7 @@ export function InputPage({ me }: { me: Me }) {
             </div>
             <ModelOutputTable schema={schema.data} extraction={d.extraction} caption="Model output with evidence and validation" />
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "12px 20px", borderTop: "1px solid var(--rule)", background: "var(--subtle)", flexWrap: "wrap" }}>
-              <span style={{ fontSize: 13, color: "var(--ink-2)" }}>The draft is in the Inbox as Needs review. Nothing is published until an analyst approves it.</span>
+              <span style={{ fontSize: 13, color: "var(--ink-2)" }}>The draft is in the Eradigm Inbox as Needs review. Nothing is published until it is pushed to the Tracker.</span>
               <button className="btn" onClick={() => nav(inboxLink)}>
                 Review in {inboxName} →
               </button>

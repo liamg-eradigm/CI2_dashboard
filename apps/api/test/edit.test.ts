@@ -19,7 +19,7 @@ const edit = (id: string, values: Record<string, unknown>, note?: string, who = 
 const md = async (id: string) => (await call(w.a.client, "GET", `/api/signals/${id}/markdown`)).text();
 
 describe("editing an approved entry and approving it again", () => {
-  it("re-validates, publishes a new revision and regenerates the Markdown, re-stamped by the editor today", async () => {
+  it("re-validates and publishes a new revision, re-stamped by the editor today; the Phantom (Markdown) keeps the first version", async () => {
     const id = await entry("secondary", { title: "Pfizer pilots an AI assistant", impact: "High", review_date: "2026-01-05", key_details: "First version." });
     expect(await md(id)).toContain("## Key Details\nFirst version.");
     const before = await detail(id);
@@ -33,16 +33,19 @@ describe("editing an approved entry and approving it again", () => {
     expect(after.values.review_date).toBe(today);
     expect(after.revisions[0]).toMatchObject({ kind: "published", rev: 2, note: "Edited and re-approved" });
 
+    // Phantoms are an evergreen snapshot: the Markdown is the entry as first pushed to the Tracker.
     const m = await md(id);
-    expect(m).toContain('title: Pfizer rolls out its AI assistant');
-    expect(m).toContain("## Key Details\nSecond version,\n\nwith more detail.");
-    expect(m).toContain(`  Reviewed_by: Both Analyst\n  Review_date: ${today}`);
+    expect(m).toContain("title: Pfizer pilots an AI assistant");
+    expect(m).toContain("## Key Details\nFirst version.");
+    expect(m).toContain("  Reviewed_by: A Analyst\n  Review_date: 2026-01-05");
+    const ph = await json(call(w.a.client, "GET", `/api/phantoms?stream=secondary&${RANGE}`));
+    expect(ph.rows.find((r: { id: string }) => r.id === id).values.title).toBe("Pfizer pilots an AI assistant");
     // The Tracker shows the new version.
     const t = await json(call(w.a.client, "GET", `/api/tracker?stream=secondary&${RANGE}`));
     expect(t.rows.find((r: { id: string }) => r.id === id).values.title).toBe("Pfizer rolls out its AI assistant");
   });
 
-  it("keeps a Review Date the editor sets, and follows Impact into Phantoms and Deliverables", async () => {
+  it("keeps a Review Date the editor sets; Phantoms and Deliverables keep the Impact first pushed", async () => {
     const id = await entry("secondary", { title: "Sanofi signs an AI deal", impact: "High" });
     const alerts = async () => (await json(call(w.a.client, "GET", `/api/deliverables/alerts?stream=secondary&${RANGE}`))).rows.map((r: { id: string }) => r.id);
     expect(await alerts()).toContain(id);
@@ -50,9 +53,10 @@ describe("editing an approved entry and approving it again", () => {
     const res = await json(edit(id, { ...d.values, impact: "Medium", review_date: "2026-02-02" }, "Impact downgraded after a client call"));
     expect(res.values.review_date).toBe("2026-02-02");
     expect(res.revisions[0].note).toBe("Impact downgraded after a client call");
-    expect(await alerts()).not.toContain(id);
-    const nl = (await json(call(w.a.client, "GET", `/api/deliverables/newsletter?stream=secondary&${RANGE}`))).rows.map((r: { id: string }) => r.id);
-    expect(nl).toContain(id);
+    // Still a High-impact Phantom, so still an alert; the Tracker shows Medium.
+    expect(await alerts()).toContain(id);
+    const t = await json(call(w.a.client, "GET", `/api/tracker?stream=secondary&${RANGE}`));
+    expect(t.rows.find((r: { id: string }) => r.id === id).values.impact).toBe("Medium");
   });
 
   it("applies the approval checks and permissions", async () => {
@@ -70,8 +74,8 @@ describe("editing an approved entry and approving it again", () => {
     const dup = await edit(id, { ...d.values, record_id: taken });
     expect(dup.status).toBe(422);
     expect((await json(dup)).error.fields.map((f: { key: string }) => f.key)).toContain("record_id");
-    // Primary Markdown follows too.
+    // The Primary Markdown keeps the first version too.
     await edit(id, { ...d.values, key_metrics: "5 sites" });
-    expect(await md(id)).toContain("## Key Metrics\n5 sites");
+    expect(await md(id)).toContain("## Key Metrics\n3 sites");
   });
 });

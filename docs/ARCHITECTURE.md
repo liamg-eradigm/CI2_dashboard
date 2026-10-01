@@ -125,6 +125,45 @@ analyst-entered information distinguishable; in the prototype every value is
 - **ID** is typed by the analyst, projected onto `intelligence_items.record_id`
   and unique among tracker entries of a tenant (checked at approval, backed by a
   partial unique index). **Review Date** defaults to the approval day.
+- **Phantoms are an evergreen snapshot** (migration 0012, `phantom_snapshots`):
+  each entry's values as first pushed to the Tracker (from either inbox, or
+  an import). Editing the Tracker entry afterwards changes the Tracker,
+  Dashboard and Megatrends only; the Phantoms table, its Markdown, alerts and
+  newsletters keep the first version, and Phantoms have no Edit. Phantoms can
+  still be deleted (Phantoms only, or globally). Dropdown option renames reach
+  the snapshots (a label, not content). The Phantoms queries read the
+  snapshot under the Tracker's column names (`itemsFrom` in `query.ts`).
+- **Eradigm Inbox and Client Inbox** (contract 1.12, migration 0012):
+  - One Eradigm Inbox for Primary and Secondary entries (filter All /
+    Secondary / Primary); each entry shows its own tracker's fields and a
+    stream tag. Actions: **Reject**, **Send to Client**, **Push to Tracker**
+    (the former Approve). Tabs: Needs review, With client, Processing,
+    Failed, Pushed & rejected.
+  - Send to Client sets `with_client_at` (the entry stays `needs_review`):
+    it appears in the client's **Client Inbox** and is read-only for Eradigm
+    until it comes back (Eradigm can also Recall it). The client can **Send
+    to Eradigm** (back to Needs review, marked "Back from …") or **Push to
+    Tracker** (validated like Push to Tracker; an incomplete entry or a
+    duplicate is refused with "Send it to Eradigm to complete it").
+  - Comments (`item_comments`): the client highlights text in any field (or
+    the page text) and a "Comment" button appears (keyboard: each field's
+    "＋ Comment"). A comment stores the field, the highlighted words and their
+    position, so it is shown marked and numbered in the text and in a margin
+    of comment cards, like Word. Back in the Eradigm Inbox the analyst sees
+    "Client comments" (click one to jump to the words in the field) and
+    resolves them; authors can delete their own.
+- **Tabs by role** (`canSeeTab` in `packages/shared/src/megatrends.ts`):
+  clients see Dashboard, Tracker, Phantoms, Megatrends and Client Inbox;
+  analysts see Dashboard, Tracker, Phantoms, Megatrends and Eradigm Inbox;
+  admins see every tab (including Deliverables, Input and Administration).
+  Other pages redirect to the Dashboard; the API keeps its own permission
+  checks. The Tracker, Phantoms, Input and import default to Secondary.
+- **Bullets in long text** (`components/ListTextarea.tsx`): Tab makes a line a
+  Markdown bullet and indents it a level each time ("  - "), Shift+Tab
+  outdents, Enter continues the list (an empty bullet outdents, then ends it).
+  Esc then Tab leaves the field. Used in the Eradigm Inbox and Tracker Edit.
+- **Tracker Edit** shows the edit fields first and the text of the saved page
+  underneath (no saved-page window while editing).
 - **Phantoms** is a view, not a copy: every approved Primary entry, plus
   approved Secondary entries whose Impact is at or above the admin setting
   `phantoms.secondaryMinImpact` (Administration → Workspace settings; default
@@ -170,7 +209,11 @@ analyst-entered information distinguishable; in the prototype every value is
     or ↑ ↓) and Minimise hides it. Size and minimised state are kept per
     browser.
   - The summary of the trend in view is a band at the top of the page, in
-    large type, above the graph.
+    large type, above the graph. There is no page header or filter bar: the
+    page shows both trackers and all dates. The Macrotrend list can be
+    minimised. The timeline can be coloured by Macrotrend / Subtrend or by
+    Impact (its legend then filters by Impact), and its lollipops grow with
+    its height.
   - Summaries (`trend_summaries`, migration 0010) are keyed by name and shared
     by both trackers. Defaults ship in `packages/shared/src/megatrends.ts`; a
     stored row overrides them: written by hand (`PUT /api/megatrends/summaries`,
