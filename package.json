@@ -42,7 +42,7 @@
     "eslint": "^9.39.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "tsx": "^4.23.15",
-    "typescript": "5.9.3",
+    "typescript": "7.0.2",
     "typescript-eslint": "^8.46.0"
   },
   "allowScripts": {
