@@ -59,12 +59,14 @@ function htmlFile(name: string, html: string) {
   return file;
 }
 
-test.describe("analyst role", () => {
-  test.beforeEach(async ({ page }) => signInAs(page, "analyst"));
+// Eradigm staff work across Input, the Eradigm Inbox, the Tracker and Deliverables:
+// since contract 1.12 only admins see all of those tabs (analysts' tabs: request19.spec.ts).
+test.describe("Eradigm staff (admin)", () => {
+  test.beforeEach(async ({ page }) => signInAs(page, "admin"));
 
   test("completes an empty Inbox draft from the saved page: validation, manual entry and approve", async ({ page }) => {
     await page.goto("/inbox");
-    await expect(page.getByRole("heading", { name: "Inbox", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Eradigm Inbox", exact: true })).toBeVisible();
     const card = page.locator(".inbox-card", { hasText: "AstraZeneca and Roche form pre-competitive AI alliance" });
     // Manual entry: every tracker field starts empty and no AI output is shown.
     await expect(card.getByText("Awaiting analyst entry")).toBeVisible();
@@ -79,13 +81,13 @@ test.describe("analyst role", () => {
     await card.getByRole("button", { name: "View saved page" }).click();
     await expect(card.frameLocator("iframe.snapshot-frame").getByText("pool de-identified screening data")).toBeVisible();
 
-    await card.getByRole("button", { name: "✓ Approve" }).click();
+    await card.getByRole("button", { name: "✓ Push to Tracker" }).click();
     await expect(card.getByText(/Validation failed\. Complete: ID, Title, Event Date, Macrotrend, Subtrend, Growth Intensity, Impact, Source Type, Competitors, Action/)).toBeVisible();
     await fillEntry(card, { id: `P-E2E-${uid()}`, title: "AstraZeneca and Roche form pre-competitive AI alliance", extra: { "Key Details": "Shared models.\n\nEach partner keeps its own assets." } });
-    await card.getByRole("button", { name: "✓ Approve" }).click();
+    await card.getByRole("button", { name: "✓ Push to Tracker" }).click();
     await expect(page.getByText(/SIG-\d+ published to the tracker as rev 1/).first()).toBeVisible();
-    await page.getByRole("button", { name: /Approved & rejected/ }).click();
-    await expect(page.locator(".inbox-card", { hasText: "AstraZeneca and Roche form pre-competitive AI alliance" }).getByText(/Approved · SIG-/)).toBeVisible();
+    await page.getByRole("button", { name: /Pushed & rejected/ }).click();
+    await expect(page.locator(".inbox-card", { hasText: "AstraZeneca and Roche form pre-competitive AI alliance" }).getByText(/Pushed to Tracker · SIG-/)).toBeVisible();
   });
 
   test("Inbox dropdowns are searchable, including the Competitor multi-select", async ({ page }) => {
@@ -136,32 +138,35 @@ test.describe("analyst role", () => {
     await expect(again.getByRole("combobox", { name: "Subtrend", exact: true })).toHaveValue(/Tiered AI accreditation/);
   });
 
-  test("Input has one HTML source card with a Primary/Secondary switch and no URL option; each goes to its own inbox", async ({ page }) => {
+  test("Input has one HTML source card with a Primary/Secondary switch (Secondary first) and no URL option; both go to the Eradigm Inbox", async ({ page }) => {
     await page.goto("/input");
     const card = page.getByTestId("source-card");
     await expect(page.getByTestId("source-primary")).toHaveCount(0);
     await expect(card.getByRole("heading", { name: "Add a source" })).toBeVisible();
     // The same Primary/Secondary switch as the spreadsheet import.
     await expect(card.getByTestId("stream-primary")).toHaveText("Primary Source");
-    await expect(card.getByTestId("stream-primary")).toHaveAttribute("aria-pressed", "true");
-    await expect(card).toContainText("Sent to the Primary Inbox");
+    await expect(card.getByTestId("stream-secondary")).toHaveAttribute("aria-pressed", "true");
+    await card.getByTestId("stream-primary").click();
+    await expect(card).toContainText("Sent to the Eradigm Inbox as a Primary entry");
     await expect(page.getByRole("textbox", { name: /url/i })).toHaveCount(0);
     await expect(page.getByRole("button", { name: /Capture source|^URL$/ })).toHaveCount(0);
     await card.getByTestId("stream-secondary").click();
-    await expect(card).toContainText("Sent to the Secondary Inbox · Source Tier: Reviewed-Secondary");
+    await expect(card).toContainText("Sent to the Eradigm Inbox as a Secondary entry · Source Tier: Reviewed-Secondary");
     await expect(card.getByRole("button", { name: "Process file for Secondary Source" })).toBeVisible();
     await expectAccessible(page, "/input source card");
 
     const title = `Pfizer secondary routing ${uid()}`;
     const file = htmlFile("secondary.html", `<!DOCTYPE html><html><head><title>${title}</title></head><body><article><h1>${title}</h1><p>Pfizer has piloted an AI assistant for field teams in two regions, the company said.</p><p>The pilot runs until 2027.</p></article></body></html>`);
     await uploadTo(page, "secondary", file);
-    await expect(page.getByText("Complete · sent to the Secondary Inbox")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText("Complete · sent to the Eradigm Inbox (Secondary)")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole("table", { name: "Capture log" }).locator("tr", { hasText: "secondary.html" }).first()).toContainText("Secondary");
-    await page.getByRole("button", { name: "Complete in Secondary Inbox →" }).click();
-    await expect(page).toHaveURL(/\/inbox\?stream=secondary/);
+    await page.getByRole("button", { name: "Complete in Eradigm Inbox →" }).click();
+    await expect(page).toHaveURL(/\/inbox$/);
     const inbox = page.locator(".inbox-card", { hasText: title });
     await expect(inbox.getByRole("textbox", { name: "Source Tier", exact: true })).toHaveValue("Reviewed-Secondary");
-    await page.getByTestId("stream-primary").click();
+    await expect(inbox.getByTestId("stream-tag")).toHaveText("Secondary");
+    // One inbox for both: the filter narrows it to one tracker.
+    await page.getByRole("group", { name: "Show entries from" }).getByRole("button", { name: "Primary" }).click();
     await expect(page.locator(".inbox-card", { hasText: title })).toHaveCount(0);
   });
 
@@ -170,12 +175,12 @@ test.describe("analyst role", () => {
     const card = page.getByTestId("source-card");
     await card.getByTestId("stream-secondary").click();
     await card.getByRole("button", { name: "✎ Manual entry" }).click();
-    await expect(page.getByRole("heading", { name: "Blank entry sent to the Secondary Inbox" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Blank entry sent to the Eradigm Inbox (Secondary)" })).toBeVisible();
     await expect(page.getByText("blank manual entry, no source file")).toBeVisible();
     // No capture steps for a manual entry.
     await expect(page.getByRole("heading", { name: /Capture · / })).toHaveCount(0);
-    await page.getByRole("button", { name: "Complete in Secondary Inbox →" }).click();
-    await expect(page).toHaveURL(/\/inbox\?stream=secondary/);
+    await page.getByRole("button", { name: "Complete in Eradigm Inbox →" }).click();
+    await expect(page).toHaveURL(/\/inbox$/);
     const blank = page.locator(".inbox-card", { hasText: "Manual entry" }).filter({ hasText: "Awaiting analyst entry" }).first();
     await expect(blank).toBeVisible();
     await expect(blank.getByText("manual entry: fill in every required field")).toBeVisible();
@@ -187,7 +192,7 @@ test.describe("analyst role", () => {
     const title = `Manual Sanofi entry ${uid()}`;
     await fillEntry(entry, { id: `S-MAN-${uid()}`, title, impact: "High", competitors: ["Sanofi"], extra: { Publisher: "Sanofi", Header: "Typed in by hand." } });
     await expectAccessible(page, "/inbox manual entry");
-    await entry.getByRole("button", { name: "✓ Approve" }).click();
+    await entry.getByRole("button", { name: "✓ Push to Tracker" }).click();
     await expect(page.getByText(/SIG-\d+ published to the tracker/).first()).toBeVisible();
     // In the Secondary Tracker with a green plus to attach the HTML later.
     await page.goto("/tracker?stream=secondary");
@@ -204,14 +209,14 @@ test.describe("analyst role", () => {
     );
     await page.goto("/input");
     await uploadTo(page, "primary", file);
-    await expect(page.getByText("Complete · sent to the Primary Inbox")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText("Complete · sent to the Eradigm Inbox (Primary)")).toBeVisible({ timeout: 30_000 });
     await expect(page.locator(".step", { hasText: "Content scan before storage" })).toContainText("script(s) stripped");
     await expect(page.locator(".step", { hasText: "Data policy check" })).toContainText("nothing sent to any external service");
     await expect(page.locator(".step", { hasText: "Routed to Needs review" })).toContainText("every tracker field empty");
     await expect(page.getByRole("heading", { name: "Model output" })).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: "Sent to the Primary Inbox" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sent to the Eradigm Inbox (Primary)" })).toBeVisible();
     await expectAccessible(page, "/input with results");
-    await page.getByRole("button", { name: "Complete in Primary Inbox →" }).click();
+    await page.getByRole("button", { name: "Complete in Eradigm Inbox →" }).click();
     const card = page.locator(".inbox-card", { hasText: "Roche opens robotics-enabled" }).first();
     await expect(card).toBeVisible();
     await expect(card.getByText("Awaiting analyst entry")).toBeVisible();
@@ -233,7 +238,7 @@ test.describe("analyst role", () => {
     await expect(page.getByTestId("drop-zone-html")).toContainText("dropped.html");
     await expect(page.getByTestId("drop-zone-import")).not.toContainText("dropped.html");
     await card.getByRole("button", { name: "Process file for Secondary Source" }).click();
-    await expect(page.getByText("Complete · sent to the Secondary Inbox")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText("Complete · sent to the Eradigm Inbox (Secondary)")).toBeVisible({ timeout: 30_000 });
   });
 
   test("warns about a source already in the tracker, but lets it through and requires an explicit override to approve", async ({ page }) => {
@@ -247,7 +252,7 @@ test.describe("analyst role", () => {
     await page.goto("/input");
     await uploadTo(page, "primary", file);
     await expect(page.getByText(/Possible duplicate: this source is already in the tracker as SIG-1100/)).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByText(/sent to the Primary Inbox/).first()).toBeVisible();
+    await expect(page.getByText(/sent to the Eradigm Inbox \(Primary\)/).first()).toBeVisible();
 
     await page.goto("/inbox");
     const first = page.locator(".inbox-card", { hasText: "re-saved" }).first();
@@ -256,14 +261,14 @@ test.describe("analyst role", () => {
     const code = (await first.locator(".code").innerText()).trim();
     const card = page.locator(".inbox-card", { has: page.locator(".code", { hasText: code }) });
     await fillEntry(card, { id: `P-DUP-${uid()}`, title: "Roche DTP retail roll-out (second entry)", impact: "Medium", competitors: ["Roche"] });
-    await card.getByRole("button", { name: "✓ Approve" }).click();
+    await card.getByRole("button", { name: "✓ Push to Tracker" }).click();
     const dialog = card.getByRole("alertdialog");
     await expect(dialog).toContainText("Duplicate — SIG-1100 is already in the tracker");
     await expect(dialog.getByRole("link", { name: /Open SIG-1100 in the Tracker/ })).toHaveAttribute("href", /\/tracker\?signal=/);
     await expectAccessible(page, "/inbox duplicate confirmation");
     await dialog.getByRole("button", { name: "Cancel — don't approve" }).click();
     await expect(card.getByRole("alertdialog")).toHaveCount(0);
-    await card.getByRole("button", { name: "✓ Approve" }).click();
+    await card.getByRole("button", { name: "✓ Push to Tracker" }).click();
     await card.getByRole("button", { name: "Approve anyway (override duplicate)" }).click();
     await expect(page.getByText(/SIG-\d+ published to the tracker as rev 1 \(duplicate confirmed\)/).first()).toBeVisible();
   });
@@ -299,6 +304,9 @@ test.describe("analyst role", () => {
   test("edits the Tracker and Phantoms tables separately, from the Inbox columns only", async ({ page }) => {
     await page.goto("/inbox");
     await page.getByRole("button", { name: "Edit columns" }).click();
+    // The column editor works on one tracker at a time (Secondary first).
+    await expect(page.getByRole("heading", { name: "Secondary Inbox columns" })).toBeVisible();
+    await page.getByRole("group", { name: "Columns of" }).getByTestId("stream-primary").click();
     await expect(page.getByRole("heading", { name: "Primary Inbox columns" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Primary Tracker columns" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Primary Phantoms columns" })).toBeVisible();
@@ -327,10 +335,10 @@ test.describe("analyst role", () => {
     await expect(page.getByLabel("Rename column Key Metrics", { exact: true })).toBeVisible();
 
     // The tables follow.
-    await page.goto("/tracker");
+    await page.goto("/tracker?stream=primary");
     const heads = () => page.locator("table thead th:not(.src-col):not(.pick-col)").allInnerTexts();
     await expect.poll(async () => (await heads())[0]).toMatch(/^Action/i);
-    await page.goto("/phantoms");
+    await page.goto("/phantoms?stream=primary");
     await expect.poll(async () => (await heads()).at(-1)).toMatch(/^Macrotrend/i);
     expect((await heads()).join("|").toLowerCase()).not.toContain("key metrics");
 
@@ -383,7 +391,7 @@ test.describe("analyst role", () => {
     const src = page.getByTestId("source-card");
     await src.getByTestId("stream-secondary").click();
     await src.getByRole("button", { name: "✎ Manual entry" }).click();
-    await page.getByRole("button", { name: "Complete in Secondary Inbox →" }).click();
+    await page.getByRole("button", { name: "Complete in Eradigm Inbox →" }).click();
     const blank = page.locator(".inbox-card", { hasText: "Manual entry" }).filter({ hasText: "Awaiting analyst entry" }).first();
     const code = (await blank.locator(".code").innerText()).trim();
     const card = page.locator(".inbox-card", { has: page.locator(".code", { hasText: code }) });
@@ -396,7 +404,7 @@ test.describe("analyst role", () => {
       extra: { Publisher: para.repeat(10).replace(/\n/g, " ").slice(0, 1500), Header: para.repeat(80), "Key Details": para.repeat(80), "CI Perspective": para.repeat(80) },
     });
     await card.getByLabel("Event Date", { exact: true }).fill("2024-03-12");
-    await card.getByRole("button", { name: "✓ Approve" }).click();
+    await card.getByRole("button", { name: "✓ Push to Tracker" }).click();
     await expect(page.locator(".toast").last()).toContainText(/SIG-\d+ published to the tracker as rev 1/);
     // The default dates start at the oldest entry, so it is in view straight away (no date hint).
     await page.goto("/tracker?stream=secondary");
@@ -411,7 +419,7 @@ test.describe("analyst role", () => {
     await expect(page.locator(".dates-banner")).toHaveCount(0);
     // From the Inbox: View in Tracker opens the entry.
     await page.goto("/inbox?stream=secondary");
-    await page.getByRole("button", { name: /^Approved & rejected/ }).click();
+    await page.getByRole("button", { name: /^Pushed & rejected/ }).click();
     const done = page.locator(".inbox-card", { has: page.locator(".code", { hasText: code }) });
     await done.getByRole("link", { name: "View in Tracker →" }).click();
     await expect(page).toHaveURL(/\/tracker\?.*signal=/);
@@ -519,33 +527,34 @@ test.describe("analyst role", () => {
     await expect(page.getByText("Chart field · locked").first()).toBeVisible();
   });
 
-  test("switches between the Primary and Secondary Inbox, with red unprocessed counts on the outer corners", async ({ page }) => {
+  test("one Eradigm Inbox for both trackers: each entry with its own tag and fields, and a filter", async ({ page }) => {
     await page.goto("/inbox");
-    const pBtn = page.getByTestId("stream-primary");
-    const sBtn = page.getByTestId("stream-secondary");
-    await expect(pBtn).toHaveText(/Primary Inbox/);
-    await expect(sBtn).toHaveText(/Secondary Inbox/);
-    const counts = await page.evaluate(async () => (await fetch("/api/items/counts", { headers: { "x-dev-user": localStorage.getItem("eradigm.devUser") ?? "" } })).json());
-    for (const [btn, key, side] of [[pBtn, "primary", "left"], [sBtn, "secondary", "right"]] as const) {
-      const badge = page.getByTestId(`count-${key}`);
-      if (!counts[key]) {
-        await expect(badge).toHaveCount(0);
-        continue;
-      }
-      await expect(badge).toHaveText(String(counts[key]));
-      const b = (await badge.boundingBox())!;
-      const o = (await btn.boundingBox())!;
-      expect(b.y).toBeLessThan(o.y); // sits on the top edge
-      if (side === "left") expect(b.x).toBeLessThan(o.x + 4);
-      else expect(b.x + b.width).toBeGreaterThan(o.x + o.width - 4);
-    }
-    // Secondary shows only Secondary uploads, with its own column editor.
-    await sBtn.click();
-    await expect(page).toHaveURL(/stream=secondary/);
-    await expect(page.locator(".inbox-card", { hasText: "Partnering with employers to widen access" })).toBeVisible();
-    await expect(page.locator(".inbox-card", { hasText: "AstraZeneca and Roche form pre-competitive" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Eradigm Inbox", exact: true })).toBeVisible();
+    // Primary and Secondary entries side by side (one of each awaiting review).
+    const pick = await page.evaluate(async () => {
+      const items = (await (await fetch("/api/items?status=needs_review", { headers: { "x-dev-user": localStorage.getItem("eradigm.devUser") ?? "" } })).json()) as { stream: string; code: string; withClient: boolean }[];
+      const one = (st: string) => items.find((i) => i.stream === st && !i.withClient)!.code;
+      return { p: one("primary"), s: one("secondary") };
+    });
+    const card = (code: string) => page.locator(".inbox-card", { has: page.locator(".code", { hasText: new RegExp(`^${code}$`) }) });
+    const sec = card(pick.s);
+    const pri = card(pick.p);
+    await expect(sec.getByTestId("stream-tag")).toHaveText("Secondary");
+    await expect(pri.getByTestId("stream-tag")).toHaveText("Primary");
+    // Each with its own tracker's fields.
+    await expect(sec.getByRole("textbox", { name: "Source Tier", exact: true })).toHaveValue("Reviewed-Secondary");
+    await expect(pri.getByRole("textbox", { name: "Source Role", exact: true })).toBeVisible();
+    const filter = page.getByRole("group", { name: "Show entries from" });
+    await filter.getByRole("button", { name: "Secondary" }).click();
+    await expect(sec).toBeVisible();
+    await expect(pri).toHaveCount(0);
+    await filter.getByRole("button", { name: "Primary" }).click();
+    await expect(pri).toBeVisible();
+    await expect(sec).toHaveCount(0);
+    await filter.getByRole("button", { name: "All" }).click();
+    await expect(sec).toBeVisible();
     await expect(page.getByRole("heading", { name: "Columns · Secondary" })).toBeVisible();
-    await expectAccessible(page, "/inbox secondary");
+    await expectAccessible(page, "/inbox");
   });
 
   test("Phantoms: approved entries appear with their own columns and an MD icon that opens the Markdown file as a side pane", async ({ page }) => {
@@ -553,7 +562,7 @@ test.describe("analyst role", () => {
     const file = htmlFile("phantom.html", `<!DOCTYPE html><html><head><title>${title}</title></head><body><article><h1>${title}</h1><p>Sanofi has opened an AI hub in Paris with 300 staff, the company said on Monday.</p><p>The hub opens in 2027.</p></article></body></html>`);
     await page.goto("/input");
     await uploadTo(page, "secondary", file);
-    await expect(page.getByText("Complete · sent to the Secondary Inbox")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText("Complete · sent to the Eradigm Inbox (Secondary)")).toBeVisible({ timeout: 30_000 });
     await page.goto("/inbox?stream=secondary");
     const first = page.locator(".inbox-card", { hasText: title });
     const code = (await first.locator(".code").innerText()).trim();
@@ -566,7 +575,7 @@ test.describe("analyst role", () => {
       competitors: ["Sanofi"],
       extra: { Publisher: "Sanofi", URL: "https://www.sanofi.com/ai-hub", Header: "Sanofi opens a Paris AI hub.", "Key Details": "300 staff.\n\nOpens 2027.", "CI Perspective": "Raises the stakes for peers." },
     });
-    await card.getByRole("button", { name: "✓ Approve" }).click();
+    await card.getByRole("button", { name: "✓ Push to Tracker" }).click();
     await expect(page.getByText(/SIG-\d+ published to the tracker/).first()).toBeVisible();
 
     // In the Secondary Tracker (not the Primary one), and in Secondary Phantoms (Impact High ≥ Medium).
@@ -597,7 +606,7 @@ test.describe("analyst role", () => {
     const text = readFileSync((await download.path())!, "utf8");
     expect(text.startsWith(`---\nid: ${rid}\ntitle: "${title}: Paris"\nevent_date: 2026-09-24\nsource_type: PR\nSource:\n  Publisher: Sanofi\n  URL: https://www.sanofi.com/ai-hub\n`)).toBe(true);
     expect(text).toContain("Source_tier: Reviewed-Secondary\nCompetitors: Sanofi\n");
-    expect(text).toContain("QC:\n  Reviewed_by: L. Griffith\n");
+    expect(text).toContain("QC:\n  Reviewed_by: E. Admin\n");
     expect(text).toContain("## Key Details\n300 staff.\n\nOpens 2027.\n");
     // The pane shows it raw and rendered.
     await expectAccessible(page, "/phantoms Markdown panel");
@@ -611,6 +620,7 @@ test.describe("analyst role", () => {
   test("import follows the Inbox columns: option changes apply on the next check, without choosing the file again", async ({ page }) => {
     await page.goto("/input");
     const card = page.getByTestId("import-card");
+    await card.getByTestId("stream-primary").click();
     const header = ["ID", "Title", "Event Date", "Source Role", "Macrotrend", "Subtrend", "Growth Intensity", "Impact", "Source Type", "Competitors", "Action"];
     const title = `Analyst call insight ${uid()}`;
     // An option name no other test uses; the sheet has it in lower case.
@@ -644,7 +654,7 @@ test.describe("analyst role", () => {
     await card.getByRole("button", { name: "Check and import" }).click();
     await expect(card.getByText(/Imported 1 entry into the Primary Tracker \(SIG-\d+\)/)).toBeVisible({ timeout: 30_000 });
     await expect(sourceRule).toContainText(option);
-    await page.goto("/tracker");
+    await page.goto("/tracker?stream=primary");
     await page.getByRole("searchbox").fill(title);
     const tr = page.locator("table tbody tr", { hasText: title });
     await expect(tr).toContainText(option);
@@ -666,6 +676,9 @@ test.describe("analyst role", () => {
   test("imports a spreadsheet into the Primary Tracker, then attaches the HTML with the green plus", async ({ page }) => {
     await page.goto("/input");
     const card = page.getByTestId("import-card");
+    // Secondary first; switch to the Primary Tracker.
+    await expect(card.getByTestId("stream-secondary")).toHaveAttribute("aria-pressed", "true");
+    await card.getByTestId("stream-primary").click();
     await expect(card.getByTestId("stream-primary")).toHaveAttribute("aria-pressed", "true");
     // The template has exactly the Primary Tracker's column names.
     const [tpl] = await Promise.all([page.waitForEvent("download"), card.getByRole("button", { name: /Download the Primary Tracker template/ }).click()]);
@@ -705,7 +718,7 @@ test.describe("analyst role", () => {
     await expect(card.getByText(/Imported 1 entry into the Primary Tracker \(SIG-\d+\)/)).toBeVisible({ timeout: 30_000 });
     await expectAccessible(page, "/input after import");
     await card.getByRole("link", { name: "Open the Primary Tracker →" }).click();
-    await expect(page).toHaveURL(/\/tracker$/);
+    await expect(page).toHaveURL(/\/tracker\?stream=primary$/);
     await page.getByRole("searchbox").fill(title);
 
     // No saved page yet: a green plus on the left; the row itself no longer opens anything.
@@ -730,7 +743,7 @@ test.describe("analyst role", () => {
     await expect(page.getByRole("dialog")).toHaveCount(0);
     // It is in Primary Phantoms with the Primary Markdown.
     await page.getByRole("navigation").getByRole("link", { name: "Phantoms" }).click();
-    await expect(page).toHaveURL(/\/phantoms\?q=/);
+    await expect(page).toHaveURL(/\/phantoms\?stream=primary&q=/);
     const ph = page.locator("table tbody tr", { hasText: title });
     await ph.locator("td.title button").click();
     const md = page.getByRole("dialog").getByLabel("Markdown source");
@@ -748,9 +761,9 @@ test.describe("analyst role", () => {
     const [swBox, content] = [(await sw.boundingBox())!, (await page.locator(".content").boundingBox())!];
     expect(Math.abs(swBox.x + swBox.width / 2 - (content.x + content.width / 2))).toBeLessThanOrEqual(4);
     await expect(page.getByTestId("deliv-alerts")).toHaveAttribute("aria-pressed", "true");
-    // Only High Impact entries, with the Phantoms columns (and Alert, Markdown, Source).
+    // Only High Impact entries, with the Phantoms columns (and Alert, Markdown, Source; no Edit: Phantoms are never edited).
     const heads = await page.locator("table thead th").allInnerTexts();
-    expect(heads.slice(0, 5).map((h) => h.trim().toLowerCase())).toEqual(["alert", "markdown", "source", "edit", "id"]);
+    expect(heads.slice(0, 4).map((h) => h.trim().toLowerCase())).toEqual(["alert", "markdown", "source", "id"]);
     const impacts = await page.evaluate(async () => {
       const h = { "x-dev-user": localStorage.getItem("eradigm.devUser") ?? "" };
       const get = async (s: string) => ((await (await fetch(`/api/deliverables/alerts?stream=${s}&from=2000-01-01&to=2100-01-01&pageSize=25`, { headers: h })).json()) as { rows: { values: { impact: string } }[] }).rows.map((r) => r.values.impact);
@@ -800,9 +813,9 @@ test.describe("analyst role", () => {
     const rows = table.locator("tbody tr");
     const t1 = (await rows.nth(0).locator("td.title").innerText()).trim();
     await rows.nth(0).getByRole("checkbox").check();
-    // Selection is kept across streams.
-    await page.getByTestId("stream-secondary").click();
-    await expect(page.locator(".stream-note")).toContainText("Secondary Phantoms with High or Medium Impact");
+    // Selection is kept across streams (Secondary first, then Primary).
+    await page.getByTestId("stream-primary").click();
+    await expect(page.locator(".stream-note")).toContainText("Primary Phantoms with High or Medium Impact");
     const t2 = (await rows.nth(0).locator("td.title").innerText()).trim();
     await rows.nth(0).getByRole("checkbox").check();
     await expect(page.getByRole("group", { name: "Selected entries" })).toContainText("2 selected");
@@ -834,8 +847,8 @@ test.describe("analyst role", () => {
     await expectAccessible(page, "/deliverables newsletter");
   });
 
-  test("edits an approved Phantom and approves it again: the Markdown is regenerated", async ({ page }) => {
-    await page.goto("/phantoms");
+  test("edits a Tracker entry and pushes it again; its Phantom (and Markdown) keeps the first version", async ({ page }) => {
+    await page.goto("/tracker?stream=primary");
     const row = page.locator("table tbody tr").nth(2);
     const title = (await row.locator("td.title").innerText()).trim();
     await row.getByRole("button", { name: `Edit ${title}` }).click();
@@ -845,33 +858,29 @@ test.describe("analyst role", () => {
     const field = (label: string) => drawer.locator(".edit-form label.field").filter({ has: page.getByText(label, { exact: true }) }).locator("input, textarea").first();
     const newTitle = `${title} (edited ${uid()})`;
     await field("Title *").fill(newTitle);
-    await field("Key Metrics").fill("Three new sites,\n\nopening in 2027.");
     // The approval checks run again: a cleared required field is flagged next to it.
-    await field("Source Role").fill("Oncology KOL");
+    const id = await field("ID *").inputValue();
     await field("ID *").fill("");
-    await drawer.getByRole("button", { name: "✓ Approve" }).click();
+    await drawer.getByRole("button", { name: "✓ Push to Tracker" }).click();
     await expect(drawer.getByRole("alert")).toContainText("One field needs attention before approval");
     await expect(drawer.locator(".field-err")).toContainText(/ID/);
-    const id = `P-ED-${uid()}`;
     await field("ID *").fill(id);
-    await expectAccessible(page, "/phantoms edit form");
-    await drawer.getByRole("button", { name: "✓ Approve" }).click();
-    await expect(page.locator(".toast").last()).toContainText(/SIG-\d+ approved again as rev \d+ · Markdown and deliverables updated/);
+    await expectAccessible(page, "/tracker edit form");
+    await drawer.getByRole("button", { name: "✓ Push to Tracker" }).click();
+    await expect(page.locator(".toast").last()).toContainText(/SIG-\d+ pushed to the Tracker again as rev \d+ · its Phantom is unchanged/);
     await expect(drawer.getByRole("heading", { name: newTitle })).toBeVisible();
     await page.keyboard.press("Escape");
-    // The table and the Markdown show the new version.
-    const edited = page.locator("table tbody tr", { hasText: newTitle });
-    await expect(edited).toBeVisible();
-    await edited.getByRole("button", { name: `Open Markdown for ${newTitle}` }).click();
+    await expect(page.locator("table tbody tr", { hasText: newTitle })).toBeVisible();
+    // Phantoms: the first version, with no Edit anywhere (table or Markdown pane).
+    await page.goto("/phantoms?stream=primary");
+    await expect(page.getByRole("button", { name: /^Edit / })).toHaveCount(0);
+    await expect(page.locator("table tbody tr", { hasText: newTitle })).toHaveCount(0);
+    const original = page.locator("table tbody tr", { hasText: title }).first();
+    await original.getByRole("button", { name: `Open Markdown for ${title}` }).click();
     const md = page.getByRole("dialog").getByLabel("Markdown source");
-    await expect(md).toContainText(`id: ${id}`);
-    await expect(md).toContainText(`title: ${newTitle}`);
-    await expect(md).toContainText("## Key Metrics\nThree new sites,\n\nopening in 2027.");
-    // Edit is also offered from the Markdown pane.
-    await page.getByRole("dialog").getByRole("button", { name: "✎ Edit" }).click();
-    await expect(page.getByRole("dialog").getByText("Edit entry")).toBeVisible();
-    await page.getByRole("dialog").getByRole("button", { name: "Cancel" }).click();
-    await expect(page.getByRole("dialog").getByRole("button", { name: "✎ Edit" })).toBeVisible();
+    await expect(md).toContainText(`title: ${title}`);
+    await expect(md).not.toContainText(newTitle);
+    await expect(page.getByRole("dialog").getByRole("button", { name: "✎ Edit" })).toHaveCount(0);
   });
 
   test("Inbox and Input pass automated accessibility checks", async ({ page }) => {

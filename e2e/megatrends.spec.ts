@@ -7,7 +7,7 @@ test.describe("Megatrends", () => {
     await signInAs(page, "client");
     await page.goto("/dashboard");
     await page.getByRole("navigation").getByRole("link", { name: "Megatrends" }).click();
-    await expect(page.getByRole("heading", { name: "Megatrends", level: 1 })).toBeVisible();
+    await expect(page.getByTestId("mg-panel")).toBeVisible();
     const rail = page.getByTestId("mg-macros");
     // Only Macrotrends with entries are listed, with their counts.
     await expect(rail.getByRole("button", { name: new RegExp(`^${R_AND_D.replace(/[()&]/g, "\\$&")}\\s*\\d+$`) })).toBeVisible();
@@ -67,12 +67,9 @@ test.describe("Megatrends", () => {
     // Back to all Macrotrends.
     await page.getByRole("navigation", { name: "Graph level" }).getByRole("button", { name: "All macrotrends" }).click();
     await expect(page.getByTestId("mg-ball")).toHaveCount(total);
-    // Filters: one tracker, a shorter period.
-    await page.getByRole("group", { name: "Tracker" }).getByRole("button", { name: "Primary" }).click();
-    await expect(page).toHaveURL(/t=primary/);
-    await page.getByRole("group", { name: "Event Date period" }).getByRole("button", { name: "3M" }).click();
-    await expect(page).toHaveURL(/p=3m/);
-    await expect.poll(() => page.getByTestId("mg-ball").count()).toBeLessThan(total);
+    // No tracker or period filters: the page shows both trackers and every date.
+    await expect(page.getByRole("group", { name: "Tracker" })).toHaveCount(0);
+    await expect(page.getByRole("group", { name: "Event Date period" })).toHaveCount(0);
   });
 
   test("analyst: writes a summary by hand and resets it; AI is off until the API is connected", async ({ page }) => {
@@ -108,7 +105,7 @@ test.describe("tab order", () => {
     const other = await ctx.newPage();
     await signInAs(other, "client");
     await other.goto("/dashboard");
-    await expect.poll(() => other.getByRole("navigation", { name: "COMPETITIVE INTELLIGENCE" }).getByRole("link").allInnerTexts()).toEqual(["Dashboard", "Tracker", "Phantoms", "Megatrends", "Deliverables"]);
+    await expect.poll(async () => (await other.getByRole("navigation", { name: "COMPETITIVE INTELLIGENCE" }).getByRole("link").allInnerTexts()).map((t) => t.replace(/\s*\d+$/, "").trim())).toEqual(["Dashboard", "Tracker", "Phantoms", "Megatrends", "Client Inbox"]);
     await ctx.close();
     // Restore.
     await card.getByRole("button", { name: "Move tab Megatrends down" }).click();

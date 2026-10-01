@@ -226,6 +226,7 @@ export function InputPage({ me }: { me: Me }) {
   const failedIdx = run?.failAt ?? (d?.status === "failed" ? serverSteps.findIndex((s) => !s.ok) : -1);
   const doneAll = d?.status === "needs_review" || d?.status === "approved";
   const inboxName = "Eradigm Inbox";
+  const sentTo = `${inboxName} (${STREAM_LABEL[run?.stream ?? "secondary"]})`;
   const inboxLink = "/inbox";
 
   const stepState = (i: number) => {
@@ -259,8 +260,8 @@ export function InputPage({ me }: { me: Me }) {
           : run.duplicate
             ? `Already submitted as ${d.code} · not submitted twice`
             : d.duplicateOf
-              ? `Complete · sent to the ${inboxName} · ⚠ possible duplicate of ${d.duplicateOf}`
-              : `Complete · sent to the ${inboxName}`;
+              ? `Complete · sent to the ${sentTo} · ⚠ possible duplicate of ${d.duplicateOf}`
+              : `Complete · sent to the ${sentTo}`;
   const runColor = !run ? "" : run.failAt != null || d?.status === "failed" ? "var(--error)" : doneAll ? "var(--success-2)" : "var(--teal)";
 
   return (
@@ -336,7 +337,7 @@ export function InputPage({ me }: { me: Me }) {
             <div className="card-head" style={{ alignItems: "center" }}>
               <div>
                 <h2 className="card-title" id="sent-title">
-                  {run?.typedIn ? "Blank entry sent" : "Sent"} to the {inboxName}
+                  {run?.typedIn ? "Blank entry sent" : "Sent"} to the {sentTo}
                 </h2>
                 <span className="card-sub">
                   {d.code} · {run?.typedIn ? "blank manual entry, no source file" : "saved page stored"} · {schema.data.columns.filter((c) => c.key !== "source_tier").length} tracker fields left empty for the analyst · nothing sent to any external service

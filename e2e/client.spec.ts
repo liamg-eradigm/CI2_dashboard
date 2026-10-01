@@ -9,7 +9,7 @@ test.describe("client role", () => {
     const nav = page.getByRole("navigation");
     await expect(nav.getByRole("link", { name: "Dashboard" })).toBeVisible();
     await expect(nav.getByRole("link", { name: "Tracker" })).toBeVisible();
-    await expect(nav.getByRole("link", { name: /Inbox/ })).toHaveCount(0);
+    await expect(nav.getByRole("link", { name: /Eradigm Inbox/ })).toHaveCount(0);
     await expect(nav.getByRole("link", { name: "Input" })).toHaveCount(0);
     // The Inbox and Input pages do not exist for clients: direct links go to the dashboard.
     for (const path of ["/input", "/inbox", "/admin"]) {
@@ -17,7 +17,7 @@ test.describe("client role", () => {
       await expect(page).toHaveURL(/\/dashboard/);
       await expect(page.getByRole("heading", { name: "Intelligence Dashboard" })).toBeVisible();
     }
-    await expect(nav.getByRole("link", { name: /Inbox/ })).toHaveCount(0);
+    await expect(nav.getByRole("link", { name: /Eradigm Inbox/ })).toHaveCount(0);
     await expect(nav.getByRole("link", { name: "Input" })).toHaveCount(0);
     // And the API refuses them regardless of the UI.
     const res = await page.evaluate(async () => {
@@ -106,7 +106,7 @@ test.describe("client role", () => {
   });
 
   test("can view Phantoms and download Markdown, but not delete entries", async ({ page }) => {
-    await page.goto("/phantoms");
+    await page.goto("/phantoms?stream=primary");
     await expect(page.getByRole("heading", { name: "Phantoms" })).toBeVisible();
     await expect(page.getByTestId("stream-primary")).toHaveText("Primary Phantoms");
     const row = page.locator("table tbody tr").first();
@@ -115,7 +115,7 @@ test.describe("client role", () => {
     const panel = page.getByRole("dialog");
     await expect(panel.getByRole("button", { name: "Download Markdown" })).toBeVisible();
     const [download] = await Promise.all([page.waitForEvent("download"), panel.getByRole("button", { name: "Download Markdown" }).click()]);
-    expect(download.suggestedFilename()).toMatch(/^P-\d+\.md$/);
+    expect(download.suggestedFilename()).toMatch(/^[PS]-\d+\.md$/);
     await expect(panel.getByLabel("Markdown source")).toContainText("## Key Intelligence Question");
     await expect(panel.getByLabel("Markdown source")).toContainText(/^---\nid: P-\d+/);
     await panel.getByRole("button", { name: "Open full record" }).click();
@@ -140,22 +140,15 @@ test.describe("client role", () => {
     await expectAccessible(page, "/phantoms");
   });
 
-  test("views and downloads Deliverables, but cannot create newsletters", async ({ page }) => {
-    await page.goto("/deliverables");
-    await expect(page.getByRole("heading", { name: "Deliverables" })).toBeVisible();
-    await expect(page.getByTestId("deliv-alerts")).toHaveAttribute("aria-pressed", "true");
-    const row = page.locator("table tbody tr").first();
-    await row.getByRole("button", { name: /^Open the alert for / }).click();
-    const pane = page.getByRole("dialog");
-    await expect(pane.locator(".docx-host section.docx")).toBeVisible({ timeout: 15_000 });
-    const [download] = await Promise.all([page.waitForEvent("download"), pane.getByRole("button", { name: "Download .docx" }).click()]);
-    expect(download.suggestedFilename()).toMatch(/-alert\.docx$/);
-    await page.keyboard.press("Escape");
-    await page.getByTestId("deliv-newsletter").click();
-    await expect(page.getByRole("heading", { name: "Newsletters" })).toBeVisible();
-    await expect(page.getByRole("checkbox")).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Create Newsletter" })).toHaveCount(0);
-    await expectAccessible(page, "/deliverables newsletter (client)");
+  test("has no Deliverables or Eradigm Inbox tab: those pages redirect to the Dashboard", async ({ page }) => {
+    await page.goto("/dashboard");
+    const nav = page.getByRole("navigation", { name: "COMPETITIVE INTELLIGENCE" });
+    await expect(nav.getByRole("link", { name: "Deliverables" })).toHaveCount(0);
+    await expect(nav.getByRole("link", { name: /Client Inbox/ })).toBeVisible();
+    for (const path of ["/deliverables", "/inbox", "/input", "/admin"]) {
+      await page.goto(path);
+      await expect(page).toHaveURL(/\/dashboard/);
+    }
   });
 
   test("sees the saved-page icon but cannot attach pages", async ({ page }) => {
@@ -210,14 +203,15 @@ test.describe("client role", () => {
       ]);
       return ((await res.json()) as { total: number }).total;
     };
-    await expect(page.getByTestId("stream-primary")).toHaveAttribute("aria-pressed", "true");
-    const p1 = await count(() => page.reload(), { stream: "primary", filtered: true });
-    const s1 = await count(() => page.getByTestId("stream-secondary").click(), { stream: "secondary", filtered: true });
+    // The Tracker opens on Secondary.
+    await expect(page.getByTestId("stream-secondary")).toHaveAttribute("aria-pressed", "true");
+    const s1 = await count(() => page.reload(), { stream: "secondary", filtered: true });
+    const p1 = await count(() => page.getByTestId("stream-primary").click(), { stream: "primary", filtered: true });
     await expect(page.getByRole("region", { name: "Filters", exact: true }).getByRole("combobox", { name: "Macrotrend", exact: true })).toHaveValue("Portfolio Restructuring");
     expect(p1 + s1).toBe(Number(filtered));
-    await expect(page.getByText(new RegExp(`of ${s1} · page|^0 results`))).toBeVisible();
-    const s2 = await count(() => page.getByRole("button", { name: "Reset filter" }).click(), { stream: "secondary", filtered: false });
-    const p2 = await count(() => page.getByTestId("stream-primary").click(), { stream: "primary", filtered: false });
+    await expect(page.getByText(new RegExp(`of ${p1} · page|^0 results`))).toBeVisible();
+    const p2 = await count(() => page.getByRole("button", { name: "Reset filter" }).click(), { stream: "primary", filtered: false });
+    const s2 = await count(() => page.getByTestId("stream-secondary").click(), { stream: "secondary", filtered: false });
     expect(p2 + s2).toBe(Number(kpi));
   });
 
@@ -280,7 +274,7 @@ test.describe("client role", () => {
     const download = page.waitForEvent("download");
     await page.getByRole("button", { name: /^CSV/ }).click();
     const d = await download;
-    expect(d.suggestedFilename()).toMatch(/^eradigm-tracker-filtered-\d{4}-\d{2}-\d{2}\.csv$/);
+    expect(d.suggestedFilename()).toMatch(/^eradigm-secondary-tracker-filtered-\d{4}-\d{2}-\d{2}\.csv$/);
   });
 
   test("the Export menu is not cut off when only a few rows are shown", async ({ page }) => {

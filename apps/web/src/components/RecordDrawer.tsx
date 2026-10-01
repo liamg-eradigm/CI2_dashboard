@@ -317,7 +317,7 @@ function EditForm({ id, code, schema, values, onDone }: { id: string; code: stri
     try {
       const r = await api<{ rev: number }>(`/api/signals/${id}/revise`, { method: "POST", json: { values: normaliseValues(schema, v), ...(note.trim() ? { note: note.trim() } : {}) } });
       await inv();
-      toast(`${code} approved again as rev ${r.rev} · Markdown and deliverables updated`);
+      toast(`${code} pushed to the Tracker again as rev ${r.rev} · its Phantom is unchanged`);
       onDone();
     } catch (e) {
       if (e instanceof ApiError) {
@@ -391,7 +391,7 @@ function EditForm({ id, code, schema, values, onDone }: { id: string; code: stri
       )}
       <div className="edit-actions">
         <button className="btn" disabled={busy} onClick={() => void submit()}>
-          {busy ? "Approving…" : "✓ Approve"}
+          {busy ? "Pushing…" : "✓ Push to Tracker"}
         </button>
         <button className="btn secondary" disabled={busy} onClick={onDone}>
           Cancel
