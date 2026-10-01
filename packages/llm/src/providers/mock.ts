@@ -5,7 +5,8 @@
  * mistaken for a real classification.
  */
 import { type ExtractedField, type ExtractionInput, type FieldValue } from "@eradigm/shared";
-import { PROMPT_VERSION, type LlmExtractionResult, type LlmProvider } from "../types.js";
+import { SUMMARY_PROMPT_VERSION } from "../summaryPrompt.js";
+import { PROMPT_VERSION, type LlmExtractionResult, type LlmProvider, type LlmSummaryResult, type SummaryInput } from "../types.js";
 
 const STOP = new Set(["and", "the", "for", "of", "to", "in", "ai", "&", "or", "into", "with", "a", "an", "dtp", "dtc"]);
 
@@ -102,5 +103,18 @@ export class MockProvider implements LlmProvider {
       output: { fields, warnings: ["Mock heuristic provider: configure LLM_PROVIDER=anthropic for real classification"] },
       meta: { provider: this.name, model: this.model, promptVersion: PROMPT_VERSION, schemaVersion: input.schemaVersion, latencyMs: 0 },
     };
+  }
+
+  /** Lists the most recent titles: clearly not an AI summary. */
+  async summarize(input: SummaryInput): Promise<LlmSummaryResult> {
+    const n = input.entries.length;
+    const recent = input.entries
+      .slice(-3)
+      .map((e) => e.title)
+      .join("; ");
+    const text = n
+      ? `Mock summary of ${n} entr${n === 1 ? "y" : "ies"} in ${input.name} from the last ${input.windowDays} days. Most recent: ${recent}.`
+      : `No ${input.name} entries in the last ${input.windowDays} days.`;
+    return { text, meta: { provider: this.name, model: this.model, promptVersion: SUMMARY_PROMPT_VERSION, latencyMs: 0 } };
   }
 }

@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Eradigm Competitive Intelligence API",
-    "version": "1.2.0",
+    "version": "1.10.0",
     "description": "Generated from packages/shared/src/api.ts. Every request is checked for both role and tenant server-side. Send X-Tenant-Id to select a tenant when the user belongs to more than one."
   },
   "components": {
@@ -66,6 +66,10 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
                         },
                         "requestId": {
                           "type": "string"
@@ -158,6 +162,10 @@
                             "additionalProperties": false
                           }
                         },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
                         "requestId": {
                           "type": "string"
                         }
@@ -249,6 +257,10 @@
                             "additionalProperties": false
                           }
                         },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
                         "requestId": {
                           "type": "string"
                         }
@@ -323,6 +335,10 @@
                             "additionalProperties": false
                           }
                         },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
                         "requestId": {
                           "type": "string"
                         }
@@ -396,6 +412,10 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
                         },
                         "requestId": {
                           "type": "string"
@@ -479,6 +499,10 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
                         },
                         "requestId": {
                           "type": "string"
@@ -702,6 +726,10 @@
                             "additionalProperties": false
                           }
                         },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
                         "requestId": {
                           "type": "string"
                         }
@@ -781,6 +809,10 @@
                             "additionalProperties": false
                           }
                         },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
                         "requestId": {
                           "type": "string"
                         }
@@ -845,6 +877,7 @@
                               "macro",
                               "sub",
                               "text",
+                              "long",
                               "select"
                             ]
                           },
@@ -867,6 +900,26 @@
                           },
                           "aiAssist": {
                             "type": "boolean"
+                          },
+                          "inTracker": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "trackerPosition": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "inPhantoms": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "phantomsPosition": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
                           }
                         },
                         "required": [
@@ -876,7 +929,11 @@
                           "core",
                           "required",
                           "position",
-                          "aiAssist"
+                          "aiAssist",
+                          "inTracker",
+                          "trackerPosition",
+                          "inPhantoms",
+                          "phantomsPosition"
                         ],
                         "additionalProperties": false
                       }
@@ -956,6 +1013,10 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
                         },
                         "requestId": {
                           "type": "string"
@@ -1021,6 +1082,7 @@
                               "macro",
                               "sub",
                               "text",
+                              "long",
                               "select"
                             ]
                           },
@@ -1043,6 +1105,26 @@
                           },
                           "aiAssist": {
                             "type": "boolean"
+                          },
+                          "inTracker": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "trackerPosition": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "inPhantoms": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "phantomsPosition": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
                           }
                         },
                         "required": [
@@ -1052,7 +1134,11 @@
                           "core",
                           "required",
                           "position",
-                          "aiAssist"
+                          "aiAssist",
+                          "inTracker",
+                          "trackerPosition",
+                          "inPhantoms",
+                          "phantomsPosition"
                         ],
                         "additionalProperties": false
                       }
@@ -1133,6 +1219,10 @@
                             "additionalProperties": false
                           }
                         },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
                         "requestId": {
                           "type": "string"
                         }
@@ -1170,6 +1260,7 @@
                     "enum": [
                       "select",
                       "text",
+                      "long",
                       "date"
                     ]
                   }
@@ -1236,6 +1327,7 @@
                               "macro",
                               "sub",
                               "text",
+                              "long",
                               "select"
                             ]
                           },
@@ -1258,6 +1350,26 @@
                           },
                           "aiAssist": {
                             "type": "boolean"
+                          },
+                          "inTracker": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "trackerPosition": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "inPhantoms": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "phantomsPosition": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
                           }
                         },
                         "required": [
@@ -1267,7 +1379,11 @@
                           "core",
                           "required",
                           "position",
-                          "aiAssist"
+                          "aiAssist",
+                          "inTracker",
+                          "trackerPosition",
+                          "inPhantoms",
+                          "phantomsPosition"
                         ],
                         "additionalProperties": false
                       }
@@ -1348,6 +1464,10 @@
                             "additionalProperties": false
                           }
                         },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
                         "requestId": {
                           "type": "string"
                         }
@@ -1381,6 +1501,12 @@
                     "maxLength": 60
                   },
                   "required": {
+                    "type": "boolean"
+                  },
+                  "inTracker": {
+                    "type": "boolean"
+                  },
+                  "inPhantoms": {
                     "type": "boolean"
                   }
                 },
@@ -1440,6 +1566,7 @@
                               "macro",
                               "sub",
                               "text",
+                              "long",
                               "select"
                             ]
                           },
@@ -1462,6 +1589,26 @@
                           },
                           "aiAssist": {
                             "type": "boolean"
+                          },
+                          "inTracker": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "trackerPosition": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "inPhantoms": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "phantomsPosition": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
                           }
                         },
                         "required": [
@@ -1471,7 +1618,11 @@
                           "core",
                           "required",
                           "position",
-                          "aiAssist"
+                          "aiAssist",
+                          "inTracker",
+                          "trackerPosition",
+                          "inPhantoms",
+                          "phantomsPosition"
                         ],
                         "additionalProperties": false
                       }
@@ -1552,6 +1703,10 @@
                             "additionalProperties": false
                           }
                         },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
                         "requestId": {
                           "type": "string"
                         }
@@ -1568,6 +1723,2561 @@
                   ],
                   "additionalProperties": false
                 }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/import": {
+      "post": {
+        "summary": "Import approved entries into a tracker (query: stream). At most 200 rows per request for a dry run, 8 otherwise",
+        "description": "Roles: admin, analyst",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "imported": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "row": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "column": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "row",
+                          "column",
+                          "message"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "codes": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "imported",
+                    "errors",
+                    "codes"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "fileName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
+                  "rows": {
+                    "minItems": 1,
+                    "maxItems": 200,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "row": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 9007199254740991
+                        },
+                        "values": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              {
+                                "type": "string",
+                                "nullable": true,
+                                "enum": [
+                                  null
+                                ]
+                              }
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "row",
+                        "values"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "dryRun": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "fileName",
+                  "rows"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/items/{id}/snapshot": {
+      "post": {
+        "summary": "Attach the saved HTML page to a tracker entry that has none (multipart: file)",
+        "description": "Roles: admin, analyst",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "hasSnapshot": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "hasSnapshot"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      },
+      "get": {
+        "summary": "Sanitised source snapshot (sandboxed HTML)",
+        "description": "Roles: admin, analyst, client",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "text/html"
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/phantoms": {
+      "get": {
+        "summary": "Phantoms table (query: stream, filters, sort, page): every Primary entry, and Secondary entries at or above the admin-set Impact",
+        "description": "Roles: admin, analyst, client",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rows": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "stream": {
+                            "default": "primary",
+                            "type": "string",
+                            "enum": [
+                              "primary",
+                              "secondary"
+                            ]
+                          },
+                          "values": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                {
+                                  "type": "string",
+                                  "nullable": true,
+                                  "enum": [
+                                    null
+                                  ]
+                                }
+                              ]
+                            }
+                          },
+                          "text": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "rev": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "approvedAt": {
+                            "type": "string"
+                          },
+                          "approvedBy": {
+                            "type": "string"
+                          },
+                          "hasSnapshot": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "alertId": {
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "code",
+                          "stream",
+                          "values",
+                          "text",
+                          "url",
+                          "rev",
+                          "approvedAt",
+                          "approvedBy",
+                          "hasSnapshot"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "total": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "totalPublished": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "page": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "pageSize": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "outsideDates": {
+                      "type": "object",
+                      "properties": {
+                        "count": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "from": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "to": {
+                          "nullable": true,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "count",
+                        "from",
+                        "to"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "rows",
+                    "total",
+                    "totalPublished",
+                    "page",
+                    "pageSize"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/deliverables/alerts": {
+      "get": {
+        "summary": "Deliverables → Alerts: Phantoms with the highest Impact (High), each with its stored .docx alert (generated automatically)",
+        "description": "Roles: admin, analyst, client",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rows": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "stream": {
+                            "default": "primary",
+                            "type": "string",
+                            "enum": [
+                              "primary",
+                              "secondary"
+                            ]
+                          },
+                          "values": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                {
+                                  "type": "string",
+                                  "nullable": true,
+                                  "enum": [
+                                    null
+                                  ]
+                                }
+                              ]
+                            }
+                          },
+                          "text": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "rev": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "approvedAt": {
+                            "type": "string"
+                          },
+                          "approvedBy": {
+                            "type": "string"
+                          },
+                          "hasSnapshot": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "alertId": {
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "code",
+                          "stream",
+                          "values",
+                          "text",
+                          "url",
+                          "rev",
+                          "approvedAt",
+                          "approvedBy",
+                          "hasSnapshot"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "total": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "totalPublished": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "page": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "pageSize": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "outsideDates": {
+                      "type": "object",
+                      "properties": {
+                        "count": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "from": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "to": {
+                          "nullable": true,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "count",
+                        "from",
+                        "to"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "rows",
+                    "total",
+                    "totalPublished",
+                    "page",
+                    "pageSize"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/deliverables/newsletter": {
+      "get": {
+        "summary": "Deliverables → Newsletter: Phantoms with High or Medium Impact, to build newsletters from",
+        "description": "Roles: admin, analyst, client",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rows": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "stream": {
+                            "default": "primary",
+                            "type": "string",
+                            "enum": [
+                              "primary",
+                              "secondary"
+                            ]
+                          },
+                          "values": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                {
+                                  "type": "string",
+                                  "nullable": true,
+                                  "enum": [
+                                    null
+                                  ]
+                                }
+                              ]
+                            }
+                          },
+                          "text": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "rev": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "approvedAt": {
+                            "type": "string"
+                          },
+                          "approvedBy": {
+                            "type": "string"
+                          },
+                          "hasSnapshot": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "alertId": {
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "code",
+                          "stream",
+                          "values",
+                          "text",
+                          "url",
+                          "rev",
+                          "approvedAt",
+                          "approvedBy",
+                          "hasSnapshot"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "total": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "totalPublished": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "page": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "pageSize": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "outsideDates": {
+                      "type": "object",
+                      "properties": {
+                        "count": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "from": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "to": {
+                          "nullable": true,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "count",
+                        "from",
+                        "to"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "rows",
+                    "total",
+                    "totalPublished",
+                    "page",
+                    "pageSize"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/newsletters": {
+      "get": {
+        "summary": "Newsletters created so far, newest first",
+        "description": "Roles: admin, analyst, client",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      },
+                      "createdBy": {
+                        "type": "string"
+                      },
+                      "items": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "code": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "recordId": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "title": {
+                              "type": "string"
+                            },
+                            "stream": {
+                              "type": "string",
+                              "enum": [
+                                "primary",
+                                "secondary"
+                              ]
+                            },
+                            "deleted": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "code",
+                            "recordId",
+                            "title",
+                            "stream",
+                            "deleted"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "createdAt",
+                      "createdBy",
+                      "items"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      },
+      "post": {
+        "summary": "Create a newsletter (.docx) from selected Newsletter entries",
+        "description": "Roles: admin, analyst",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "recordId": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "stream": {
+                            "type": "string",
+                            "enum": [
+                              "primary",
+                              "secondary"
+                            ]
+                          },
+                          "deleted": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "code",
+                          "recordId",
+                          "title",
+                          "stream",
+                          "deleted"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "createdAt",
+                    "createdBy",
+                    "items"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "itemIds": {
+                    "minItems": 1,
+                    "maxItems": 200,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    }
+                  }
+                },
+                "required": [
+                  "name",
+                  "itemIds"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/deliverables/{id}/docx": {
+      "get": {
+        "summary": "A stored alert or newsletter .docx (inline for the viewer, ?download=1 as a file)",
+        "description": "Roles: admin, analyst, client",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/megatrends": {
+      "get": {
+        "summary": "Megatrends: Tracker entries per Macrotrend and Subtrend (query: stream all|primary|secondary, from, to), their summaries, and the entries for the timeline",
+        "description": "Roles: admin, analyst, client",
+        "parameters": [
+          {
+            "name": "stream",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "stream": {
+                      "type": "string",
+                      "enum": [
+                        "all",
+                        "primary",
+                        "secondary"
+                      ]
+                    },
+                    "from": {
+                      "nullable": true,
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                    },
+                    "to": {
+                      "nullable": true,
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                    },
+                    "aiConnected": {
+                      "type": "boolean"
+                    },
+                    "macrotrends": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "count": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "summary": {
+                            "nullable": true,
+                            "type": "object",
+                            "properties": {
+                              "text": {
+                                "type": "string"
+                              },
+                              "source": {
+                                "type": "string",
+                                "enum": [
+                                  "default",
+                                  "manual",
+                                  "ai"
+                                ]
+                              },
+                              "updatedAt": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "updatedBy": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "model": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "windowDays": {
+                                "nullable": true,
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "entries": {
+                                "nullable": true,
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "text",
+                              "source",
+                              "updatedAt",
+                              "updatedBy",
+                              "model",
+                              "windowDays",
+                              "entries"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "subtrends": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "name": {
+                                  "type": "string"
+                                },
+                                "count": {
+                                  "type": "integer",
+                                  "minimum": -9007199254740991,
+                                  "maximum": 9007199254740991
+                                },
+                                "summary": {
+                                  "nullable": true,
+                                  "type": "object",
+                                  "properties": {
+                                    "text": {
+                                      "type": "string"
+                                    },
+                                    "source": {
+                                      "type": "string",
+                                      "enum": [
+                                        "default",
+                                        "manual",
+                                        "ai"
+                                      ]
+                                    },
+                                    "updatedAt": {
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "updatedBy": {
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "model": {
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "windowDays": {
+                                      "nullable": true,
+                                      "type": "integer",
+                                      "minimum": -9007199254740991,
+                                      "maximum": 9007199254740991
+                                    },
+                                    "entries": {
+                                      "nullable": true,
+                                      "type": "integer",
+                                      "minimum": -9007199254740991,
+                                      "maximum": 9007199254740991
+                                    }
+                                  },
+                                  "required": [
+                                    "text",
+                                    "source",
+                                    "updatedAt",
+                                    "updatedBy",
+                                    "model",
+                                    "windowDays",
+                                    "entries"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "required": [
+                                "name",
+                                "count",
+                                "summary"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "count",
+                          "summary",
+                          "subtrends"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "entries": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "recordId": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "stream": {
+                            "type": "string",
+                            "enum": [
+                              "primary",
+                              "secondary"
+                            ]
+                          },
+                          "date": {
+                            "type": "string",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "macrotrend": {
+                            "type": "string"
+                          },
+                          "subtrend": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "impact": {
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "code",
+                          "recordId",
+                          "stream",
+                          "date",
+                          "title",
+                          "macrotrend",
+                          "subtrend",
+                          "impact"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "truncated": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "stream",
+                    "from",
+                    "to",
+                    "aiConnected",
+                    "macrotrends",
+                    "entries",
+                    "truncated"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/megatrends/summaries": {
+      "put": {
+        "summary": "Write a Macrotrend or Subtrend summary by hand (empty text = back to the default)",
+        "description": "Roles: admin, analyst",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "default",
+                        "manual",
+                        "ai"
+                      ]
+                    },
+                    "updatedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "updatedBy": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "model": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "windowDays": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "entries": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "text",
+                    "source",
+                    "updatedAt",
+                    "updatedBy",
+                    "model",
+                    "windowDays",
+                    "entries"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "level": {
+                    "type": "string",
+                    "enum": [
+                      "macro",
+                      "sub"
+                    ]
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "parent": {
+                    "type": "string",
+                    "maxLength": 120
+                  },
+                  "text": {
+                    "type": "string",
+                    "maxLength": 2000
+                  }
+                },
+                "required": [
+                  "level",
+                  "name",
+                  "text"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/megatrends/summaries/generate": {
+      "post": {
+        "summary": "Write a Macrotrend or Subtrend summary with the AI writer from its recent entries (409 while the AI is not connected)",
+        "description": "Roles: admin, analyst",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "default",
+                        "manual",
+                        "ai"
+                      ]
+                    },
+                    "updatedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "updatedBy": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "model": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "windowDays": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "entries": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "text",
+                    "source",
+                    "updatedAt",
+                    "updatedBy",
+                    "model",
+                    "windowDays",
+                    "entries"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "level": {
+                    "type": "string",
+                    "enum": [
+                      "macro",
+                      "sub"
+                    ]
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "parent": {
+                    "type": "string",
+                    "maxLength": 120
+                  }
+                },
+                "required": [
+                  "level",
+                  "name"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/signals/{id}/markdown": {
+      "get": {
+        "summary": "Markdown for a tracker entry (text/markdown; ?download=1 for an attachment)",
+        "description": "Roles: admin, analyst, client",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "text/markdown"
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/schema/columns/order": {
+      "put": {
+        "summary": "Change the column order of the Inbox, Tracker or Phantoms table",
+        "description": "Roles: admin, analyst",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "revision": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "columns": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "date",
+                              "multi",
+                              "macro",
+                              "sub",
+                              "text",
+                              "long",
+                              "select"
+                            ]
+                          },
+                          "core": {
+                            "type": "boolean"
+                          },
+                          "required": {
+                            "type": "boolean"
+                          },
+                          "position": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "options": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "aiAssist": {
+                            "type": "boolean"
+                          },
+                          "inTracker": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "trackerPosition": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "inPhantoms": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "phantomsPosition": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "label",
+                          "type",
+                          "core",
+                          "required",
+                          "position",
+                          "aiAssist",
+                          "inTracker",
+                          "trackerPosition",
+                          "inPhantoms",
+                          "phantomsPosition"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "taxonomy": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "subtrends": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "subtrends"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "revision",
+                    "columns",
+                    "taxonomy"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "keys": {
+                    "minItems": 1,
+                    "maxItems": 200,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    }
+                  },
+                  "table": {
+                    "default": "inbox",
+                    "type": "string",
+                    "enum": [
+                      "inbox",
+                      "tracker",
+                      "phantoms"
+                    ]
+                  }
+                },
+                "required": [
+                  "keys",
+                  "table"
+                ],
+                "additionalProperties": false
               }
             }
           }
@@ -1625,6 +4335,7 @@
                               "macro",
                               "sub",
                               "text",
+                              "long",
                               "select"
                             ]
                           },
@@ -1647,6 +4358,26 @@
                           },
                           "aiAssist": {
                             "type": "boolean"
+                          },
+                          "inTracker": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "trackerPosition": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "inPhantoms": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "phantomsPosition": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
                           }
                         },
                         "required": [
@@ -1656,7 +4387,11 @@
                           "core",
                           "required",
                           "position",
-                          "aiAssist"
+                          "aiAssist",
+                          "inTracker",
+                          "trackerPosition",
+                          "inPhantoms",
+                          "phantomsPosition"
                         ],
                         "additionalProperties": false
                       }
@@ -1736,6 +4471,10 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
                         },
                         "requestId": {
                           "type": "string"
@@ -1833,6 +4572,7 @@
                               "macro",
                               "sub",
                               "text",
+                              "long",
                               "select"
                             ]
                           },
@@ -1855,6 +4595,26 @@
                           },
                           "aiAssist": {
                             "type": "boolean"
+                          },
+                          "inTracker": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "trackerPosition": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "inPhantoms": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "phantomsPosition": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
                           }
                         },
                         "required": [
@@ -1864,7 +4624,11 @@
                           "core",
                           "required",
                           "position",
-                          "aiAssist"
+                          "aiAssist",
+                          "inTracker",
+                          "trackerPosition",
+                          "inPhantoms",
+                          "phantomsPosition"
                         ],
                         "additionalProperties": false
                       }
@@ -1944,6 +4708,10 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
                         },
                         "requestId": {
                           "type": "string"
@@ -2043,6 +4811,7 @@
                               "macro",
                               "sub",
                               "text",
+                              "long",
                               "select"
                             ]
                           },
@@ -2065,6 +4834,26 @@
                           },
                           "aiAssist": {
                             "type": "boolean"
+                          },
+                          "inTracker": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "trackerPosition": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "inPhantoms": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "phantomsPosition": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
                           }
                         },
                         "required": [
@@ -2074,7 +4863,11 @@
                           "core",
                           "required",
                           "position",
-                          "aiAssist"
+                          "aiAssist",
+                          "inTracker",
+                          "trackerPosition",
+                          "inPhantoms",
+                          "phantomsPosition"
                         ],
                         "additionalProperties": false
                       }
@@ -2155,6 +4948,10 @@
                             "additionalProperties": false
                           }
                         },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
                         "requestId": {
                           "type": "string"
                         }
@@ -2190,6 +4987,251 @@
                 },
                 "required": [
                   "value"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/schema/columns/{key}/options/order": {
+      "put": {
+        "summary": "Change the order of a column's dropdown options (or of one macrotrend's subtrends)",
+        "description": "Roles: admin, analyst",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "revision": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "columns": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "date",
+                              "multi",
+                              "macro",
+                              "sub",
+                              "text",
+                              "long",
+                              "select"
+                            ]
+                          },
+                          "core": {
+                            "type": "boolean"
+                          },
+                          "required": {
+                            "type": "boolean"
+                          },
+                          "position": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "options": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "aiAssist": {
+                            "type": "boolean"
+                          },
+                          "inTracker": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "trackerPosition": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "inPhantoms": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "phantomsPosition": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "label",
+                          "type",
+                          "core",
+                          "required",
+                          "position",
+                          "aiAssist",
+                          "inTracker",
+                          "trackerPosition",
+                          "inPhantoms",
+                          "phantomsPosition"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "taxonomy": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "subtrends": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "subtrends"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "revision",
+                    "columns",
+                    "taxonomy"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "values": {
+                    "minItems": 1,
+                    "maxItems": 500,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    }
+                  },
+                  "parent": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  }
+                },
+                "required": [
+                  "values"
                 ],
                 "additionalProperties": false
               }
@@ -2292,6 +5334,14 @@
                           "code": {
                             "type": "string"
                           },
+                          "stream": {
+                            "default": "primary",
+                            "type": "string",
+                            "enum": [
+                              "primary",
+                              "secondary"
+                            ]
+                          },
                           "values": {
                             "type": "object",
                             "additionalProperties": {
@@ -2332,17 +5382,27 @@
                           },
                           "approvedBy": {
                             "type": "string"
+                          },
+                          "hasSnapshot": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "alertId": {
+                            "nullable": true,
+                            "type": "string"
                           }
                         },
                         "required": [
                           "id",
                           "code",
+                          "stream",
                           "values",
                           "text",
                           "url",
                           "rev",
                           "approvedAt",
-                          "approvedBy"
+                          "approvedBy",
+                          "hasSnapshot"
                         ],
                         "additionalProperties": false
                       }
@@ -2366,6 +5426,30 @@
                       "type": "integer",
                       "minimum": -9007199254740991,
                       "maximum": 9007199254740991
+                    },
+                    "outsideDates": {
+                      "type": "object",
+                      "properties": {
+                        "count": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "from": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "to": {
+                          "nullable": true,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "count",
+                        "from",
+                        "to"
+                      ],
+                      "additionalProperties": false
                     }
                   },
                   "required": [
@@ -2422,6 +5506,10 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
                         },
                         "requestId": {
                           "type": "string"
@@ -2567,6 +5655,10 @@
                             "additionalProperties": false
                           }
                         },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
                         "requestId": {
                           "type": "string"
                         }
@@ -2622,6 +5714,14 @@
                     "code": {
                       "type": "string"
                     },
+                    "stream": {
+                      "default": "primary",
+                      "type": "string",
+                      "enum": [
+                        "primary",
+                        "secondary"
+                      ]
+                    },
                     "values": {
                       "type": "object",
                       "additionalProperties": {
@@ -2661,6 +5761,14 @@
                       "type": "string"
                     },
                     "approvedBy": {
+                      "type": "string"
+                    },
+                    "hasSnapshot": {
+                      "default": false,
+                      "type": "boolean"
+                    },
+                    "alertId": {
+                      "nullable": true,
                       "type": "string"
                     },
                     "inboxCode": {
@@ -2940,12 +6048,14 @@
                   "required": [
                     "id",
                     "code",
+                    "stream",
                     "values",
                     "text",
                     "url",
                     "rev",
                     "approvedAt",
                     "approvedBy",
+                    "hasSnapshot",
                     "inboxCode",
                     "receivedAt",
                     "submittedUrl",
@@ -3003,6 +6113,10 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
                         },
                         "requestId": {
                           "type": "string"
@@ -3033,7 +6147,7 @@
     },
     "/api/signals/{id}/revise": {
       "post": {
-        "summary": "Publish a new revision of an approved signal",
+        "summary": "Edit an approved entry and approve it again: validated like an approval, published as a new revision (Tracker, Phantoms, Markdown, Dashboard and alerts follow)",
         "description": "Roles: admin, analyst",
         "parameters": [
           {
@@ -3058,6 +6172,14 @@
                     },
                     "code": {
                       "type": "string"
+                    },
+                    "stream": {
+                      "default": "primary",
+                      "type": "string",
+                      "enum": [
+                        "primary",
+                        "secondary"
+                      ]
                     },
                     "values": {
                       "type": "object",
@@ -3098,6 +6220,14 @@
                       "type": "string"
                     },
                     "approvedBy": {
+                      "type": "string"
+                    },
+                    "hasSnapshot": {
+                      "default": false,
+                      "type": "boolean"
+                    },
+                    "alertId": {
+                      "nullable": true,
                       "type": "string"
                     },
                     "inboxCode": {
@@ -3377,12 +6507,14 @@
                   "required": [
                     "id",
                     "code",
+                    "stream",
                     "values",
                     "text",
                     "url",
                     "rev",
                     "approvedAt",
                     "approvedBy",
+                    "hasSnapshot",
                     "inboxCode",
                     "receivedAt",
                     "submittedUrl",
@@ -3440,6 +6572,10 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
                         },
                         "requestId": {
                           "type": "string"
@@ -3493,13 +6629,11 @@
                   },
                   "note": {
                     "type": "string",
-                    "minLength": 1,
                     "maxLength": 500
                   }
                 },
                 "required": [
-                  "values",
-                  "note"
+                  "values"
                 ],
                 "additionalProperties": false
               }
@@ -3559,6 +6693,30 @@
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "outsideDates": {
+                      "type": "object",
+                      "properties": {
+                        "count": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "from": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "to": {
+                          "nullable": true,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "count",
+                        "from",
+                        "to"
+                      ],
+                      "additionalProperties": false
+                    },
                     "kpis": {
                       "type": "object",
                       "properties": {
@@ -3841,6 +6999,10 @@
                             "additionalProperties": false
                           }
                         },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
                         "requestId": {
                           "type": "string"
                         }
@@ -4074,6 +7236,10 @@
                             "additionalProperties": false
                           }
                         },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
                         "requestId": {
                           "type": "string"
                         }
@@ -4211,6 +7377,14 @@
                         "code": {
                           "type": "string"
                         },
+                        "stream": {
+                          "default": "primary",
+                          "type": "string",
+                          "enum": [
+                            "primary",
+                            "secondary"
+                          ]
+                        },
                         "status": {
                           "type": "string",
                           "enum": [
@@ -4228,7 +7402,8 @@
                           "type": "string",
                           "enum": [
                             "url",
-                            "file"
+                            "file",
+                            "manual"
                           ]
                         },
                         "outlet": {
@@ -4376,6 +7551,19 @@
                           "nullable": true,
                           "type": "string"
                         },
+                        "duplicateItemId": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "duplicateBasis": {
+                          "nullable": true,
+                          "type": "string",
+                          "enum": [
+                            "url",
+                            "file",
+                            "content"
+                          ]
+                        },
                         "quarantined": {
                           "type": "boolean"
                         },
@@ -4437,6 +7625,7 @@
                       "required": [
                         "id",
                         "code",
+                        "stream",
                         "status",
                         "inputType",
                         "outlet",
@@ -4452,6 +7641,8 @@
                         "modelWarnings",
                         "error",
                         "duplicateOf",
+                        "duplicateItemId",
+                        "duplicateBasis",
                         "quarantined",
                         "version",
                         "attempts",
@@ -4518,6 +7709,10 @@
                             "additionalProperties": false
                           }
                         },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
                         "requestId": {
                           "type": "string"
                         }
@@ -4549,10 +7744,19 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 2048
+                  },
+                  "stream": {
+                    "default": "primary",
+                    "type": "string",
+                    "enum": [
+                      "primary",
+                      "secondary"
+                    ]
                   }
                 },
                 "required": [
-                  "url"
+                  "url",
+                  "stream"
                 ],
                 "additionalProperties": false
               }
@@ -4566,6 +7770,415 @@
                     "format": "binary"
                   }
                 }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/submissions/manual": {
+      "post": {
+        "summary": "Send a blank entry to a stream's Inbox for an analyst to fill in (no source file). Idempotent on Idempotency-Key.",
+        "description": "Roles: admin, analyst",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "item": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "stream": {
+                          "default": "primary",
+                          "type": "string",
+                          "enum": [
+                            "primary",
+                            "secondary"
+                          ]
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "queued",
+                            "fetching",
+                            "extracting",
+                            "needs_review",
+                            "approved",
+                            "rejected",
+                            "failed",
+                            "deleted"
+                          ]
+                        },
+                        "inputType": {
+                          "type": "string",
+                          "enum": [
+                            "url",
+                            "file",
+                            "manual"
+                          ]
+                        },
+                        "outlet": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "submittedUrl": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "url": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "receivedAt": {
+                          "type": "string"
+                        },
+                        "submittedBy": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "title": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "draft": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              {
+                                "type": "string",
+                                "nullable": true,
+                                "enum": [
+                                  null
+                                ]
+                              }
+                            ]
+                          }
+                        },
+                        "provenance": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "nullable": true,
+                            "type": "string",
+                            "enum": [
+                              "source",
+                              "ai",
+                              "analyst"
+                            ]
+                          }
+                        },
+                        "extraction": {
+                          "nullable": true,
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "object",
+                            "properties": {
+                              "value": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  {
+                                    "type": "string",
+                                    "nullable": true,
+                                    "enum": [
+                                      null
+                                    ]
+                                  }
+                                ]
+                              },
+                              "confidence": {
+                                "nullable": true,
+                                "type": "number"
+                              },
+                              "evidence": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "nullReason": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "warnings": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "required": [
+                              "value",
+                              "confidence",
+                              "evidence",
+                              "nullReason",
+                              "warnings"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "warningsCount": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "modelWarnings": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "error": {
+                          "nullable": true,
+                          "type": "object",
+                          "properties": {
+                            "code": {
+                              "type": "string"
+                            },
+                            "message": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "code",
+                            "message"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "duplicateOf": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "duplicateItemId": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "duplicateBasis": {
+                          "nullable": true,
+                          "type": "string",
+                          "enum": [
+                            "url",
+                            "file",
+                            "content"
+                          ]
+                        },
+                        "quarantined": {
+                          "type": "boolean"
+                        },
+                        "version": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "attempts": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "signalCode": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "publishedRev": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "decision": {
+                          "nullable": true,
+                          "type": "object",
+                          "properties": {
+                            "decision": {
+                              "type": "string",
+                              "enum": [
+                                "approve",
+                                "reject",
+                                "reprocess"
+                              ]
+                            },
+                            "by": {
+                              "type": "string"
+                            },
+                            "at": {
+                              "type": "string"
+                            },
+                            "note": {
+                              "nullable": true,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "decision",
+                            "by",
+                            "at",
+                            "note"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "hasSnapshot": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "code",
+                        "stream",
+                        "status",
+                        "inputType",
+                        "outlet",
+                        "submittedUrl",
+                        "url",
+                        "receivedAt",
+                        "submittedBy",
+                        "title",
+                        "draft",
+                        "provenance",
+                        "extraction",
+                        "warningsCount",
+                        "modelWarnings",
+                        "error",
+                        "duplicateOf",
+                        "duplicateItemId",
+                        "duplicateBasis",
+                        "quarantined",
+                        "version",
+                        "attempts",
+                        "signalCode",
+                        "publishedRev",
+                        "decision",
+                        "hasSnapshot"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "duplicate": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "item",
+                    "duplicate"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "stream": {
+                    "default": "primary",
+                    "type": "string",
+                    "enum": [
+                      "primary",
+                      "secondary"
+                    ]
+                  }
+                },
+                "required": [
+                  "stream"
+                ],
+                "additionalProperties": false
               }
             }
           }
@@ -4614,6 +8227,15 @@
                       "itemId": {
                         "nullable": true,
                         "type": "string"
+                      },
+                      "stream": {
+                        "default": null,
+                        "nullable": true,
+                        "type": "string",
+                        "enum": [
+                          "primary",
+                          "secondary"
+                        ]
                       }
                     },
                     "required": [
@@ -4623,7 +8245,8 @@
                       "finalUrl",
                       "outcome",
                       "ok",
-                      "itemId"
+                      "itemId",
+                      "stream"
                     ],
                     "additionalProperties": false
                   }
@@ -4673,6 +8296,10 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
                         },
                         "requestId": {
                           "type": "string"
@@ -4731,6 +8358,14 @@
                       "code": {
                         "type": "string"
                       },
+                      "stream": {
+                        "default": "primary",
+                        "type": "string",
+                        "enum": [
+                          "primary",
+                          "secondary"
+                        ]
+                      },
                       "status": {
                         "type": "string",
                         "enum": [
@@ -4748,7 +8383,8 @@
                         "type": "string",
                         "enum": [
                           "url",
-                          "file"
+                          "file",
+                          "manual"
                         ]
                       },
                       "outlet": {
@@ -4896,6 +8532,19 @@
                         "nullable": true,
                         "type": "string"
                       },
+                      "duplicateItemId": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "duplicateBasis": {
+                        "nullable": true,
+                        "type": "string",
+                        "enum": [
+                          "url",
+                          "file",
+                          "content"
+                        ]
+                      },
                       "quarantined": {
                         "type": "boolean"
                       },
@@ -4957,6 +8606,7 @@
                     "required": [
                       "id",
                       "code",
+                      "stream",
                       "status",
                       "inputType",
                       "outlet",
@@ -4972,6 +8622,8 @@
                       "modelWarnings",
                       "error",
                       "duplicateOf",
+                      "duplicateItemId",
+                      "duplicateBasis",
                       "quarantined",
                       "version",
                       "attempts",
@@ -5029,6 +8681,10 @@
                             "additionalProperties": false
                           }
                         },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
                         "requestId": {
                           "type": "string"
                         }
@@ -5084,6 +8740,14 @@
                     "code": {
                       "type": "string"
                     },
+                    "stream": {
+                      "default": "primary",
+                      "type": "string",
+                      "enum": [
+                        "primary",
+                        "secondary"
+                      ]
+                    },
                     "status": {
                       "type": "string",
                       "enum": [
@@ -5101,7 +8765,8 @@
                       "type": "string",
                       "enum": [
                         "url",
-                        "file"
+                        "file",
+                        "manual"
                       ]
                     },
                     "outlet": {
@@ -5248,6 +8913,19 @@
                     "duplicateOf": {
                       "nullable": true,
                       "type": "string"
+                    },
+                    "duplicateItemId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "duplicateBasis": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "url",
+                        "file",
+                        "content"
+                      ]
                     },
                     "quarantined": {
                       "type": "boolean"
@@ -5569,6 +9247,7 @@
                   "required": [
                     "id",
                     "code",
+                    "stream",
                     "status",
                     "inputType",
                     "outlet",
@@ -5584,6 +9263,8 @@
                     "modelWarnings",
                     "error",
                     "duplicateOf",
+                    "duplicateItemId",
+                    "duplicateBasis",
                     "quarantined",
                     "version",
                     "attempts",
@@ -5645,6 +9326,10 @@
                             "additionalProperties": false
                           }
                         },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
                         "requestId": {
                           "type": "string"
                         }
@@ -5672,7 +9357,7 @@
         ]
       },
       "delete": {
-        "summary": "Mark an item Deleted",
+        "summary": "Mark an item Deleted (also removes an approved entry from the tracker)",
         "description": "Roles: admin, analyst",
         "parameters": [
           {
@@ -5698,6 +9383,14 @@
                     "code": {
                       "type": "string"
                     },
+                    "stream": {
+                      "default": "primary",
+                      "type": "string",
+                      "enum": [
+                        "primary",
+                        "secondary"
+                      ]
+                    },
                     "status": {
                       "type": "string",
                       "enum": [
@@ -5715,7 +9408,8 @@
                       "type": "string",
                       "enum": [
                         "url",
-                        "file"
+                        "file",
+                        "manual"
                       ]
                     },
                     "outlet": {
@@ -5863,6 +9557,19 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "duplicateItemId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "duplicateBasis": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "url",
+                        "file",
+                        "content"
+                      ]
+                    },
                     "quarantined": {
                       "type": "boolean"
                     },
@@ -5924,6 +9631,7 @@
                   "required": [
                     "id",
                     "code",
+                    "stream",
                     "status",
                     "inputType",
                     "outlet",
@@ -5939,6 +9647,8 @@
                     "modelWarnings",
                     "error",
                     "duplicateOf",
+                    "duplicateItemId",
+                    "duplicateBasis",
                     "quarantined",
                     "version",
                     "attempts",
@@ -5995,6 +9705,10 @@
                             "additionalProperties": false
                           }
                         },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
                         "requestId": {
                           "type": "string"
                         }
@@ -6015,90 +9729,27 @@
             }
           }
         },
-        "security": [
-          {
-            "cloudflareAccess": []
-          }
-        ]
-      }
-    },
-    "/api/items/{id}/snapshot": {
-      "get": {
-        "summary": "Sanitised source snapshot (sandboxed HTML)",
-        "description": "Roles: admin, analyst, client",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "text/html"
-          },
-          "default": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "fields": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "key": {
-                                "type": "string"
-                              },
-                              "label": {
-                                "type": "string"
-                              },
-                              "code": {
-                                "type": "string"
-                              },
-                              "message": {
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "key",
-                              "label",
-                              "code",
-                              "message"
-                            ],
-                            "additionalProperties": false
-                          }
-                        },
-                        "requestId": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "message"
-                      ],
-                      "additionalProperties": false
-                    }
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "maxLength": 500
                   },
-                  "required": [
-                    "error"
-                  ],
-                  "additionalProperties": false
-                }
+                  "from": {
+                    "type": "string",
+                    "enum": [
+                      "tracker",
+                      "phantoms",
+                      "global"
+                    ]
+                  }
+                },
+                "additionalProperties": false
               }
             }
           }
@@ -6138,6 +9789,14 @@
                     "code": {
                       "type": "string"
                     },
+                    "stream": {
+                      "default": "primary",
+                      "type": "string",
+                      "enum": [
+                        "primary",
+                        "secondary"
+                      ]
+                    },
                     "status": {
                       "type": "string",
                       "enum": [
@@ -6155,7 +9814,8 @@
                       "type": "string",
                       "enum": [
                         "url",
-                        "file"
+                        "file",
+                        "manual"
                       ]
                     },
                     "outlet": {
@@ -6303,6 +9963,19 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "duplicateItemId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "duplicateBasis": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "url",
+                        "file",
+                        "content"
+                      ]
+                    },
                     "quarantined": {
                       "type": "boolean"
                     },
@@ -6364,6 +10037,7 @@
                   "required": [
                     "id",
                     "code",
+                    "stream",
                     "status",
                     "inputType",
                     "outlet",
@@ -6379,6 +10053,8 @@
                     "modelWarnings",
                     "error",
                     "duplicateOf",
+                    "duplicateItemId",
+                    "duplicateBasis",
                     "quarantined",
                     "version",
                     "attempts",
@@ -6434,6 +10110,10 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
                         },
                         "requestId": {
                           "type": "string"
@@ -6535,6 +10215,14 @@
                     "code": {
                       "type": "string"
                     },
+                    "stream": {
+                      "default": "primary",
+                      "type": "string",
+                      "enum": [
+                        "primary",
+                        "secondary"
+                      ]
+                    },
                     "status": {
                       "type": "string",
                       "enum": [
@@ -6552,7 +10240,8 @@
                       "type": "string",
                       "enum": [
                         "url",
-                        "file"
+                        "file",
+                        "manual"
                       ]
                     },
                     "outlet": {
@@ -6700,6 +10389,19 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "duplicateItemId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "duplicateBasis": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "url",
+                        "file",
+                        "content"
+                      ]
+                    },
                     "quarantined": {
                       "type": "boolean"
                     },
@@ -6761,6 +10463,7 @@
                   "required": [
                     "id",
                     "code",
+                    "stream",
                     "status",
                     "inputType",
                     "outlet",
@@ -6776,6 +10479,8 @@
                     "modelWarnings",
                     "error",
                     "duplicateOf",
+                    "duplicateItemId",
+                    "duplicateBasis",
                     "quarantined",
                     "version",
                     "attempts",
@@ -6831,6 +10536,10 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
                         },
                         "requestId": {
                           "type": "string"
@@ -6890,6 +10599,9 @@
                   "note": {
                     "type": "string",
                     "maxLength": 500
+                  },
+                  "overrideDuplicate": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -6936,6 +10648,14 @@
                     "code": {
                       "type": "string"
                     },
+                    "stream": {
+                      "default": "primary",
+                      "type": "string",
+                      "enum": [
+                        "primary",
+                        "secondary"
+                      ]
+                    },
                     "status": {
                       "type": "string",
                       "enum": [
@@ -6953,7 +10673,8 @@
                       "type": "string",
                       "enum": [
                         "url",
-                        "file"
+                        "file",
+                        "manual"
                       ]
                     },
                     "outlet": {
@@ -7101,6 +10822,19 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "duplicateItemId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "duplicateBasis": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "url",
+                        "file",
+                        "content"
+                      ]
+                    },
                     "quarantined": {
                       "type": "boolean"
                     },
@@ -7162,6 +10896,7 @@
                   "required": [
                     "id",
                     "code",
+                    "stream",
                     "status",
                     "inputType",
                     "outlet",
@@ -7177,6 +10912,8 @@
                     "modelWarnings",
                     "error",
                     "duplicateOf",
+                    "duplicateItemId",
+                    "duplicateBasis",
                     "quarantined",
                     "version",
                     "attempts",
@@ -7232,6 +10969,10 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
                         },
                         "requestId": {
                           "type": "string"
@@ -7313,6 +11054,14 @@
                     "code": {
                       "type": "string"
                     },
+                    "stream": {
+                      "default": "primary",
+                      "type": "string",
+                      "enum": [
+                        "primary",
+                        "secondary"
+                      ]
+                    },
                     "status": {
                       "type": "string",
                       "enum": [
@@ -7330,7 +11079,8 @@
                       "type": "string",
                       "enum": [
                         "url",
-                        "file"
+                        "file",
+                        "manual"
                       ]
                     },
                     "outlet": {
@@ -7478,6 +11228,19 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "duplicateItemId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "duplicateBasis": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "url",
+                        "file",
+                        "content"
+                      ]
+                    },
                     "quarantined": {
                       "type": "boolean"
                     },
@@ -7539,6 +11302,7 @@
                   "required": [
                     "id",
                     "code",
+                    "stream",
                     "status",
                     "inputType",
                     "outlet",
@@ -7554,6 +11318,8 @@
                     "modelWarnings",
                     "error",
                     "duplicateOf",
+                    "duplicateItemId",
+                    "duplicateBasis",
                     "quarantined",
                     "version",
                     "attempts",
@@ -7609,6 +11375,10 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
                         },
                         "requestId": {
                           "type": "string"
@@ -7890,6 +11660,10 @@
                             "additionalProperties": false
                           }
                         },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
                         "requestId": {
                           "type": "string"
                         }
@@ -8146,6 +11920,10 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
                         },
                         "requestId": {
                           "type": "string"
@@ -8409,6 +12187,10 @@
                             "additionalProperties": false
                           }
                         },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
                         "requestId": {
                           "type": "string"
                         }
@@ -8542,13 +12324,100 @@
                         "quarantineMarkers"
                       ],
                       "additionalProperties": false
+                    },
+                    "phantoms": {
+                      "default": {
+                        "secondaryMinImpact": "Low"
+                      },
+                      "type": "object",
+                      "properties": {
+                        "secondaryMinImpact": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 120
+                        }
+                      },
+                      "required": [
+                        "secondaryMinImpact"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "navOrder": {
+                      "default": [
+                        "dashboard",
+                        "tracker",
+                        "phantoms",
+                        "deliverables",
+                        "megatrends",
+                        "inbox",
+                        "input",
+                        "admin"
+                      ],
+                      "maxItems": 8,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "dashboard",
+                          "tracker",
+                          "phantoms",
+                          "deliverables",
+                          "megatrends",
+                          "inbox",
+                          "input",
+                          "admin"
+                        ]
+                      }
+                    },
+                    "megatrends": {
+                      "default": {
+                        "summaryDays": 90,
+                        "summarySentences": 2,
+                        "model": "claude-opus-5-5",
+                        "perspective": "AbbVie"
+                      },
+                      "type": "object",
+                      "properties": {
+                        "summaryDays": {
+                          "type": "integer",
+                          "minimum": 7,
+                          "maximum": 1095
+                        },
+                        "summarySentences": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 6
+                        },
+                        "model": {
+                          "type": "string",
+                          "enum": [
+                            "claude-opus-5-5",
+                            "claude-sonnet-5-5",
+                            "claude-haiku-4-5"
+                          ]
+                        },
+                        "perspective": {
+                          "type": "string",
+                          "maxLength": 80
+                        }
+                      },
+                      "required": [
+                        "summaryDays",
+                        "summarySentences",
+                        "model",
+                        "perspective"
+                      ],
+                      "additionalProperties": false
                     }
                   },
                   "required": [
                     "timezone",
                     "trendDefaults",
                     "retention",
-                    "redaction"
+                    "redaction",
+                    "phantoms",
+                    "navOrder",
+                    "megatrends"
                   ],
                   "additionalProperties": false
                 }
@@ -8597,6 +12466,10 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
                         },
                         "requestId": {
                           "type": "string"
@@ -8729,13 +12602,100 @@
                         "quarantineMarkers"
                       ],
                       "additionalProperties": false
+                    },
+                    "phantoms": {
+                      "default": {
+                        "secondaryMinImpact": "Low"
+                      },
+                      "type": "object",
+                      "properties": {
+                        "secondaryMinImpact": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 120
+                        }
+                      },
+                      "required": [
+                        "secondaryMinImpact"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "navOrder": {
+                      "default": [
+                        "dashboard",
+                        "tracker",
+                        "phantoms",
+                        "deliverables",
+                        "megatrends",
+                        "inbox",
+                        "input",
+                        "admin"
+                      ],
+                      "maxItems": 8,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "dashboard",
+                          "tracker",
+                          "phantoms",
+                          "deliverables",
+                          "megatrends",
+                          "inbox",
+                          "input",
+                          "admin"
+                        ]
+                      }
+                    },
+                    "megatrends": {
+                      "default": {
+                        "summaryDays": 90,
+                        "summarySentences": 2,
+                        "model": "claude-opus-5-5",
+                        "perspective": "AbbVie"
+                      },
+                      "type": "object",
+                      "properties": {
+                        "summaryDays": {
+                          "type": "integer",
+                          "minimum": 7,
+                          "maximum": 1095
+                        },
+                        "summarySentences": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 6
+                        },
+                        "model": {
+                          "type": "string",
+                          "enum": [
+                            "claude-opus-5-5",
+                            "claude-sonnet-5-5",
+                            "claude-haiku-4-5"
+                          ]
+                        },
+                        "perspective": {
+                          "type": "string",
+                          "maxLength": 80
+                        }
+                      },
+                      "required": [
+                        "summaryDays",
+                        "summarySentences",
+                        "model",
+                        "perspective"
+                      ],
+                      "additionalProperties": false
                     }
                   },
                   "required": [
                     "timezone",
                     "trendDefaults",
                     "retention",
-                    "redaction"
+                    "redaction",
+                    "phantoms",
+                    "navOrder",
+                    "megatrends"
                   ],
                   "additionalProperties": false
                 }
@@ -8784,6 +12744,10 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
                         },
                         "requestId": {
                           "type": "string"
@@ -8904,6 +12868,68 @@
                       "redactPhones",
                       "quarantineMarkers"
                     ],
+                    "additionalProperties": false
+                  },
+                  "phantoms": {
+                    "default": {
+                      "secondaryMinImpact": "Low"
+                    },
+                    "type": "object",
+                    "properties": {
+                      "secondaryMinImpact": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      }
+                    },
+                    "required": [
+                      "secondaryMinImpact"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "navOrder": {
+                    "maxItems": 8,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "dashboard",
+                        "tracker",
+                        "phantoms",
+                        "deliverables",
+                        "megatrends",
+                        "inbox",
+                        "input",
+                        "admin"
+                      ]
+                    }
+                  },
+                  "megatrends": {
+                    "type": "object",
+                    "properties": {
+                      "summaryDays": {
+                        "type": "integer",
+                        "minimum": 7,
+                        "maximum": 1095
+                      },
+                      "summarySentences": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 6
+                      },
+                      "model": {
+                        "type": "string",
+                        "enum": [
+                          "claude-opus-5-5",
+                          "claude-sonnet-5-5",
+                          "claude-haiku-4-5"
+                        ]
+                      },
+                      "perspective": {
+                        "type": "string",
+                        "maxLength": 80
+                      }
+                    },
                     "additionalProperties": false
                   }
                 },
@@ -9029,6 +13055,10 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
                         },
                         "requestId": {
                           "type": "string"
@@ -9180,6 +13210,10 @@
                             "additionalProperties": false
                           }
                         },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
                         "requestId": {
                           "type": "string"
                         }
@@ -9325,6 +13359,10 @@
                             "additionalProperties": false
                           }
                         },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
                         "requestId": {
                           "type": "string"
                         }
@@ -9469,6 +13507,10 @@
                             "additionalProperties": false
                           }
                         },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
                         "requestId": {
                           "type": "string"
                         }
@@ -9580,6 +13622,10 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
                         },
                         "requestId": {
                           "type": "string"
@@ -9730,6 +13776,10 @@
                             "additionalProperties": false
                           }
                         },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
                         "requestId": {
                           "type": "string"
                         }
@@ -9808,6 +13858,10 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
                         },
                         "requestId": {
                           "type": "string"
@@ -9924,6 +13978,10 @@
                             "additionalProperties": false
                           }
                         },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
                         "requestId": {
                           "type": "string"
                         }
@@ -10011,6 +14069,10 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
                         },
                         "requestId": {
                           "type": "string"
@@ -10197,6 +14259,10 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
                         },
                         "requestId": {
                           "type": "string"

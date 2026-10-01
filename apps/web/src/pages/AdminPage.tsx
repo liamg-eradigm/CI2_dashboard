@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { ROLES, ROLE_LABEL, canCreateUserWithRole, type Invite, type Me, type Role, type TenantSettings, type UserWithInvite } from "@eradigm/shared";
+import { NAV_LABEL, ROLES, ROLE_LABEL, SUMMARY_MODELS, canCreateUserWithRole, type Invite, type Me, type NavTab, type Role, type TenantSettings, type UserWithInvite } from "@eradigm/shared";
 import { api } from "../api/client";
 import { useAudit, useConfigStatus, useIncidents, useInvalidate, useNotifications, useQuality, useSchema, useSettings, useUsers } from "../api/hooks";
 import { Combobox } from "../components/Combobox";
+import { ReorderList } from "../components/SchemaEditor";
 import { localDateTime, pct } from "../lib/format";
 import { useToast } from "../state/toast";
 
@@ -23,6 +24,7 @@ export function AdminPage({ me }: { me: Me }) {
         {isAdmin && <ConfigStatus />}
         <Users me={me} />
         <Quality manual={me.features.prefill === "manual"} />
+        {isAdmin && <TabOrder />}
         {isAdmin && <Settings />}
         {isAdmin && <Incidents />}
         {isAdmin && <Audit />}
@@ -298,6 +300,52 @@ function Quality({ manual }: { manual: boolean }) {
   );
 }
 
+/** The order of the tabs in the menu, for everyone in the workspace (saved straight away). */
+function TabOrder() {
+  const s = useSettings();
+  const inv = useInvalidate();
+  const toast = useToast();
+  if (!s.data) return null;
+  const save = async (navOrder: string[], ok: string) => {
+    try {
+      await api("/api/settings", { method: "PATCH", json: { navOrder } });
+      await inv("settings");
+      toast(ok);
+      return true;
+    } catch (e) {
+      toast((e as Error).message, false);
+      return false;
+    }
+  };
+  return (
+    <section className="card" aria-labelledby="tabs-title" data-testid="tab-order">
+      <div>
+        <h2 className="card-title" id="tabs-title">
+          Tabs
+        </h2>
+        <span className="card-sub">The order of the tabs in the menu, for everyone in this workspace. People only see the tabs their role allows (clients never see Inbox, Input or Administration).</span>
+      </div>
+      <div className="table-cols-list" style={{ maxWidth: 460 }}>
+        <ReorderList
+          values={s.data.navOrder}
+          what="Tabs"
+          labelOf={(k) => NAV_LABEL[k as NavTab] ?? k}
+          itemNoun="tab"
+          sortable={false}
+          hint="this is the order of the menu"
+          onSave={save}
+          renderRow={(k, cell) => (
+            <div className="tcol-row" data-testid={`tab-${k}`}>
+              {cell}
+              <span className="tcol-label">{NAV_LABEL[k as NavTab] ?? k}</span>
+            </div>
+          )}
+        />
+      </div>
+    </section>
+  );
+}
+
 function Settings() {
   const s = useSettings();
   const secondary = useSchema("secondary");
@@ -316,7 +364,7 @@ function Settings() {
   const num = (v: string) => (Number.isFinite(Number(v)) ? Number(v) : 0);
   const save = async () => {
     try {
-      await api("/api/settings", { method: "PATCH", json: { ...draft, redaction: { ...draft.redaction, quarantineMarkers: markers.split("\n").map((m) => m.trim()).filter((m) => m.length >= 3) } } });
+      await api("/api/settings", { method: "PATCH", json: { ...draft, navOrder: undefined, redaction: { ...draft.redaction, quarantineMarkers: markers.split("\n").map((m) => m.trim()).filter((m) => m.length >= 3) } } });
       await inv("settings");
       toast("Settings saved");
     } catch (e) {
@@ -369,6 +417,50 @@ function Settings() {
             onChange={(v) => v && setDraft({ ...draft, phantoms: { secondaryMinImpact: v } })}
           />
         </label>
+      </fieldset>
+      <fieldset style={{ border: 0, padding: 0, margin: 0, display: "grid", gap: 8 }} data-testid="megatrends-settings">
+        <legend className="section-h">Megatrends · AI summaries</legend>
+        <p className="card-sub" style={{ margin: 0 }}>
+          How Claude writes the Macrotrend and Subtrend summaries once the Claude API is connected (analysts choose ✦ Write with AI on the Megatrends tab). Until then, summaries are written by hand.
+        </p>
+        <div className="trend-grid">
+          <label className="field">
+            <span>Time frame: entries from the last (days)</span>
+            <input
+              className="control"
+              type="number"
+              min={7}
+              max={1095}
+              value={draft.megatrends.summaryDays}
+              onChange={(e) => setDraft({ ...draft, megatrends: { ...draft.megatrends, summaryDays: num(e.target.value) } })}
+            />
+          </label>
+          <label className="field">
+            <span>Summary length (at most, sentences)</span>
+            <input
+              className="control"
+              type="number"
+              min={1}
+              max={6}
+              value={draft.megatrends.summarySentences}
+              onChange={(e) => setDraft({ ...draft, megatrends: { ...draft.megatrends, summarySentences: num(e.target.value) } })}
+            />
+          </label>
+          <label className="field">
+            <span>Claude model</span>
+            <select className="control" value={draft.megatrends.model} onChange={(e) => setDraft({ ...draft, megatrends: { ...draft.megatrends, model: e.target.value } })}>
+              {SUMMARY_MODELS.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            <span>Written for (company)</span>
+            <input className="control" maxLength={80} value={draft.megatrends.perspective} onChange={(e) => setDraft({ ...draft, megatrends: { ...draft.megatrends, perspective: e.target.value } })} />
+          </label>
+        </div>
       </fieldset>
       <fieldset style={{ border: 0, padding: 0, margin: 0, display: "grid", gap: 8 }}>
         <legend className="section-h">Data classification and redaction (checked for every capture; redaction applies to anything sent to an AI service if pre-fill is enabled)</legend>

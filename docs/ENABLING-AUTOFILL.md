@@ -85,6 +85,17 @@ Repeat step 4 with `--env production` and `env.production.vars`, then deploy
 through the production workflow. After a week, check the correction rate in
 **Administration → Extraction quality** and the token counts per attempt.
 
+### Step 7 — Megatrends summaries (same connection)
+The same `LLM_PROVIDER` and `ANTHROPIC_API_KEY` switch on **✦ Write with AI**
+on the Megatrends tab (until then it is disabled and summaries are written by
+hand). Under **Administration → Workspace settings → Megatrends · AI
+summaries**, choose the time frame (entries from the last N days), the maximum
+number of sentences, the company the summaries are written for, and the model
+(Claude Opus 5.5, Sonnet 5.5 or Haiku 4.5). Each summary is one short request
+(at most 40 recent entries; low reasoning effort), written only when an
+analyst asks for it, and stored with the model, time frame and number of
+entries it was written from. The prompt is in `packages/llm/src/summaryPrompt.ts`.
+
 ## 3. Switching it off again (rollback)
 Set `LLM_PROVIDER` back to `"none"` and redeploy the API worker. New
 captures return to empty drafts. Drafts that already exist, approved items and

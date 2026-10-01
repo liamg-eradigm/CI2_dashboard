@@ -15,3 +15,4 @@ export * from "./markdown.js";
 export * from "./sheet.js";
 export * from "./docx.js";
 export * from "./importRules.js";
+export * from "./megatrends.js";

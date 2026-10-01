@@ -6,7 +6,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { buildExtractionJsonSchema, parseExtractionOutput, type ExtractionInput } from "@eradigm/shared";
 import { buildUserMessage, SYSTEM_PROMPT } from "../prompt.js";
-import { LlmError, PROMPT_VERSION, type LlmConfig, type LlmExtractionResult, type LlmProvider } from "../types.js";
+import { buildSummaryMessage, summarySystemPrompt, SUMMARY_PROMPT_VERSION } from "../summaryPrompt.js";
+import { LlmError, PROMPT_VERSION, type LlmConfig, type LlmExtractionResult, type LlmProvider, type LlmSummaryResult, type SummaryInput } from "../types.js";
 
 export const DEFAULT_CLAUDE_MODEL = "claude-opus-5";
 const EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const;
@@ -87,6 +88,70 @@ export class ClaudeProvider implements LlmProvider {
       },
     };
   }
+
+  summarize(input: SummaryInput, opts: { signal?: AbortSignal; model?: string } = {}): Promise<LlmSummaryResult> {
+    return summarizeWith(this.client, opts.model || this.model, this.fallbacks, input, opts);
+  }
+}
+
+/** Megatrends summaries are short prose: a light reasoning depth is enough. */
+const SUMMARY_SCHEMA = {
+  type: "object",
+  properties: { summary: { type: "string", description: "The summary paragraph, plain text" } },
+  required: ["summary"],
+  additionalProperties: false,
+} as const;
+
+export async function summarizeWith(
+  client: Anthropic,
+  model: string,
+  fallbacks: boolean,
+  input: SummaryInput,
+  opts: { signal?: AbortSignal } = {},
+): Promise<LlmSummaryResult> {
+  const started = Date.now();
+  const params: Anthropic.Beta.MessageCreateParamsNonStreaming = {
+    model,
+    max_tokens: 4000,
+    system: summarySystemPrompt(input),
+    messages: [{ role: "user", content: buildSummaryMessage(input) }],
+    thinking: { type: "adaptive" },
+    output_config: { effort: "low", format: { type: "json_schema", schema: SUMMARY_SCHEMA } },
+  };
+  if (fallbacks) {
+    params.betas = [FALLBACK_BETA];
+    params.fallbacks = "default";
+  }
+  let response: Anthropic.Beta.BetaMessage;
+  try {
+    response = await client.beta.messages.create(params, { signal: opts.signal });
+  } catch (err) {
+    throw mapError(err);
+  }
+  if (response.stop_reason === "refusal") throw new LlmError("REFUSED", "The model declined to summarise these entries");
+  if (response.stop_reason === "max_tokens") throw new LlmError("TRUNCATED", "The summary was truncated");
+  const raw = response.content
+    .filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === "text")
+    .map((b) => b.text)
+    .join("");
+  let text: unknown;
+  try {
+    text = (JSON.parse(raw) as { summary?: unknown }).summary;
+  } catch {
+    throw new LlmError("INVALID_OUTPUT", "The model response was not valid JSON");
+  }
+  if (typeof text !== "string" || !text.trim()) throw new LlmError("INVALID_OUTPUT", "The model returned an empty summary");
+  return {
+    text: text.trim().replace(/\s+/g, " "),
+    meta: {
+      provider: "anthropic",
+      model: response.model || model,
+      promptVersion: SUMMARY_PROMPT_VERSION,
+      inputTokens: response.usage?.input_tokens,
+      outputTokens: response.usage?.output_tokens,
+      latencyMs: Date.now() - started,
+    },
+  };
 }
 
 function mapError(err: unknown): LlmError {

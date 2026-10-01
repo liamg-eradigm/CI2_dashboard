@@ -35,7 +35,7 @@ const byName = (dir: 1 | -1) => (a: string, b: string) => dir * a.localeCompare(
  * A reorderable list of dropdown options: Sort A → Z / Z → A, drag the ⠿ handle,
  * or use the ↑ ↓ buttons (keyboard). `renderRow` receives the order controls.
  */
-function ReorderList({
+export function ReorderList({
   values,
   what,
   note,
@@ -44,6 +44,7 @@ function ReorderList({
   labelOf = (v) => v,
   itemNoun = "option",
   hint = "this is the order shown in every dropdown",
+  sortable = true,
 }: {
   values: string[];
   what: string;
@@ -54,6 +55,8 @@ function ReorderList({
   labelOf?: (v: string) => string;
   itemNoun?: string;
   hint?: string;
+  /** Offer A → Z / Z → A (option lists); off for lists whose order is not alphabetical by nature. */
+  sortable?: boolean;
 }) {
   const [order, setOrder] = useState<string[] | null>(null);
   const [dragV, setDragV] = useState<string | null>(null);
@@ -101,13 +104,19 @@ function ReorderList({
     <>
       <div className="opt-order-bar">
         <span className="field-label">Order</span>
-        <button className="btn secondary small" aria-label={`Sort ${what} A to Z`} onClick={() => void save([...values].sort(byLabel(1)), `${what} sorted A → Z`)}>
-          A → Z
-        </button>
-        <button className="btn secondary small" aria-label={`Sort ${what} Z to A`} onClick={() => void save([...values].sort(byLabel(-1)), `${what} sorted Z → A`)}>
-          Z → A
-        </button>
-        <span className="order-hint">or drag ⠿ · {hint}</span>
+        {sortable && (
+          <>
+            <button className="btn secondary small" aria-label={`Sort ${what} A to Z`} onClick={() => void save([...values].sort(byLabel(1)), `${what} sorted A → Z`)}>
+              A → Z
+            </button>
+            <button className="btn secondary small" aria-label={`Sort ${what} Z to A`} onClick={() => void save([...values].sort(byLabel(-1)), `${what} sorted Z → A`)}>
+              Z → A
+            </button>
+          </>
+        )}
+        <span className="order-hint">
+          {sortable ? "or drag" : "Drag"} ⠿ or use ↑ ↓ · {hint}
+        </span>
       </div>
       {note && <div className="order-note">⚠ {note}</div>}
       {list.map((v, i) => (

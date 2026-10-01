@@ -13,6 +13,7 @@ import { LlmError, type LlmConfig, type LlmProvider } from "./types.js";
 
 export * from "./types.js";
 export { buildUserMessage, SYSTEM_PROMPT } from "./prompt.js";
+export { buildSummaryMessage, summarySystemPrompt, SUMMARY_PROMPT_VERSION } from "./summaryPrompt.js";
 
 const REGISTRY: Record<string, (c: LlmConfig) => LlmProvider> = {
   anthropic: (c) => new ClaudeProvider(c),
