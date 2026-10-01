@@ -7,6 +7,7 @@ import {
   type DateBounds,
   type FilterState,
   type Incident,
+  type ItemComment,
   type ItemDetail,
   type ItemSummary,
   type Me,
@@ -84,6 +85,11 @@ export const useMarkdown = (id: string | null) =>
   });
 
 /** Items awaiting the analyst in each inbox (the red badges). */
+export const useClientInboxCount = (enabled: boolean) =>
+  useQuery({ queryKey: ["client-inbox", "count"], queryFn: () => api<{ count: number }>("/api/client-inbox/count"), enabled, refetchInterval: enabled ? 15_000 : false });
+export const useClientInbox = () => useQuery({ queryKey: ["client-inbox", "list"], queryFn: () => api<ItemSummary[]>("/api/client-inbox"), refetchInterval: 15_000 });
+export const useComments = (itemId: string | null, enabled = true) =>
+  useQuery({ queryKey: ["comments", itemId], queryFn: () => api<ItemComment[]>(`/api/items/${itemId}/comments`), enabled: !!itemId && enabled });
 export const useInboxCounts = (enabled: boolean) =>
   useQuery({ queryKey: ["counts"], queryFn: () => api<Record<Stream, number>>("/api/items/counts"), enabled, refetchInterval: enabled ? 10_000 : false });
 
@@ -121,7 +127,7 @@ export const runTrend = (cfg: TrendConfig) => api<TrendResult & { counts: { curr
 /** Invalidate everything derived from published signals or the schema. */
 export function useInvalidate() {
   const qc = useQueryClient();
-  return (...keys: string[]) => Promise.all((keys.length ? keys : ["dashboard", "tracker", "items", "item", "signal", "schema", "counts", "megatrends", "bounds"]).map((k) => qc.invalidateQueries({ queryKey: [k] })));
+  return (...keys: string[]) => Promise.all((keys.length ? keys : ["dashboard", "tracker", "items", "item", "signal", "schema", "counts", "megatrends", "bounds", "client-inbox", "comments"]).map((k) => qc.invalidateQueries({ queryKey: [k] })));
 }
 
 export function useApiMutation<TVars, TRes>(fn: (v: TVars) => Promise<TRes>, invalidate: string[] = []) {

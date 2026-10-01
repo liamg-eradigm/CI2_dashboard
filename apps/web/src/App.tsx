@@ -1,6 +1,6 @@
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense, useEffect, type ReactNode } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
-import { can } from "@eradigm/shared";
+import { canSeeTab, type NavTab } from "@eradigm/shared";
 import { useMe } from "./api/hooks";
 import { getContractWarning } from "./api/client";
 import { Sidebar } from "./components/Sidebar";
@@ -8,6 +8,7 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { TrackerPage } from "./pages/TrackerPage";
 import { DeliverablesPage } from "./pages/DeliverablesPage";
 import { InboxPage } from "./pages/InboxPage";
+import { ClientInboxPage } from "./pages/ClientInboxPage";
 import { InputPage } from "./pages/InputPage";
 import { AdminPage } from "./pages/AdminPage";
 import { InvitePage, SignInPage } from "./pages/SignInPage";
@@ -16,7 +17,7 @@ import { SourcePage } from "./pages/SourcePage";
 // Loaded on first visit: it carries the 3D graph (three.js).
 const MegatrendsPage = lazy(() => import("./pages/MegatrendsPage").then((m) => ({ default: m.MegatrendsPage })));
 
-const TITLES: Record<string, string> = { "/dashboard": "Dashboard", "/tracker": "Tracker", "/phantoms": "Phantoms", "/deliverables": "Deliverables", "/megatrends": "Megatrends", "/inbox": "Inbox", "/input": "Input", "/admin": "Administration" };
+const TITLES: Record<string, string> = { "/dashboard": "Dashboard", "/tracker": "Tracker", "/phantoms": "Phantoms", "/deliverables": "Deliverables", "/megatrends": "Megatrends", "/inbox": "Eradigm Inbox", "/client-inbox": "Client Inbox", "/input": "Input", "/admin": "Administration" };
 
 export function App() {
   const loc = useLocation();
@@ -46,7 +47,8 @@ function SignedIn() {
     return <SignInPage problem={me.error} />;
   }
   const role = me.data.role;
-  const staff = can(role, "inbox:read");
+  // Each role sees only its own tabs; any other page redirects to the Dashboard (the API enforces its own rules).
+  const only = (tab: NavTab, page: ReactNode) => (canSeeTab(role, tab) ? page : <Navigate to="/dashboard" replace />);
   const warning = getContractWarning();
 
   // Full-window saved-source viewer (opened in a new tab from the Inbox).
@@ -71,7 +73,7 @@ function SignedIn() {
           <Route path="/dashboard" element={<DashboardPage me={me.data} />} />
           <Route path="/tracker" element={<TrackerPage me={me.data} view="tracker" />} />
           <Route path="/phantoms" element={<TrackerPage key="phantoms" me={me.data} view="phantoms" />} />
-          <Route path="/deliverables" element={<DeliverablesPage me={me.data} />} />
+          <Route path="/deliverables" element={only("deliverables", <DeliverablesPage me={me.data} />)} />
           <Route
             path="/megatrends"
             element={
@@ -80,10 +82,10 @@ function SignedIn() {
               </Suspense>
             }
           />
-          {/* Staff-only pages do not exist for clients: the routes redirect to the dashboard (the API also refuses them). */}
-          <Route path="/inbox" element={staff ? <InboxPage me={me.data} /> : <Navigate to="/dashboard" replace />} />
-          <Route path="/input" element={can(role, "submission:create") ? <InputPage me={me.data} /> : <Navigate to="/dashboard" replace />} />
-          <Route path="/admin" element={can(role, "user:read") ? <AdminPage me={me.data} /> : <Navigate to="/dashboard" replace />} />
+          <Route path="/inbox" element={only("inbox", <InboxPage me={me.data} />)} />
+          <Route path="/client-inbox" element={only("clientinbox", <ClientInboxPage me={me.data} />)} />
+          <Route path="/input" element={only("input", <InputPage me={me.data} />)} />
+          <Route path="/admin" element={only("admin", <AdminPage me={me.data} />)} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </main>

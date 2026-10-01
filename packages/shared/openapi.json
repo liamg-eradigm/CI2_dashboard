@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Eradigm Competitive Intelligence API",
-    "version": "1.11.0",
+    "version": "1.12.0",
     "description": "Generated from packages/shared/src/api.ts. Every request is checked for both role and tenant server-side. Send X-Tenant-Id to select a tenant when the user belongs to more than one."
   },
   "components": {
@@ -634,7 +634,9 @@
                           "audit:read",
                           "settings:edit",
                           "incident:read",
-                          "metrics:read"
+                          "metrics:read",
+                          "clientInbox:read",
+                          "clientInbox:act"
                         ]
                       }
                     },
@@ -2074,6 +2076,3807 @@
         "responses": {
           "200": {
             "description": "text/html"
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/items/{id}/send-to-client": {
+      "post": {
+        "summary": "Eradigm Inbox: send an entry awaiting review to the Client Inbox",
+        "description": "Roles: admin, analyst",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "stream": {
+                      "default": "primary",
+                      "type": "string",
+                      "enum": [
+                        "primary",
+                        "secondary"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "queued",
+                        "fetching",
+                        "extracting",
+                        "needs_review",
+                        "approved",
+                        "rejected",
+                        "failed",
+                        "deleted"
+                      ]
+                    },
+                    "inputType": {
+                      "type": "string",
+                      "enum": [
+                        "url",
+                        "file",
+                        "manual"
+                      ]
+                    },
+                    "outlet": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "submittedUrl": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "url": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "receivedAt": {
+                      "type": "string"
+                    },
+                    "submittedBy": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "title": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "draft": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          {
+                            "type": "string",
+                            "nullable": true,
+                            "enum": [
+                              null
+                            ]
+                          }
+                        ]
+                      }
+                    },
+                    "provenance": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "nullable": true,
+                        "type": "string",
+                        "enum": [
+                          "source",
+                          "ai",
+                          "analyst"
+                        ]
+                      }
+                    },
+                    "extraction": {
+                      "nullable": true,
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "object",
+                        "properties": {
+                          "value": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              {
+                                "type": "string",
+                                "nullable": true,
+                                "enum": [
+                                  null
+                                ]
+                              }
+                            ]
+                          },
+                          "confidence": {
+                            "nullable": true,
+                            "type": "number"
+                          },
+                          "evidence": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "nullReason": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "warnings": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": [
+                          "value",
+                          "confidence",
+                          "evidence",
+                          "nullReason",
+                          "warnings"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "warningsCount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "modelWarnings": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "error": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "duplicateOf": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "duplicateItemId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "duplicateBasis": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "url",
+                        "file",
+                        "content"
+                      ]
+                    },
+                    "quarantined": {
+                      "type": "boolean"
+                    },
+                    "version": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "attempts": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "signalCode": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "publishedRev": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "decision": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "decision": {
+                          "type": "string",
+                          "enum": [
+                            "approve",
+                            "reject",
+                            "reprocess"
+                          ]
+                        },
+                        "by": {
+                          "type": "string"
+                        },
+                        "at": {
+                          "type": "string"
+                        },
+                        "note": {
+                          "nullable": true,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "decision",
+                        "by",
+                        "at",
+                        "note"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "hasSnapshot": {
+                      "type": "boolean"
+                    },
+                    "withClient": {
+                      "default": false,
+                      "type": "boolean"
+                    },
+                    "sentToClient": {
+                      "default": null,
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "by": {
+                          "type": "string"
+                        },
+                        "at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "by",
+                        "at"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "returnedByClient": {
+                      "default": null,
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "by": {
+                          "type": "string"
+                        },
+                        "at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "by",
+                        "at"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "comments": {
+                      "default": 0,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "code",
+                    "stream",
+                    "status",
+                    "inputType",
+                    "outlet",
+                    "submittedUrl",
+                    "url",
+                    "receivedAt",
+                    "submittedBy",
+                    "title",
+                    "draft",
+                    "provenance",
+                    "extraction",
+                    "warningsCount",
+                    "modelWarnings",
+                    "error",
+                    "duplicateOf",
+                    "duplicateItemId",
+                    "duplicateBasis",
+                    "quarantined",
+                    "version",
+                    "attempts",
+                    "signalCode",
+                    "publishedRev",
+                    "decision",
+                    "hasSnapshot",
+                    "withClient",
+                    "sentToClient",
+                    "returnedByClient",
+                    "comments"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "version": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "version"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/items/{id}/recall": {
+      "post": {
+        "summary": "Eradigm Inbox: take an entry back from the Client Inbox",
+        "description": "Roles: admin, analyst",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "stream": {
+                      "default": "primary",
+                      "type": "string",
+                      "enum": [
+                        "primary",
+                        "secondary"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "queued",
+                        "fetching",
+                        "extracting",
+                        "needs_review",
+                        "approved",
+                        "rejected",
+                        "failed",
+                        "deleted"
+                      ]
+                    },
+                    "inputType": {
+                      "type": "string",
+                      "enum": [
+                        "url",
+                        "file",
+                        "manual"
+                      ]
+                    },
+                    "outlet": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "submittedUrl": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "url": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "receivedAt": {
+                      "type": "string"
+                    },
+                    "submittedBy": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "title": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "draft": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          {
+                            "type": "string",
+                            "nullable": true,
+                            "enum": [
+                              null
+                            ]
+                          }
+                        ]
+                      }
+                    },
+                    "provenance": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "nullable": true,
+                        "type": "string",
+                        "enum": [
+                          "source",
+                          "ai",
+                          "analyst"
+                        ]
+                      }
+                    },
+                    "extraction": {
+                      "nullable": true,
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "object",
+                        "properties": {
+                          "value": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              {
+                                "type": "string",
+                                "nullable": true,
+                                "enum": [
+                                  null
+                                ]
+                              }
+                            ]
+                          },
+                          "confidence": {
+                            "nullable": true,
+                            "type": "number"
+                          },
+                          "evidence": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "nullReason": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "warnings": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": [
+                          "value",
+                          "confidence",
+                          "evidence",
+                          "nullReason",
+                          "warnings"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "warningsCount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "modelWarnings": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "error": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "duplicateOf": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "duplicateItemId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "duplicateBasis": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "url",
+                        "file",
+                        "content"
+                      ]
+                    },
+                    "quarantined": {
+                      "type": "boolean"
+                    },
+                    "version": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "attempts": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "signalCode": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "publishedRev": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "decision": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "decision": {
+                          "type": "string",
+                          "enum": [
+                            "approve",
+                            "reject",
+                            "reprocess"
+                          ]
+                        },
+                        "by": {
+                          "type": "string"
+                        },
+                        "at": {
+                          "type": "string"
+                        },
+                        "note": {
+                          "nullable": true,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "decision",
+                        "by",
+                        "at",
+                        "note"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "hasSnapshot": {
+                      "type": "boolean"
+                    },
+                    "withClient": {
+                      "default": false,
+                      "type": "boolean"
+                    },
+                    "sentToClient": {
+                      "default": null,
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "by": {
+                          "type": "string"
+                        },
+                        "at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "by",
+                        "at"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "returnedByClient": {
+                      "default": null,
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "by": {
+                          "type": "string"
+                        },
+                        "at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "by",
+                        "at"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "comments": {
+                      "default": 0,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "code",
+                    "stream",
+                    "status",
+                    "inputType",
+                    "outlet",
+                    "submittedUrl",
+                    "url",
+                    "receivedAt",
+                    "submittedBy",
+                    "title",
+                    "draft",
+                    "provenance",
+                    "extraction",
+                    "warningsCount",
+                    "modelWarnings",
+                    "error",
+                    "duplicateOf",
+                    "duplicateItemId",
+                    "duplicateBasis",
+                    "quarantined",
+                    "version",
+                    "attempts",
+                    "signalCode",
+                    "publishedRev",
+                    "decision",
+                    "hasSnapshot",
+                    "withClient",
+                    "sentToClient",
+                    "returnedByClient",
+                    "comments"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "version": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "version"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/client-inbox": {
+      "get": {
+        "summary": "Client Inbox: entries Eradigm sent to the client to check",
+        "description": "Roles: admin, client",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "code": {
+                        "type": "string"
+                      },
+                      "stream": {
+                        "default": "primary",
+                        "type": "string",
+                        "enum": [
+                          "primary",
+                          "secondary"
+                        ]
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "queued",
+                          "fetching",
+                          "extracting",
+                          "needs_review",
+                          "approved",
+                          "rejected",
+                          "failed",
+                          "deleted"
+                        ]
+                      },
+                      "inputType": {
+                        "type": "string",
+                        "enum": [
+                          "url",
+                          "file",
+                          "manual"
+                        ]
+                      },
+                      "outlet": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "submittedUrl": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "url": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "receivedAt": {
+                        "type": "string"
+                      },
+                      "submittedBy": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "title": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "draft": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            {
+                              "type": "string",
+                              "nullable": true,
+                              "enum": [
+                                null
+                              ]
+                            }
+                          ]
+                        }
+                      },
+                      "provenance": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "nullable": true,
+                          "type": "string",
+                          "enum": [
+                            "source",
+                            "ai",
+                            "analyst"
+                          ]
+                        }
+                      },
+                      "extraction": {
+                        "nullable": true,
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "object",
+                          "properties": {
+                            "value": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                {
+                                  "type": "string",
+                                  "nullable": true,
+                                  "enum": [
+                                    null
+                                  ]
+                                }
+                              ]
+                            },
+                            "confidence": {
+                              "nullable": true,
+                              "type": "number"
+                            },
+                            "evidence": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "nullReason": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "warnings": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "required": [
+                            "value",
+                            "confidence",
+                            "evidence",
+                            "nullReason",
+                            "warnings"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "warningsCount": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "modelWarnings": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "error": {
+                        "nullable": true,
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "code",
+                          "message"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "duplicateOf": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "duplicateItemId": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "duplicateBasis": {
+                        "nullable": true,
+                        "type": "string",
+                        "enum": [
+                          "url",
+                          "file",
+                          "content"
+                        ]
+                      },
+                      "quarantined": {
+                        "type": "boolean"
+                      },
+                      "version": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "attempts": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "signalCode": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "publishedRev": {
+                        "nullable": true,
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "decision": {
+                        "nullable": true,
+                        "type": "object",
+                        "properties": {
+                          "decision": {
+                            "type": "string",
+                            "enum": [
+                              "approve",
+                              "reject",
+                              "reprocess"
+                            ]
+                          },
+                          "by": {
+                            "type": "string"
+                          },
+                          "at": {
+                            "type": "string"
+                          },
+                          "note": {
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "decision",
+                          "by",
+                          "at",
+                          "note"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "hasSnapshot": {
+                        "type": "boolean"
+                      },
+                      "withClient": {
+                        "default": false,
+                        "type": "boolean"
+                      },
+                      "sentToClient": {
+                        "default": null,
+                        "nullable": true,
+                        "type": "object",
+                        "properties": {
+                          "by": {
+                            "type": "string"
+                          },
+                          "at": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "by",
+                          "at"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "returnedByClient": {
+                        "default": null,
+                        "nullable": true,
+                        "type": "object",
+                        "properties": {
+                          "by": {
+                            "type": "string"
+                          },
+                          "at": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "by",
+                          "at"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "comments": {
+                        "default": 0,
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "code",
+                      "stream",
+                      "status",
+                      "inputType",
+                      "outlet",
+                      "submittedUrl",
+                      "url",
+                      "receivedAt",
+                      "submittedBy",
+                      "title",
+                      "draft",
+                      "provenance",
+                      "extraction",
+                      "warningsCount",
+                      "modelWarnings",
+                      "error",
+                      "duplicateOf",
+                      "duplicateItemId",
+                      "duplicateBasis",
+                      "quarantined",
+                      "version",
+                      "attempts",
+                      "signalCode",
+                      "publishedRev",
+                      "decision",
+                      "hasSnapshot",
+                      "withClient",
+                      "sentToClient",
+                      "returnedByClient",
+                      "comments"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/client-inbox/count": {
+      "get": {
+        "summary": "How many entries are in the Client Inbox",
+        "description": "Roles: admin, client",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "count": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "count"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/client-inbox/{id}": {
+      "get": {
+        "summary": "An entry in the Client Inbox, with its page text",
+        "description": "Roles: admin, client",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "stream": {
+                      "default": "primary",
+                      "type": "string",
+                      "enum": [
+                        "primary",
+                        "secondary"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "queued",
+                        "fetching",
+                        "extracting",
+                        "needs_review",
+                        "approved",
+                        "rejected",
+                        "failed",
+                        "deleted"
+                      ]
+                    },
+                    "inputType": {
+                      "type": "string",
+                      "enum": [
+                        "url",
+                        "file",
+                        "manual"
+                      ]
+                    },
+                    "outlet": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "submittedUrl": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "url": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "receivedAt": {
+                      "type": "string"
+                    },
+                    "submittedBy": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "title": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "draft": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          {
+                            "type": "string",
+                            "nullable": true,
+                            "enum": [
+                              null
+                            ]
+                          }
+                        ]
+                      }
+                    },
+                    "provenance": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "nullable": true,
+                        "type": "string",
+                        "enum": [
+                          "source",
+                          "ai",
+                          "analyst"
+                        ]
+                      }
+                    },
+                    "extraction": {
+                      "nullable": true,
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "object",
+                        "properties": {
+                          "value": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              {
+                                "type": "string",
+                                "nullable": true,
+                                "enum": [
+                                  null
+                                ]
+                              }
+                            ]
+                          },
+                          "confidence": {
+                            "nullable": true,
+                            "type": "number"
+                          },
+                          "evidence": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "nullReason": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "warnings": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": [
+                          "value",
+                          "confidence",
+                          "evidence",
+                          "nullReason",
+                          "warnings"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "warningsCount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "modelWarnings": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "error": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "duplicateOf": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "duplicateItemId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "duplicateBasis": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "url",
+                        "file",
+                        "content"
+                      ]
+                    },
+                    "quarantined": {
+                      "type": "boolean"
+                    },
+                    "version": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "attempts": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "signalCode": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "publishedRev": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "decision": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "decision": {
+                          "type": "string",
+                          "enum": [
+                            "approve",
+                            "reject",
+                            "reprocess"
+                          ]
+                        },
+                        "by": {
+                          "type": "string"
+                        },
+                        "at": {
+                          "type": "string"
+                        },
+                        "note": {
+                          "nullable": true,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "decision",
+                        "by",
+                        "at",
+                        "note"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "hasSnapshot": {
+                      "type": "boolean"
+                    },
+                    "withClient": {
+                      "default": false,
+                      "type": "boolean"
+                    },
+                    "sentToClient": {
+                      "default": null,
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "by": {
+                          "type": "string"
+                        },
+                        "at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "by",
+                        "at"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "returnedByClient": {
+                      "default": null,
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "by": {
+                          "type": "string"
+                        },
+                        "at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "by",
+                        "at"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "comments": {
+                      "default": 0,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "bodyText": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "publicationDate": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "revisions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "seq": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "rev": {
+                            "nullable": true,
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "llm_draft",
+                              "analyst_edit",
+                              "published"
+                            ]
+                          },
+                          "values": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                {
+                                  "type": "string",
+                                  "nullable": true,
+                                  "enum": [
+                                    null
+                                  ]
+                                }
+                              ]
+                            }
+                          },
+                          "changedKeys": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "by": {
+                            "type": "string"
+                          },
+                          "at": {
+                            "type": "string"
+                          },
+                          "note": {
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "seq",
+                          "rev",
+                          "kind",
+                          "values",
+                          "changedKeys",
+                          "by",
+                          "at",
+                          "note"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "attemptsDetail": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "attempt": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "running",
+                              "succeeded",
+                              "failed"
+                            ]
+                          },
+                          "stage": {
+                            "type": "string"
+                          },
+                          "startedAt": {
+                            "type": "string"
+                          },
+                          "finishedAt": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "errorCode": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "errorMessage": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "extractionVersion": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "promptVersion": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "schemaVersion": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "provider": {
+                            "default": null,
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "model": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "inputTokens": {
+                            "default": null,
+                            "nullable": true,
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "outputTokens": {
+                            "default": null,
+                            "nullable": true,
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "steps": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "label": {
+                                  "type": "string"
+                                },
+                                "ok": {
+                                  "type": "boolean"
+                                },
+                                "detail": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "label",
+                                "ok",
+                                "detail"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "attempt",
+                          "status",
+                          "stage",
+                          "startedAt",
+                          "finishedAt",
+                          "errorCode",
+                          "errorMessage",
+                          "extractionVersion",
+                          "promptVersion",
+                          "schemaVersion",
+                          "provider",
+                          "model",
+                          "inputTokens",
+                          "outputTokens",
+                          "steps"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "snapshot": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "sha256": {
+                          "type": "string"
+                        },
+                        "bytes": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "contentType": {
+                          "type": "string"
+                        },
+                        "finalUrl": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "retrievedAt": {
+                          "type": "string"
+                        },
+                        "captureMethod": {
+                          "type": "string"
+                        },
+                        "redirects": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "retentionStatus": {
+                          "type": "string",
+                          "enum": [
+                            "active",
+                            "expired",
+                            "deleted"
+                          ]
+                        },
+                        "singleFile": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "sha256",
+                        "bytes",
+                        "contentType",
+                        "finalUrl",
+                        "retrievedAt",
+                        "captureMethod",
+                        "redirects",
+                        "retentionStatus",
+                        "singleFile"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "code",
+                    "stream",
+                    "status",
+                    "inputType",
+                    "outlet",
+                    "submittedUrl",
+                    "url",
+                    "receivedAt",
+                    "submittedBy",
+                    "title",
+                    "draft",
+                    "provenance",
+                    "extraction",
+                    "warningsCount",
+                    "modelWarnings",
+                    "error",
+                    "duplicateOf",
+                    "duplicateItemId",
+                    "duplicateBasis",
+                    "quarantined",
+                    "version",
+                    "attempts",
+                    "signalCode",
+                    "publishedRev",
+                    "decision",
+                    "hasSnapshot",
+                    "withClient",
+                    "sentToClient",
+                    "returnedByClient",
+                    "comments",
+                    "bodyText",
+                    "publicationDate",
+                    "revisions",
+                    "attemptsDetail",
+                    "snapshot"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/client-inbox/{id}/send-to-eradigm": {
+      "post": {
+        "summary": "Client Inbox: send the entry back to the Eradigm Inbox (comments are kept)",
+        "description": "Roles: admin, client",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "stream": {
+                      "default": "primary",
+                      "type": "string",
+                      "enum": [
+                        "primary",
+                        "secondary"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "queued",
+                        "fetching",
+                        "extracting",
+                        "needs_review",
+                        "approved",
+                        "rejected",
+                        "failed",
+                        "deleted"
+                      ]
+                    },
+                    "inputType": {
+                      "type": "string",
+                      "enum": [
+                        "url",
+                        "file",
+                        "manual"
+                      ]
+                    },
+                    "outlet": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "submittedUrl": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "url": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "receivedAt": {
+                      "type": "string"
+                    },
+                    "submittedBy": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "title": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "draft": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          {
+                            "type": "string",
+                            "nullable": true,
+                            "enum": [
+                              null
+                            ]
+                          }
+                        ]
+                      }
+                    },
+                    "provenance": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "nullable": true,
+                        "type": "string",
+                        "enum": [
+                          "source",
+                          "ai",
+                          "analyst"
+                        ]
+                      }
+                    },
+                    "extraction": {
+                      "nullable": true,
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "object",
+                        "properties": {
+                          "value": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              {
+                                "type": "string",
+                                "nullable": true,
+                                "enum": [
+                                  null
+                                ]
+                              }
+                            ]
+                          },
+                          "confidence": {
+                            "nullable": true,
+                            "type": "number"
+                          },
+                          "evidence": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "nullReason": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "warnings": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": [
+                          "value",
+                          "confidence",
+                          "evidence",
+                          "nullReason",
+                          "warnings"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "warningsCount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "modelWarnings": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "error": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "duplicateOf": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "duplicateItemId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "duplicateBasis": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "url",
+                        "file",
+                        "content"
+                      ]
+                    },
+                    "quarantined": {
+                      "type": "boolean"
+                    },
+                    "version": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "attempts": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "signalCode": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "publishedRev": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "decision": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "decision": {
+                          "type": "string",
+                          "enum": [
+                            "approve",
+                            "reject",
+                            "reprocess"
+                          ]
+                        },
+                        "by": {
+                          "type": "string"
+                        },
+                        "at": {
+                          "type": "string"
+                        },
+                        "note": {
+                          "nullable": true,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "decision",
+                        "by",
+                        "at",
+                        "note"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "hasSnapshot": {
+                      "type": "boolean"
+                    },
+                    "withClient": {
+                      "default": false,
+                      "type": "boolean"
+                    },
+                    "sentToClient": {
+                      "default": null,
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "by": {
+                          "type": "string"
+                        },
+                        "at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "by",
+                        "at"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "returnedByClient": {
+                      "default": null,
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "by": {
+                          "type": "string"
+                        },
+                        "at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "by",
+                        "at"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "comments": {
+                      "default": 0,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "code",
+                    "stream",
+                    "status",
+                    "inputType",
+                    "outlet",
+                    "submittedUrl",
+                    "url",
+                    "receivedAt",
+                    "submittedBy",
+                    "title",
+                    "draft",
+                    "provenance",
+                    "extraction",
+                    "warningsCount",
+                    "modelWarnings",
+                    "error",
+                    "duplicateOf",
+                    "duplicateItemId",
+                    "duplicateBasis",
+                    "quarantined",
+                    "version",
+                    "attempts",
+                    "signalCode",
+                    "publishedRev",
+                    "decision",
+                    "hasSnapshot",
+                    "withClient",
+                    "sentToClient",
+                    "returnedByClient",
+                    "comments"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "version": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "version"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/client-inbox/{id}/push": {
+      "post": {
+        "summary": "Client Inbox: push the entry to the Tracker as it stands (validated like Push to Tracker)",
+        "description": "Roles: admin, client",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "stream": {
+                      "default": "primary",
+                      "type": "string",
+                      "enum": [
+                        "primary",
+                        "secondary"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "queued",
+                        "fetching",
+                        "extracting",
+                        "needs_review",
+                        "approved",
+                        "rejected",
+                        "failed",
+                        "deleted"
+                      ]
+                    },
+                    "inputType": {
+                      "type": "string",
+                      "enum": [
+                        "url",
+                        "file",
+                        "manual"
+                      ]
+                    },
+                    "outlet": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "submittedUrl": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "url": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "receivedAt": {
+                      "type": "string"
+                    },
+                    "submittedBy": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "title": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "draft": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          {
+                            "type": "string",
+                            "nullable": true,
+                            "enum": [
+                              null
+                            ]
+                          }
+                        ]
+                      }
+                    },
+                    "provenance": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "nullable": true,
+                        "type": "string",
+                        "enum": [
+                          "source",
+                          "ai",
+                          "analyst"
+                        ]
+                      }
+                    },
+                    "extraction": {
+                      "nullable": true,
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "object",
+                        "properties": {
+                          "value": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              {
+                                "type": "string",
+                                "nullable": true,
+                                "enum": [
+                                  null
+                                ]
+                              }
+                            ]
+                          },
+                          "confidence": {
+                            "nullable": true,
+                            "type": "number"
+                          },
+                          "evidence": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "nullReason": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "warnings": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": [
+                          "value",
+                          "confidence",
+                          "evidence",
+                          "nullReason",
+                          "warnings"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "warningsCount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "modelWarnings": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "error": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "duplicateOf": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "duplicateItemId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "duplicateBasis": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "url",
+                        "file",
+                        "content"
+                      ]
+                    },
+                    "quarantined": {
+                      "type": "boolean"
+                    },
+                    "version": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "attempts": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "signalCode": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "publishedRev": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "decision": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "decision": {
+                          "type": "string",
+                          "enum": [
+                            "approve",
+                            "reject",
+                            "reprocess"
+                          ]
+                        },
+                        "by": {
+                          "type": "string"
+                        },
+                        "at": {
+                          "type": "string"
+                        },
+                        "note": {
+                          "nullable": true,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "decision",
+                        "by",
+                        "at",
+                        "note"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "hasSnapshot": {
+                      "type": "boolean"
+                    },
+                    "withClient": {
+                      "default": false,
+                      "type": "boolean"
+                    },
+                    "sentToClient": {
+                      "default": null,
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "by": {
+                          "type": "string"
+                        },
+                        "at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "by",
+                        "at"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "returnedByClient": {
+                      "default": null,
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "by": {
+                          "type": "string"
+                        },
+                        "at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "by",
+                        "at"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "comments": {
+                      "default": 0,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "code",
+                    "stream",
+                    "status",
+                    "inputType",
+                    "outlet",
+                    "submittedUrl",
+                    "url",
+                    "receivedAt",
+                    "submittedBy",
+                    "title",
+                    "draft",
+                    "provenance",
+                    "extraction",
+                    "warningsCount",
+                    "modelWarnings",
+                    "error",
+                    "duplicateOf",
+                    "duplicateItemId",
+                    "duplicateBasis",
+                    "quarantined",
+                    "version",
+                    "attempts",
+                    "signalCode",
+                    "publishedRev",
+                    "decision",
+                    "hasSnapshot",
+                    "withClient",
+                    "sentToClient",
+                    "returnedByClient",
+                    "comments"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "version": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "version"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/items/{id}/comments": {
+      "get": {
+        "summary": "Comments on an entry's text (Eradigm; the client while it is in their inbox)",
+        "description": "Roles: admin, analyst, client",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "field": {
+                        "type": "string"
+                      },
+                      "start": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "end": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "quote": {
+                        "type": "string"
+                      },
+                      "body": {
+                        "type": "string"
+                      },
+                      "author": {
+                        "type": "string"
+                      },
+                      "authorRole": {
+                        "type": "string",
+                        "enum": [
+                          "admin",
+                          "analyst",
+                          "client"
+                        ]
+                      },
+                      "mine": {
+                        "type": "boolean"
+                      },
+                      "at": {
+                        "type": "string"
+                      },
+                      "resolved": {
+                        "nullable": true,
+                        "type": "object",
+                        "properties": {
+                          "by": {
+                            "type": "string"
+                          },
+                          "at": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "by",
+                          "at"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "field",
+                      "start",
+                      "end",
+                      "quote",
+                      "body",
+                      "author",
+                      "authorRole",
+                      "mine",
+                      "at",
+                      "resolved"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      },
+      "post": {
+        "summary": "Comment on highlighted text of a field (or of the page text, field _text)",
+        "description": "Roles: admin, analyst, client",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "field": {
+                        "type": "string"
+                      },
+                      "start": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "end": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "quote": {
+                        "type": "string"
+                      },
+                      "body": {
+                        "type": "string"
+                      },
+                      "author": {
+                        "type": "string"
+                      },
+                      "authorRole": {
+                        "type": "string",
+                        "enum": [
+                          "admin",
+                          "analyst",
+                          "client"
+                        ]
+                      },
+                      "mine": {
+                        "type": "boolean"
+                      },
+                      "at": {
+                        "type": "string"
+                      },
+                      "resolved": {
+                        "nullable": true,
+                        "type": "object",
+                        "properties": {
+                          "by": {
+                            "type": "string"
+                          },
+                          "at": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "by",
+                          "at"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "field",
+                      "start",
+                      "end",
+                      "quote",
+                      "body",
+                      "author",
+                      "authorRole",
+                      "mine",
+                      "at",
+                      "resolved"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "field": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "start": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "end": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  "quote": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4000
+                  },
+                  "body": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  }
+                },
+                "required": [
+                  "field",
+                  "start",
+                  "end",
+                  "quote",
+                  "body"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/items/{id}/comments/{cid}": {
+      "patch": {
+        "summary": "Resolve or reopen a comment (Eradigm)",
+        "description": "Roles: admin, analyst",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "field": {
+                        "type": "string"
+                      },
+                      "start": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "end": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "quote": {
+                        "type": "string"
+                      },
+                      "body": {
+                        "type": "string"
+                      },
+                      "author": {
+                        "type": "string"
+                      },
+                      "authorRole": {
+                        "type": "string",
+                        "enum": [
+                          "admin",
+                          "analyst",
+                          "client"
+                        ]
+                      },
+                      "mine": {
+                        "type": "boolean"
+                      },
+                      "at": {
+                        "type": "string"
+                      },
+                      "resolved": {
+                        "nullable": true,
+                        "type": "object",
+                        "properties": {
+                          "by": {
+                            "type": "string"
+                          },
+                          "at": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "by",
+                          "at"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "field",
+                      "start",
+                      "end",
+                      "quote",
+                      "body",
+                      "author",
+                      "authorRole",
+                      "mine",
+                      "at",
+                      "resolved"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "resolved": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "resolved"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      },
+      "delete": {
+        "summary": "Delete a comment (its author, or an admin)",
+        "description": "Roles: admin, analyst, client",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "field": {
+                        "type": "string"
+                      },
+                      "start": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "end": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "quote": {
+                        "type": "string"
+                      },
+                      "body": {
+                        "type": "string"
+                      },
+                      "author": {
+                        "type": "string"
+                      },
+                      "authorRole": {
+                        "type": "string",
+                        "enum": [
+                          "admin",
+                          "analyst",
+                          "client"
+                        ]
+                      },
+                      "mine": {
+                        "type": "boolean"
+                      },
+                      "at": {
+                        "type": "string"
+                      },
+                      "resolved": {
+                        "nullable": true,
+                        "type": "object",
+                        "properties": {
+                          "by": {
+                            "type": "string"
+                          },
+                          "at": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "by",
+                          "at"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "field",
+                      "start",
+                      "end",
+                      "quote",
+                      "body",
+                      "author",
+                      "authorRole",
+                      "mine",
+                      "at",
+                      "resolved"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
           },
           "default": {
             "description": "Error",
@@ -7904,6 +11707,52 @@
                         },
                         "hasSnapshot": {
                           "type": "boolean"
+                        },
+                        "withClient": {
+                          "default": false,
+                          "type": "boolean"
+                        },
+                        "sentToClient": {
+                          "default": null,
+                          "nullable": true,
+                          "type": "object",
+                          "properties": {
+                            "by": {
+                              "type": "string"
+                            },
+                            "at": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "by",
+                            "at"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "returnedByClient": {
+                          "default": null,
+                          "nullable": true,
+                          "type": "object",
+                          "properties": {
+                            "by": {
+                              "type": "string"
+                            },
+                            "at": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "by",
+                            "at"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "comments": {
+                          "default": 0,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
                         }
                       },
                       "required": [
@@ -7933,7 +11782,11 @@
                         "signalCode",
                         "publishedRev",
                         "decision",
-                        "hasSnapshot"
+                        "hasSnapshot",
+                        "withClient",
+                        "sentToClient",
+                        "returnedByClient",
+                        "comments"
                       ],
                       "additionalProperties": false
                     },
@@ -8330,6 +12183,52 @@
                         },
                         "hasSnapshot": {
                           "type": "boolean"
+                        },
+                        "withClient": {
+                          "default": false,
+                          "type": "boolean"
+                        },
+                        "sentToClient": {
+                          "default": null,
+                          "nullable": true,
+                          "type": "object",
+                          "properties": {
+                            "by": {
+                              "type": "string"
+                            },
+                            "at": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "by",
+                            "at"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "returnedByClient": {
+                          "default": null,
+                          "nullable": true,
+                          "type": "object",
+                          "properties": {
+                            "by": {
+                              "type": "string"
+                            },
+                            "at": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "by",
+                            "at"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "comments": {
+                          "default": 0,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
                         }
                       },
                       "required": [
@@ -8359,7 +12258,11 @@
                         "signalCode",
                         "publishedRev",
                         "decision",
-                        "hasSnapshot"
+                        "hasSnapshot",
+                        "withClient",
+                        "sentToClient",
+                        "returnedByClient",
+                        "comments"
                       ],
                       "additionalProperties": false
                     },
@@ -8885,6 +12788,52 @@
                       },
                       "hasSnapshot": {
                         "type": "boolean"
+                      },
+                      "withClient": {
+                        "default": false,
+                        "type": "boolean"
+                      },
+                      "sentToClient": {
+                        "default": null,
+                        "nullable": true,
+                        "type": "object",
+                        "properties": {
+                          "by": {
+                            "type": "string"
+                          },
+                          "at": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "by",
+                          "at"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "returnedByClient": {
+                        "default": null,
+                        "nullable": true,
+                        "type": "object",
+                        "properties": {
+                          "by": {
+                            "type": "string"
+                          },
+                          "at": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "by",
+                          "at"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "comments": {
+                        "default": 0,
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
                       }
                     },
                     "required": [
@@ -8914,7 +12863,11 @@
                       "signalCode",
                       "publishedRev",
                       "decision",
-                      "hasSnapshot"
+                      "hasSnapshot",
+                      "withClient",
+                      "sentToClient",
+                      "returnedByClient",
+                      "comments"
                     ],
                     "additionalProperties": false
                   }
@@ -9268,6 +13221,52 @@
                     "hasSnapshot": {
                       "type": "boolean"
                     },
+                    "withClient": {
+                      "default": false,
+                      "type": "boolean"
+                    },
+                    "sentToClient": {
+                      "default": null,
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "by": {
+                          "type": "string"
+                        },
+                        "at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "by",
+                        "at"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "returnedByClient": {
+                      "default": null,
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "by": {
+                          "type": "string"
+                        },
+                        "at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "by",
+                        "at"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "comments": {
+                      "default": 0,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
                     "bodyText": {
                       "nullable": true,
                       "type": "string"
@@ -9556,6 +13555,10 @@
                     "publishedRev",
                     "decision",
                     "hasSnapshot",
+                    "withClient",
+                    "sentToClient",
+                    "returnedByClient",
+                    "comments",
                     "bodyText",
                     "publicationDate",
                     "revisions",
@@ -9910,6 +13913,52 @@
                     },
                     "hasSnapshot": {
                       "type": "boolean"
+                    },
+                    "withClient": {
+                      "default": false,
+                      "type": "boolean"
+                    },
+                    "sentToClient": {
+                      "default": null,
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "by": {
+                          "type": "string"
+                        },
+                        "at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "by",
+                        "at"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "returnedByClient": {
+                      "default": null,
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "by": {
+                          "type": "string"
+                        },
+                        "at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "by",
+                        "at"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "comments": {
+                      "default": 0,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
                     }
                   },
                   "required": [
@@ -9939,7 +13988,11 @@
                     "signalCode",
                     "publishedRev",
                     "decision",
-                    "hasSnapshot"
+                    "hasSnapshot",
+                    "withClient",
+                    "sentToClient",
+                    "returnedByClient",
+                    "comments"
                   ],
                   "additionalProperties": false
                 }
@@ -10316,6 +14369,52 @@
                     },
                     "hasSnapshot": {
                       "type": "boolean"
+                    },
+                    "withClient": {
+                      "default": false,
+                      "type": "boolean"
+                    },
+                    "sentToClient": {
+                      "default": null,
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "by": {
+                          "type": "string"
+                        },
+                        "at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "by",
+                        "at"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "returnedByClient": {
+                      "default": null,
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "by": {
+                          "type": "string"
+                        },
+                        "at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "by",
+                        "at"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "comments": {
+                      "default": 0,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
                     }
                   },
                   "required": [
@@ -10345,7 +14444,11 @@
                     "signalCode",
                     "publishedRev",
                     "decision",
-                    "hasSnapshot"
+                    "hasSnapshot",
+                    "withClient",
+                    "sentToClient",
+                    "returnedByClient",
+                    "comments"
                   ],
                   "additionalProperties": false
                 }
@@ -10742,6 +14845,52 @@
                     },
                     "hasSnapshot": {
                       "type": "boolean"
+                    },
+                    "withClient": {
+                      "default": false,
+                      "type": "boolean"
+                    },
+                    "sentToClient": {
+                      "default": null,
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "by": {
+                          "type": "string"
+                        },
+                        "at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "by",
+                        "at"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "returnedByClient": {
+                      "default": null,
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "by": {
+                          "type": "string"
+                        },
+                        "at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "by",
+                        "at"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "comments": {
+                      "default": 0,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
                     }
                   },
                   "required": [
@@ -10771,7 +14920,11 @@
                     "signalCode",
                     "publishedRev",
                     "decision",
-                    "hasSnapshot"
+                    "hasSnapshot",
+                    "withClient",
+                    "sentToClient",
+                    "returnedByClient",
+                    "comments"
                   ],
                   "additionalProperties": false
                 }
@@ -11175,6 +15328,52 @@
                     },
                     "hasSnapshot": {
                       "type": "boolean"
+                    },
+                    "withClient": {
+                      "default": false,
+                      "type": "boolean"
+                    },
+                    "sentToClient": {
+                      "default": null,
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "by": {
+                          "type": "string"
+                        },
+                        "at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "by",
+                        "at"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "returnedByClient": {
+                      "default": null,
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "by": {
+                          "type": "string"
+                        },
+                        "at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "by",
+                        "at"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "comments": {
+                      "default": 0,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
                     }
                   },
                   "required": [
@@ -11204,7 +15403,11 @@
                     "signalCode",
                     "publishedRev",
                     "decision",
-                    "hasSnapshot"
+                    "hasSnapshot",
+                    "withClient",
+                    "sentToClient",
+                    "returnedByClient",
+                    "comments"
                   ],
                   "additionalProperties": false
                 }
@@ -11581,6 +15784,52 @@
                     },
                     "hasSnapshot": {
                       "type": "boolean"
+                    },
+                    "withClient": {
+                      "default": false,
+                      "type": "boolean"
+                    },
+                    "sentToClient": {
+                      "default": null,
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "by": {
+                          "type": "string"
+                        },
+                        "at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "by",
+                        "at"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "returnedByClient": {
+                      "default": null,
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "by": {
+                          "type": "string"
+                        },
+                        "at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "by",
+                        "at"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "comments": {
+                      "default": 0,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
                     }
                   },
                   "required": [
@@ -11610,7 +15859,11 @@
                     "signalCode",
                     "publishedRev",
                     "decision",
-                    "hasSnapshot"
+                    "hasSnapshot",
+                    "withClient",
+                    "sentToClient",
+                    "returnedByClient",
+                    "comments"
                   ],
                   "additionalProperties": false
                 }
@@ -12634,10 +16887,11 @@
                         "deliverables",
                         "megatrends",
                         "inbox",
+                        "clientinbox",
                         "input",
                         "admin"
                       ],
-                      "maxItems": 8,
+                      "maxItems": 9,
                       "type": "array",
                       "items": {
                         "type": "string",
@@ -12648,6 +16902,7 @@
                           "deliverables",
                           "megatrends",
                           "inbox",
+                          "clientinbox",
                           "input",
                           "admin"
                         ]
@@ -12912,10 +17167,11 @@
                         "deliverables",
                         "megatrends",
                         "inbox",
+                        "clientinbox",
                         "input",
                         "admin"
                       ],
-                      "maxItems": 8,
+                      "maxItems": 9,
                       "type": "array",
                       "items": {
                         "type": "string",
@@ -12926,6 +17182,7 @@
                           "deliverables",
                           "megatrends",
                           "inbox",
+                          "clientinbox",
                           "input",
                           "admin"
                         ]
@@ -13172,7 +17429,7 @@
                     "additionalProperties": false
                   },
                   "navOrder": {
-                    "maxItems": 8,
+                    "maxItems": 9,
                     "type": "array",
                     "items": {
                       "type": "string",
@@ -13183,6 +17440,7 @@
                         "deliverables",
                         "megatrends",
                         "inbox",
+                        "clientinbox",
                         "input",
                         "admin"
                       ]

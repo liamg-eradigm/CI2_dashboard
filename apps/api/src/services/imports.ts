@@ -45,6 +45,7 @@ import { storeSnapshot } from "../pipeline/snapshots.js";
 import { audit } from "./audit.js";
 import { contentFingerprintInput, getItemRow } from "./items.js";
 import { listPages } from "./pages.js";
+import { snapshotPhantom } from "./phantoms.js";
 import { todayIn } from "./review.js";
 import { PHYSICAL, loadSettings, type Schemas } from "./schema.js";
 
@@ -266,6 +267,7 @@ export async function importRows(
         id,
         JSON.stringify(Array.isArray(values[CORE.competitors]) ? values[CORE.competitors] : []),
       ),
+      snapshotPhantom(env, p.tenantId, id),
       env.DB.prepare(
         `INSERT INTO item_revisions (id, tenant_id, item_id, seq, kind, published_rev, values_json, provenance_json, changed_keys, created_by, created_at, note)
          VALUES (?1, ?2, ?3, 1, 'published', 1, ?4, ?5, '[]', ?6, ?7, ?8)`,

@@ -102,8 +102,11 @@ interface ItemRef {
 
 async function itemRefs(env: Env, tenantId: string, ids: string[]): Promise<Map<string, ItemRef>> {
   if (!ids.length) return new Map();
+  // Newsletters are built from Phantoms: their title, ID and Impact as first pushed to the Tracker.
   const res = await env.DB.prepare(
-    "SELECT id, signal_code, record_id, title, stream, impact, status, deleted_at, phantoms_hidden_at FROM intelligence_items WHERE tenant_id = ?1 AND id IN (SELECT value FROM json_each(?2))",
+    `SELECT i.id, i.signal_code, COALESCE(p.record_id, i.record_id) AS record_id, COALESCE(p.title, i.title) AS title, i.stream, COALESCE(p.impact, i.impact) AS impact,
+            i.status, i.deleted_at, i.phantoms_hidden_at
+       FROM intelligence_items i LEFT JOIN phantom_snapshots p ON p.item_id = i.id WHERE i.tenant_id = ?1 AND i.id IN (SELECT value FROM json_each(?2))`,
   )
     .bind(tenantId, JSON.stringify(ids))
     .all<ItemRef>();

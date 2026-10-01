@@ -6,6 +6,7 @@ import { useToast } from "../state/toast";
 import { formatDate, localDateTime, pct } from "../lib/format";
 import { Combobox } from "./Combobox";
 import { DeleteEntries, type DeleteTable } from "./DeleteEntries";
+import { LIST_HINT, ListTextarea } from "./ListTextarea";
 import { SnapshotFrame } from "./SnapshotFrame";
 
 const PROV: Record<string, string> = { source: "From source", ai: "AI suggested", analyst: "Analyst" };
@@ -18,6 +19,8 @@ export function useFocusTrap(open: boolean, onClose: () => void) {
     const el = ref.current;
     el?.querySelector<HTMLElement>("[data-autofocus]")?.focus();
     const onKey = (e: KeyboardEvent) => {
+      // Already handled by a field (e.g. Tab indenting a bullet, or Esc releasing it).
+      if (e.defaultPrevented) return;
       if (e.key === "Escape") {
         e.preventDefault();
         onClose();
@@ -50,6 +53,7 @@ export function RecordDrawer({
   me,
   table,
   startEditing = false,
+  editable = true,
   onClose,
   onOpen,
 }: {
@@ -60,6 +64,8 @@ export function RecordDrawer({
   table?: DeleteTable;
   /** Open straight into the edit form (from an Edit button). */
   startEditing?: boolean;
+  /** Whether Edit is offered (Phantoms are an evergreen snapshot and are never edited). */
+  editable?: boolean;
   onClose: () => void;
   onOpen: (id: string) => void;
 }) {
@@ -73,7 +79,7 @@ export function RecordDrawer({
   const [deleting, setDeleting] = useState(false);
   const s = sig.data;
   const cols = sortedColumns(schema);
-  const canRevise = can(me.role, "item:edit");
+  const canRevise = editable && can(me.role, "item:edit");
   // Admins and analysts only (the API enforces the same rule).
   const canDelete = can(me.role, "item:delete");
   const published = s?.revisions.filter((r) => r.kind === "published") ?? [];
@@ -136,11 +142,18 @@ export function RecordDrawer({
               <h2 id="drawer-title" style={{ font: "700 20px/1.3 var(--sans)", textWrap: "pretty" }}>
                 {String(s.values[CORE.title] ?? "")}
               </h2>
-              <div style={{ fontSize: 14, lineHeight: 1.6, color: "var(--ink-2)", whiteSpace: "pre-line" }}>{s.text}</div>
+              {!editing && <div style={{ fontSize: 14, lineHeight: 1.6, color: "var(--ink-2)", whiteSpace: "pre-line" }}>{s.text}</div>}
             </div>
 
             {editing ? (
-              <EditForm id={id} code={s.code} schema={schema} values={s.values} onDone={() => setEditing(false)} />
+              <>
+                {/* Editing: the fields first, then the page text to check them against (no saved-page window). */}
+                <EditForm id={id} code={s.code} schema={schema} values={s.values} onDone={() => setEditing(false)} />
+                <div className="edit-source" data-testid="edit-source-text">
+                  <div className="section-h">Text of the saved page</div>
+                  <div style={{ fontSize: 14, lineHeight: 1.6, color: "var(--ink-2)", whiteSpace: "pre-line" }}>{s.text || "No text was captured for this entry."}</div>
+                </div>
+              </>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 <div className="section-h">Classifications</div>
@@ -174,105 +187,109 @@ export function RecordDrawer({
                   </div>
                 ))}
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <div className="section-h">Company associations</div>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {((s.values[CORE.competitors] as string[]) ?? []).map((c) => (
-                  <span className="chip-navy" key={c}>
-                    {c}
-                  </span>
-                ))}
-              </div>
-            </div>
+            {!editing && (
+              <>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div className="section-h">Company associations</div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {((s.values[CORE.competitors] as string[]) ?? []).map((c) => (
+                      <span className="chip-navy" key={c}>
+                        {c}
+                      </span>
+                    ))}
+                  </div>
+                </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <div className="section-h">Source and snapshot</div>
-              <div style={{ fontSize: 13, color: "var(--ink-2)", overflowWrap: "anywhere" }}>
-                {String(s.values.source ?? "Source")} ·{" "}
-                {s.url ? (
-                  <a className="mono" style={{ fontSize: 12 }} href={s.url} target="_blank" rel="noopener noreferrer nofollow">
-                    {s.url}
-                  </a>
-                ) : (
-                  "—"
-                )}
-              </div>
-              {s.snapshot && s.snapshot.retentionStatus === "active" ? (
-                <SnapshotFrame itemId={s.id} title={`Stored source snapshot for ${s.code}`} />
-              ) : (
-                <div className="snapshot-none">{s.snapshot ? `Snapshot ${s.snapshot.retentionStatus} under the retention policy` : "No stored snapshot for this signal"}</div>
-              )}
-            </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div className="section-h">Source and snapshot</div>
+                  <div style={{ fontSize: 13, color: "var(--ink-2)", overflowWrap: "anywhere" }}>
+                    {String(s.values.source ?? "Source")} ·{" "}
+                    {s.url ? (
+                      <a className="mono" style={{ fontSize: 12 }} href={s.url} target="_blank" rel="noopener noreferrer nofollow">
+                        {s.url}
+                      </a>
+                    ) : (
+                      "—"
+                    )}
+                  </div>
+                  {s.snapshot && s.snapshot.retentionStatus === "active" ? (
+                    <SnapshotFrame itemId={s.id} title={`Stored source snapshot for ${s.code}`} />
+                  ) : (
+                    <div className="snapshot-none">{s.snapshot ? `Snapshot ${s.snapshot.retentionStatus} under the retention policy` : "No stored snapshot for this signal"}</div>
+                  )}
+                </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <div className="section-h">Provenance</div>
-              <dl className="kv">
-                {can(me.role, "inbox:read") && (
-                  <>
-                    <dt>Inbox item</dt>
-                    <dd className="mono">{s.inboxCode}</dd>
-                  </>
-                )}
-                <dt>Received</dt>
-                <dd>{localDateTime(s.receivedAt)}</dd>
-                <dt>Submitted URL</dt>
-                <dd className="mono" style={{ fontSize: 12 }}>{s.submittedUrl ?? "Uploaded HTML file"}</dd>
-                <dt>Final URL</dt>
-                <dd className="mono" style={{ fontSize: 12 }}>{s.snapshot?.finalUrl ?? s.url ?? "—"}</dd>
-                <dt>Snapshot</dt>
-                <dd className="mono" style={{ fontSize: 12 }}>
-                  {s.snapshot ? `${s.snapshot.captureMethod} · ${Math.round(s.snapshot.bytes / 1024)} KB · sha256 ${s.snapshot.sha256.slice(0, 12)}…` : "—"}
-                </dd>
-                <dt>Extraction</dt>
-                <dd>{s.extraction.extractionVersion ?? "—"}</dd>
-                <dt>Prompt / schema</dt>
-                <dd>
-                  {s.extraction.promptVersion ?? "—"} · {s.extraction.schemaVersion ?? "—"}
-                </dd>
-                <dt>Draft pre-fill</dt>
-                <dd>{s.extraction.model ? `AI model ${s.extraction.model}` : "Manual entry by analyst"}</dd>
-                <dt>Validation</dt>
-                <dd>Passed (server-side)</dd>
-                <dt>Approved by</dt>
-                <dd>
-                  {s.approvedBy} · {localDateTime(s.approvedAt)}
-                </dd>
-              </dl>
-            </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div className="section-h">Provenance</div>
+                  <dl className="kv">
+                    {can(me.role, "inbox:read") && (
+                      <>
+                        <dt>Inbox item</dt>
+                        <dd className="mono">{s.inboxCode}</dd>
+                      </>
+                    )}
+                    <dt>Received</dt>
+                    <dd>{localDateTime(s.receivedAt)}</dd>
+                    <dt>Submitted URL</dt>
+                    <dd className="mono" style={{ fontSize: 12 }}>{s.submittedUrl ?? "Uploaded HTML file"}</dd>
+                    <dt>Final URL</dt>
+                    <dd className="mono" style={{ fontSize: 12 }}>{s.snapshot?.finalUrl ?? s.url ?? "—"}</dd>
+                    <dt>Snapshot</dt>
+                    <dd className="mono" style={{ fontSize: 12 }}>
+                      {s.snapshot ? `${s.snapshot.captureMethod} · ${Math.round(s.snapshot.bytes / 1024)} KB · sha256 ${s.snapshot.sha256.slice(0, 12)}…` : "—"}
+                    </dd>
+                    <dt>Extraction</dt>
+                    <dd>{s.extraction.extractionVersion ?? "—"}</dd>
+                    <dt>Prompt / schema</dt>
+                    <dd>
+                      {s.extraction.promptVersion ?? "—"} · {s.extraction.schemaVersion ?? "—"}
+                    </dd>
+                    <dt>Draft pre-fill</dt>
+                    <dd>{s.extraction.model ? `AI model ${s.extraction.model}` : "Manual entry by analyst"}</dd>
+                    <dt>Validation</dt>
+                    <dd>Passed (server-side)</dd>
+                    <dt>Approved by</dt>
+                    <dd>
+                      {s.approvedBy} · {localDateTime(s.approvedAt)}
+                    </dd>
+                  </dl>
+                </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <div className="section-h">Analyst revision history</div>
-              <ol className="revs">
-                {s.revisions.map((r) => (
-                  <li key={r.seq} className={r.kind === "published" ? "" : "draft"}>
-                    <b>
-                      {r.kind === "published" ? `rev ${r.rev}` : r.kind === "llm_draft" ? "AI draft" : "Analyst edit"} · {r.note ?? ""}
-                    </b>
-                    <span>
-                      {r.by} · {localDateTime(r.at)}
-                      {r.changedKeys.length ? ` · changed ${r.changedKeys.map((k) => schema.columns.find((c) => c.key === k)?.label ?? k).join(", ")}` : ""}
-                    </span>
-                  </li>
-                ))}
-              </ol>
-              <span className="card-sub">{published.length} published revision(s)</span>
-            </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div className="section-h">Analyst revision history</div>
+                  <ol className="revs">
+                    {s.revisions.map((r) => (
+                      <li key={r.seq} className={r.kind === "published" ? "" : "draft"}>
+                        <b>
+                          {r.kind === "published" ? `rev ${r.rev}` : r.kind === "llm_draft" ? "AI draft" : "Analyst edit"} · {r.note ?? ""}
+                        </b>
+                        <span>
+                          {r.by} · {localDateTime(r.at)}
+                          {r.changedKeys.length ? ` · changed ${r.changedKeys.map((k) => schema.columns.find((c) => c.key === k)?.label ?? k).join(", ")}` : ""}
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                  <span className="card-sub">{published.length} published revision(s)</span>
+                </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <div className="section-h">Related signals</div>
-              {s.related.length === 0 && <span className="card-sub">No related signals.</span>}
-              {s.related.map((r) => (
-                <button className="related" key={r.id} onClick={() => onOpen(r.id)}>
-                  <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.35 }}>{r.title}</span>
-                    <span style={{ fontSize: 12, color: "var(--muted)" }}>{r.why}</span>
-                  </span>
-                  <span className="mono" style={{ fontSize: 11.5, color: "var(--muted)", whiteSpace: "nowrap" }}>
-                    {formatDate(r.date)}
-                  </span>
-                </button>
-              ))}
-            </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div className="section-h">Related signals</div>
+                  {s.related.length === 0 && <span className="card-sub">No related signals.</span>}
+                  {s.related.map((r) => (
+                    <button className="related" key={r.id} onClick={() => onOpen(r.id)}>
+                      <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.35 }}>{r.title}</span>
+                        <span style={{ fontSize: 12, color: "var(--muted)" }}>{r.why}</span>
+                      </span>
+                      <span className="mono" style={{ fontSize: 11.5, color: "var(--muted)", whiteSpace: "nowrap" }}>
+                        {formatDate(r.date)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -300,7 +317,7 @@ function EditForm({ id, code, schema, values, onDone }: { id: string; code: stri
     try {
       const r = await api<{ rev: number }>(`/api/signals/${id}/revise`, { method: "POST", json: { values: normaliseValues(schema, v), ...(note.trim() ? { note: note.trim() } : {}) } });
       await inv();
-      toast(`${code} approved again as rev ${r.rev} · Markdown and deliverables updated`);
+      toast(`${code} pushed to the Tracker again as rev ${r.rev} · its Phantom is unchanged`);
       onDone();
     } catch (e) {
       if (e instanceof ApiError) {
@@ -322,6 +339,7 @@ function EditForm({ id, code, schema, values, onDone }: { id: string; code: stri
         const opts = c.type === "sub" ? subtrendsOf(schema, String(v[CORE.macrotrend] ?? "")) : optionsOf(schema, c);
         const fe = fieldErr[c.key];
         const errId = fe ? `edit-err-${c.key}` : undefined;
+        const hintId = `edit-hint-${c.key}`;
         return (
           <label className="field" key={c.key}>
             <span>
@@ -333,7 +351,20 @@ function EditForm({ id, code, schema, values, onDone }: { id: string; code: stri
             ) : c.type === "text" ? (
               <input className="control" value={val} onChange={(e) => set(e.target.value)} aria-invalid={!!fe} aria-describedby={errId} />
             ) : c.type === "long" ? (
-              <textarea className="control" rows={6} style={{ height: "auto", padding: 8, lineHeight: 1.45, resize: "vertical" }} value={val} onChange={(e) => set(e.target.value)} aria-invalid={!!fe} aria-describedby={errId} />
+              <>
+                <ListTextarea
+                  className="control"
+                  rows={6}
+                  style={{ height: "auto", padding: 8, lineHeight: 1.45, resize: "vertical" }}
+                  value={val}
+                  onValueChange={set}
+                  aria-invalid={!!fe}
+                  aria-describedby={errId ? `${errId} ${hintId}` : hintId}
+                />
+                <span className="list-hint" id={hintId}>
+                  {LIST_HINT}
+                </span>
+              </>
             ) : c.type === "multi" ? (
               <Combobox multiple label={c.label} options={opts} placeholder="Select…" value={splitMulti(val)} onChange={(list) => set(list.join(", "))} invalid={!!fe} describedBy={errId} />
             ) : c.type === "date" ? (
@@ -360,7 +391,7 @@ function EditForm({ id, code, schema, values, onDone }: { id: string; code: stri
       )}
       <div className="edit-actions">
         <button className="btn" disabled={busy} onClick={() => void submit()}>
-          {busy ? "Approving…" : "✓ Approve"}
+          {busy ? "Pushing…" : "✓ Push to Tracker"}
         </button>
         <button className="btn secondary" disabled={busy} onClick={onDone}>
           Cancel

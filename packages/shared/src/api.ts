@@ -178,7 +178,41 @@ export const ItemSummarySchema = z.object({
     .object({ decision: z.enum(["approve", "reject", "reprocess"]), by: z.string(), at: isoDateTime, note: z.string().nullable() })
     .nullable(),
   hasSnapshot: z.boolean(),
+  /** Client Inbox (contract 1.12): sent to the client to check, and back from them. */
+  withClient: z.boolean().default(false),
+  sentToClient: z.object({ by: z.string(), at: isoDateTime }).nullable().default(null),
+  returnedByClient: z.object({ by: z.string(), at: isoDateTime }).nullable().default(null),
+  /** Open (unresolved) comments on the entry's text. */
+  comments: z.number().int().default(0),
 });
+
+/** A comment on an entry's text, anchored to a field and the highlighted words (like a Word comment). */
+export const CommentSchema = z.object({
+  id: z.string(),
+  field: z.string(),
+  start: z.number().int(),
+  end: z.number().int(),
+  quote: z.string(),
+  body: z.string(),
+  author: z.string(),
+  authorRole: z.enum(ROLES),
+  mine: z.boolean(),
+  at: isoDateTime,
+  resolved: z.object({ by: z.string(), at: isoDateTime }).nullable(),
+});
+export type ItemComment = z.infer<typeof CommentSchema>;
+/** The page text of an entry can be commented on too, under this field key. */
+export const PAGE_TEXT_FIELD = "_text";
+export const MAX_COMMENT_LENGTH = 2000;
+export const CreateCommentRequest = z.object({
+  field: z.string().min(1).max(80),
+  start: z.number().int().min(0),
+  end: z.number().int().min(1),
+  quote: z.string().min(1).max(4000),
+  body: z.string().trim().min(1, "Write a comment").max(MAX_COMMENT_LENGTH),
+});
+export const UpdateCommentRequest = z.object({ resolved: z.boolean() });
+export const VersionRequest = z.object({ version: z.number().int() });
 
 export const RevisionSchema = z.object({
   /** Sequence across all revision kinds (1 = first LLM draft). */
@@ -645,6 +679,7 @@ export interface EndpointDef {
 const ALL_ROLES = ROLES;
 const STAFF = ["admin", "analyst"] as const;
 const ADMIN = ["admin"] as const;
+const CLIENT_INBOX = ["admin", "client"] as const;
 
 export const ENDPOINTS: EndpointDef[] = [
   { method: "get", path: "/api/health", summary: "Liveness probe (no authentication)", roles: [] },
@@ -661,6 +696,17 @@ export const ENDPOINTS: EndpointDef[] = [
   { method: "delete", path: "/api/schema/columns/{key}", summary: "Delete a non-core column", roles: STAFF, response: TrackerSchemaSchema },
   { method: "post", path: "/api/import", summary: "Import approved entries into a tracker (query: stream). At most 200 rows per request for a dry run, 8 otherwise", roles: STAFF, request: ImportRequest, response: ImportResponse },
   { method: "post", path: "/api/items/{id}/snapshot", summary: `Attach a saved HTML page to a tracker entry (multipart: file). The first becomes the entry's page; later ones are added to its list (at most ${MAX_SAVED_PAGES})`, roles: STAFF, response: z.object({ id: z.string(), hasSnapshot: z.boolean(), pages: z.number().int() }) },
+  { method: "post", path: "/api/items/{id}/send-to-client", summary: "Eradigm Inbox: send an entry awaiting review to the Client Inbox", roles: STAFF, request: VersionRequest, response: ItemSummarySchema },
+  { method: "post", path: "/api/items/{id}/recall", summary: "Eradigm Inbox: take an entry back from the Client Inbox", roles: STAFF, request: VersionRequest, response: ItemSummarySchema },
+  { method: "get", path: "/api/client-inbox", summary: "Client Inbox: entries Eradigm sent to the client to check", roles: CLIENT_INBOX, response: z.array(ItemSummarySchema) },
+  { method: "get", path: "/api/client-inbox/count", summary: "How many entries are in the Client Inbox", roles: CLIENT_INBOX, response: z.object({ count: z.number().int() }) },
+  { method: "get", path: "/api/client-inbox/{id}", summary: "An entry in the Client Inbox, with its page text", roles: CLIENT_INBOX, response: ItemDetailSchema },
+  { method: "post", path: "/api/client-inbox/{id}/send-to-eradigm", summary: "Client Inbox: send the entry back to the Eradigm Inbox (comments are kept)", roles: CLIENT_INBOX, request: VersionRequest, response: ItemSummarySchema },
+  { method: "post", path: "/api/client-inbox/{id}/push", summary: "Client Inbox: push the entry to the Tracker as it stands (validated like Push to Tracker)", roles: CLIENT_INBOX, request: VersionRequest, response: ItemSummarySchema },
+  { method: "get", path: "/api/items/{id}/comments", summary: "Comments on an entry's text (Eradigm; the client while it is in their inbox)", roles: ALL_ROLES, response: z.array(CommentSchema) },
+  { method: "post", path: "/api/items/{id}/comments", summary: "Comment on highlighted text of a field (or of the page text, field _text)", roles: ALL_ROLES, request: CreateCommentRequest, response: z.array(CommentSchema) },
+  { method: "patch", path: "/api/items/{id}/comments/{cid}", summary: "Resolve or reopen a comment (Eradigm)", roles: STAFF, request: UpdateCommentRequest, response: z.array(CommentSchema) },
+  { method: "delete", path: "/api/items/{id}/comments/{cid}", summary: "Delete a comment (its author, or an admin)", roles: ALL_ROLES, response: z.array(CommentSchema) },
   { method: "get", path: "/api/items/{id}/snapshots", summary: "The saved HTML pages of an entry, first page first", roles: ALL_ROLES, response: z.array(SavedPageSchema) },
   { method: "get", path: "/api/phantoms", summary: "Phantoms table (query: stream, filters, sort, page): every Primary entry, and Secondary entries at or above the admin-set Impact", roles: ALL_ROLES, response: TrackerPageSchema },
   { method: "get", path: "/api/deliverables/alerts", summary: "Deliverables → Alerts: Phantoms with the highest Impact (High), each with its stored .docx alert (generated automatically)", roles: ALL_ROLES, response: TrackerPageSchema },

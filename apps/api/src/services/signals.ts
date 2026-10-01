@@ -7,7 +7,7 @@ import type { Env } from "../env.js";
 import { notFound } from "../lib/errors.js";
 import { revisions, snapshotMeta } from "./items.js";
 import { listPages } from "./pages.js";
-import { rowValues } from "./query.js";
+import { itemsFrom, rowValues } from "./query.js";
 import type { Schemas } from "./schema.js";
 
 const SEP = "\u001f";
@@ -67,15 +67,16 @@ export async function signalDetail(env: Env, schemas: Schemas, tenantId: string,
 }
 
 /**
- * The Phantoms Markdown for a tracker entry, built from its published field
- * values only (plus who approved it, for QC.Reviewed_by).
+ * The Phantoms Markdown for a tracker entry, built from its Phantom: the
+ * values as first pushed to the Tracker (later edits do not change it), plus
+ * who approved it then, for QC.Reviewed_by.
  */
 export async function signalMarkdown(env: Env, schemas: Schemas, tenantId: string, id: string): Promise<{ markdown: string; fileName: string; code: string }> {
   const r = await env.DB.prepare(
     `SELECT i.signal_code, i.stream, i.record_id, i.pub_date, i.title, i.macrotrend, i.subtrend, i.growth, i.impact, i.extra_json,
-            (SELECT group_concat(c.competitor, '${SEP}') FROM item_competitors c WHERE c.item_id = i.id) AS competitors,
+            (SELECT group_concat(value, '${SEP}') FROM json_each(i.competitors_json)) AS competitors,
             (SELECT u.name FROM users u WHERE u.id = i.approved_by) AS approved_by_name
-       FROM intelligence_items i WHERE i.tenant_id = ?1 AND i.id = ?2 AND i.status = 'approved' AND i.deleted_at IS NULL`,
+       FROM ${itemsFrom({ table: "phantoms" })} WHERE i.tenant_id = ?1 AND i.id = ?2 AND i.status = 'approved' AND i.deleted_at IS NULL`,
   )
     .bind(tenantId, id)
     .first<{ signal_code: string; stream: Stream; record_id: string | null; pub_date: string; title: string | null; macrotrend: string | null; subtrend: string | null; growth: string | null; impact: string | null; extra_json: string; competitors: string | null; approved_by_name: string | null }>();
