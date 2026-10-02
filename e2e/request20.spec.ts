@@ -82,7 +82,7 @@ test.describe("request 20", () => {
     await expect(more).toHaveValue("- First point\n  - Sub point");
   });
 
-  test("Megatrends (request 21): a compact summary in the graph's top-left corner, and the graph runs the full height", async ({ page }) => {
+  test("Megatrends (requests 21 and 22): the summary fills three quarters of a right-hand column in large type; the graph runs the full height", async ({ page }) => {
     await signInAs(page, "analyst");
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/megatrends");
@@ -99,19 +99,22 @@ test.describe("request 20", () => {
     // The graph starts at the top of the page and runs down to the timeline.
     expect(stage.y - shell.y).toBeLessThanOrEqual(20);
     expect(timeline.y - (stage.y + stage.height)).toBeLessThanOrEqual(20);
-    // The summary sits inside it, top left, above the Macrotrend list.
-    let p = (await panel.boundingBox())!;
-    expect(p.x - stage.x).toBeLessThan(40);
-    expect(p.y).toBeGreaterThanOrEqual(stage.y);
-    expect(p.width).toBeLessThanOrEqual(400);
+    // The column is on the right: the summary on top (about 3/4), the Macrotrend list below (about 1/4).
+    const p = (await panel.boundingBox())!;
     const rail = (await page.locator("#mg-rail").boundingBox())!;
+    expect(stage.x + stage.width - (p.x + p.width)).toBeLessThan(40);
+    expect(p.x).toBeGreaterThan(stage.x + stage.width / 2);
     expect(rail.y).toBeGreaterThanOrEqual(p.y + p.height);
+    expect(p.height / (p.height + rail.height)).toBeGreaterThan(0.68);
+    expect(p.height / (p.height + rail.height)).toBeLessThan(0.82);
+    // Breadcrumbs stay at the top left of the graph.
+    const crumbs = (await page.getByRole("navigation", { name: "Graph level" }).boundingBox())!;
+    expect(crumbs.x - stage.x).toBeLessThan(40);
 
-    // Select a Macrotrend: its summary stays compact and left-aligned, in the same lighter box.
+    // Select a Macrotrend: its summary in large type, in the same lighter box.
     await page.getByTestId("mg-macros").getByRole("button").first().click();
     await expect(page.locator("#mg-panel-title")).toBeVisible();
-    p = (await panel.boundingBox())!;
-    expect(p.height).toBeLessThan(stage.height * 0.6);
+    expect(parseFloat(await panel.getByTestId("mg-summary").evaluate((el) => getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(20);
     const style = await panel.evaluate((el) => ({ bg: getComputedStyle(el).backgroundColor, align: getComputedStyle(el).textAlign }));
     expect(style.align).not.toBe("center");
     const [r, g, b] = style.bg.match(/[\d.]+/g)!.map(Number);
@@ -119,6 +122,6 @@ test.describe("request 20", () => {
     expect(r).toBeGreaterThan(7);
     expect(r + g + b).toBeLessThan(200);
     expect(b).toBeGreaterThan(r);
-    await expectAccessible(page, "Megatrends · compact summary");
+    await expectAccessible(page, "Megatrends · summary column");
   });
 });

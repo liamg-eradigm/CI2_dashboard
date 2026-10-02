@@ -192,8 +192,8 @@ export function MegatrendsPage({ me }: { me: Me }) {
           </Suspense>
         )}
         {noGl && <p className="mg-nogl">The 3D view needs WebGL, which is switched off in this browser. The list, summaries and timeline below still work.</p>}
+        {crumbs}
         <div className="mg-side">
-          {crumbs}
           <SummaryPanel
             node={panel}
             total={total}

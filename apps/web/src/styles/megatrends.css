@@ -76,7 +76,7 @@
 .mg-canvas { position: absolute; inset: 0; cursor: grab; }
 .mg-canvas:active { cursor: grabbing; }
 .mg-canvas canvas { display: block; outline: none; }
-.mg-loading, .mg-nogl { position: absolute; inset: 0; display: grid; place-items: center; color: var(--mg-ink-3); font-size: 13px; padding: 0 40px 0 420px; text-align: center; }
+.mg-loading, .mg-nogl { position: absolute; inset: 0; display: grid; place-items: center; color: var(--mg-ink-3); font-size: 13px; padding: 0 520px 0 40px; text-align: center; }
 
 .mg-glass, .mg-rail, .mg-panel, .mg-crumbs, .mg-timeline, .mg-sheet {
   background: var(--mg-glass);
@@ -87,12 +87,12 @@
 }
 .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; flex: none; box-shadow: 0 0 0 2px rgba(3, 15, 26, 0.9), 0 0 10px currentColor; }
 
-.mg-crumbs { flex: none; align-self: flex-start; display: flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: 999px; font-size: 12.5px; color: var(--mg-ink-3); max-width: min(70vw, 760px); overflow: hidden; }
+.mg-crumbs { position: absolute; z-index: 2; top: 14px; left: 16px; display: flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: 999px; font-size: 12.5px; color: var(--mg-ink-3); max-width: calc(100% - 540px); overflow: hidden; }
 .mg-crumbs button, .mg-crumbs .here { border: 0; background: none; color: var(--mg-ink-2); font: 700 12.5px var(--sans); padding: 3px 8px; border-radius: 999px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mg-crumbs button:hover { color: #fff; background: rgba(127, 211, 216, 0.12); }
 .mg-crumbs [aria-current="page"] { color: #fff; }
 
-.mg-rail { flex: 1 1 0; min-height: 96px; border-radius: 14px; padding: 12px 8px 10px; overflow: auto; }
+.mg-rail { flex: 1 1 0; min-height: 110px; border-radius: 14px; padding: 12px 8px 10px; overflow: auto; }
 .mg-rail-title { font: 700 10.5px var(--sans); letter-spacing: 0.14em; text-transform: uppercase; color: var(--cyan-2); padding: 0 8px 8px; }
 .mg-rail ul { list-style: none; margin: 0; padding: 0; }
 .mg-rail button { display: flex; align-items: center; gap: 9px; width: 100%; border: 0; background: transparent; color: var(--mg-ink-2); text-align: left; padding: 7px 8px; border-radius: 9px; font: 600 12.5px/1.3 var(--sans); }
@@ -106,26 +106,27 @@
 .mg-subs .dot { width: 8px; height: 8px; }
 
 /*
- * The left column over the graph: breadcrumbs, then the summary of the trend
- * in view (a compact box, a shade lighter than the page), then the Macrotrend
- * list. The graph itself fills the whole stage behind it.
+ * The right-hand column over the graph: the summary of the trend in view (a
+ * box a shade lighter than the page, about three quarters of the height, in
+ * large type), then the Macrotrend list (the last quarter). The graph itself
+ * fills the whole stage behind it.
  */
-.mg-side { position: absolute; z-index: 2; left: 16px; top: 14px; bottom: 16px; width: 400px; display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
+.mg-side { position: absolute; z-index: 2; right: 16px; top: 14px; bottom: 16px; width: 480px; display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
 .mg-side > * { pointer-events: auto; }
-.mg-panel { flex: 0 0 auto; min-height: 0; max-height: 64%; overflow: auto; border-radius: 14px; padding: 14px 16px 12px; animation: mg-in 0.35s ease both; }
+.mg-panel { flex: 3 1 0; min-height: 0; overflow: auto; border-radius: 14px; padding: 20px 22px 16px; animation: mg-in 0.35s ease both; }
 .mg-panel {
   background: rgba(17, 54, 73, 0.9);
   border-color: rgba(127, 211, 216, 0.16);
   box-shadow: 0 10px 28px rgba(0, 6, 12, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 .mg-panel-id { min-width: 0; }
-.mg-panel-body { min-width: 0; margin-top: 8px; }
+.mg-panel-body { min-width: 0; margin-top: 12px; }
 .mg-panel-body > .mg-summary:first-child { margin-top: 0; }
 .mg-kicker { display: flex; align-items: center; gap: 8px; font: 700 10.5px var(--sans); letter-spacing: 0.14em; text-transform: uppercase; color: var(--cyan-2); }
-.mg-panel-title { font: 800 19px/1.25 var(--sans); color: #fff; margin-top: 5px; }
+.mg-panel-title { font: 800 26px/1.2 var(--sans); color: #fff; margin-top: 6px; }
 .mg-panel-id > .mg-panel-title:first-child { margin-top: 0; }
-.mg-count { margin: 3px 0 0; font-size: 12.5px; color: var(--mg-ink-3); }
-.mg-summary { margin: 0; font: 400 15px/1.55 var(--sans); color: #f4fafb; text-wrap: pretty; }
+.mg-count { margin: 5px 0 0; font-size: 13.5px; color: var(--mg-ink-3); }
+.mg-summary { margin: 0; font: 400 21px/1.55 var(--sans); color: #f4fafb; text-wrap: pretty; }
 .mg-summary.muted { color: var(--mg-ink-3); font-style: italic; }
 .mg-prov { margin: 6px 0 0; font-size: 11.5px; color: var(--mg-ink-3); }
 .mg-hint { margin: 12px 0 0; font-size: 11.5px; color: var(--mg-ink-3); }
@@ -204,13 +205,17 @@
   .mg-sheet-wrap, .mg-sheet, .mg-ball { transition: none; }
 }
 @media (max-width: 1100px) {
-  .mg-side { width: 320px; }
+  .mg-side { width: 380px; }
+  .mg-summary { font-size: 18px; }
+  .mg-crumbs { max-width: calc(100% - 420px); }
+  .mg-loading, .mg-nogl { padding-right: 420px; }
 }
 @media (max-width: 860px), (max-height: 700px) {
   .mg-page { height: auto; min-height: 100vh; overflow: visible; }
   .mg-stage { min-height: 420px; }
-  .mg-side { position: relative; inset: auto; width: auto; margin: 12px; }
-  .mg-panel { max-height: none; }
+  .mg-side { position: relative; inset: auto; width: auto; margin: 56px 12px 12px; }
+  .mg-panel { flex: none; }
+  .mg-loading, .mg-nogl { padding: 0 40px; }
   .mg-rail { flex: none; max-height: 220px; }
   .mg-stage { display: flex; flex-direction: column; justify-content: flex-end; }
   .mg-crumbs { max-width: calc(100% - 32px); }
@@ -237,7 +242,7 @@
 .mg-rail-head .mg-rail-title { padding-bottom: 0; }
 .mg-rail-head { margin-bottom: 8px; }
 .mg-rail[hidden] { display: none; }
-.mg-rail-open { flex: none; align-self: flex-start; height: 34px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--mg-line); background: var(--mg-glass); color: var(--mg-ink-2); font: 700 12.5px var(--sans); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+.mg-rail-open { flex: none; align-self: flex-end; height: 34px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--mg-line); background: var(--mg-glass); color: var(--mg-ink-2); font: 700 12.5px var(--sans); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
 .mg-rail-open:hover { color: #fff; background: rgba(28, 156, 165, 0.35); }
 .mg-seg.sm button { height: 26px; padding: 0 11px; font-size: 11.5px; }
 .mg-panel:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }

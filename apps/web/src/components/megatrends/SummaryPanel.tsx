@@ -26,7 +26,7 @@ function provenance(s: TrendSummary): string {
 /**
  * The summary of the Macrotrend / Subtrend in view, with (for analysts and
  * admins) Edit and Write with AI. Without a selection: what the spheres are.
- * A compact box in the top-left corner of the graph, above the Macrotrend list.
+ * The large box on the right of the graph, above the Macrotrend list.
  */
 export function SummaryPanel({
   node,
