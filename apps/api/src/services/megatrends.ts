@@ -9,6 +9,7 @@
 import {
   FIELDS,
   defaultSummary,
+  isPlaceholderCompetitor,
   type CompetitorEntry,
   type Competitors,
   type MegatrendEntry,
@@ -251,6 +252,8 @@ export async function competitors(env: Env, tenantId: string, stream: Stream | "
     comps: string | null;
   }[];
   const truncated = list.length > MEGATRENDS_MAX_ENTRIES;
+  // "N/A" and the like are not competitors: no node, and an entry naming only those is left out.
+  const real = (names: string[]) => names.filter((n) => !isPlaceholderCompetitor(n));
   const entries: CompetitorEntry[] = list
     .slice(0, MEGATRENDS_MAX_ENTRIES)
     .reverse()
@@ -264,15 +267,20 @@ export async function competitors(env: Env, tenantId: string, stream: Stream | "
       macrotrend: r.macrotrend ?? "",
       subtrend: r.subtrend || null,
       impact: r.impact,
-      competitors: r.comps ? r.comps.split("").sort() : [],
-    }));
+      competitors: real(r.comps ? r.comps.split("").sort() : []),
+    }))
+    .filter((e) => e.competitors.length > 0);
   return {
     aiConnected,
-    competitors: ((counts?.results ?? []) as { name: string; n: number }[]).map((r) => {
-      const row = stored.get(r.name);
-      return { name: r.name, count: r.n, summary: row ? toSummary(row) : fallback("competitor", r.name) };
-    }),
-    pairs: ((pairs?.results ?? []) as { a: string; b: string; n: number }[]).map((r) => ({ a: r.a, b: r.b, count: r.n })),
+    competitors: ((counts?.results ?? []) as { name: string; n: number }[])
+      .filter((r) => !isPlaceholderCompetitor(r.name))
+      .map((r) => {
+        const row = stored.get(r.name);
+        return { name: r.name, count: r.n, summary: row ? toSummary(row) : fallback("competitor", r.name) };
+      }),
+    pairs: ((pairs?.results ?? []) as { a: string; b: string; n: number }[])
+      .filter((r) => !isPlaceholderCompetitor(r.a) && !isPlaceholderCompetitor(r.b))
+      .map((r) => ({ a: r.a, b: r.b, count: r.n })),
     entries,
     truncated,
   };
@@ -316,7 +324,7 @@ async function competitorSummaryEntries(env: Env, tenantId: string, name: string
         date: r.pub_date,
         title: r.title ?? "",
         ...(r.impact ? { impact: r.impact } : {}),
-        ...(r.competitors ? { competitors: r.competitors.split("") } : {}),
+        ...(r.competitors ? { competitors: r.competitors.split("").filter((n) => !isPlaceholderCompetitor(n)) } : {}),
         ...(details ? { details } : {}),
         ...(ci ? { ciPerspective: ci } : {}),
       };

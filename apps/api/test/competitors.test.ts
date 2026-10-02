@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { DEFAULT_COMPETITOR_SUMMARIES, competitorRadius, defaultCompetitorName, defaultCompetitorSummary, normaliseNavOrder } from "@eradigm/shared";
+import { DEFAULT_COMPETITOR_SUMMARIES, competitorRadius, defaultCompetitorName, defaultCompetitorSummary, isPlaceholderCompetitor, normaliseNavOrder } from "@eradigm/shared";
 import { app } from "../src/app";
 import { competitorEntryScore } from "../src/services/megatrends";
 import { approveWith, call, env, json, seedWorld, type World } from "./helpers";
@@ -45,6 +45,11 @@ describe("default competitor summaries", () => {
     expect(defaultCompetitorName("Acme Unknown Corp")).toBeNull();
   });
 
+  it("treats N/A and the like as no competitor", () => {
+    for (const v of ["N/A", "n/a", "NA", "N.A.", "None", "Not applicable", "-", " ", "TBC", "Unknown"]) expect(isPlaceholderCompetitor(v), v).toBe(true);
+    for (const v of ["Novartis", "Nanobiotix", "Unknown Pharma", "Pfizer"]) expect(isPlaceholderCompetitor(v), v).toBe(false);
+  });
+
   it("sizes nodes exponentially: one or two entries stay very small", () => {
     const max = 40;
     const r = (n: number) => competitorRadius(n, max);
@@ -71,18 +76,25 @@ describe("default competitor summaries", () => {
 
 describe("Competitors", () => {
   beforeAll(async () => {
-    for (const v of ["Eli Lilly", "Novo Nordisk", "Metsera"]) await call(w.a.admin, "POST", "/api/schema/columns/competitors/options?stream=primary", { body: { value: v } });
+    for (const v of ["Eli Lilly", "Novo Nordisk", "Metsera", "N/A"]) await call(w.a.admin, "POST", "/api/schema/columns/competitors/options?stream=primary", { body: { value: v } });
     await entry("primary", "Pfizer wins the Metsera bidding war", ["Pfizer", "Metsera", "Novo Nordisk"], daysAgo(20), "High");
     await entry("primary", "Lilly and Novo cut DTP prices", ["Eli Lilly", "Novo Nordisk"], daysAgo(5), "Medium");
     await entry("primary", "Lilly opens LillyPod", ["Eli Lilly"], daysAgo(400), "High", { key_details: "An older high-impact move." });
     await entry("primary", "Lilly sponsors a podcast", ["Eli Lilly"], daysAgo(1), "Low");
     await entry("secondary", "Roche scales RocheChat", ["Roche"], daysAgo(3), "Medium");
+    await entry("primary", "An entry with no competitor", ["N/A"], daysAgo(2), "Low");
+    await entry("primary", "Lilly and N/A", ["Eli Lilly", "N/A"], daysAgo(500), "Low");
   });
 
   it("counts entries per competitor, pairs named together, and lists the entries", async () => {
     const d = await json<Data>(call(w.a.client, "GET", "/api/competitors"));
     const by = new Map(d.competitors.map((c) => [c.name, c]));
-    expect(by.get("Eli Lilly")?.count).toBe(3);
+    expect(by.get("Eli Lilly")?.count).toBe(4);
+    // N/A is no competitor: no node, no tie, and an entry naming only N/A is not listed.
+    expect(by.has("N/A")).toBe(false);
+    expect(d.pairs.some((p) => p.a === "N/A" || p.b === "N/A")).toBe(false);
+    expect(d.entries.some((e) => e.title === "An entry with no competitor")).toBe(false);
+    expect(d.entries.find((e) => e.title === "Lilly and N/A")?.competitors).toEqual(["Eli Lilly"]);
     expect(by.get("Novo Nordisk")?.count).toBe(2);
     expect(by.get("Metsera")?.count).toBe(1);
     // Most-named first.
@@ -122,7 +134,7 @@ describe("Competitors", () => {
     const r = await withMock("/api/megatrends/summaries/generate", w.a.analyst, { level: "competitor", name: "Eli Lilly" });
     expect(r.status).toBe(200);
     const s = await r.json<{ text: string; source: string; entries: number }>();
-    expect(s).toMatchObject({ source: "ai", entries: 3 });
+    expect(s).toMatchObject({ source: "ai", entries: 4 });
     expect(s.text).toContain("naming Eli Lilly");
     // Oldest first: the 400-day-old High entry is still read.
     expect(s.text).toContain("Lilly opens LillyPod");

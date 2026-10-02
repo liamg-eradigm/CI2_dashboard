@@ -237,6 +237,12 @@ export const defaultCompetitorSummary = (name: string): string | null => {
   return key ? (DEFAULT_COMPETITOR_SUMMARIES[key] ?? null) : null;
 };
 
+/** Competitor values that mean "no competitor" (N/A, None, Not applicable, -, …): never a node on the Competitors tab. */
+const PLACEHOLDERS = new Set(["", "na", "nan", "none", "nil", "null", "notapplicable", "notavailable", "nocompetitor", "nocompetitors", "tbc", "tbd", "unknown"]);
+export function isPlaceholderCompetitor(name: string): boolean {
+  return PLACEHOLDERS.has(competitorKey(name));
+}
+
 /**
  * Node radius in the Competitors graph: grows exponentially with the number
  * of entries (relative to the most-named competitor), so competitors named
