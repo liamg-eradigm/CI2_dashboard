@@ -25,7 +25,8 @@ function provenance(s: TrendSummary): string {
 
 /**
  * The summary of the Macrotrend / Subtrend in view, with (for analysts and
- * admins) Edit and Write with AI. Without a selection: how to use the graph.
+ * admins) Edit and Write with AI. Without a selection: what the spheres are.
+ * A compact box in the top-left corner of the graph, above the Macrotrend list.
  */
 export function SummaryPanel({
   node,
@@ -59,9 +60,8 @@ export function SummaryPanel({
 
   if (!node) {
     return (
-      <section className="mg-panel" aria-live="polite" aria-label="Summary" data-testid="mg-panel">
+      <section className="mg-panel" tabIndex={0} aria-live="polite" aria-label="Summary" data-testid="mg-panel">
         <div className="mg-panel-id">
-          <span className="mg-kicker">Knowledge graph</span>
           <h2 className="mg-panel-title">Megatrends</h2>
           <p className="mg-count">
             {plural(total, "Tracker entry", "Tracker entries")} · {plural(macros, "macrotrend")}
@@ -69,7 +69,6 @@ export function SummaryPanel({
         </div>
         <div className="mg-panel-body">
           <p className="mg-summary">Each sphere is a Macrotrend, sized by its number of Tracker entries. Select one to read what is happening in that space, and to reveal its Subtrends.</p>
-          <p className="mg-hint">Drag to rotate · scroll to zoom in on a node · drag a node to move it</p>
         </div>
       </section>
     );
@@ -92,7 +91,7 @@ export function SummaryPanel({
   const ref = { level: node.level, name: node.name, ...(node.parent ? { parent: node.parent } : {}) };
 
   return (
-    <section className="mg-panel" aria-live="polite" aria-labelledby="mg-panel-title" data-testid="mg-panel">
+    <section className="mg-panel" tabIndex={0} aria-live="polite" aria-labelledby="mg-panel-title" data-testid="mg-panel">
       <div className="mg-panel-id">
         <span className="mg-kicker">
           <span className="dot" style={{ background: node.colour }} aria-hidden="true" />
@@ -172,7 +171,6 @@ export function SummaryPanel({
             </>
           )}
         </div>
-        {canEdit && !aiConnected && !editing && <p className="mg-hint">AI summaries switch on once the Claude API is connected.</p>}
       </div>
     </section>
   );

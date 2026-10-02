@@ -174,17 +174,6 @@ export function MegatrendsPage({ me }: { me: Me }) {
 
   return (
     <div className={`mg-page${openItem ? " sheet-open" : ""}`} data-testid="megatrends">
-
-      <SummaryPanel
-        node={panel}
-        total={total}
-        macros={visible.length}
-        canEdit={can(me.role, "item:edit")}
-        aiConnected={!!data?.aiConnected}
-        focused={panelFocused}
-        onExplore={() => panel && select({ macro: panel.parent ?? panel.name, sub: panel.level === "sub" ? panel.name : null })}
-      />
-
       <section className="mg-stage" aria-label="Megatrends knowledge graph">
         {!noGl && (
           <Suspense fallback={<div className="mg-loading">Loading the knowledge graph…</div>}>
@@ -203,59 +192,69 @@ export function MegatrendsPage({ me }: { me: Me }) {
           </Suspense>
         )}
         {noGl && <p className="mg-nogl">The 3D view needs WebGL, which is switched off in this browser. The list, summaries and timeline below still work.</p>}
-        {crumbs}
-        {!railOpen && (
-          <button className="mg-rail-open" onClick={() => setRailOpen(true)} aria-expanded={false} aria-controls="mg-rail" data-testid="mg-rail-open">
-            ☰ Macrotrends
-          </button>
-        )}
-        <div className="mg-rail" id="mg-rail" hidden={!railOpen}>
-          <div className="mg-rail-head">
-            <h2 className="mg-rail-title" id="mg-rail-title">
-              Macrotrends
-            </h2>
-            <button className="mg-icon sm" onClick={() => setRailOpen(false)} aria-label="Minimise the Macrotrend list" aria-expanded={true} aria-controls="mg-rail" title="Minimise">
-              ‹
+        <div className="mg-side">
+          {crumbs}
+          <SummaryPanel
+            node={panel}
+            total={total}
+            macros={visible.length}
+            canEdit={can(me.role, "item:edit")}
+            aiConnected={!!data?.aiConnected}
+            focused={panelFocused}
+            onExplore={() => panel && select({ macro: panel.parent ?? panel.name, sub: panel.level === "sub" ? panel.name : null })}
+          />
+          {!railOpen && (
+            <button className="mg-rail-open" onClick={() => setRailOpen(true)} aria-expanded={false} aria-controls="mg-rail" data-testid="mg-rail-open">
+              ☰ Macrotrends
             </button>
-          </div>
-          {q.isLoading && <p className="mg-hint">Loading…</p>}
-          {q.isError && (
-            <p className="mg-err" role="alert">
-              Could not load the Megatrends.
-            </p>
           )}
-          {data && !visible.length && <p className="mg-hint">No Tracker entries yet.</p>}
-          <ul aria-labelledby="mg-rail-title" data-testid="mg-macros">
-            {visible.map((m) => {
-              const on = sel.macro === m.name;
-              return (
-                <li key={m.name}>
-                  <button className={on ? "on" : undefined} aria-expanded={on} onClick={() => select(on && !sel.sub ? { macro: null, sub: null } : { macro: m.name, sub: null })}>
-                    <span className="dot" style={{ background: palette.macro.get(m.name) }} aria-hidden="true" />
-                    <span className="nm">{m.name}</span>
-                    <span className="ct">{m.count}</span>
-                  </button>
-                  {on && (
-                    <ul className="mg-subs" aria-label={`Subtrends of ${m.name}`}>
-                      {m.subtrends
-                        .filter((s) => s.count > 0)
-                        .map((s) => (
-                          <li key={s.name}>
-                            <button className={sel.sub === s.name ? "on" : undefined} aria-pressed={sel.sub === s.name} onClick={() => select({ macro: m.name, sub: sel.sub === s.name ? null : s.name })}>
-                              <span className="dot" style={{ background: palette.sub.get(m.name)?.get(s.name) }} aria-hidden="true" />
-                              <span className="nm">{s.name}</span>
-                              <span className="ct">{s.count}</span>
-                            </button>
-                          </li>
-                        ))}
-                    </ul>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+          <div className="mg-rail" id="mg-rail" hidden={!railOpen}>
+            <div className="mg-rail-head">
+              <h2 className="mg-rail-title" id="mg-rail-title">
+                Macrotrends
+              </h2>
+              <button className="mg-icon sm" onClick={() => setRailOpen(false)} aria-label="Minimise the Macrotrend list" aria-expanded={true} aria-controls="mg-rail" title="Minimise">
+                ‹
+              </button>
+            </div>
+            {q.isLoading && <p className="mg-hint">Loading…</p>}
+            {q.isError && (
+              <p className="mg-err" role="alert">
+                Could not load the Megatrends.
+              </p>
+            )}
+            {data && !visible.length && <p className="mg-hint">No Tracker entries yet.</p>}
+            <ul aria-labelledby="mg-rail-title" data-testid="mg-macros">
+              {visible.map((m) => {
+                const on = sel.macro === m.name;
+                return (
+                  <li key={m.name}>
+                    <button className={on ? "on" : undefined} aria-expanded={on} onClick={() => select(on && !sel.sub ? { macro: null, sub: null } : { macro: m.name, sub: null })}>
+                      <span className="dot" style={{ background: palette.macro.get(m.name) }} aria-hidden="true" />
+                      <span className="nm">{m.name}</span>
+                      <span className="ct">{m.count}</span>
+                    </button>
+                    {on && (
+                      <ul className="mg-subs" aria-label={`Subtrends of ${m.name}`}>
+                        {m.subtrends
+                          .filter((s) => s.count > 0)
+                          .map((s) => (
+                            <li key={s.name}>
+                              <button className={sel.sub === s.name ? "on" : undefined} aria-pressed={sel.sub === s.name} onClick={() => select({ macro: m.name, sub: sel.sub === s.name ? null : s.name })}>
+                                <span className="dot" style={{ background: palette.sub.get(m.name)?.get(s.name) }} aria-hidden="true" />
+                                <span className="nm">{s.name}</span>
+                                <span className="ct">{s.count}</span>
+                              </button>
+                            </li>
+                          ))}
+                      </ul>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
         </div>
-
       </section>
 
       <Timeline

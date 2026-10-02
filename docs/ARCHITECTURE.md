@@ -202,9 +202,12 @@ analyst-entered information distinguishable; in the prototype every value is
 - **Megatrends** (tab, all roles; `GET /api/megatrends?stream=all|primary|secondary&from&to`)
   is a 3D knowledge graph of the Tracker entries (same rows as the Tracker:
   approved, not deleted from the Tracker) with a timeline below.
-  - The summary of the trend in view is a centred box at the top of the page
-    (title 30px, summary 21px), on a surface only a shade lighter than the
-    page so it stands out without becoming a separate block.
+  - The graph fills the page from the top down to the timeline. Over its
+    top-left corner, one column (`.mg-side`) holds the breadcrumbs, the
+    summary of the trend in view (a compact box a shade lighter than the
+    page; it takes the height it needs, up to about two thirds) and the
+    minimisable Macrotrend list (the rest). The camera's view offset centres
+    the graph in the space beside that column.
   - Macrotrend spheres around a central core, sized by their number of
     entries (only those with 1 or more); selecting one reveals its Subtrends
     (also 1 or more), selecting a Subtrend its entries. Zooming in on a node

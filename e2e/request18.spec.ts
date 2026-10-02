@@ -80,10 +80,10 @@ test.describe("request 18", () => {
     await expect(panel.getByTestId("mg-summary")).toContainText("Competitors are investing in R&D compute");
     const pb = (await panel.boundingBox())!;
     const stage = (await page.getByRole("region", { name: "Megatrends knowledge graph" }).boundingBox())!;
-    expect(pb.y + pb.height).toBeLessThanOrEqual(stage.y + 1);
-    // Centred over the graph (request 20), no longer a full-width band.
-    expect(Math.abs(pb.x + pb.width / 2 - (stage.x + stage.width / 2))).toBeLessThanOrEqual(2);
-    expect(Number.parseFloat(await panel.getByTestId("mg-summary").evaluate((el) => getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(18);
+    // A compact box in the graph's top-left corner (request 21).
+    expect(pb.x - stage.x).toBeLessThan(40);
+    expect(pb.y - stage.y).toBeLessThan(80);
+    expect(Number.parseFloat(await panel.getByTestId("mg-summary").evaluate((el) => getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(15);
 
     const tl = page.getByTestId("mg-timeline");
     const balls = tl.getByTestId("mg-ball");

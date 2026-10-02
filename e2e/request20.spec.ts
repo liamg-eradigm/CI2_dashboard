@@ -82,34 +82,43 @@ test.describe("request 20", () => {
     await expect(more).toHaveValue("- First point\n  - Sub point");
   });
 
-  test("Megatrends: the summary is centred at the top, on a slightly lighter box", async ({ page }) => {
+  test("Megatrends (request 21): a compact summary in the graph's top-left corner, and the graph runs the full height", async ({ page }) => {
     await signInAs(page, "analyst");
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/megatrends");
     const panel = page.getByTestId("mg-panel");
     await expect(panel).toBeVisible();
-    const stage = page.locator(".mg-stage");
-    const [p, s] = [await panel.boundingBox(), await stage.boundingBox()];
-    // Centred over the graph, above it.
-    expect(Math.abs(p!.x + p!.width / 2 - (s!.x + s!.width / 2))).toBeLessThanOrEqual(2);
-    expect(p!.y + p!.height).toBeLessThanOrEqual(s!.y);
-    const style = await panel.evaluate((el) => {
-      const cs = getComputedStyle(el);
-      const t = getComputedStyle(el.querySelector(".mg-summary, .mg-panel-title")!);
-      return { bg: cs.backgroundColor, align: cs.textAlign, size: parseFloat(t.fontSize) };
-    });
-    expect(style.align).toBe("center");
-    expect(style.size).toBeGreaterThanOrEqual(20);
-    // A faint lift over the page: translucent light tint, not the dark glass of the other panels.
-    const [r, g, b, alpha] = style.bg.match(/[\d.]+/g)!.map(Number);
-    expect(alpha).toBeGreaterThan(0);
-    expect(alpha).toBeLessThan(0.1);
-    expect(r + g + b).toBeGreaterThan(300);
+    // No "Knowledge graph" kicker or "Drag to rotate" hint.
+    await expect(page.getByText("Knowledge graph", { exact: true })).toHaveCount(0);
+    await expect(page.getByText(/Drag to rotate/)).toHaveCount(0);
+    await expect(page.getByText(/AI summaries switch on/)).toHaveCount(0);
 
-    // Select a Macrotrend: its summary is in the same centred box, in large type.
+    const stage = (await page.locator(".mg-stage").boundingBox())!;
+    const shell = (await page.getByTestId("megatrends").boundingBox())!;
+    const timeline = (await page.getByTestId("mg-timeline").boundingBox())!;
+    // The graph starts at the top of the page and runs down to the timeline.
+    expect(stage.y - shell.y).toBeLessThanOrEqual(20);
+    expect(timeline.y - (stage.y + stage.height)).toBeLessThanOrEqual(20);
+    // The summary sits inside it, top left, above the Macrotrend list.
+    let p = (await panel.boundingBox())!;
+    expect(p.x - stage.x).toBeLessThan(40);
+    expect(p.y).toBeGreaterThanOrEqual(stage.y);
+    expect(p.width).toBeLessThanOrEqual(400);
+    const rail = (await page.locator("#mg-rail").boundingBox())!;
+    expect(rail.y).toBeGreaterThanOrEqual(p.y + p.height);
+
+    // Select a Macrotrend: its summary stays compact and left-aligned, in the same lighter box.
     await page.getByTestId("mg-macros").getByRole("button").first().click();
     await expect(page.locator("#mg-panel-title")).toBeVisible();
-    expect(parseFloat(await page.locator("#mg-panel-title").evaluate((el) => getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(28);
-    await expectAccessible(page, "Megatrends · centred summary");
+    p = (await panel.boundingBox())!;
+    expect(p.height).toBeLessThan(stage.height * 0.6);
+    const style = await panel.evaluate((el) => ({ bg: getComputedStyle(el).backgroundColor, align: getComputedStyle(el).textAlign }));
+    expect(style.align).not.toBe("center");
+    const [r, g, b] = style.bg.match(/[\d.]+/g)!.map(Number);
+    // A shade lighter than the page (#072233 at the top), not a different colour.
+    expect(r).toBeGreaterThan(7);
+    expect(r + g + b).toBeLessThan(200);
+    expect(b).toBeGreaterThan(r);
+    await expectAccessible(page, "Megatrends · compact summary");
   });
 });

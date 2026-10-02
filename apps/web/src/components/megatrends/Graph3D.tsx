@@ -230,7 +230,22 @@ export function Graph3D({
       };
       tick();
 
-      const ro = new ResizeObserver(() => g.width(el.clientWidth).height(el.clientHeight));
+      // Centre the graph in the space beside the summary and Macrotrend list
+      // (the .mg-side column over its left edge): shift the view right by half
+      // the width they cover. Picking follows, as it uses the same projection.
+      const fit = () => {
+        const w = el.clientWidth;
+        const h = el.clientHeight;
+        g.width(w).height(h);
+        const side = el.parentElement?.querySelector(".mg-side");
+        const covered = side && getComputedStyle(side).position === "absolute" ? Math.max(0, side.getBoundingClientRect().right - el.getBoundingClientRect().left) : 0;
+        const cam = g.camera() as ThreeNS.PerspectiveCamera;
+        if (covered > 0 && covered < w * 0.6) cam.setViewOffset(w, h, -covered / 2, 0, w, h);
+        else cam.clearViewOffset();
+        cam.updateProjectionMatrix();
+      };
+      fit();
+      const ro = new ResizeObserver(fit);
       ro.observe(el);
       cleanup = () => {
         ro.disconnect();
