@@ -81,7 +81,8 @@ test.describe("request 18", () => {
     const pb = (await panel.boundingBox())!;
     const stage = (await page.getByRole("region", { name: "Megatrends knowledge graph" }).boundingBox())!;
     expect(pb.y + pb.height).toBeLessThanOrEqual(stage.y + 1);
-    expect(pb.width).toBeGreaterThan(stage.width - 2);
+    // Centred over the graph (request 20), no longer a full-width band.
+    expect(Math.abs(pb.x + pb.width / 2 - (stage.x + stage.width / 2))).toBeLessThanOrEqual(2);
     expect(Number.parseFloat(await panel.getByTestId("mg-summary").evaluate((el) => getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(18);
 
     const tl = page.getByTestId("mg-timeline");
