@@ -36,7 +36,7 @@ test.describe("Megatrends", () => {
     const inSub = await page.getByTestId("mg-ball").count();
     expect(inSub).toBeLessThanOrEqual(inMacro);
 
-    // Hover shows the title; click slides the row up, with the timeline still in view, and ✕ slides it down.
+    // Hover shows the title; click slides the row in from the right (request 23), and ✕ slides it away.
     const ball = page.getByTestId("mg-ball").first();
     await ball.hover();
     await expect(page.getByRole("tooltip")).toBeVisible();
@@ -49,9 +49,12 @@ test.describe("Megatrends", () => {
     await expect(sheet.getByText("Subtrend", { exact: true })).toBeVisible();
     await expect(sheet.locator("dd", { hasText: "Computational Infrastructure" })).toBeVisible();
     await page.waitForTimeout(600);
-    const tlAfter = (await page.getByTestId("mg-timeline").boundingBox())!;
-    expect(tlAfter.y).toBeLessThan(tlBefore.y - 40);
-    expect(tlAfter.y + tlAfter.height).toBeLessThanOrEqual((await sheet.boundingBox())!.y + 1);
+    const box = (await sheet.boundingBox())!;
+    const vw = page.viewportSize()!.width;
+    expect(vw - (box.x + box.width)).toBeLessThan(40);
+    expect(box.height).toBeGreaterThan(page.viewportSize()!.height * 0.8);
+    // The timeline stays where it was.
+    expect(Math.abs((await page.getByTestId("mg-timeline").boundingBox())!.y - tlBefore.y)).toBeLessThan(2);
     await expectAccessible(page, "Megatrends with an entry open");
     await sheet.getByRole("button", { name: "Close entry" }).click();
     await expect(sheet).not.toHaveClass(/open/);
@@ -105,7 +108,7 @@ test.describe("tab order", () => {
     const other = await ctx.newPage();
     await signInAs(other, "client");
     await other.goto("/dashboard");
-    await expect.poll(async () => (await other.getByRole("navigation", { name: "COMPETITIVE INTELLIGENCE" }).getByRole("link").allInnerTexts()).map((t) => t.replace(/\s*\d+$/, "").trim())).toEqual(["Dashboard", "Tracker", "Phantoms", "Megatrends", "Client Inbox"]);
+    await expect.poll(async () => (await other.getByRole("navigation", { name: "COMPETITIVE INTELLIGENCE" }).getByRole("link").allInnerTexts()).map((t) => t.replace(/\s*\d+$/, "").trim())).toEqual(["Dashboard", "Tracker", "Phantoms", "Megatrends", "Competitors", "Client Inbox"]);
     await ctx.close();
     // Restore.
     await card.getByRole("button", { name: "Move tab Megatrends down" }).click();

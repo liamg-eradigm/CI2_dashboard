@@ -16,8 +16,9 @@ import { SourcePage } from "./pages/SourcePage";
 
 // Loaded on first visit: it carries the 3D graph (three.js).
 const MegatrendsPage = lazy(() => import("./pages/MegatrendsPage").then((m) => ({ default: m.MegatrendsPage })));
+const CompetitorsPage = lazy(() => import("./pages/CompetitorsPage").then((m) => ({ default: m.CompetitorsPage })));
 
-const TITLES: Record<string, string> = { "/dashboard": "Dashboard", "/tracker": "Tracker", "/phantoms": "Phantoms", "/deliverables": "Deliverables", "/megatrends": "Megatrends", "/inbox": "Eradigm Inbox", "/client-inbox": "Client Inbox", "/input": "Input", "/admin": "Administration" };
+const TITLES: Record<string, string> = { "/dashboard": "Dashboard", "/tracker": "Tracker", "/phantoms": "Phantoms", "/deliverables": "Deliverables", "/megatrends": "Megatrends", "/competitors": "Competitors", "/inbox": "Eradigm Inbox", "/client-inbox": "Client Inbox", "/input": "Input", "/admin": "Administration" };
 
 export function App() {
   const loc = useLocation();
@@ -79,6 +80,14 @@ function SignedIn() {
             element={
               <Suspense fallback={<div className="empty" role="status">Loading Megatrends…</div>}>
                 <MegatrendsPage me={me.data} />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/competitors"
+            element={
+              <Suspense fallback={<div className="empty" role="status">Loading Competitors…</div>}>
+                <CompetitorsPage me={me.data} />
               </Suspense>
             }
           />

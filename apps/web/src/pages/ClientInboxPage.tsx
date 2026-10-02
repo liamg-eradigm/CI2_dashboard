@@ -77,7 +77,7 @@ function ClientCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSc
     try {
       await api(`/api/client-inbox/${item.id}/${path}`, { method: "POST", json: { version: item.version } });
       toast(ok);
-      await inv("client-inbox", "items", "tracker", "dashboard", "megatrends", "bounds");
+      await inv("client-inbox", "items", "tracker", "dashboard", "megatrends", "competitors", "bounds");
     } catch (e) {
       setMsg((e as ApiError).message);
       setBusy(false);

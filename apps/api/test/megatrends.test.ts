@@ -122,10 +122,10 @@ describe("Settings: tab order and the AI writer", () => {
     const s = await json(call(w.a.client, "GET", "/api/settings"));
     expect(s.navOrder).toEqual(DEFAULT_NAV_ORDER);
     expect(s.megatrends).toMatchObject({ summaryDays: expect.any(Number), summarySentences: expect.any(Number), perspective: "AbbVie" });
-    const order = ["megatrends", "dashboard", "tracker", "phantoms", "deliverables", "inbox", "clientinbox", "input", "admin"];
+    const order = ["megatrends", "competitors", "dashboard", "tracker", "phantoms", "deliverables", "inbox", "clientinbox", "input", "admin"];
     expect((await call(w.a.analyst, "PATCH", "/api/settings", { body: { navOrder: order } })).status).toBe(403);
     expect((await json(call(w.a.admin, "PATCH", "/api/settings", { body: { navOrder: order } }))).navOrder).toEqual(order);
-    // A partial order keeps the missing tabs (at the end).
+    // A partial order keeps the missing tabs (after the tab each follows by default).
     expect((await json(call(w.a.admin, "PATCH", "/api/settings", { body: { navOrder: ["admin", "dashboard"] } }))).navOrder).toEqual([
       "admin",
       "dashboard",
@@ -133,6 +133,7 @@ describe("Settings: tab order and the AI writer", () => {
       "phantoms",
       "deliverables",
       "megatrends",
+      "competitors",
       "inbox",
       "clientinbox",
       "input",

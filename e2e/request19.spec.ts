@@ -37,7 +37,7 @@ test.describe("request 19", () => {
   test("each role sees only its tabs", async ({ page, browser }) => {
     await signInAs(page, "analyst");
     await page.goto("/dashboard");
-    await expect.poll(async () => clean(await navLinks(page))).toEqual(["Dashboard", "Tracker", "Phantoms", "Megatrends", "Eradigm Inbox"]);
+    await expect.poll(async () => clean(await navLinks(page))).toEqual(["Dashboard", "Tracker", "Phantoms", "Megatrends", "Competitors", "Eradigm Inbox"]);
     for (const path of ["/input", "/admin", "/deliverables", "/client-inbox"]) {
       await page.goto(path);
       await expect(page).toHaveURL(/\/dashboard/);
@@ -46,13 +46,13 @@ test.describe("request 19", () => {
     const client = await ctx.newPage();
     await signInAs(client, "client");
     await client.goto("/dashboard");
-    await expect.poll(async () => clean(await navLinks(client))).toEqual(["Dashboard", "Tracker", "Phantoms", "Megatrends", "Client Inbox"]);
+    await expect.poll(async () => clean(await navLinks(client))).toEqual(["Dashboard", "Tracker", "Phantoms", "Megatrends", "Competitors", "Client Inbox"]);
     await ctx.close();
     const actx = await browser.newContext();
     const admin = await actx.newPage();
     await signInAs(admin, "admin");
     await admin.goto("/dashboard");
-    await expect.poll(async () => clean(await navLinks(admin))).toEqual(["Dashboard", "Tracker", "Phantoms", "Deliverables", "Megatrends", "Eradigm Inbox", "Client Inbox", "Input", "Administration"]);
+    await expect.poll(async () => clean(await navLinks(admin))).toEqual(["Dashboard", "Tracker", "Phantoms", "Deliverables", "Megatrends", "Competitors", "Eradigm Inbox", "Client Inbox", "Input", "Administration"]);
     await actx.close();
   });
 

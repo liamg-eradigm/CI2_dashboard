@@ -98,8 +98,8 @@ describe("tabs by role", async () => {
   const { canSeeTab, NAV_TABS } = await import("@eradigm/shared");
   it("clients see Dashboard, Tracker, Megatrends, Phantoms and the Client Inbox; analysts the Eradigm Inbox instead; admins all", () => {
     const visible = (role: "admin" | "analyst" | "client") => NAV_TABS.filter((t) => canSeeTab(role, t)).sort();
-    expect(visible("client")).toEqual(["clientinbox", "dashboard", "megatrends", "phantoms", "tracker"]);
-    expect(visible("analyst")).toEqual(["dashboard", "inbox", "megatrends", "phantoms", "tracker"]);
+    expect(visible("client")).toEqual(["clientinbox", "competitors", "dashboard", "megatrends", "phantoms", "tracker"]);
+    expect(visible("analyst")).toEqual(["competitors", "dashboard", "inbox", "megatrends", "phantoms", "tracker"]);
     expect(visible("admin")).toEqual([...NAV_TABS].sort());
   });
 });

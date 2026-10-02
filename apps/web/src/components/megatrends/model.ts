@@ -69,3 +69,19 @@ export function shade(hex: string, t: number): string {
   const f = (c: number) => Math.round(t >= 0 ? c + (255 - c) * t : c * (1 + t));
   return `#${[f(r), f(g), f(b)].map((c) => c.toString(16).padStart(2, "0")).join("")}`;
 }
+
+/** Impact colours on the dark surface (always with their names in legends and tooltips, never colour alone). */
+export const IMPACT_COLOURS: Readonly<Record<string, string>> = { low: "#3fb37f", medium: "#e8a33d", high: "#e5534b" };
+export function impactColour(impact: string | null | undefined): string {
+  return IMPACT_COLOURS[(impact ?? "").trim().toLowerCase()] ?? NEUTRAL;
+}
+/** Impacts present, Low → High first, then any others A → Z, then entries without one. */
+export function impactOrder(values: (string | null)[]): string[] {
+  const rank = (v: string) => ["low", "medium", "high"].indexOf(v.toLowerCase());
+  const named = [...new Set(values.filter((v): v is string => !!v))].sort((a, b) => {
+    const ra = rank(a);
+    const rb = rank(b);
+    return ra >= 0 && rb >= 0 ? ra - rb : ra >= 0 ? -1 : rb >= 0 ? 1 : a.localeCompare(b);
+  });
+  return values.some((v) => !v) ? [...named, "No Impact"] : named;
+}

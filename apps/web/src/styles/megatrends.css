@@ -76,9 +76,9 @@
 .mg-canvas { position: absolute; inset: 0; cursor: grab; }
 .mg-canvas:active { cursor: grabbing; }
 .mg-canvas canvas { display: block; outline: none; }
-.mg-loading, .mg-nogl { position: absolute; inset: 0; display: grid; place-items: center; color: var(--mg-ink-3); font-size: 13px; padding: 0 520px 0 40px; text-align: center; }
+.mg-loading, .mg-nogl { position: absolute; inset: 0; display: grid; place-items: center; color: var(--mg-ink-3); font-size: 13px; padding: 0 40px 0 500px; text-align: center; }
 
-.mg-glass, .mg-rail, .mg-panel, .mg-crumbs, .mg-timeline, .mg-sheet {
+.mg-glass, .mg-rail, .mg-panel, .mg-crumbs, .mg-timeline, .mg-drawer {
   background: var(--mg-glass);
   -webkit-backdrop-filter: blur(12px) saturate(125%);
   backdrop-filter: blur(12px) saturate(125%);
@@ -87,12 +87,12 @@
 }
 .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; flex: none; box-shadow: 0 0 0 2px rgba(3, 15, 26, 0.9), 0 0 10px currentColor; }
 
-.mg-crumbs { position: absolute; z-index: 2; top: 14px; left: 16px; display: flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: 999px; font-size: 12.5px; color: var(--mg-ink-3); max-width: calc(100% - 540px); overflow: hidden; }
+.mg-crumbs { flex: none; align-self: flex-start; display: flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: 999px; font-size: 12.5px; color: var(--mg-ink-3); max-width: min(70vw, 760px); overflow: hidden; }
 .mg-crumbs button, .mg-crumbs .here { border: 0; background: none; color: var(--mg-ink-2); font: 700 12.5px var(--sans); padding: 3px 8px; border-radius: 999px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mg-crumbs button:hover { color: #fff; background: rgba(127, 211, 216, 0.12); }
 .mg-crumbs [aria-current="page"] { color: #fff; }
 
-.mg-rail { flex: 1 1 0; min-height: 110px; border-radius: 14px; padding: 12px 8px 10px; overflow: auto; }
+.mg-rail { min-height: 64px; border-radius: 14px; padding: 12px 8px 10px; overflow: auto; }
 .mg-rail-title { font: 700 10.5px var(--sans); letter-spacing: 0.14em; text-transform: uppercase; color: var(--cyan-2); padding: 0 8px 8px; }
 .mg-rail ul { list-style: none; margin: 0; padding: 0; }
 .mg-rail button { display: flex; align-items: center; gap: 9px; width: 100%; border: 0; background: transparent; color: var(--mg-ink-2); text-align: left; padding: 7px 8px; border-radius: 9px; font: 600 12.5px/1.3 var(--sans); }
@@ -106,14 +106,21 @@
 .mg-subs .dot { width: 8px; height: 8px; }
 
 /*
- * The right-hand column over the graph: the summary of the trend in view (a
- * box a shade lighter than the page, about three quarters of the height, in
- * large type), then the Macrotrend list (the last quarter). The graph itself
+ * The column over the graph's left edge: breadcrumbs, then the summary in
+ * view (a box a shade lighter than the page, in large type) and the list,
+ * with a bar between them that drags to share the height. The graph itself
  * fills the whole stage behind it.
  */
-.mg-side { position: absolute; z-index: 2; right: 16px; top: 14px; bottom: 16px; width: 480px; display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
+.mg-side { position: absolute; z-index: 2; left: 16px; top: 14px; bottom: 16px; width: 460px; display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
 .mg-side > * { pointer-events: auto; }
-.mg-panel { flex: 3 1 0; min-height: 0; overflow: auto; border-radius: 14px; padding: 20px 22px 16px; animation: mg-in 0.35s ease both; }
+.mg-split { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.mg-split-a { min-height: 72px; display: flex; flex-direction: column; }
+.mg-panel { flex: 1 1 auto; min-height: 0; overflow: auto; border-radius: 14px; padding: 20px 22px 16px; animation: mg-in 0.35s ease both; }
+.mg-splitter { flex: none; height: 14px; display: grid; place-items: center; cursor: ns-resize; touch-action: none; border-radius: 6px; }
+.mg-splitter span { width: 54px; height: 4px; border-radius: 4px; background: rgba(181, 207, 218, 0.38); transition: background 0.15s ease, width 0.15s ease; }
+.mg-splitter:hover span, .mg-splitter:focus-visible span { background: var(--cyan-2); width: 76px; }
+.mg-splitter:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.mg-split > .mg-rail-open { margin-top: 10px; }
 .mg-panel {
   background: rgba(17, 54, 73, 0.9);
   border-color: rgba(127, 211, 216, 0.16);
@@ -126,7 +133,7 @@
 .mg-panel-title { font: 800 26px/1.2 var(--sans); color: #fff; margin-top: 6px; }
 .mg-panel-id > .mg-panel-title:first-child { margin-top: 0; }
 .mg-count { margin: 5px 0 0; font-size: 13.5px; color: var(--mg-ink-3); }
-.mg-summary { margin: 0; font: 400 21px/1.55 var(--sans); color: #f4fafb; text-wrap: pretty; }
+.mg-summary { margin: 0; font: 400 20px/1.55 var(--sans); color: #f4fafb; text-wrap: pretty; }
 .mg-summary.muted { color: var(--mg-ink-3); font-style: italic; }
 .mg-prov { margin: 6px 0 0; font-size: 11.5px; color: var(--mg-ink-3); }
 .mg-hint { margin: 12px 0 0; font-size: 11.5px; color: var(--mg-ink-3); }
@@ -178,11 +185,12 @@
 .mg-tl-tip span { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--mg-ink-3); }
 .mg-tl-tip i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
 
-/* Slide-up Tracker row */
-.mg-sheet-wrap { flex: none; display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); }
-.mg-sheet-wrap.open { grid-template-rows: 1fr; }
-.mg-sheet { min-height: 0; overflow: hidden; margin: 0 20px; border-radius: 18px 18px 0 0; border-bottom: 0; transform: translateY(40px); opacity: 0; transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.35s ease; }
-.mg-sheet-wrap.open .mg-sheet { transform: none; opacity: 1; }
+/* The opened entry: a drawer from the right */
+.mg-drawer { position: fixed; z-index: 30; top: 16px; right: 16px; bottom: 16px; width: min(480px, calc(100vw - 32px)); display: flex; flex-direction: column; border-radius: 18px; overflow: hidden; background: rgba(5, 22, 35, 0.95); transform: translateX(calc(100% + 32px)); opacity: 0; transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.3s ease; }
+.mg-drawer.open { transform: none; opacity: 1; }
+.mg-pages { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 12px 22px 0; }
+.mg-pages .mg-hint { margin: 0; }
+.mg-pages-label { font: 700 10px var(--sans); letter-spacing: 0.12em; text-transform: uppercase; color: var(--cyan-2); margin-right: 4px; }
 .mg-sheet-head { display: grid; grid-template-columns: 1fr auto; grid-template-areas: "meta ctl" "title ctl"; gap: 6px 16px; padding: 16px 22px 12px; border-bottom: 1px solid var(--mg-line); }
 .mg-sheet-meta { grid-area: meta; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--mg-ink-3); }
 .mg-sheet-meta .mono { color: var(--mg-ink); font-size: 12px; }
@@ -193,7 +201,7 @@
 .mg-stream { padding: 1px 8px; border-radius: 999px; font: 700 10.5px var(--sans); letter-spacing: 0.06em; text-transform: uppercase; border: 1px solid rgba(127, 211, 216, 0.35); color: var(--cyan-2); }
 .mg-stream.secondary { border-color: rgba(201, 133, 0, 0.5); color: #f2c47a; }
 .mg-pos { margin-left: auto; font: 600 11.5px var(--mono); }
-.mg-fields { margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px 22px; padding: 14px 22px 20px; max-height: 32vh; overflow: auto; }
+.mg-fields { margin: 0; flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); align-content: start; gap: 14px 22px; padding: 14px 22px 22px; overflow: auto; }
 .mg-field { min-width: 0; }
 .mg-field.long { grid-column: 1 / -1; }
 .mg-field dt { font: 700 10px var(--sans); letter-spacing: 0.12em; text-transform: uppercase; color: var(--cyan-2); }
@@ -202,21 +210,21 @@
 
 @media (prefers-reduced-motion: reduce) {
   .mg-page::after, .mg-stack, .mg-panel { animation: none; }
-  .mg-sheet-wrap, .mg-sheet, .mg-ball { transition: none; }
+  .mg-drawer, .mg-ball { transition: none; }
 }
 @media (max-width: 1100px) {
   .mg-side { width: 380px; }
   .mg-summary { font-size: 18px; }
-  .mg-crumbs { max-width: calc(100% - 420px); }
-  .mg-loading, .mg-nogl { padding-right: 420px; }
+  .mg-loading, .mg-nogl { padding-left: 420px; }
 }
 @media (max-width: 860px), (max-height: 700px) {
   .mg-page { height: auto; min-height: 100vh; overflow: visible; }
   .mg-stage { min-height: 420px; }
-  .mg-side { position: relative; inset: auto; width: auto; margin: 56px 12px 12px; }
-  .mg-panel { flex: none; }
+  .mg-side { position: relative; inset: auto; width: auto; margin: 12px; }
+  .mg-split-a, .mg-panel, .mg-rail { flex: none !important; }
+  .mg-splitter { display: none; }
   .mg-loading, .mg-nogl { padding: 0 40px; }
-  .mg-rail { flex: none; max-height: 220px; }
+  .mg-rail { max-height: 220px; }
   .mg-stage { display: flex; flex-direction: column; justify-content: flex-end; }
   .mg-crumbs { max-width: calc(100% - 32px); }
 }
@@ -242,7 +250,11 @@
 .mg-rail-head .mg-rail-title { padding-bottom: 0; }
 .mg-rail-head { margin-bottom: 8px; }
 .mg-rail[hidden] { display: none; }
-.mg-rail-open { flex: none; align-self: flex-end; height: 34px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--mg-line); background: var(--mg-glass); color: var(--mg-ink-2); font: 700 12.5px var(--sans); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+.mg-rail-open { flex: none; align-self: flex-start; height: 34px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--mg-line); background: var(--mg-glass); color: var(--mg-ink-2); font: 700 12.5px var(--sans); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
 .mg-rail-open:hover { color: #fff; background: rgba(28, 156, 165, 0.35); }
 .mg-seg.sm button { height: 26px; padding: 0 11px; font-size: 11.5px; }
 .mg-panel:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* Competitors: find a competitor in the list. */
+.mg-find { width: calc(100% - 16px); margin: 0 8px 8px; height: 30px; padding: 0 10px; border-radius: 8px; border: 1px solid rgba(127, 211, 216, 0.28); background: rgba(2, 12, 20, 0.55); color: var(--mg-ink); font: 13px var(--sans); }
+.mg-find::placeholder { color: var(--mg-ink-3); }
+.mg-find:focus { outline: 2px solid var(--focus); outline-offset: 0; }

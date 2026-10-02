@@ -202,12 +202,45 @@ analyst-entered information distinguishable; in the prototype every value is
 - **Megatrends** (tab, all roles; `GET /api/megatrends?stream=all|primary|secondary&from&to`)
   is a 3D knowledge graph of the Tracker entries (same rows as the Tracker:
   approved, not deleted from the Tracker) with a timeline below.
-  - The graph fills the page from the top down to the timeline, with the
-    breadcrumbs over its top-left corner. A column over its right edge
-    (`.mg-side`, 480px) holds the summary of the trend in view (a box a shade
-    lighter than the page, about three quarters of the height, summary text
-    21px) and the minimisable Macrotrend list (the last quarter). The
-    camera's view offset centres the graph in the space beside that column.
+  - The graph fills the page from the top down to the timeline. A column over
+    its left edge (`.mg-side`, 460px) holds the breadcrumbs, the summary of
+    the trend in view (a box a shade lighter than the page, summary text
+    20px) and the minimisable Macrotrend list; the bar between them drags (or
+    takes ↑/↓) to share the height, remembered per browser and tab
+    (`eradigm.<tab>.split`, default 72% summary). The camera's view offset
+    centres the graph in the space beside that column.
+  - Hubs (Macrotrends, Subtrends, competitors) are translucent spheres holding
+    one dot per entry, coloured by Impact, for a sense of the impact mix. The
+    selected hub's entries orbit it, spread out (link distance 26 + 1.9 r),
+    also coloured by Impact; those are the clickable ones.
+  - Opening an entry slides its Tracker row in from the right (a drawer over
+    the page). It opens the entry's saved page (or each of its pages) in a
+    popup window (`/source/:id`).
+- **Competitors** (tab, all roles, after Megatrends; contract 1.14;
+  `GET /api/competitors?stream=all|primary|secondary`) is the Megatrends view
+  for competitors: the same frame (`GraphShell`), graph (`Graph3D`, layout
+  "competitors"), summary panel, timeline and drawer.
+  - One sphere per competitor named by a Tracker entry; radius grows
+    exponentially with its entries relative to the most-named competitor
+    (`competitorRadius`), so those named once or twice stay very small (and
+    unlabelled; the name shows on hover). Pairs of competitors named by the
+    same entries are tied by a link force (stronger with more shared entries),
+    so they sit close together; an open competitor lights its ties.
+  - Summaries: 73 defaults ship in `packages/shared/src/competitors.ts`,
+    matched to names in entries by a normalised key, aliases (BMS, J&J,
+    Lilly, Novo, GSK, MSD…) and corporate suffixes. Stored summaries use the
+    `competitor` level of `trend_summaries` (migration 0014 rebuilds the
+    table to allow it); analysts edit them in place. The AI writer (once the
+    Claude API is connected) reads the competitor's highest-scoring entries:
+    Impact (High 3, Medium 2, Low 1) × a recency factor that halves every
+    `summaryDays` days but never drops below 0.35, so an older High-impact
+    entry still outranks a recent Low one; it gets each entry's impact, key
+    details and CI perspective.
+  - The timeline shows the selected competitor's entries (or all entries
+    naming one), coloured by Impact or by Macrotrend; the list has a search
+    box (there can be over 100 competitors).
+- **Input**: a chosen HTML file (Add a source) or spreadsheet (Import) has a
+  ✕ Remove button, to take it off before it is sent.
   - Macrotrend spheres around a central core, sized by their number of
     entries (only those with 1 or more); selecting one reveals its Subtrends
     (also 1 or more), selecting a Subtrend its entries. Zooming in on a node
