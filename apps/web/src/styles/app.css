@@ -701,3 +701,6 @@ a.link-btn { text-decoration: none; }
 .client-source { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .client-body > .ct-margin { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow: auto; }
 @media (max-width: 1000px) { .client-body { grid-template-columns: 1fr; } }
+.inbox-tabs-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.type-switch { justify-self: start; border: 1px dashed var(--border-input); background: none; border-radius: 6px; padding: 2px 8px; font: inherit; font-size: 12.5px; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.type-switch:hover { color: var(--ink); border-color: var(--focus); background: var(--tint); }

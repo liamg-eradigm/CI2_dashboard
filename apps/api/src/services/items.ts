@@ -211,7 +211,7 @@ export async function listItems(
 ): Promise<ItemSummary[]> {
   const ph = statuses.map((_, i) => `?${i + 3}`).join(",");
   const res = await env.DB.prepare(
-    `${SELECT_ENRICHED} WHERE i.tenant_id = ?1 AND (?2 IS NULL OR i.stream = ?2) AND i.status IN (${ph})${withClientOnly ? " AND i.with_client_at IS NOT NULL" : ""}
+    `${SELECT_ENRICHED} WHERE i.tenant_id = ?1 AND (?2 IS NULL OR i.stream = ?2) AND i.status IN (${ph}) AND i.inbox_cleared_at IS NULL${withClientOnly ? " AND i.with_client_at IS NOT NULL" : ""}
       ORDER BY ${withClientOnly ? "i.with_client_at DESC" : "i.received_at DESC"} LIMIT ${Math.min(500, limit)}`,
   )
     .bind(tenantId, stream, ...statuses)

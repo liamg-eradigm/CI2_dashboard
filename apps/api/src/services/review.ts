@@ -14,6 +14,7 @@ import {
   canTransition,
   normaliseValues,
   validateValues,
+  type ClearDecidedResult,
   type ItemStatus,
   type ItemSummary,
   type ItemValues,
@@ -456,4 +457,26 @@ export async function deleteFromTable(
   if ((res.meta.changes ?? 0) === 0) throw conflict(`${row.signal_code ?? "This entry"} is already deleted from ${TABLE_NAME[table]}`);
   await audit(env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "item.deleted", targetType: "item", targetId: id, details: { from: row.status, signalCode: row.signal_code, table, ...(reason?.trim() ? { reason: reason.trim() } : {}) } });
   return getSummary(env, schemas, p.tenantId, id);
+}
+
+/**
+ * "Delete All" in the Eradigm Inbox's Pushed & Rejected view (migration 0013):
+ * rejected entries are deleted; pushed entries only leave the Inbox (they
+ * stay in the Tracker and Phantoms). Optionally one stream only.
+ */
+export async function clearDecided(env: Env, p: Principal, stream: Stream | null): Promise<ClearDecidedResult> {
+  const now = nowIso();
+  const [rejected, pushed] = await env.DB.batch([
+    env.DB.prepare("UPDATE intelligence_items SET status = 'deleted', deleted_at = ?1, version = version + 1, updated_at = ?1 WHERE tenant_id = ?2 AND (?3 IS NULL OR stream = ?3) AND status = 'rejected'").bind(
+      now,
+      p.tenantId,
+      stream,
+    ),
+    env.DB.prepare(
+      "UPDATE intelligence_items SET inbox_cleared_at = ?1, version = version + 1, updated_at = ?1 WHERE tenant_id = ?2 AND (?3 IS NULL OR stream = ?3) AND status = 'approved' AND inbox_cleared_at IS NULL",
+    ).bind(now, p.tenantId, stream),
+  ]);
+  const out = { rejectedDeleted: rejected?.meta.changes ?? 0, pushedCleared: pushed?.meta.changes ?? 0 };
+  await audit(env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "inbox.cleared", targetType: "inbox", targetId: stream ?? "all", details: out });
+  return out;
 }

@@ -16,6 +16,7 @@ import {
   splitMulti,
   subtrendsOf,
   validateValues,
+  type ClearDecidedResult,
   type ItemComment,
   type ItemStatus,
   type ItemSummary,
@@ -51,7 +52,7 @@ const TABS: { key: string; label: string; statuses: ItemStatus[]; withClient?: b
   { key: "client", label: "With client", statuses: ["needs_review"], withClient: true },
   { key: "processing", label: "Processing", statuses: [...IN_PROGRESS_STATUSES] },
   { key: "failed", label: "Failed", statuses: ["failed"] },
-  { key: "decided", label: "Pushed & rejected", statuses: ["approved", "rejected"] },
+  { key: "decided", label: "Pushed & Rejected", statuses: ["approved", "rejected"] },
 ];
 const ALL_STATUSES: ItemStatus[] = ["needs_review", "queued", "fetching", "extracting", "failed", "approved", "rejected"];
 const inTab = (t: (typeof TABS)[number], i: ItemSummary) => t.statuses.includes(i.status) && (t.withClient == null || t.withClient === i.withClient);
@@ -155,12 +156,15 @@ export function InboxPage({ me }: { me: Me }) {
           </section>
         )}
 
-        <div className="seg inbox-tabs" role="group" aria-label="Inbox views" style={{ alignSelf: "flex-start", display: "flex", flexWrap: "wrap" }}>
-          {TABS.map((t) => (
-            <button key={t.key} aria-pressed={tab === t.key} onClick={() => setTab(t.key)} style={{ padding: "0 14px" }}>
-              {t.label} ({counts[t.key] ?? 0})
-            </button>
-          ))}
+        <div className="inbox-tabs-row">
+          <div className="seg inbox-tabs" role="group" aria-label="Inbox views" style={{ display: "flex", flexWrap: "wrap" }}>
+            {TABS.map((t) => (
+              <button key={t.key} aria-pressed={tab === t.key} onClick={() => setTab(t.key)} style={{ padding: "0 14px" }}>
+                {t.label} ({counts[t.key] ?? 0})
+              </button>
+            ))}
+          </div>
+          {tab === "decided" && can(me.role, "item:delete") && shown.length > 0 && <DeleteAll shown={shown} stream={show} />}
         </div>
 
         {all.isLoading && <div className="skeleton" style={{ height: 120 }} />}
@@ -176,6 +180,42 @@ export function InboxPage({ me }: { me: Me }) {
         {!all.isLoading && shown.length === 0 && <div className="empty">{tab === "client" ? "Nothing is with the client." : "Nothing here."}</div>}
       </div>
     </>
+  );
+}
+
+/**
+ * "Delete All" in Pushed & Rejected: rejected entries are deleted; pushed
+ * entries leave the Inbox but stay in the Tracker and Phantoms. Follows the
+ * "Show entries from" filter.
+ */
+function DeleteAll({ shown, stream }: { shown: ItemSummary[]; stream: Stream | "all" }) {
+  const [busy, setBusy] = useState(false);
+  const toast = useToast();
+  const inv = useInvalidate();
+  const rejected = shown.filter((i) => i.status === "rejected").length;
+  const pushed = shown.length - rejected;
+  const run = async () => {
+    const scope = stream === "all" ? "" : ` ${STREAM_LABEL[stream]}`;
+    const parts = [
+      rejected ? `${rejected} rejected entr${rejected === 1 ? "y is" : "ies are"} deleted.` : "",
+      pushed ? `${pushed} pushed entr${pushed === 1 ? "y leaves" : "ies leave"} the Inbox but stay${pushed === 1 ? "s" : ""} in the Tracker and Phantoms.` : "",
+    ].filter(Boolean);
+    if (!window.confirm(`Delete all${scope} entries in Pushed & Rejected?\n\n${parts.join("\n")}`)) return;
+    setBusy(true);
+    try {
+      const r = await api<ClearDecidedResult>("/api/items/clear-decided", { method: "POST", json: stream === "all" ? {} : { stream } });
+      toast(`Pushed & Rejected cleared · ${r.rejectedDeleted} deleted · ${r.pushedCleared} pushed entr${r.pushedCleared === 1 ? "y" : "ies"} kept in the Tracker`);
+      await inv("items");
+    } catch (e) {
+      toast((e as ApiError).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <button className="btn danger" disabled={busy} onClick={() => void run()} data-testid="delete-all">
+      🗑 Delete All
+    </button>
   );
 }
 
