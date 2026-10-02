@@ -9,7 +9,7 @@ export interface LlmProvider {
   readonly name: string;
   readonly model: string;
   extract(input: ExtractionInput, opts?: { signal?: AbortSignal }): Promise<LlmExtractionResult>;
-  /** A short Megatrends summary of one Macrotrend / Subtrend from its recent entries. */
+  /** A short summary of one Macrotrend / Subtrend (Megatrends) or competitor (Competitors) from its entries. */
   summarize(input: SummaryInput, opts?: { signal?: AbortSignal; model?: string }): Promise<LlmSummaryResult>;
 }
 
@@ -19,16 +19,20 @@ export interface SummaryEntry {
   competitors?: string[];
   /** Key details or an excerpt of the source (kept short by the caller). */
   details?: string;
+  /** Competitors: the entry's Impact (High / Medium / Low) and its CI perspective. */
+  impact?: string;
+  ciPerspective?: string;
 }
 
 export interface SummaryInput {
-  level: "macro" | "sub";
+  level: "macro" | "sub" | "competitor";
   name: string;
   parent?: string;
   /** At most this many sentences. */
   sentences: number;
   /** The company the summary is written for ("For AbbVie, …"). */
   perspective: string;
+  /** Trends: entries from the last N days. Competitors: recency half-life in days (older high-impact entries still count). */
   windowDays: number;
   entries: SummaryEntry[];
 }

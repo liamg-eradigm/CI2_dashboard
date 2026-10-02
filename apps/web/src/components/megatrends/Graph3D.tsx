@@ -1,36 +1,75 @@
 /**
- * The Megatrends knowledge graph: Macrotrends (sized by their number of
- * Tracker entries) around a central core, a selected Macrotrend's Subtrends,
- * and a selected Subtrend's entries, floating in a field of stars. Drag to
- * rotate, scroll to zoom, drag a node to move it.
+ * The knowledge graph of the Megatrends and Competitors tabs: hubs (sized by
+ * their number of Tracker entries) around a central core, floating in a field
+ * of stars. Drag to rotate, scroll to zoom, drag a node to move it.
  *
- * three.js and 3d-force-graph are loaded on first use, so only this page
- * carries them. Everything here is also reachable without the canvas (the
- * page's Macrotrend list, summary panel and timeline).
+ * Megatrends: Macrotrends around the core; an open Macrotrend shows its
+ * Subtrends; a selected Subtrend has its entries in orbit. Competitors: every
+ * competitor named by an entry, pulled towards the competitors it is named
+ * together with; a selected competitor has its entries in orbit.
+ *
+ * Each hub is a translucent sphere holding one small dot per entry, coloured
+ * by Impact: a visual sense of the hub's impact mix. The entries in orbit are
+ * the clickable ones.
+ *
+ * three.js and 3d-force-graph are loaded on first use, so only these pages
+ * carry them. Everything is also reachable without the canvas (the page's
+ * list, summary panel and timeline).
  */
 import { useEffect, useRef, useState } from "react";
-import type { MegatrendEntry } from "@eradigm/shared";
 import type { ForceGraph3DInstance } from "3d-force-graph";
 import type ForceGraph3DClass from "3d-force-graph";
 import type * as ThreeNS from "three";
-import { NEUTRAL, plural, shade, type Macro, type Palette, type Selection } from "./model";
+import { plural, shade } from "./model";
 
 type Three = typeof ThreeNS;
 
-export interface Focus {
-  macro: string;
-  sub: string | null;
+export interface GraphHub {
+  id: string;
+  /** 1: linked to the core (a Macrotrend, a competitor); 2: linked to its parent hub (a Subtrend). */
+  level: 1 | 2;
+  parent?: string;
+  name: string;
+  count: number;
+  r: number;
+  colour: string;
+  /** One colour per entry, drawn inside the sphere (by Impact). */
+  dots: string[];
+  /** Size of the name label (1 = a Macrotrend's). */
+  labelScale: number;
+}
+export interface GraphEntry {
+  id: string;
+  title: string;
+  date: string;
+  colour: string;
+}
+export interface GraphSpec {
+  layout: "trends" | "competitors";
+  total: number;
+  hubs: GraphHub[];
+  /** Pairs of level-1 hubs pulled together (competitors named by the same entries). */
+  ties: { a: string; b: string; weight: number }[];
+  /** The open level-1 hub: it (and its Subtrends, or tied competitors) stays lit, the rest recedes. */
+  open: string | null;
+  /** The selected hub: ringed, and the camera flies to it. */
+  selected: string | null;
+  /** Entries in orbit around a hub. */
+  orbit: { hub: string; entries: GraphEntry[] } | null;
 }
 
 interface GNode {
   id: string;
-  kind: "core" | "macro" | "sub" | "entry";
+  kind: "core" | "hub" | "entry";
+  level: 0 | 1 | 2;
+  root: string;
   name: string;
-  macro: string | null;
-  sub: string | null;
   count: number;
   colour: string;
   r: number;
+  dots: string[];
+  dotsKey: string;
+  labelScale: number;
   title?: string;
   date?: string;
   x?: number;
@@ -45,7 +84,8 @@ interface GNode {
 interface GLink {
   source: string | GNode;
   target: string | GNode;
-  kind: "macro" | "sub" | "entry";
+  kind: "core" | "sub" | "entry" | "tie";
+  weight: number;
 }
 
 /** The Three.js pieces of a node whose look changes with the selection. */
@@ -56,31 +96,27 @@ interface Parts {
 }
 
 const ENTRIES_SHOWN = 80;
-const radius = (kind: GNode["kind"], n: number) =>
-  kind === "core" ? 4.5 : kind === "macro" ? Math.min(26, 5 + 2.6 * Math.sqrt(n)) : kind === "sub" ? Math.min(15, 3 + 1.9 * Math.sqrt(n)) : 1.25;
+/** Dots drawn inside one sphere at most (enough to read the mix). */
+const DOTS_MAX = 240;
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+const endId = (e: string | GNode) => (typeof e === "string" ? e : e.id);
 
 export function Graph3D({
-  macros,
-  entries,
-  palette,
-  sel,
-  total,
+  spec,
   reducedMotion,
-  onSelect,
+  onHub,
+  onCore,
   onFocus,
   onEntry,
   onUnavailable,
 }: {
-  macros: Macro[];
-  entries: MegatrendEntry[];
-  palette: Palette;
-  sel: Selection;
-  total: number;
+  spec: GraphSpec;
   reducedMotion: boolean;
-  onSelect: (s: Selection) => void;
-  onFocus: (f: Focus | null) => void;
+  onHub: (id: string) => void;
+  onCore: () => void;
+  /** The hub the view zoomed in on (or none). */
+  onFocus: (id: string | null) => void;
   onEntry: (id: string) => void;
   onUnavailable: () => void;
 }) {
@@ -90,9 +126,10 @@ export function Graph3D({
   const nodes = useRef(new Map<string, GNode>());
   const parts = useRef(new Map<string, Parts>());
   const [ready, setReady] = useState(false);
-  // Latest callbacks and selection, for the long-lived graph handlers.
-  const live = useRef({ onSelect, onFocus, onEntry, sel });
-  live.current = { onSelect, onFocus, onEntry, sel };
+  // Latest callbacks and spec, for the long-lived graph handlers.
+  const live = useRef({ onHub, onCore, onFocus, onEntry, spec });
+  live.current = { onHub, onCore, onFocus, onEntry, spec };
+  const layout = spec.layout;
 
   // Create the scene once.
   useEffect(() => {
@@ -117,6 +154,11 @@ export function Graph3D({
         return onUnavailable();
       }
       graph.current = g;
+      let framed = false;
+      const tieLit = (l: GLink) => {
+        const open = live.current.spec.open;
+        return !!open && (endId(l.source) === open || endId(l.target) === open);
+      };
       g.backgroundColor("rgba(0,0,0,0)")
         .showNavInfo(false)
         .width(el.clientWidth)
@@ -129,20 +171,24 @@ export function Graph3D({
           if (x.kind === "core") return `<div class="mg-tip"><b>All Tracker entries</b><span>${esc(plural(x.count, "entry", "entries"))}</span></div>`;
           return `<div class="mg-tip"><b>${esc(x.name)}</b><span>${esc(plural(x.count, "entry", "entries"))} · click to explore</span></div>`;
         })
-        .linkColor((l: object) => ((l as GLink).kind === "macro" ? "rgba(127, 211, 216, 0.30)" : "rgba(127, 211, 216, 0.42)"))
+        // Competitors: the core only holds the graph together, and ties show for the open competitor.
+        .linkVisibility((l: object) => {
+          const x = l as GLink;
+          if (x.kind === "tie") return tieLit(x);
+          return !(x.kind === "core" && live.current.spec.layout === "competitors");
+        })
+        .linkColor((l: object) => ((l as GLink).kind === "core" ? "rgba(127, 211, 216, 0.30)" : (l as GLink).kind === "tie" ? "rgba(159, 216, 220, 0.75)" : "rgba(127, 211, 216, 0.42)"))
         .linkOpacity(0.5)
-        .linkWidth((l: object) => ((l as GLink).kind === "entry" ? 0.15 : 0.35))
-        .linkDirectionalParticles((l: object) => (reducedMotion ? 0 : (l as GLink).kind === "entry" ? 0 : 2))
+        .linkWidth((l: object) => ((l as GLink).kind === "entry" ? 0.15 : (l as GLink).kind === "tie" ? Math.min(1.2, 0.25 + 0.2 * (l as GLink).weight) : 0.35))
+        .linkDirectionalParticles((l: object) => (reducedMotion ? 0 : (l as GLink).kind === "core" || (l as GLink).kind === "sub" ? 2 : 0))
         .linkDirectionalParticleWidth(1.1)
         .linkDirectionalParticleSpeed(0.0035)
         .linkDirectionalParticleColor(() => "#7fd3d8")
         .onNodeClick((n: object) => {
           const x = n as GNode;
-          const s = live.current.sel;
           if (x.kind === "entry") return live.current.onEntry(x.id.slice(2));
-          if (x.kind === "core") return live.current.onSelect({ macro: null, sub: null });
-          if (x.kind === "macro") return live.current.onSelect(s.macro === x.name && !s.sub ? { macro: null, sub: null } : { macro: x.name, sub: null });
-          live.current.onSelect(s.sub === x.sub ? { macro: x.macro, sub: null } : { macro: x.macro, sub: x.sub });
+          if (x.kind === "core") return live.current.onCore();
+          live.current.onHub(x.id);
         })
         .onNodeDragEnd((n: object) => {
           // Let a dragged node float again (the core stays at the centre).
@@ -154,15 +200,27 @@ export function Graph3D({
             x.fz = x.z;
           } else x.fx = x.fy = x.fz = undefined;
         })
-        .cooldownTime(6000);
-      g.d3Force("charge")?.strength?.((n: GNode) => (n.kind === "macro" ? -170 : n.kind === "sub" ? -110 : n.kind === "entry" ? -6 : -40));
+        .cooldownTime(6000)
+        .onEngineStop(() => {
+          if (framed || live.current.spec.layout !== "competitors" || live.current.spec.selected || !live.current.spec.hubs.length) return;
+          framed = true;
+          g.zoomToFit(900, 40, (n: object) => (n as GNode).kind !== "entry");
+        });
+      const comp = () => live.current.spec.layout === "competitors";
+      g.d3Force("charge")?.strength?.((n: GNode) =>
+        n.kind === "entry" ? -18 : n.kind === "core" ? (comp() ? -10 : -40) : comp() ? -(18 + n.r * 6) : n.level === 1 ? -170 : -110,
+      );
       g.d3Force("link")
         ?.distance?.((l: GLink) => {
           const s = l.source as GNode;
           const t = l.target as GNode;
-          return l.kind === "macro" ? 66 + t.r * 2.2 : l.kind === "sub" ? 34 + s.r + t.r * 2 : 10 + s.r;
+          if (l.kind === "core") return comp() ? 150 : 66 + t.r * 2.2;
+          if (l.kind === "tie") return 16 + s.r + t.r + 40 / Math.max(1, l.weight);
+          if (l.kind === "sub") return 34 + s.r + t.r * 2;
+          // Entries orbit well clear of their hub, spread out rather than in a tight cluster.
+          return 26 + s.r * 1.9;
         })
-        ?.strength?.((l: GLink) => (l.kind === "macro" ? 0.6 : 0.9));
+        ?.strength?.((l: GLink) => (l.kind === "core" ? (comp() ? 0.025 : 0.6) : l.kind === "tie" ? Math.min(0.5, 0.06 + 0.08 * l.weight) : l.kind === "entry" ? 0.5 : 0.9));
 
       // Lighting: a soft fill plus a key light, so spheres read as spheres.
       const key = new T.DirectionalLight(0xffffff, 2.6);
@@ -170,7 +228,7 @@ export function Graph3D({
       g.lights([new T.AmbientLight(0x9fc6d6, 1.25), key]);
       const stars = starfield(T);
       g.scene().add(stars);
-      g.cameraPosition({ x: 0, y: 40, z: 360 });
+      g.cameraPosition({ x: 0, y: 40, z: comp() ? 420 : 360 });
 
       const controls = g.controls() as {
         autoRotate: boolean;
@@ -191,7 +249,7 @@ export function Graph3D({
         clearTimeout(idle);
         if (!reducedMotion) idle = setTimeout(() => (controls.autoRotate = true), 15_000);
       };
-      // Zooming into a node shows its summary (the nearest Macrotrend, or Subtrend once one is open).
+      // Zooming into a hub shows its summary.
       let raf = 0;
       let lastFocus = "";
       const onChange = () => {
@@ -202,27 +260,27 @@ export function Graph3D({
           let best: GNode | null = null;
           let bestD = Infinity;
           for (const n of nodes.current.values()) {
-            if ((n.kind !== "macro" && n.kind !== "sub") || n.x == null) continue;
+            if (n.kind !== "hub" || n.x == null) continue;
             const d = Math.hypot(cam.x - n.x, cam.y - (n.y ?? 0), cam.z - (n.z ?? 0)) - n.r;
-            const reach = n.kind === "macro" ? 95 + n.r * 2 : 55 + n.r * 2;
+            const reach = n.level === 1 ? (comp() ? 60 : 95) + n.r * 2 : 55 + n.r * 2;
             if (d < reach && d < bestD) {
               best = n;
               bestD = d;
             }
           }
-          const key = best ? best.id : "";
-          if (key === lastFocus) return;
-          lastFocus = key;
-          live.current.onFocus(best ? { macro: best.macro ?? best.name, sub: best.kind === "sub" ? best.sub : null } : null);
+          const id = best ? best.id : "";
+          if (id === lastFocus) return;
+          lastFocus = id;
+          live.current.onFocus(best ? best.id : null);
         });
       };
       controls.addEventListener("start", onStart);
       controls.addEventListener("end", onEnd);
       controls.addEventListener("change", onChange);
 
-      // Centre the graph in the space beside the summary and Macrotrend list
-      // (the .mg-side column over its right edge): shift the view left by half
-      // the width they cover. Picking follows, as it uses the same projection.
+      // Centre the graph in the space beside the column of summary and list
+      // (.mg-side, over the stage's left or right edge): shift the view by half
+      // the width it covers. Picking follows, as it uses the same projection.
       // The library clears the camera's view offset once after it starts, so
       // the frame loop puts it back whenever it is missing.
       const cam = g.camera() as ThreeNS.PerspectiveCamera;
@@ -230,7 +288,7 @@ export function Graph3D({
       const applyShift = () => {
         const w = el.clientWidth;
         const h = el.clientHeight;
-        if (shift > 0) cam.setViewOffset(w, h, shift, 0, w, h);
+        if (shift !== 0) cam.setViewOffset(w, h, shift, 0, w, h);
         else cam.clearViewOffset();
         cam.updateProjectionMatrix();
       };
@@ -238,8 +296,14 @@ export function Graph3D({
         const w = el.clientWidth;
         g.width(w).height(el.clientHeight);
         const side = el.parentElement?.querySelector(".mg-side");
-        const covered = side && getComputedStyle(side).position === "absolute" ? Math.max(0, el.getBoundingClientRect().right - side.getBoundingClientRect().left) : 0;
-        shift = covered > 0 && covered < w * 0.6 ? covered / 2 : 0;
+        let covered = 0;
+        if (side && getComputedStyle(side).position === "absolute") {
+          const a = el.getBoundingClientRect();
+          const b = side.getBoundingClientRect();
+          // Left column: shift the view right (negative offset); right column: left.
+          covered = b.left - a.left < a.right - b.right ? -(b.right - a.left) : a.right - b.left;
+        }
+        shift = covered !== 0 && Math.abs(covered) < w * 0.6 ? covered / 2 : 0;
         applyShift();
       };
 
@@ -247,7 +311,7 @@ export function Graph3D({
       let spin = 0;
       const tick = () => {
         spin = requestAnimationFrame(tick);
-        if (shift > 0 && (!cam.view?.enabled || cam.view.fullWidth !== el.clientWidth)) applyShift();
+        if (shift !== 0 && (!cam.view?.enabled || cam.view.fullWidth !== el.clientWidth)) applyShift();
         if (reducedMotion) return;
         stars.rotation.y += 0.00006;
         for (const p of parts.current.values()) if (p.ring?.visible) p.ring.rotation.z += 0.004;
@@ -257,6 +321,8 @@ export function Graph3D({
       fit();
       const ro = new ResizeObserver(fit);
       ro.observe(el);
+      const side = el.parentElement?.querySelector(".mg-side");
+      if (side) ro.observe(side);
       cleanup = () => {
         ro.disconnect();
         cancelAnimationFrame(spin);
@@ -290,43 +356,39 @@ export function Graph3D({
     if (!g || !T || !ready) return;
     const want: GNode[] = [];
     const links: GLink[] = [];
-    const node = (n: Omit<GNode, "r">): GNode => {
-      const r = radius(n.kind, n.count);
+    const node = (n: Omit<GNode, "dotsKey">): GNode => {
+      const dotsKey = n.dots.join(",");
       const cur = nodes.current.get(n.id);
       // Keep the same object (and so its position) unless its look changed.
-      if (cur && cur.colour === n.colour && cur.r === r) {
+      if (cur && cur.colour === n.colour && cur.r === n.r && cur.dotsKey === dotsKey) {
         cur.count = n.count;
         return cur;
       }
-      const near = n.macro ? nodes.current.get(n.sub && n.kind === "entry" ? `s:${n.macro}\u001f${n.sub}` : `m:${n.macro}`) : undefined;
+      const near = nodes.current.get(n.kind === "entry" ? n.root : n.level === 2 ? n.root : "core");
       const jitter = () => (Math.random() - 0.5) * 18;
-      const fresh: GNode = { ...n, r, ...(cur ? { x: cur.x, y: cur.y, z: cur.z } : near?.x != null ? { x: near.x + jitter(), y: (near.y ?? 0) + jitter(), z: (near.z ?? 0) + jitter() } : {}) };
+      const fresh: GNode = { ...n, dotsKey, ...(cur ? { x: cur.x, y: cur.y, z: cur.z } : near?.x != null ? { x: near.x + jitter(), y: (near.y ?? 0) + jitter(), z: (near.z ?? 0) + jitter() } : {}) };
       nodes.current.set(n.id, fresh);
       return fresh;
     };
-    const core = node({ id: "core", kind: "core", name: "Tracker", macro: null, sub: null, count: total, colour: "#7fd3d8" });
+    const core = node({ id: "core", kind: "core", level: 0, root: "core", name: "Tracker", count: spec.total, colour: "#7fd3d8", r: 4.5, dots: [], labelScale: 0 });
     core.fx = core.fy = core.fz = 0;
     want.push(core);
-    for (const m of macros) {
-      if (m.count < 1) continue;
-      want.push(node({ id: `m:${m.name}`, kind: "macro", name: m.name, macro: m.name, sub: null, count: m.count, colour: palette.macro.get(m.name) ?? NEUTRAL }));
-      links.push({ source: "core", target: `m:${m.name}`, kind: "macro" });
-      if (sel.macro !== m.name) continue;
-      for (const s of m.subtrends) {
-        if (s.count < 1) continue;
-        const id = `s:${m.name}\u001f${s.name}`;
-        want.push(node({ id, kind: "sub", name: s.name, macro: m.name, sub: s.name, count: s.count, colour: palette.sub.get(m.name)?.get(s.name) ?? NEUTRAL }));
-        links.push({ source: `m:${m.name}`, target: id, kind: "sub" });
-        if (sel.sub !== s.name) continue;
-        const own = entries.filter((e) => e.macrotrend === m.name && e.subtrend === s.name).slice(-ENTRIES_SHOWN);
-        for (const e of own) {
-          want.push(node({ id: `e:${e.id}`, kind: "entry", name: e.title, title: e.title, date: e.date, macro: m.name, sub: s.name, count: 1, colour: palette.sub.get(m.name)?.get(s.name) ?? NEUTRAL }));
-          links.push({ source: id, target: `e:${e.id}`, kind: "entry" });
-        }
+    const byId = new Map(spec.hubs.map((h) => [h.id, h]));
+    for (const h of spec.hubs) {
+      const root = h.level === 2 && h.parent ? h.parent : h.id;
+      want.push(node({ id: h.id, kind: "hub", level: h.level, root, name: h.name, count: h.count, colour: h.colour, r: h.r, dots: h.dots.slice(0, DOTS_MAX), labelScale: h.labelScale }));
+      links.push(h.level === 2 && h.parent && byId.has(h.parent) ? { source: h.parent, target: h.id, kind: "sub", weight: 1 } : { source: "core", target: h.id, kind: "core", weight: 1 });
+    }
+    for (const t of spec.ties) if (byId.has(t.a) && byId.has(t.b)) links.push({ source: t.a, target: t.b, kind: "tie", weight: t.weight });
+    if (spec.orbit && byId.has(spec.orbit.hub)) {
+      const hub = spec.orbit.hub;
+      for (const e of spec.orbit.entries.slice(-ENTRIES_SHOWN)) {
+        want.push(node({ id: `e:${e.id}`, kind: "entry", level: 0, root: hub, name: e.title, title: e.title, date: e.date, count: 1, colour: e.colour, r: 1.5, dots: [], labelScale: 0 }));
+        links.push({ source: hub, target: `e:${e.id}`, kind: "entry", weight: 1 });
       }
     }
     for (const n of want) {
-      const hold = (n.kind === "macro" && n.name === sel.macro) || (n.kind === "sub" && n.macro === sel.macro && n.sub === sel.sub);
+      const hold = n.kind === "hub" && n.id === spec.selected;
       if (hold && !n.pinned && n.x != null) {
         n.fx = n.x;
         n.fy = n.y;
@@ -343,37 +405,38 @@ export function Graph3D({
     g.graphData({ nodes: want, links });
 
     // Emphasis: the open branch is bright, the rest recedes (nodes drawn later get it in buildNode).
+    const lit = litSet(spec);
     for (const n of want) {
       const p = parts.current.get(n.id);
-      if (p) emphasise(n, p, sel);
+      if (p) emphasise(n, p, spec, lit);
     }
 
     // Camera: fly to what was just selected.
-    const key = `${sel.macro ?? ""}\u001f${sel.sub ?? ""}`;
+    const key = spec.selected ?? "";
     if (key === lastSel.current) return;
     lastSel.current = key;
-    const target = sel.sub ? nodes.current.get(`s:${sel.macro}\u001f${sel.sub}`) : sel.macro ? nodes.current.get(`m:${sel.macro}`) : null;
+    const target = spec.selected ? nodes.current.get(spec.selected) : null;
     const fly = () => {
-      if (!target) return void g.cameraPosition({ x: 0, y: 40, z: 360 }, { x: 0, y: 0, z: 0 }, 1400);
+      if (!target) return void g.cameraPosition({ x: 0, y: 40, z: spec.layout === "competitors" ? 420 : 360 }, { x: 0, y: 0, z: 0 }, 1400);
       const { x = 0, y = 0, z = 0 } = target;
       // Look from beyond the node, away from its parent (the core, or the Macrotrend), so nothing blocks it.
-      const parent = sel.sub ? nodes.current.get(`m:${sel.macro}`) : null;
+      const parent = target.level === 2 ? nodes.current.get(target.root) : null;
       const dx = x - (parent?.x ?? 0);
       const dy = y - (parent?.y ?? 0);
       const dz = z - (parent?.z ?? 0);
       const len = Math.hypot(dx, dy, dz) || 1;
-      const back = (sel.sub ? 85 : 140) + target.r * 3;
+      const back = (target.level === 2 ? 85 : spec.layout === "competitors" ? 170 : 140) + target.r * 3;
       g.cameraPosition({ x: x + (dx / len) * back, y: y + (dy / len) * back + 14, z: z + (dz / len) * back }, { x, y, z }, 1400);
     };
     // A node just added has no settled position yet: wait for the layout.
-    if (target?.x == null) setTimeout(fly, 900);
+    if (target && target.x == null) setTimeout(fly, 900);
     else fly();
-    // A Subtrend's entries spread out around it: then frame them all.
-    if (sel.sub && target) {
+    // Entries spread out in orbit around the selected hub: then frame them all.
+    if (target && spec.orbit?.hub === target.id) {
       const id = target.id;
       setTimeout(() => {
         if (graph.current !== g || lastSel.current !== key) return;
-        const group = [...nodes.current.values()].filter((n) => (n.id === id || n.kind === "entry") && n.x != null);
+        const group = [...nodes.current.values()].filter((n) => (n.id === id || (n.kind === "entry" && n.root === id)) && n.x != null);
         if (group.length < 2) return;
         const c = { x: 0, y: 0, z: 0 };
         for (const n of group) {
@@ -383,8 +446,8 @@ export function Graph3D({
         }
         const reach = Math.max(...group.map((n) => Math.hypot(n.x! - c.x, (n.y ?? 0) - c.y, (n.z ?? 0) - c.z) + n.r));
         const fov = ((g.camera() as ThreeNS.PerspectiveCamera).fov * Math.PI) / 180;
-        const dist = Math.max(70, (reach / Math.tan(fov / 2)) * 1.5);
-        const parent = nodes.current.get(`m:${sel.macro}`);
+        const dist = Math.max(spec.layout === "competitors" ? 150 : 70, (reach / Math.tan(fov / 2)) * 1.5);
+        const parent = target.level === 2 ? nodes.current.get(target.root) : null;
         const dx = c.x - (parent?.x ?? 0);
         const dy = c.y - (parent?.y ?? 0);
         const dz = c.z - (parent?.z ?? 0);
@@ -392,7 +455,7 @@ export function Graph3D({
         g.cameraPosition({ x: c.x + (dx / len) * dist, y: c.y + (dy / len) * dist, z: c.z + (dz / len) * dist }, c, 1100);
       }, 2200);
     }
-  }, [macros, entries, palette, sel, total, ready]);
+  }, [spec, ready]);
 
   function buildNode(T: Three, n: GNode) {
     const group = new T.Group();
@@ -404,55 +467,124 @@ export function Graph3D({
     };
     const colour = new T.Color(n.colour);
     if (n.kind === "entry") {
-      const dot = new T.Mesh(new T.SphereGeometry(n.r, 16, 12), track(new T.MeshBasicMaterial({ color: new T.Color(shade(n.colour, 0.35)), opacity: 1 })));
+      const dot = new T.Mesh(new T.SphereGeometry(n.r, 16, 12), track(new T.MeshBasicMaterial({ color: new T.Color(shade(n.colour, 0.25)), opacity: 1 })));
       group.add(dot);
       group.add(glow(T, n.colour, n.r * 6, 0.5, track));
-    } else {
+    } else if (n.kind === "core") {
       const sphere = new T.Mesh(
         new T.SphereGeometry(n.r, 48, 32),
-        track(
-          new T.MeshStandardMaterial({
-            color: colour,
-            emissive: colour,
-            emissiveIntensity: n.kind === "core" ? 0.9 : 0.28,
-            roughness: 0.42,
-            metalness: 0.12,
-            opacity: 1,
-          }),
-        ),
+        track(new T.MeshStandardMaterial({ color: colour, emissive: colour, emissiveIntensity: 0.9, roughness: 0.42, metalness: 0.12, opacity: 1 })),
       );
       group.add(sphere);
-      group.add(glow(T, n.colour, n.r * (n.kind === "core" ? 7 : 4.2), n.kind === "core" ? 0.75 : 0.42, track));
-      if (n.kind !== "core") {
-        const label = textSprite(T, n.name, plural(n.count, "entry", "entries"), n.kind === "macro" ? 0.9 : 0.62);
-        label.position.set(0, -n.r - (n.kind === "macro" ? 9 : 6), 0);
+      group.add(glow(T, n.colour, n.r * 7, 0.75, track));
+    } else {
+      // A translucent shell, so the entries inside show through.
+      const shell = new T.Mesh(
+        new T.SphereGeometry(n.r, 48, 32),
+        track(new T.MeshStandardMaterial({ color: colour, emissive: colour, emissiveIntensity: 0.35, roughness: 0.3, metalness: 0.05, opacity: 0.24, depthWrite: false })),
+      );
+      shell.renderOrder = 1;
+      group.add(shell);
+      const rim = new T.Mesh(new T.SphereGeometry(n.r * 1.002, 48, 32), track(new T.MeshBasicMaterial({ color: colour, wireframe: false, side: T.BackSide, opacity: 0.16, depthWrite: false })));
+      rim.renderOrder = 1;
+      group.add(rim);
+      if (n.dots.length) {
+        const pts = innerDots(T, n.id, n.dots, n.r);
+        track(pts.material as ThreeNS.PointsMaterial);
+        group.add(pts);
+      }
+      group.add(glow(T, n.colour, n.r * 3.6, 0.3, track));
+      // Hubs too small to label (competitors named once or twice) show their name on hover.
+      if (n.labelScale > 0) {
+        const label = textSprite(T, n.name, plural(n.count, "entry", "entries"), n.labelScale);
+        label.position.set(0, -n.r - Math.max(2.5, 9 * n.labelScale), 0);
         track(label.material);
         group.add(label);
       }
     }
     let ring: ThreeNS.Mesh | null = null;
-    if (n.kind === "macro" || n.kind === "sub") {
-      ring = new T.Mesh(new T.TorusGeometry(n.r * 1.55, Math.max(0.18, n.r * 0.03), 8, 96), new T.MeshBasicMaterial({ color: 0x7fd3d8, transparent: true, opacity: 0.7 }));
+    if (n.kind === "hub") {
+      ring = new T.Mesh(new T.TorusGeometry(Math.max(n.r * 1.55, n.r + 2.5), Math.max(0.18, n.r * 0.03), 8, 96), new T.MeshBasicMaterial({ color: 0x7fd3d8, transparent: true, opacity: 0.7 }));
       ring.rotation.x = Math.PI / 2.6;
       ring.visible = false;
       group.add(ring);
     }
     const p = { group, materials, ring };
-    emphasise(n, p, live.current.sel);
+    emphasise(n, p, live.current.spec, litSet(live.current.spec));
     parts.current.set(n.id, p);
     return group;
   }
 
-  return <div ref={host} className="mg-canvas" aria-hidden="true" data-testid="mg-canvas" />;
+  return <div ref={host} className={`mg-canvas ${layout}`} aria-hidden="true" data-testid="mg-canvas" />;
 }
 
-/** The open branch is bright; the rest recedes. With a Subtrend open, its siblings and its Macrotrend step back. */
-function emphasise(n: GNode, p: Parts, sel: Selection) {
-  const lit = !sel.macro || n.kind === "core" || n.macro === sel.macro;
-  const recede = sel.sub != null && ((n.kind === "sub" && n.sub !== sel.sub) || n.kind === "macro");
-  const k = !lit ? 0.22 : recede ? 0.4 : 1;
+/** Hubs that stay bright: the open one, its Subtrends, and (Competitors) the competitors tied to it. */
+function litSet(spec: GraphSpec): Set<string> | null {
+  if (!spec.open) return null;
+  const lit = new Set([spec.open]);
+  for (const h of spec.hubs) if (h.parent === spec.open) lit.add(h.id);
+  for (const t of spec.ties) {
+    if (t.a === spec.open) lit.add(t.b);
+    if (t.b === spec.open) lit.add(t.a);
+  }
+  return lit;
+}
+
+/** The open branch is bright; the rest recedes. With a Subtrend selected, its siblings and its Macrotrend step back. */
+function emphasise(n: GNode, p: Parts, spec: GraphSpec, lit: Set<string> | null) {
+  const on = !lit || n.kind === "core" || lit.has(n.kind === "entry" ? n.root : n.id) || lit.has(n.root);
+  const selLevel2 = spec.selected != null && spec.hubs.find((h) => h.id === spec.selected)?.level === 2;
+  const recede = selLevel2 && n.kind === "hub" && n.id !== spec.selected;
+  const k = !on ? 0.2 : recede ? 0.45 : 1;
   for (const { m, base } of p.materials) m.opacity = base * k;
-  if (p.ring) p.ring.visible = (n.kind === "macro" && n.name === sel.macro && !sel.sub) || (n.kind === "sub" && n.sub === sel.sub);
+  if (p.ring) p.ring.visible = n.id === spec.selected;
+}
+
+/** One dot per entry, scattered through the sphere (the same place every time), coloured by Impact. */
+function innerDots(T: Three, id: string, colours: string[], r: number): ThreeNS.Points {
+  let seed = 0;
+  for (let i = 0; i < id.length; i++) seed = (seed * 31 + id.charCodeAt(i)) >>> 0;
+  const rand = () => {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 4294967296;
+  };
+  const n = colours.length;
+  const pos = new Float32Array(n * 3);
+  const col = new Float32Array(n * 3);
+  const c = new T.Color();
+  for (let i = 0; i < n; i++) {
+    const d = r * 0.78 * Math.cbrt(rand());
+    const th = Math.acos(2 * rand() - 1);
+    const ph = rand() * Math.PI * 2;
+    pos.set([d * Math.sin(th) * Math.cos(ph), d * Math.sin(th) * Math.sin(ph), d * Math.cos(th)], i * 3);
+    c.set(colours[i]!);
+    col.set([c.r, c.g, c.b], i * 3);
+  }
+  const geo = new T.BufferGeometry();
+  geo.setAttribute("position", new T.BufferAttribute(pos, 3));
+  geo.setAttribute("color", new T.BufferAttribute(col, 3));
+  const size = Math.max(0.8, Math.min(3.6, r * 0.14 + 0.8));
+  const mat = new T.PointsMaterial({ size, sizeAttenuation: true, vertexColors: true, map: dotTexture(T), alphaTest: 0.2, transparent: true, opacity: 0.95, depthWrite: false });
+  const pts = new T.Points(geo, mat);
+  pts.renderOrder = 2;
+  return pts;
+}
+
+let dotTex: ThreeNS.Texture | null = null;
+function dotTexture(T: Three): ThreeNS.Texture {
+  if (dotTex) return dotTex;
+  const c = document.createElement("canvas");
+  c.width = c.height = 64;
+  const ctx = c.getContext("2d")!;
+  const gr = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, "rgba(255,255,255,1)");
+  gr.addColorStop(0.55, "rgba(255,255,255,1)");
+  gr.addColorStop(0.75, "rgba(255,255,255,0.5)");
+  gr.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = gr;
+  ctx.fillRect(0, 0, 64, 64);
+  dotTex = new T.CanvasTexture(c);
+  return dotTex;
 }
 
 function webglAvailable(): boolean {

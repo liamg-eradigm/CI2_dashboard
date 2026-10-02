@@ -113,7 +113,9 @@ export class MockProvider implements LlmProvider {
       .map((e) => e.title)
       .join("; ");
     const text = n
-      ? `Mock summary of ${n} entr${n === 1 ? "y" : "ies"} in ${input.name} from the last ${input.windowDays} days. Most recent: ${recent}.`
+      ? input.level === "competitor"
+        ? `Mock summary of ${n} entr${n === 1 ? "y" : "ies"} naming ${input.name}, high-impact and recent first. Most recent: ${recent}.`
+        : `Mock summary of ${n} entr${n === 1 ? "y" : "ies"} in ${input.name} from the last ${input.windowDays} days. Most recent: ${recent}.`
       : `No ${input.name} entries in the last ${input.windowDays} days.`;
     return { text, meta: { provider: this.name, model: this.model, promptVersion: SUMMARY_PROMPT_VERSION, latencyMs: 0 } };
   }

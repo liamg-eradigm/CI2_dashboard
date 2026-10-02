@@ -80,9 +80,9 @@ test.describe("request 18", () => {
     await expect(panel.getByTestId("mg-summary")).toContainText("Competitors are investing in R&D compute");
     const pb = (await panel.boundingBox())!;
     const stage = (await page.getByRole("region", { name: "Megatrends knowledge graph" }).boundingBox())!;
-    // In the column on the graph's right (request 22), in large type.
-    expect(stage.x + stage.width - (pb.x + pb.width)).toBeLessThan(40);
-    expect(pb.y - stage.y).toBeLessThan(40);
+    // In the column over the graph's left edge (request 23), in large type.
+    expect(pb.x - stage.x).toBeLessThan(40);
+    expect(pb.y - stage.y).toBeLessThan(80);
     expect(Number.parseFloat(await panel.getByTestId("mg-summary").evaluate((el) => getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(20);
 
     const tl = page.getByTestId("mg-timeline");

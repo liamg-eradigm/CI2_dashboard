@@ -17,34 +17,49 @@ export interface PanelNode {
   children: number;
 }
 
-function provenance(s: TrendSummary): string {
-  if (s.source === "default") return "Summary provided with the dashboard";
-  if (s.source === "manual") return `Written by ${s.updatedBy ?? "an analyst"}${s.updatedAt ? ` · ${localDateTime(s.updatedAt)}` : ""}`;
-  return `AI summary · ${s.model ?? "Claude"} · last ${s.windowDays ?? "?"} days, ${plural(s.entries ?? 0, "entry", "entries")}${s.updatedAt ? ` · ${localDateTime(s.updatedAt)}` : ""}`;
+/** What the panel shows with nothing selected. */
+export interface PanelIntro {
+  title: string;
+  count: string;
+  text: string;
 }
 
+function provenance(s: TrendSummary, level: TrendLevel): string {
+  if (s.source === "default") return "Summary provided with the dashboard";
+  if (s.source === "manual") return `Written by ${s.updatedBy ?? "an analyst"}${s.updatedAt ? ` · ${localDateTime(s.updatedAt)}` : ""}`;
+  const from = level === "competitor" ? `${plural(s.entries ?? 0, "entry", "entries")}, high-impact and recent first` : `last ${s.windowDays ?? "?"} days, ${plural(s.entries ?? 0, "entry", "entries")}`;
+  return `AI summary · ${s.model ?? "Claude"} · ${from}${s.updatedAt ? ` · ${localDateTime(s.updatedAt)}` : ""}`;
+}
+
+const KICKER: Record<TrendLevel, string> = { macro: "Macrotrend", sub: "Subtrend", competitor: "Competitor" };
+
 /**
- * The summary of the Macrotrend / Subtrend in view, with (for analysts and
- * admins) Edit and Write with AI. Without a selection: what the spheres are.
- * The large box on the right of the graph, above the Macrotrend list.
+ * The summary of the Macrotrend / Subtrend (Megatrends) or competitor
+ * (Competitors) in view, with (for analysts and admins) Edit and Write with
+ * AI. Without a selection: what the spheres are. The box at the top of the
+ * column over the graph's left edge, above the list.
  */
 export function SummaryPanel({
   node,
-  total,
-  macros,
+  intro,
   canEdit,
   aiConnected,
   focused,
+  exploreLabel,
   onExplore,
+  invalidate = "megatrends",
 }: {
   node: PanelNode | null;
-  total: number;
-  macros: number;
+  intro: PanelIntro;
   canEdit: boolean;
   aiConnected: boolean;
   /** Shown because the view zoomed in on it (not selected). */
   focused: boolean;
+  /** The button that opens the hub in view ("Explore subtrends"); none when null. */
+  exploreLabel: string | null;
   onExplore: () => void;
+  /** The query to refresh after a summary changes. */
+  invalidate?: string;
 }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState("");
@@ -62,13 +77,11 @@ export function SummaryPanel({
     return (
       <section className="mg-panel" tabIndex={0} aria-live="polite" aria-label="Summary" data-testid="mg-panel">
         <div className="mg-panel-id">
-          <h2 className="mg-panel-title">Megatrends</h2>
-          <p className="mg-count">
-            {plural(total, "Tracker entry", "Tracker entries")} · {plural(macros, "macrotrend")}
-          </p>
+          <h2 className="mg-panel-title">{intro.title}</h2>
+          <p className="mg-count">{intro.count}</p>
         </div>
         <div className="mg-panel-body">
-          <p className="mg-summary">Each sphere is a Macrotrend, sized by its number of Tracker entries. Select one to read what is happening in that space, and to reveal its Subtrends.</p>
+          <p className="mg-summary">{intro.text}</p>
         </div>
       </section>
     );
@@ -79,7 +92,7 @@ export function SummaryPanel({
     setErr(null);
     try {
       await api<TrendSummary>(kind === "ai" ? "/api/megatrends/summaries/generate" : "/api/megatrends/summaries", { method: kind === "ai" ? "POST" : "PUT", json: body });
-      await inv("megatrends");
+      await inv(invalidate);
       setEditing(false);
       toast(kind === "ai" ? `AI summary written for ${node.name}` : `Summary saved for ${node.name}`);
     } catch (e) {
@@ -95,7 +108,8 @@ export function SummaryPanel({
       <div className="mg-panel-id">
         <span className="mg-kicker">
           <span className="dot" style={{ background: node.colour }} aria-hidden="true" />
-          {node.level === "macro" ? "Macrotrend" : `Subtrend${node.parent ? ` · ${node.parent}` : ""}`}
+          {KICKER[node.level]}
+          {node.level === "sub" && node.parent ? ` · ${node.parent}` : ""}
           {focused ? " · in view" : ""}
         </span>
         <h2 className="mg-panel-title" id="mg-panel-title">
@@ -132,7 +146,7 @@ export function SummaryPanel({
             <p className="mg-summary" data-testid="mg-summary">
               {node.summary.text}
             </p>
-            <p className="mg-prov">{provenance(node.summary)}</p>
+            <p className="mg-prov">{provenance(node.summary, node.level)}</p>
           </>
         ) : (
           <p className="mg-summary muted">No summary yet.</p>
@@ -143,9 +157,9 @@ export function SummaryPanel({
           </p>
         )}
         <div className="mg-actions">
-          {node.level === "macro" && focused && (
+          {exploreLabel && focused && (
             <button className="mg-btn" onClick={onExplore}>
-              Explore subtrends
+              {exploreLabel}
             </button>
           )}
           {canEdit && !editing && (
@@ -163,7 +177,13 @@ export function SummaryPanel({
                 className="mg-btn ghost"
                 disabled={!aiConnected || !!busy || node.count < 1}
                 aria-disabled={!aiConnected}
-                title={aiConnected ? "Write this summary with Claude from the recent entries (Administration → Megatrends sets the time frame and length)" : "Connect the Claude API to write summaries with AI"}
+                title={
+                  aiConnected
+                    ? node.level === "competitor"
+                      ? "Write this summary with Claude from the competitor's entries, high-impact and recent first (Administration → Megatrends sets the length)"
+                      : "Write this summary with Claude from the recent entries (Administration → Megatrends sets the time frame and length)"
+                    : "Connect the Claude API to write summaries with AI"
+                }
                 onClick={() => void run("ai", ref)}
               >
                 {busy === "ai" ? "Writing…" : "✦ Write with AI"}

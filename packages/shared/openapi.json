@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Eradigm Competitive Intelligence API",
-    "version": "1.13.0",
+    "version": "1.14.0",
     "description": "Generated from packages/shared/src/api.ts. Every request is checked for both role and tenant server-side. Send X-Tenant-Id to select a tenant when the user belongs to more than one."
   },
   "components": {
@@ -7704,9 +7704,284 @@
         ]
       }
     },
+    "/api/competitors": {
+      "get": {
+        "summary": "Competitors: Tracker entries per competitor named, co-occurring competitors, their summaries and the entries for the timeline (query: stream all|primary|secondary)",
+        "description": "Roles: admin, analyst, client",
+        "parameters": [
+          {
+            "name": "stream",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "aiConnected": {
+                      "type": "boolean"
+                    },
+                    "competitors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "count": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "summary": {
+                            "nullable": true,
+                            "type": "object",
+                            "properties": {
+                              "text": {
+                                "type": "string"
+                              },
+                              "source": {
+                                "type": "string",
+                                "enum": [
+                                  "default",
+                                  "manual",
+                                  "ai"
+                                ]
+                              },
+                              "updatedAt": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "updatedBy": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "model": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "windowDays": {
+                                "nullable": true,
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "entries": {
+                                "nullable": true,
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "text",
+                              "source",
+                              "updatedAt",
+                              "updatedBy",
+                              "model",
+                              "windowDays",
+                              "entries"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "count",
+                          "summary"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "pairs": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "a": {
+                            "type": "string"
+                          },
+                          "b": {
+                            "type": "string"
+                          },
+                          "count": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "a",
+                          "b",
+                          "count"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "entries": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "recordId": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "stream": {
+                            "type": "string",
+                            "enum": [
+                              "primary",
+                              "secondary"
+                            ]
+                          },
+                          "date": {
+                            "type": "string",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "macrotrend": {
+                            "type": "string"
+                          },
+                          "subtrend": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "impact": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "competitors": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "code",
+                          "recordId",
+                          "stream",
+                          "date",
+                          "title",
+                          "macrotrend",
+                          "subtrend",
+                          "impact",
+                          "competitors"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "truncated": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "aiConnected",
+                    "competitors",
+                    "pairs",
+                    "entries",
+                    "truncated"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
     "/api/megatrends/summaries": {
       "put": {
-        "summary": "Write a Macrotrend or Subtrend summary by hand (empty text = back to the default)",
+        "summary": "Write a Macrotrend, Subtrend or competitor summary by hand (empty text = back to the default)",
         "description": "Roles: admin, analyst",
         "parameters": [],
         "responses": {
@@ -7845,7 +8120,8 @@
                     "type": "string",
                     "enum": [
                       "macro",
-                      "sub"
+                      "sub",
+                      "competitor"
                     ]
                   },
                   "name": {
@@ -7881,7 +8157,7 @@
     },
     "/api/megatrends/summaries/generate": {
       "post": {
-        "summary": "Write a Macrotrend or Subtrend summary with the AI writer from its recent entries (409 while the AI is not connected)",
+        "summary": "Write a Macrotrend, Subtrend or competitor summary with the AI writer from its entries (competitors: high-impact and recent first; 409 while the AI is not connected)",
         "description": "Roles: admin, analyst",
         "parameters": [],
         "responses": {
@@ -8020,7 +8296,8 @@
                     "type": "string",
                     "enum": [
                       "macro",
-                      "sub"
+                      "sub",
+                      "competitor"
                     ]
                   },
                   "name": {
@@ -17020,12 +17297,13 @@
                         "phantoms",
                         "deliverables",
                         "megatrends",
+                        "competitors",
                         "inbox",
                         "clientinbox",
                         "input",
                         "admin"
                       ],
-                      "maxItems": 9,
+                      "maxItems": 10,
                       "type": "array",
                       "items": {
                         "type": "string",
@@ -17035,6 +17313,7 @@
                           "phantoms",
                           "deliverables",
                           "megatrends",
+                          "competitors",
                           "inbox",
                           "clientinbox",
                           "input",
@@ -17300,12 +17579,13 @@
                         "phantoms",
                         "deliverables",
                         "megatrends",
+                        "competitors",
                         "inbox",
                         "clientinbox",
                         "input",
                         "admin"
                       ],
-                      "maxItems": 9,
+                      "maxItems": 10,
                       "type": "array",
                       "items": {
                         "type": "string",
@@ -17315,6 +17595,7 @@
                           "phantoms",
                           "deliverables",
                           "megatrends",
+                          "competitors",
                           "inbox",
                           "clientinbox",
                           "input",
@@ -17563,7 +17844,7 @@
                     "additionalProperties": false
                   },
                   "navOrder": {
-                    "maxItems": 9,
+                    "maxItems": 10,
                     "type": "array",
                     "items": {
                       "type": "string",
@@ -17573,6 +17854,7 @@
                         "phantoms",
                         "deliverables",
                         "megatrends",
+                        "competitors",
                         "inbox",
                         "clientinbox",
                         "input",

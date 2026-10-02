@@ -97,7 +97,7 @@ import {
 import { signalDetail, signalMarkdown } from "./services/signals.js";
 import { attachSnapshot, importRows } from "./services/imports.js";
 import { submitFile, submitManual, submitUrl } from "./services/submissions.js";
-import { generateSummary, megatrends, writeSummary } from "./services/megatrends.js";
+import { competitors, generateSummary, megatrends, writeSummary } from "./services/megatrends.js";
 import { listPages, pageSnapshotId } from "./services/pages.js";
 import { addComment, backToEradigm, clientPush, listComments, sendToClient, updateComment } from "./services/clientInbox.js";
 import { createNewsletter, ensureAlerts, listNewsletters, readDeliverable } from "./services/deliverables.js";
@@ -424,6 +424,14 @@ app.get("/api/megatrends", async (c) => {
     return v;
   };
   return c.json(await megatrends(c.env, P(c).tenantId, { stream: raw, from: date("from"), to: date("to") }, prefillMode(c.env) === "llm"));
+});
+
+// Competitors: entries per competitor named, co-occurrence, summaries, the timeline.
+app.get("/api/competitors", async (c) => {
+  requirePermission(P(c), "tracker:read");
+  const raw = c.req.query("stream") ?? "all";
+  if (raw !== "all" && !isStream(raw)) throw badRequest("stream must be “all”, “primary” or “secondary”");
+  return c.json(await competitors(c.env, P(c).tenantId, raw, prefillMode(c.env) === "llm"));
 });
 
 app.put("/api/megatrends/summaries", async (c) => {

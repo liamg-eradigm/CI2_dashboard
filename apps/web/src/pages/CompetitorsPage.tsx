@@ -1,0 +1,262 @@
+/**
+ * Competitors: the Megatrends view for competitors. Every competitor named by
+ * a Tracker entry is a sphere (growing exponentially with its entries, so the
+ * few most active stand out and those named once or twice stay small), pulled
+ * towards the competitors it is named together with. Selecting one shows its
+ * CI summary, its entries in orbit and on the timeline; opening an entry
+ * slides its Tracker row in from the right.
+ *
+ * State lives in the URL (c = competitor, e = open entry).
+ */
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { can, competitorRadius, type CompetitorEntry, type Me } from "@eradigm/shared";
+import { useCompetitors } from "../api/hooks";
+import { EntrySheet } from "../components/megatrends/EntrySheet";
+import { GraphShell } from "../components/megatrends/GraphShell";
+import type { GraphSpec } from "../components/megatrends/Graph3D";
+import { colourMap, impactColour, impactOrder, NEUTRAL, plural } from "../components/megatrends/model";
+import { SummaryPanel, type PanelNode } from "../components/megatrends/SummaryPanel";
+import { Timeline, type LegendItem } from "../components/megatrends/Timeline";
+import "../styles/megatrends.css";
+
+/** One hue for every competitor (there are too many for categorical colours); Impact colours the entries inside. */
+const HUB_COLOUR = "#3dc3c9";
+const hubId = (name: string) => `c:${name}`;
+const R_MIN = 1.4;
+const R_TOP = 26;
+
+export function CompetitorsPage({ me }: { me: Me }) {
+  const [params, setParams] = useSearchParams();
+  const q = useCompetitors();
+  const data = q.data;
+  const selected = params.get("c");
+  const openId = params.get("e");
+  const [colourBy, setColourBy] = useState<"impact" | "macro">("impact");
+  const [only, setOnly] = useState<string | null>(null);
+  const [find, setFind] = useState("");
+
+  const set = useCallback(
+    (patch: Record<string, string | null>, push = true) =>
+      setParams(
+        (p) => {
+          const n = new URLSearchParams(p);
+          for (const [k, v] of Object.entries(patch)) {
+            if (v == null) n.delete(k);
+            else n.set(k, v);
+          }
+          return n;
+        },
+        { replace: !push },
+      ),
+    [setParams],
+  );
+  // Ignore zoom focus while the camera flies to a new selection.
+  const [focus, setFocus] = useState<string | null>(null);
+  const flying = useRef(0);
+  const select = useCallback(
+    (name: string | null) => {
+      flying.current = Date.now();
+      setFocus(null);
+      setOnly(null);
+      set({ c: name });
+    },
+    [set],
+  );
+  const onFocusHub = useCallback((id: string | null) => {
+    if (Date.now() - flying.current < 1700) return;
+    setFocus(id ? id.slice(2) : null);
+  }, []);
+
+  const comps = useMemo(() => data?.competitors ?? [], [data]);
+  const entries = useMemo(() => data?.entries ?? [], [data]);
+  const total = entries.length;
+  const max = comps.reduce((m, c) => Math.max(m, c.count), 0);
+  const byName = useMemo(() => new Map(comps.map((c) => [c.name, c])), [comps]);
+
+  // A competitor no longer named by any entry falls back to all.
+  useEffect(() => {
+    if (data && selected && !byName.has(selected)) set({ c: null }, false);
+  }, [data, selected, byName, set]);
+
+  const named = useCallback((e: CompetitorEntry, name: string) => e.competitors.includes(name), []);
+  const ofComp = useMemo(() => {
+    const m = new Map<string, CompetitorEntry[]>();
+    for (const e of entries) for (const c of e.competitors) (m.get(c) ?? m.set(c, []).get(c)!).push(e);
+    return m;
+  }, [entries]);
+
+  // The graph: every competitor, sized exponentially, holding its entries as dots by Impact.
+  const spec: GraphSpec = useMemo(
+    () => ({
+      layout: "competitors",
+      total,
+      hubs: comps.map((c) => {
+        const r = competitorRadius(c.count, max, R_MIN, R_TOP);
+        return {
+          id: hubId(c.name),
+          level: 1,
+          name: c.name,
+          count: c.count,
+          r,
+          colour: HUB_COLOUR,
+          dots: (ofComp.get(c.name) ?? []).map((e) => impactColour(e.impact)),
+          // Named once or twice: too small to label (the name shows on hover).
+          labelScale: r < 2.2 ? 0 : 0.45 + (0.5 * (r - R_MIN)) / (R_TOP - R_MIN),
+        };
+      }),
+      ties: (data?.pairs ?? []).map((p) => ({ a: hubId(p.a), b: hubId(p.b), weight: p.count })),
+      open: selected ? hubId(selected) : null,
+      selected: selected ? hubId(selected) : null,
+      orbit: selected ? { hub: hubId(selected), entries: (ofComp.get(selected) ?? []).map((e) => ({ id: e.id, title: e.title, date: e.date, colour: impactColour(e.impact) })) } : null,
+    }),
+    [comps, max, ofComp, data, selected, total],
+  );
+
+  // Panel: what the view zoomed in on, else the selection.
+  const panelName = focus && focus !== selected ? focus : selected;
+  const panelComp = panelName ? byName.get(panelName) : undefined;
+  const panel: PanelNode | null = panelComp ? { level: "competitor", name: panelComp.name, parent: null, count: panelComp.count, colour: HUB_COLOUR, summary: panelComp.summary, children: 0 } : null;
+  const panelFocused = !!panel && panel.name !== selected;
+
+  // Timeline: the selected competitor's entries (or every entry naming one), by Impact or by Macrotrend.
+  const shownEntries = useMemo(() => (selected ? entries.filter((e) => named(e, selected)) : entries), [entries, selected, named]);
+  const macroColour = useMemo(() => {
+    const n = new Map<string, number>();
+    for (const e of entries) if (e.macrotrend) n.set(e.macrotrend, (n.get(e.macrotrend) ?? 0) + 1);
+    return colourMap([...n.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([k]) => k));
+  }, [entries]);
+  const groupOf = useCallback((e: CompetitorEntry) => (colourBy === "impact" ? (e.impact ?? "No Impact") : e.macrotrend || "No Macrotrend"), [colourBy]);
+  const colourOf = useCallback((e: CompetitorEntry) => (colourBy === "impact" ? impactColour(e.impact) : (macroColour.get(e.macrotrend) ?? NEUTRAL)), [colourBy, macroColour]);
+  const items = useMemo(
+    () => shownEntries.filter((e) => !only || groupOf(e) === only).map((e) => ({ entry: e, colour: colourOf(e), group: groupOf(e) })),
+    [shownEntries, only, groupOf, colourOf],
+  );
+  const legend: LegendItem[] = useMemo(() => {
+    const n = new Map<string, number>();
+    for (const e of shownEntries) n.set(groupOf(e), (n.get(groupOf(e)) ?? 0) + 1);
+    const names = colourBy === "impact" ? impactOrder(shownEntries.map((e) => e.impact)) : [...macroColour.keys()].filter((k) => n.has(k)).concat(n.has("No Macrotrend") ? ["No Macrotrend"] : []);
+    return names.map((name) => ({ name, colour: colourBy === "impact" ? impactColour(name === "No Impact" ? null : name) : (macroColour.get(name) ?? NEUTRAL), count: n.get(name) ?? 0 }));
+  }, [shownEntries, colourBy, groupOf, macroColour]);
+
+  const openIndex = openId ? items.findIndex((i) => i.entry.id === openId) : -1;
+  // An entry opened from the graph may be outside the timeline's legend filter.
+  const elsewhere = openId && openIndex < 0 ? entries.find((x) => x.id === openId) : undefined;
+  const openEntry = openIndex >= 0 ? items[openIndex] : elsewhere ? { entry: elsewhere, colour: colourOf(elsewhere) } : undefined;
+  const closeSheet = useCallback(() => set({ e: null }, false), [set]);
+  const step = (dir: -1 | 1) => {
+    const next = items[openIndex + dir];
+    if (next) set({ e: next.entry.id }, false);
+  };
+
+  const list = useMemo(() => {
+    const t = find.trim().toLowerCase();
+    return t ? comps.filter((c) => c.name.toLowerCase().includes(t)) : comps;
+  }, [comps, find]);
+
+  const crumbs = (
+    <nav className="mg-crumbs" aria-label="Graph level">
+      <button onClick={() => select(null)} aria-current={!selected ? "page" : undefined}>
+        All competitors
+      </button>
+      {selected && (
+        <>
+          <span aria-hidden="true">›</span>
+          <span className="here" aria-current="page">
+            {selected}
+          </span>
+        </>
+      )}
+    </nav>
+  );
+
+  return (
+    <GraphShell
+      storageKey="competitors"
+      stageLabel="Competitors knowledge graph"
+      spec={spec}
+      graph={{ onHub: (id) => select(id.slice(2) === selected ? null : id.slice(2)), onCore: () => select(null), onFocus: onFocusHub, onEntry: (id) => set({ e: id }, false) }}
+      crumbs={crumbs}
+      panel={
+        <SummaryPanel
+          node={panel}
+          intro={{
+            title: "Competitors",
+            count: `${plural(total, "Tracker entry", "Tracker entries")} · ${plural(comps.length, "competitor")}`,
+            text: "Each sphere is a competitor, growing with the number of Tracker entries that name it, with those entries inside coloured by Impact. Competitors named together sit close together. Select one to read what it is doing and why it matters.",
+          }}
+          canEdit={can(me.role, "item:edit")}
+          aiConnected={!!data?.aiConnected}
+          focused={panelFocused}
+          exploreLabel={panel ? `Show ${panel.name}’s entries` : null}
+          onExplore={() => panel && select(panel.name)}
+          invalidate="competitors"
+        />
+      }
+      railTitle="Competitors"
+      railNoun="competitor list"
+      rail={
+        <>
+          <label className="sr-only" htmlFor="mg-find">
+            Find a competitor
+          </label>
+          <input id="mg-find" className="mg-find" type="search" placeholder="Find a competitor…" value={find} onChange={(e) => setFind(e.target.value)} />
+          {q.isLoading && <p className="mg-hint">Loading…</p>}
+          {q.isError && (
+            <p className="mg-err" role="alert">
+              Could not load the Competitors.
+            </p>
+          )}
+          {data && !comps.length && <p className="mg-hint">No Tracker entries name a competitor yet.</p>}
+          {data && comps.length > 0 && !list.length && <p className="mg-hint">No competitor matches “{find}”.</p>}
+          <ul aria-labelledby="competitors-rail-title" data-testid="mg-competitors">
+            {list.map((c) => {
+              const on = selected === c.name;
+              return (
+                <li key={c.name}>
+                  <button className={on ? "on" : undefined} aria-pressed={on} onClick={() => select(on ? null : c.name)}>
+                    <span className="dot" style={{ background: HUB_COLOUR, transform: `scale(${0.55 + (0.45 * competitorRadius(c.count, max, R_MIN, R_TOP)) / R_TOP})` }} aria-hidden="true" />
+                    <span className="nm">{c.name}</span>
+                    <span className="ct">{c.count}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      }
+      drawerOpen={!!openEntry}
+      drawer={<EntrySheet entry={openEntry?.entry ?? null} colour={openEntry?.colour ?? NEUTRAL} position={openIndex >= 0 ? { index: openIndex, total: items.length } : null} onClose={closeSheet} onStep={step} />}
+      timeline={
+        <Timeline
+          items={items}
+          legend={legend}
+          title="Timeline"
+          subtitle={`${plural(items.length, "entry", "entries")}${selected ? ` naming ${selected}` : " naming a competitor"} · coloured by ${colourBy === "impact" ? "Impact" : "Macrotrend"}${only ? ` · ${only} only` : ""}${data?.truncated ? " · most recent shown" : ""}`}
+          tools={
+            <div className="mg-seg sm" role="group" aria-label="Colour the timeline by">
+              {(["impact", "macro"] as const).map((k) => (
+                <button
+                  key={k}
+                  aria-pressed={colourBy === k}
+                  onClick={() => {
+                    setColourBy(k);
+                    setOnly(null);
+                  }}
+                >
+                  {k === "impact" ? "Impact" : "Macrotrend"}
+                </button>
+              ))}
+            </div>
+          }
+          from={null}
+          to={null}
+          openId={openEntry ? openId : null}
+          activeLegend={only}
+          onOpen={(id) => set({ e: openId === id ? null : id }, false)}
+          onLegend={(name) => setOnly((cur) => (cur === name ? null : name))}
+        />
+      }
+    />
+  );
+}

@@ -704,3 +704,9 @@ a.link-btn { text-decoration: none; }
 .inbox-tabs-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .type-switch { justify-self: start; border: 1px dashed var(--border-input); background: none; border-radius: 6px; padding: 2px 8px; font: inherit; font-size: 12.5px; color: var(--muted); cursor: pointer; white-space: nowrap; }
 .type-switch:hover { color: var(--ink); border-color: var(--focus); background: var(--tint); }
+/* A chosen file can be removed before it is sent. */
+.drop-wrap { position: relative; display: flex; min-width: 0; }
+.drop-wrap > .drop { flex: 1 1 auto; }
+.drop-remove { position: absolute; top: 8px; right: 8px; height: 26px; padding: 0 10px; border-radius: 6px; border: 1px solid #e3c9c6; background: #fff; color: var(--error); font: 700 12px var(--sans); cursor: pointer; }
+.drop-remove:hover:not(:disabled) { background: #f7e3e1; border-color: var(--high); }
+.drop-remove:disabled { opacity: 0.5; cursor: default; }

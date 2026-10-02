@@ -9,6 +9,8 @@
 import {
   FIELDS,
   defaultSummary,
+  type CompetitorEntry,
+  type Competitors,
   type MegatrendEntry,
   type Megatrends,
   type Stream,
@@ -204,12 +206,136 @@ function upsert(
 /** A date `days` before `today` (YYYY-MM-DD). */
 export const daysBefore = (today: string, days: number) => new Date(Date.parse(`${today}T00:00:00Z`) - days * 86_400_000).toISOString().slice(0, 10);
 
+// ---------------------------------------------------------------------------
+// Competitors (contract 1.14)
+// ---------------------------------------------------------------------------
+
+/** Same entries as the Tracker (approved, not deleted, not deleted from the Tracker only). */
+const TRACKER = "i.tenant_id = ?1 AND i.status = 'approved' AND i.deleted_at IS NULL AND i.tracker_hidden_at IS NULL";
+
 /**
- * Write a summary with the AI writer from the trend's entries of the last
- * `summaryDays` days (Settings → Megatrends). Both trackers are read.
+ * Entries per competitor named, pairs of competitors named by the same
+ * entries (they sit close together in the graph), each competitor's summary
+ * (stored, else the default) and the entries for the timeline.
+ */
+export async function competitors(env: Env, tenantId: string, stream: Stream | "all", aiConnected: boolean): Promise<Competitors> {
+  const sw = stream === "all" ? "" : " AND i.stream = ?2";
+  const binds = stream === "all" ? [tenantId] : [tenantId, stream];
+  const [counts, pairs, rows, sums] = await env.DB.batch([
+    env.DB.prepare(
+      `SELECT c.competitor AS name, COUNT(*) AS n FROM item_competitors c JOIN intelligence_items i ON i.id = c.item_id WHERE ${TRACKER}${sw} GROUP BY c.competitor ORDER BY n DESC, c.competitor`,
+    ).bind(...binds),
+    env.DB.prepare(
+      `SELECT a.competitor AS a, b.competitor AS b, COUNT(*) AS n FROM item_competitors a JOIN item_competitors b ON b.item_id = a.item_id AND a.competitor < b.competitor
+         JOIN intelligence_items i ON i.id = a.item_id WHERE ${TRACKER}${sw} GROUP BY a.competitor, b.competitor`,
+    ).bind(...binds),
+    env.DB.prepare(
+      `SELECT i.id, i.signal_code, i.record_id, i.stream, i.pub_date, i.title, i.macrotrend, i.subtrend, i.impact,
+              (SELECT group_concat(c.competitor, '') FROM item_competitors c WHERE c.item_id = i.id) AS comps
+         FROM intelligence_items i WHERE ${TRACKER}${sw} AND EXISTS (SELECT 1 FROM item_competitors c WHERE c.item_id = i.id)
+        ORDER BY i.pub_date DESC, i.signal_code DESC LIMIT ${MEGATRENDS_MAX_ENTRIES + 1}`,
+    ).bind(...binds),
+    env.DB.prepare(`${SUMMARY_SELECT} AND s.level = 'competitor'`).bind(tenantId),
+  ]);
+  const stored = new Map(((sums?.results ?? []) as unknown as SummaryRow[]).map((r) => [r.name, r]));
+  const list = (rows?.results ?? []) as {
+    id: string;
+    signal_code: string;
+    record_id: string | null;
+    stream: Stream;
+    pub_date: string;
+    title: string | null;
+    macrotrend: string | null;
+    subtrend: string | null;
+    impact: string | null;
+    comps: string | null;
+  }[];
+  const truncated = list.length > MEGATRENDS_MAX_ENTRIES;
+  const entries: CompetitorEntry[] = list
+    .slice(0, MEGATRENDS_MAX_ENTRIES)
+    .reverse()
+    .map((r) => ({
+      id: r.id,
+      code: r.signal_code,
+      recordId: r.record_id,
+      stream: r.stream,
+      date: r.pub_date,
+      title: r.title ?? "",
+      macrotrend: r.macrotrend ?? "",
+      subtrend: r.subtrend || null,
+      impact: r.impact,
+      competitors: r.comps ? r.comps.split("").sort() : [],
+    }));
+  return {
+    aiConnected,
+    competitors: ((counts?.results ?? []) as { name: string; n: number }[]).map((r) => {
+      const row = stored.get(r.name);
+      return { name: r.name, count: r.n, summary: row ? toSummary(row) : fallback("competitor", r.name) };
+    }),
+    pairs: ((pairs?.results ?? []) as { a: string; b: string; n: number }[]).map((r) => ({ a: r.a, b: r.b, count: r.n })),
+    entries,
+    truncated,
+  };
+}
+
+const IMPACT_WEIGHT: Record<string, number> = { high: 3, medium: 2, low: 1 };
+
+/**
+ * How much a competitor's entry should weigh in its AI summary: Impact
+ * (High 3, Medium 2, Low 1) times a recency factor that halves every
+ * `halfLifeDays` but never drops below 0.35, so an older High-impact entry
+ * still outranks a recent Low-impact one.
+ */
+export function competitorEntryScore(impact: string | null, date: string, today: string, halfLifeDays: number): number {
+  const w = IMPACT_WEIGHT[(impact ?? "").trim().toLowerCase()] ?? 1.5;
+  const age = Math.max(0, (Date.parse(`${today}T00:00:00Z`) - Date.parse(`${date}T00:00:00Z`)) / 86_400_000);
+  return w * (0.35 + 0.65 * Math.pow(0.5, age / Math.max(1, halfLifeDays)));
+}
+
+/** The competitor's entries the AI writer reads: the highest-scoring ones, oldest first. */
+async function competitorSummaryEntries(env: Env, tenantId: string, name: string, today: string, halfLifeDays: number): Promise<SummaryEntry[]> {
+  const res = await env.DB.prepare(
+    `SELECT i.pub_date, i.title, i.impact, json_extract(i.extra_json, ?3) AS details, json_extract(i.extra_json, ?4) AS ci,
+            (SELECT group_concat(o.competitor, '') FROM item_competitors o WHERE o.item_id = i.id) AS competitors
+       FROM intelligence_items i JOIN item_competitors c ON c.item_id = i.id AND c.competitor = ?2
+      WHERE ${TRACKER} ORDER BY i.pub_date DESC, i.signal_code DESC LIMIT 400`,
+  )
+    .bind(tenantId, name, jsonPath(FIELDS.keyDetails), jsonPath(FIELDS.ciPerspective))
+    .all<{ pub_date: string; title: string | null; impact: string | null; details: string | null; ci: string | null; competitors: string | null }>();
+  const cut = (t: string | null) => (t ? (t.length > DETAILS_CHARS ? `${t.slice(0, DETAILS_CHARS - 1)}…` : t) : null);
+  return (res.results ?? [])
+    .map((r) => ({ r, score: competitorEntryScore(r.impact, r.pub_date, today, halfLifeDays) }))
+    .sort((a, b) => b.score - a.score || b.r.pub_date.localeCompare(a.r.pub_date))
+    .slice(0, SUMMARY_MAX_ENTRIES)
+    .map(({ r }) => r)
+    .sort((a, b) => a.pub_date.localeCompare(b.pub_date))
+    .map((r) => {
+      const details = cut(r.details);
+      const ci = cut(r.ci);
+      return {
+        date: r.pub_date,
+        title: r.title ?? "",
+        ...(r.impact ? { impact: r.impact } : {}),
+        ...(r.competitors ? { competitors: r.competitors.split("") } : {}),
+        ...(details ? { details } : {}),
+        ...(ci ? { ciPerspective: ci } : {}),
+      };
+    });
+}
+
+/**
+ * Write a summary with the AI writer. Trends: from the entries of the last
+ * `summaryDays` days (Settings → Megatrends). Competitors: from its
+ * highest-scoring entries (high-impact and recent first; `summaryDays` is the
+ * recency half-life). Both trackers are read.
  */
 export async function generateSummary(env: Env, p: Principal, b: { level: TrendLevel; name: string; parent?: string }, today: string): Promise<TrendSummary> {
   const { megatrends: cfg } = await loadSettings(env, p.tenantId);
+  if (b.level === "competitor") {
+    const entries = await competitorSummaryEntries(env, p.tenantId, b.name, today, cfg.summaryDays);
+    if (!entries.length) throw new ApiError("CONFLICT", `No Tracker entries name ${b.name} yet, so there is nothing to summarise.`);
+    return writeAi(env, p, b, cfg, entries);
+  }
   const since = daysBefore(today, cfg.summaryDays);
   const col = b.level === "macro" ? "i.macrotrend" : "i.subtrend";
   const parentSql = b.level === "sub" && b.parent ? " AND i.macrotrend = ?4" : "";
@@ -230,7 +356,16 @@ export async function generateSummary(env: Env, p: Principal, b: { level: TrendL
     ...(r.competitors ? { competitors: r.competitors.split("\u001f") } : {}),
     ...(r.details ? { details: r.details.length > DETAILS_CHARS ? `${r.details.slice(0, DETAILS_CHARS - 1)}…` : r.details } : {}),
   }));
+  return writeAi(env, p, b, cfg, entries);
+}
 
+async function writeAi(
+  env: Env,
+  p: Principal,
+  b: { level: TrendLevel; name: string; parent?: string },
+  cfg: { summaryDays: number; summarySentences: number; perspective: string; model: string },
+  entries: SummaryEntry[],
+): Promise<TrendSummary> {
   let result;
   try {
     const llm = createLlmProvider({ provider: env.LLM_PROVIDER, apiKey: env.ANTHROPIC_API_KEY, timeoutMs: 60_000 });

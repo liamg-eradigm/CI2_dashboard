@@ -1,37 +1,36 @@
 /**
  * Megatrends: a 3D knowledge graph of the Tracker entries (Macrotrends →
  * Subtrends → entries) in a field of stars, the summary of the trend in view,
- * and a timeline of the entries below. Opening a timeline entry slides its
- * Tracker row up from the bottom; the timeline stays in view above it.
+ * and a timeline of the entries below. Opening an entry slides its Tracker
+ * row in from the right.
  *
  * State lives in the URL (m = Macrotrend, s = Subtrend, e = open entry), so
  * Back steps out and views can be shared. The page shows both trackers and
  * all dates, with no filter bar, so the graph and timeline get the space.
  */
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { can, type Me } from "@eradigm/shared";
+import { can, type MegatrendEntry, type Me } from "@eradigm/shared";
 import { useMegatrends } from "../api/hooks";
 import { EntrySheet } from "../components/megatrends/EntrySheet";
-import { paletteOf, plural, timelineEntries, NEUTRAL, type Selection } from "../components/megatrends/model";
+import { GraphShell } from "../components/megatrends/GraphShell";
+import type { GraphSpec } from "../components/megatrends/Graph3D";
+import { impactColour, impactOrder, paletteOf, plural, timelineEntries, NEUTRAL, type Selection } from "../components/megatrends/model";
 import { SummaryPanel, type PanelNode } from "../components/megatrends/SummaryPanel";
 import { Timeline, type LegendItem } from "../components/megatrends/Timeline";
-import type { Focus } from "../components/megatrends/Graph3D";
 import "../styles/megatrends.css";
 
-const Graph3D = lazy(() => import("../components/megatrends/Graph3D").then((m) => ({ default: m.Graph3D })));
-
-function useReducedMotion() {
-  const q = typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(prefers-reduced-motion: reduce)") : null;
-  const [r, setR] = useState(!!q?.matches);
-  useEffect(() => {
-    if (!q) return;
-    const f = () => setR(q.matches);
-    q.addEventListener("change", f);
-    return () => q.removeEventListener("change", f);
-  }, [q]);
-  return r;
+interface Focus {
+  macro: string;
+  sub: string | null;
 }
+
+const SEP = "\u001f";
+const macroId = (m: string) => `m:${m}`;
+const subId = (m: string, s: string) => `s:${m}${SEP}${s}`;
+/** Hub sizes: Macrotrends and Subtrends by the square root of their entries. */
+const macroR = (n: number) => Math.min(26, 5 + 2.6 * Math.sqrt(n));
+const subR = (n: number) => Math.min(15, 3 + 1.9 * Math.sqrt(n));
 
 export function MegatrendsPage({ me }: { me: Me }) {
   const [params, setParams] = useSearchParams();
@@ -42,10 +41,6 @@ export function MegatrendsPage({ me }: { me: Me }) {
   const data = q.data;
   const sel: Selection = useMemo(() => ({ macro: params.get("m"), sub: params.get("m") ? params.get("s") : null }), [params]);
   const openId = params.get("e");
-  const reducedMotion = useReducedMotion();
-  const [noGl, setNoGl] = useState(false);
-  // The Macrotrend list can be minimised (remembered per browser).
-  const [railOpen, setRailOpen] = useStoredFlag("eradigm.megatrends.rail", true);
   // Timeline colours: by Macrotrend / Subtrend, or by Impact (with an Impact filter from its legend).
   const [colourBy, setColourBy] = useState<"trend" | "impact">("trend");
   const [impactOnly, setImpactOnly] = useState<string | null>(null);
@@ -76,9 +71,12 @@ export function MegatrendsPage({ me }: { me: Me }) {
     },
     [set],
   );
-  const onFocus = useCallback((f: Focus | null) => {
+  const onFocusHub = useCallback((id: string | null) => {
     if (Date.now() - flying.current < 1700) return;
-    setFocus(f);
+    if (!id) return setFocus(null);
+    if (id.startsWith("m:")) return setFocus({ macro: id.slice(2), sub: null });
+    const [m = "", s = ""] = id.slice(2).split(SEP);
+    setFocus({ macro: m, sub: s });
   }, []);
 
   const macros = useMemo(() => data?.macrotrends ?? [], [data]);
@@ -148,6 +146,59 @@ export function MegatrendsPage({ me }: { me: Me }) {
     if (next) set({ e: next.entry.id }, false);
   };
 
+  // The graph: Macrotrends (and the open one's Subtrends), each holding its entries as dots by Impact.
+  const spec: GraphSpec = useMemo(() => {
+    const dotsOf = (list: MegatrendEntry[]) => list.map((e) => impactColour(e.impact));
+    const hubs: GraphSpec["hubs"] = [];
+    for (const m of macros) {
+      if (m.count < 1) continue;
+      const own = entries.filter((e) => e.macrotrend === m.name);
+      hubs.push({ id: macroId(m.name), level: 1, name: m.name, count: m.count, r: macroR(m.count), colour: palette.macro.get(m.name) ?? NEUTRAL, dots: dotsOf(own), labelScale: 0.9 });
+      if (sel.macro !== m.name) continue;
+      for (const s of m.subtrends) {
+        if (s.count < 1) continue;
+        hubs.push({
+          id: subId(m.name, s.name),
+          level: 2,
+          parent: macroId(m.name),
+          name: s.name,
+          count: s.count,
+          r: subR(s.count),
+          colour: palette.sub.get(m.name)?.get(s.name) ?? NEUTRAL,
+          dots: dotsOf(own.filter((e) => e.subtrend === s.name)),
+          labelScale: 0.62,
+        });
+      }
+    }
+    const orbit =
+      sel.macro && sel.sub
+        ? {
+            hub: subId(sel.macro, sel.sub),
+            entries: entries.filter((e) => e.macrotrend === sel.macro && e.subtrend === sel.sub).map((e) => ({ id: e.id, title: e.title, date: e.date, colour: impactColour(e.impact) })),
+          }
+        : null;
+    return {
+      layout: "trends",
+      total,
+      hubs,
+      ties: [],
+      open: sel.macro ? macroId(sel.macro) : null,
+      selected: sel.macro ? (sel.sub ? subId(sel.macro, sel.sub) : macroId(sel.macro)) : null,
+      orbit,
+    };
+  }, [macros, entries, palette, sel, total]);
+  const onHub = useCallback(
+    (id: string) => {
+      if (id.startsWith("m:")) {
+        const m = id.slice(2);
+        return select(sel.macro === m && !sel.sub ? { macro: null, sub: null } : { macro: m, sub: null });
+      }
+      const [m = "", s = ""] = id.slice(2).split(SEP);
+      select(sel.sub === s ? { macro: m, sub: null } : { macro: m, sub: s });
+    },
+    [select, sel],
+  );
+
   const crumbs = (
     <nav className="mg-crumbs" aria-label="Graph level">
       <button onClick={() => select({ macro: null, sub: null })} aria-current={!sel.macro ? "page" : undefined}>
@@ -173,167 +224,109 @@ export function MegatrendsPage({ me }: { me: Me }) {
   );
 
   return (
-    <div className={`mg-page${openItem ? " sheet-open" : ""}`} data-testid="megatrends">
-      <section className="mg-stage" aria-label="Megatrends knowledge graph">
-        {!noGl && (
-          <Suspense fallback={<div className="mg-loading">Loading the knowledge graph…</div>}>
-            <Graph3D
-              macros={macros}
-              entries={entries}
-              palette={palette}
-              sel={sel}
-              total={total}
-              reducedMotion={reducedMotion}
-              onSelect={select}
-              onFocus={onFocus}
-              onEntry={(id) => set({ e: id }, false)}
-              onUnavailable={() => setNoGl(true)}
-            />
-          </Suspense>
-        )}
-        {noGl && <p className="mg-nogl">The 3D view needs WebGL, which is switched off in this browser. The list, summaries and timeline below still work.</p>}
-        {crumbs}
-        <div className="mg-side">
-          <SummaryPanel
-            node={panel}
-            total={total}
-            macros={visible.length}
-            canEdit={can(me.role, "item:edit")}
-            aiConnected={!!data?.aiConnected}
-            focused={panelFocused}
-            onExplore={() => panel && select({ macro: panel.parent ?? panel.name, sub: panel.level === "sub" ? panel.name : null })}
-          />
-          {!railOpen && (
-            <button className="mg-rail-open" onClick={() => setRailOpen(true)} aria-expanded={false} aria-controls="mg-rail" data-testid="mg-rail-open">
-              ☰ Macrotrends
-            </button>
-          )}
-          <div className="mg-rail" id="mg-rail" hidden={!railOpen}>
-            <div className="mg-rail-head">
-              <h2 className="mg-rail-title" id="mg-rail-title">
-                Macrotrends
-              </h2>
-              <button className="mg-icon sm" onClick={() => setRailOpen(false)} aria-label="Minimise the Macrotrend list" aria-expanded={true} aria-controls="mg-rail" title="Minimise">
-                ‹
-              </button>
-            </div>
-            {q.isLoading && <p className="mg-hint">Loading…</p>}
-            {q.isError && (
-              <p className="mg-err" role="alert">
-                Could not load the Megatrends.
-              </p>
-            )}
-            {data && !visible.length && <p className="mg-hint">No Tracker entries yet.</p>}
-            <ul aria-labelledby="mg-rail-title" data-testid="mg-macros">
-              {visible.map((m) => {
-                const on = sel.macro === m.name;
-                return (
-                  <li key={m.name}>
-                    <button className={on ? "on" : undefined} aria-expanded={on} onClick={() => select(on && !sel.sub ? { macro: null, sub: null } : { macro: m.name, sub: null })}>
-                      <span className="dot" style={{ background: palette.macro.get(m.name) }} aria-hidden="true" />
-                      <span className="nm">{m.name}</span>
-                      <span className="ct">{m.count}</span>
-                    </button>
-                    {on && (
-                      <ul className="mg-subs" aria-label={`Subtrends of ${m.name}`}>
-                        {m.subtrends
-                          .filter((s) => s.count > 0)
-                          .map((s) => (
-                            <li key={s.name}>
-                              <button className={sel.sub === s.name ? "on" : undefined} aria-pressed={sel.sub === s.name} onClick={() => select({ macro: m.name, sub: sel.sub === s.name ? null : s.name })}>
-                                <span className="dot" style={{ background: palette.sub.get(m.name)?.get(s.name) }} aria-hidden="true" />
-                                <span className="nm">{s.name}</span>
-                                <span className="ct">{s.count}</span>
-                              </button>
-                            </li>
-                          ))}
-                      </ul>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        </div>
-      </section>
-
-      <Timeline
-        items={items}
-        legend={legend}
-        title="Timeline"
-        subtitle={`${plural(items.length, "entry", "entries")}${sel.sub ? ` in ${sel.sub}` : sel.macro ? ` in ${sel.macro}` : ""} · coloured by ${colourBy === "impact" ? "Impact" : sel.macro ? "Subtrend" : "Macrotrend"}${impactOnly && colourBy === "impact" ? ` · ${impactOnly} only` : ""}${data?.truncated ? " · most recent shown" : ""}`}
-        tools={
-          <div className="mg-seg sm" role="group" aria-label="Colour the timeline by">
-            {(["trend", "impact"] as const).map((k) => (
-              <button
-                key={k}
-                aria-pressed={colourBy === k}
-                onClick={() => {
-                  setColourBy(k);
-                  setImpactOnly(null);
-                }}
-              >
-                {k === "trend" ? (sel.macro ? "Subtrend" : "Macrotrend") : "Impact"}
-              </button>
-            ))}
-          </div>
-        }
-        from={from}
-        to={to}
-        openId={openItem ? openId : null}
-        activeLegend={colourBy === "impact" ? impactOnly : sel.macro ? sel.sub : null}
-        onOpen={(id) => set({ e: openId === id ? null : id }, false)}
-        onLegend={(name) =>
-          colourBy === "impact"
-            ? setImpactOnly((cur) => (cur === name ? null : name))
-            : sel.macro
-              ? name === "No Subtrend"
-                ? undefined
-                : select({ macro: sel.macro, sub: sel.sub === name ? null : name })
-              : select({ macro: name, sub: null })
-        }
-      />
-
-      <EntrySheet entry={openItem?.entry ?? null} colour={openItem?.colour ?? NEUTRAL} position={openIndex >= 0 ? { index: openIndex, total: items.length } : null} onClose={closeSheet} onStep={step} />
-    </div>
-  );
-}
-
-/** Impact colours on the dark surface (with their names in the legend and tooltips, never colour alone). */
-const IMPACT_COLOURS: Record<string, string> = { low: "#3fb37f", medium: "#e8a33d", high: "#e5534b" };
-function impactColour(impact: string | null): string {
-  return IMPACT_COLOURS[(impact ?? "").trim().toLowerCase()] ?? NEUTRAL;
-}
-/** Impacts present, Low → High first, then any others A → Z, then entries without one. */
-function impactOrder(values: (string | null)[]): string[] {
-  const rank = (v: string) => ["low", "medium", "high"].indexOf(v.toLowerCase());
-  const named = [...new Set(values.filter((v): v is string => !!v))].sort((a, b) => {
-    const ra = rank(a);
-    const rb = rank(b);
-    return ra >= 0 && rb >= 0 ? ra - rb : ra >= 0 ? -1 : rb >= 0 ? 1 : a.localeCompare(b);
-  });
-  return values.some((v) => !v) ? [...named, "No Impact"] : named;
-}
-
-/** A boolean kept in this browser (falls back to memory when storage is unavailable). */
-function useStoredFlag(key: string, initial: boolean): [boolean, (v: boolean) => void] {
-  const [v, setV] = useState(() => {
-    try {
-      const s = localStorage.getItem(key);
-      return s == null ? initial : s === "1";
-    } catch {
-      return initial;
-    }
-  });
-  return [
-    v,
-    (next: boolean) => {
-      setV(next);
-      try {
-        localStorage.setItem(key, next ? "1" : "0");
-      } catch {
-        /* not remembered */
+    <GraphShell
+      storageKey="megatrends"
+      stageLabel="Megatrends knowledge graph"
+      spec={spec}
+      graph={{ onHub, onCore: () => select({ macro: null, sub: null }), onFocus: onFocusHub, onEntry: (id) => set({ e: id }, false) }}
+      crumbs={crumbs}
+      panel={
+        <SummaryPanel
+          node={panel}
+          intro={{
+            title: "Megatrends",
+            count: `${plural(total, "Tracker entry", "Tracker entries")} · ${plural(visible.length, "macrotrend")}`,
+            text: "Each sphere is a Macrotrend, sized by its number of Tracker entries, with its entries inside coloured by Impact. Select one to read what is happening in that space, and to reveal its Subtrends.",
+          }}
+          canEdit={can(me.role, "item:edit")}
+          aiConnected={!!data?.aiConnected}
+          focused={panelFocused}
+          exploreLabel={panel?.level === "macro" ? "Explore subtrends" : null}
+          onExplore={() => panel && select({ macro: panel.parent ?? panel.name, sub: panel.level === "sub" ? panel.name : null })}
+        />
       }
-    },
-  ];
+      railTitle="Macrotrends"
+      railNoun="Macrotrend list"
+      rail={
+        <>
+          {q.isLoading && <p className="mg-hint">Loading…</p>}
+          {q.isError && (
+            <p className="mg-err" role="alert">
+              Could not load the Megatrends.
+            </p>
+          )}
+          {data && !visible.length && <p className="mg-hint">No Tracker entries yet.</p>}
+          <ul aria-labelledby="megatrends-rail-title" data-testid="mg-macros">
+            {visible.map((m) => {
+              const on = sel.macro === m.name;
+              return (
+                <li key={m.name}>
+                  <button className={on ? "on" : undefined} aria-expanded={on} onClick={() => select(on && !sel.sub ? { macro: null, sub: null } : { macro: m.name, sub: null })}>
+                    <span className="dot" style={{ background: palette.macro.get(m.name) }} aria-hidden="true" />
+                    <span className="nm">{m.name}</span>
+                    <span className="ct">{m.count}</span>
+                  </button>
+                  {on && (
+                    <ul className="mg-subs" aria-label={`Subtrends of ${m.name}`}>
+                      {m.subtrends
+                        .filter((s) => s.count > 0)
+                        .map((s) => (
+                          <li key={s.name}>
+                            <button className={sel.sub === s.name ? "on" : undefined} aria-pressed={sel.sub === s.name} onClick={() => select({ macro: m.name, sub: sel.sub === s.name ? null : s.name })}>
+                              <span className="dot" style={{ background: palette.sub.get(m.name)?.get(s.name) }} aria-hidden="true" />
+                              <span className="nm">{s.name}</span>
+                              <span className="ct">{s.count}</span>
+                            </button>
+                          </li>
+                        ))}
+                    </ul>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      }
+      drawerOpen={!!openItem}
+      drawer={<EntrySheet entry={openItem?.entry ?? null} colour={openItem?.colour ?? NEUTRAL} position={openIndex >= 0 ? { index: openIndex, total: items.length } : null} onClose={closeSheet} onStep={step} />}
+      timeline={
+        <Timeline
+          items={items}
+          legend={legend}
+          title="Timeline"
+          subtitle={`${plural(items.length, "entry", "entries")}${sel.sub ? ` in ${sel.sub}` : sel.macro ? ` in ${sel.macro}` : ""} · coloured by ${colourBy === "impact" ? "Impact" : sel.macro ? "Subtrend" : "Macrotrend"}${impactOnly && colourBy === "impact" ? ` · ${impactOnly} only` : ""}${data?.truncated ? " · most recent shown" : ""}`}
+          tools={
+            <div className="mg-seg sm" role="group" aria-label="Colour the timeline by">
+              {(["trend", "impact"] as const).map((k) => (
+                <button
+                  key={k}
+                  aria-pressed={colourBy === k}
+                  onClick={() => {
+                    setColourBy(k);
+                    setImpactOnly(null);
+                  }}
+                >
+                  {k === "trend" ? (sel.macro ? "Subtrend" : "Macrotrend") : "Impact"}
+                </button>
+              ))}
+            </div>
+          }
+          from={from}
+          to={to}
+          openId={openItem ? openId : null}
+          activeLegend={colourBy === "impact" ? impactOnly : sel.macro ? sel.sub : null}
+          onOpen={(id) => set({ e: openId === id ? null : id }, false)}
+          onLegend={(name) =>
+            colourBy === "impact"
+              ? setImpactOnly((cur) => (cur === name ? null : name))
+              : sel.macro
+                ? name === "No Subtrend"
+                  ? undefined
+                  : select({ macro: sel.macro, sub: sel.sub === name ? null : name })
+                : select({ macro: name, sub: null })
+          }
+        />
+      }
+    />
+  );
 }

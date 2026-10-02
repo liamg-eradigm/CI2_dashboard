@@ -365,6 +365,21 @@ export type MegatrendNode = z.infer<typeof MegatrendNodeSchema>;
 export type MegatrendEntry = z.infer<typeof MegatrendEntrySchema>;
 export type Megatrends = z.infer<typeof MegatrendsSchema>;
 
+/** Competitors (contract 1.14): Tracker entries per competitor named, how often competitors appear together, and the entries. */
+export const CompetitorEntrySchema = MegatrendEntrySchema.extend({ competitors: z.array(z.string()) });
+export const CompetitorsSchema = z.object({
+  aiConnected: z.boolean(),
+  /** Competitors named by at least one Tracker entry, most-named first. */
+  competitors: z.array(MegatrendNodeSchema),
+  /** Pairs of competitors named by the same entries (a < b), with how many. */
+  pairs: z.array(z.object({ a: z.string(), b: z.string(), count: z.number().int() })),
+  /** The entries naming a competitor, oldest first (the timeline). */
+  entries: z.array(CompetitorEntrySchema),
+  truncated: z.boolean(),
+});
+export type CompetitorEntry = z.infer<typeof CompetitorEntrySchema>;
+export type Competitors = z.infer<typeof CompetitorsSchema>;
+
 /** One-off spreadsheet import into a tracker: rows keyed by the tracker's column labels, already parsed by the dashboard. */
 export const IMPORT_CHUNK_ROWS = 8;
 export const ImportRequest = z.object({
@@ -728,8 +743,9 @@ export const ENDPOINTS: EndpointDef[] = [
   { method: "post", path: "/api/newsletters", summary: "Create a newsletter (.docx) from selected Newsletter entries", roles: STAFF, request: CreateNewsletterRequest, response: NewsletterSchema },
   { method: "get", path: "/api/deliverables/{id}/docx", summary: "A stored alert or newsletter .docx (inline for the viewer, ?download=1 as a file)", roles: ALL_ROLES },
   { method: "get", path: "/api/megatrends", summary: "Megatrends: Tracker entries per Macrotrend and Subtrend (query: stream all|primary|secondary, from, to), their summaries, and the entries for the timeline", roles: ALL_ROLES, query: ["stream", "from", "to"], response: MegatrendsSchema },
-  { method: "put", path: "/api/megatrends/summaries", summary: "Write a Macrotrend or Subtrend summary by hand (empty text = back to the default)", roles: STAFF, request: UpdateTrendSummaryRequest, response: TrendSummarySchema },
-  { method: "post", path: "/api/megatrends/summaries/generate", summary: "Write a Macrotrend or Subtrend summary with the AI writer from its recent entries (409 while the AI is not connected)", roles: STAFF, request: GenerateTrendSummaryRequest, response: TrendSummarySchema },
+  { method: "get", path: "/api/competitors", summary: "Competitors: Tracker entries per competitor named, co-occurring competitors, their summaries and the entries for the timeline (query: stream all|primary|secondary)", roles: ALL_ROLES, query: ["stream"], response: CompetitorsSchema },
+  { method: "put", path: "/api/megatrends/summaries", summary: "Write a Macrotrend, Subtrend or competitor summary by hand (empty text = back to the default)", roles: STAFF, request: UpdateTrendSummaryRequest, response: TrendSummarySchema },
+  { method: "post", path: "/api/megatrends/summaries/generate", summary: "Write a Macrotrend, Subtrend or competitor summary with the AI writer from its entries (competitors: high-impact and recent first; 409 while the AI is not connected)", roles: STAFF, request: GenerateTrendSummaryRequest, response: TrendSummarySchema },
   { method: "get", path: "/api/signals/{id}/markdown", summary: "Markdown for a tracker entry (text/markdown; ?download=1 for an attachment)", roles: ALL_ROLES, raw: "text/markdown" },
   { method: "put", path: "/api/schema/columns/order", summary: "Change the column order of the Inbox, Tracker or Phantoms table", roles: STAFF, request: ReorderColumnsRequest, response: TrackerSchemaSchema },
   { method: "post", path: "/api/schema/columns/{key}/options", summary: "Add a dropdown option", roles: STAFF, request: AddOptionRequest, response: TrackerSchemaSchema },

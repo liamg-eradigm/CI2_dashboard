@@ -11,6 +11,7 @@ import {
   type ItemDetail,
   type ItemSummary,
   type Me,
+  type Competitors,
   type Megatrends,
   type Newsletter,
   type QualityMetrics,
@@ -71,6 +72,8 @@ export const useMegatrends = (stream: Stream | "all", from: string | null, to: s
     queryFn: () => api<Megatrends>(`/api/megatrends?${new URLSearchParams({ stream, ...(from ? { from } : {}), ...(to ? { to } : {}) })}`),
     placeholderData: keepPreviousData,
   });
+export const useCompetitors = () =>
+  useQuery({ queryKey: ["competitors"], queryFn: () => api<Competitors>("/api/competitors?stream=all"), placeholderData: keepPreviousData });
 export const useNewsletters = (enabled = true) => useQuery({ queryKey: ["newsletters"], queryFn: () => api<Newsletter[]>("/api/newsletters"), enabled });
 
 /** The Phantoms Markdown of an entry (text). */
@@ -127,7 +130,7 @@ export const runTrend = (cfg: TrendConfig) => api<TrendResult & { counts: { curr
 /** Invalidate everything derived from published signals or the schema. */
 export function useInvalidate() {
   const qc = useQueryClient();
-  return (...keys: string[]) => Promise.all((keys.length ? keys : ["dashboard", "tracker", "items", "item", "signal", "schema", "counts", "megatrends", "bounds", "client-inbox", "comments"]).map((k) => qc.invalidateQueries({ queryKey: [k] })));
+  return (...keys: string[]) => Promise.all((keys.length ? keys : ["dashboard", "tracker", "items", "item", "signal", "schema", "counts", "megatrends", "competitors", "bounds", "client-inbox", "comments"]).map((k) => qc.invalidateQueries({ queryKey: [k] })));
 }
 
 export function useApiMutation<TVars, TRes>(fn: (v: TVars) => Promise<TRes>, invalidate: string[] = []) {

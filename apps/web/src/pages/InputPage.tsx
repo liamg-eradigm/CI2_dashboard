@@ -127,13 +127,30 @@ function SourceCard({
         />
       </div>
       <div className="source-row">
-        <label className={`drop${dragging ? " over" : ""}`} data-testid="drop-zone-html">
-          <input ref={fileRef} type="file" accept=".html,.htm,text/html" className="sr-only" onChange={(e) => pick(e.target.files?.[0] ?? null)} aria-describedby={err ? `${id}-err` : `${id}-note`} aria-label={`${title}: HTML file`} />
-          <span style={{ fontSize: 14, fontWeight: 700, color: "var(--navy-700)" }}>{dragging ? "Drop the HTML file here" : file ? file.name : "Drag and drop an HTML file here, or click to choose"}</span>
-          <span style={{ fontSize: 12, color: "var(--muted)" }} id={`${id}-note`}>
-            {file ? `${Math.round(file.size / 1024)} KB` : `.html or .htm up to ${CAPTURE_LIMITS.maxBytes / 1048576} MB · save pages with SingleFile`}
-          </span>
-        </label>
+        <div className="drop-wrap">
+          <label className={`drop${dragging ? " over" : ""}`} data-testid="drop-zone-html">
+            <input ref={fileRef} type="file" accept=".html,.htm,text/html" className="sr-only" onChange={(e) => pick(e.target.files?.[0] ?? null)} aria-describedby={err ? `${id}-err` : `${id}-note`} aria-label={`${title}: HTML file`} />
+            <span style={{ fontSize: 14, fontWeight: 700, color: "var(--navy-700)" }}>{dragging ? "Drop the HTML file here" : file ? file.name : "Drag and drop an HTML file here, or click to choose"}</span>
+            <span style={{ fontSize: 12, color: "var(--muted)" }} id={`${id}-note`}>
+              {file ? `${Math.round(file.size / 1024)} KB` : `.html or .htm up to ${CAPTURE_LIMITS.maxBytes / 1048576} MB · save pages with SingleFile`}
+            </span>
+          </label>
+          {file && (
+            <button
+              type="button"
+              className="drop-remove"
+              disabled={!!busy}
+              aria-label={`Remove ${file.name}`}
+              title="Remove this file"
+              onClick={() => {
+                pick(null);
+                if (fileRef.current) fileRef.current.value = "";
+              }}
+            >
+              ✕ Remove
+            </button>
+          )}
+        </div>
         <button className="btn lg" onClick={submit} disabled={!!busy} aria-label={`Process file for ${title}`}>
           {busy === "file" ? "Uploading…" : "Process file"}
         </button>
