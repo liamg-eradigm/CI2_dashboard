@@ -10,6 +10,7 @@ import {
   FIELDS,
   defaultSummary,
   isPlaceholderCompetitor,
+  tierOf,
   type CompetitorEntry,
   type Competitors,
   type MegatrendEntry,
@@ -220,6 +221,7 @@ const TRACKER = "i.tenant_id = ?1 AND i.status = 'approved' AND i.deleted_at IS 
  * (stored, else the default) and the entries for the timeline.
  */
 export async function competitors(env: Env, tenantId: string, stream: Stream | "all", aiConnected: boolean): Promise<Competitors> {
+  const { competitorTiers } = await loadSettings(env, tenantId);
   const sw = stream === "all" ? "" : " AND i.stream = ?2";
   const binds = stream === "all" ? [tenantId] : [tenantId, stream];
   const [counts, pairs, rows, sums] = await env.DB.batch([
@@ -276,7 +278,7 @@ export async function competitors(env: Env, tenantId: string, stream: Stream | "
       .filter((r) => !isPlaceholderCompetitor(r.name))
       .map((r) => {
         const row = stored.get(r.name);
-        return { name: r.name, count: r.n, summary: row ? toSummary(row) : fallback("competitor", r.name) };
+        return { name: r.name, count: r.n, tier: tierOf(r.name, competitorTiers), summary: row ? toSummary(row) : fallback("competitor", r.name) };
       }),
     pairs: ((pairs?.results ?? []) as { a: string; b: string; n: number }[])
       .filter((r) => !isPlaceholderCompetitor(r.a) && !isPlaceholderCompetitor(r.b))

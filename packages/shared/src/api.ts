@@ -11,6 +11,8 @@ import { ITEM_STATUSES } from "./status.js";
 import { COLUMN_TYPES, CREATABLE_COLUMN_TYPES, MAX_LABEL_LENGTH, MAX_OPTION_LENGTH, STREAMS } from "./schema.js";
 import { EXPORT_FORMATS } from "./export.js";
 import { DEFAULT_NAV_ORDER, MAX_SUMMARY_LENGTH, NAV_TABS, SUMMARY_MODELS, SUMMARY_SOURCES, TREND_LEVELS } from "./megatrends.js";
+import { DEFAULT_COMPETITOR_TIERS } from "./competitors.js";
+import { KiqTopicsSchema } from "./kiq.js";
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD");
 const isoDateTime = z.string();
@@ -196,6 +198,10 @@ export const ItemSummarySchema = z.object({
   returnedByClient: z.object({ by: z.string(), at: isoDateTime }).nullable().default(null),
   /** Open (unresolved) comments on the entry's text. */
   comments: z.number().int().default(0),
+  /** Primary entries (contract 1.15): the Insight Topics and their Key Intelligence Questions, once entered as a list. */
+  kiqs: KiqTopicsSchema.nullable().default(null),
+  /** The entry this one was split from (one Tracker entry per Key Intelligence Question). */
+  splitFrom: z.string().nullable().default(null),
 });
 
 /** A comment on an entry's text, anchored to a field and the highlighted words (like a Word comment). */
@@ -280,7 +286,18 @@ export const ItemDetailSchema = ItemSummarySchema.extend({
   snapshot: SnapshotSchema.nullable(),
 });
 
-export const SaveDraftRequest = z.object({ values: ItemValuesSchema, version: z.number().int() });
+export const SaveDraftRequest = z.object({
+  values: ItemValuesSchema,
+  version: z.number().int(),
+  /** Primary entries: the topics and Key Intelligence Questions (the first one also fills the entry's own fields). */
+  kiqs: KiqTopicsSchema.optional(),
+});
+/**
+ * Before Push to Tracker (contract 1.15): a Primary entry with several Key
+ * Intelligence Questions becomes one Inbox entry per question (this one keeps
+ * the first; the others are new, sharing every other field and the saved page).
+ */
+export const SplitRequest = z.object({ version: z.number().int(), kiqs: KiqTopicsSchema });
 export const ApproveRequest = z.object({
   values: ItemValuesSchema,
   version: z.number().int(),
@@ -369,8 +386,8 @@ export type Megatrends = z.infer<typeof MegatrendsSchema>;
 export const CompetitorEntrySchema = MegatrendEntrySchema.extend({ competitors: z.array(z.string()) });
 export const CompetitorsSchema = z.object({
   aiConnected: z.boolean(),
-  /** Competitors named by at least one Tracker entry, most-named first. */
-  competitors: z.array(MegatrendNodeSchema),
+  /** Competitors named by at least one Tracker entry, most-named first, with their tier (1–4, contract 1.15). */
+  competitors: z.array(MegatrendNodeSchema.extend({ tier: z.number().int().min(1).max(4).default(4) })),
   /** Pairs of competitors named by the same entries (a < b), with how many. */
   pairs: z.array(z.object({ a: z.string(), b: z.string(), count: z.number().int() })),
   /** The entries naming a competitor, oldest first (the timeline). */
@@ -589,6 +606,14 @@ export const TenantSettingsSchema = z.object({
     .max(NAV_TABS.length)
     .refine((a) => new Set(a).size === a.length, "Each tab can appear only once")
     .default([...DEFAULT_NAV_ORDER]),
+  /** Competitor tiers on the Competitors tab (contract 1.15); any competitor not listed is Tier 4. */
+  competitorTiers: z
+    .object({
+      tier1: z.array(z.string().trim().min(1).max(MAX_OPTION_LENGTH)).max(300),
+      tier2: z.array(z.string().trim().min(1).max(MAX_OPTION_LENGTH)).max(300),
+      tier3: z.array(z.string().trim().min(1).max(MAX_OPTION_LENGTH)).max(300),
+    })
+    .default({ tier1: [...DEFAULT_COMPETITOR_TIERS.tier1], tier2: [...DEFAULT_COMPETITOR_TIERS.tier2], tier3: [...DEFAULT_COMPETITOR_TIERS.tier3] }),
   /** How the AI writer summarises each Macrotrend and Subtrend (added in contract 1.10). */
   megatrends: z
     .object({
@@ -766,6 +791,7 @@ export const ENDPOINTS: EndpointDef[] = [
   { method: "get", path: "/api/items/{id}", summary: "Inbox item detail", roles: STAFF, response: ItemDetailSchema },
   { method: "get", path: "/api/items/{id}/snapshot", summary: "Sanitised source snapshot (sandboxed HTML)", roles: ALL_ROLES, raw: "text/html" },
   { method: "patch", path: "/api/items/{id}/draft", summary: "Save analyst edits to a draft", roles: STAFF, request: SaveDraftRequest, response: ItemSummarySchema },
+  { method: "post", path: "/api/items/{id}/split", summary: "Primary entries: one Inbox entry per Key Intelligence Question, before Push to Tracker (staff; clients for entries in their inbox)", roles: ALL_ROLES, request: SplitRequest, response: z.array(ItemSummarySchema) },
   { method: "post", path: "/api/items/{id}/approve", summary: "Validate server-side and publish as a new revision", roles: STAFF, request: ApproveRequest, response: ItemSummarySchema },
   { method: "post", path: "/api/items/{id}/reject", summary: "Reject a draft", roles: STAFF, request: RejectRequest, response: ItemSummarySchema },
   { method: "post", path: "/api/items/{id}/reprocess", summary: "Request another processing attempt (safe to retry)", roles: STAFF, request: ReprocessRequest, response: ItemSummarySchema },

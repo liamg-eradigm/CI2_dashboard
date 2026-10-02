@@ -3,7 +3,7 @@
  * stream's current Inbox columns (so it follows every change made under
  * Inbox → Edit columns), and forgiving matching of dropdown values.
  */
-import { AUTO_KEYS, CORE, hasOptions, macrotrends, optionsOf, sortedColumns, subtrendsOf, type TrackerColumn, type TrackerSchema } from "./schema.js";
+import { AUTO_KEYS, CORE, FIELDS, hasOptions, macrotrends, optionsOf, sortedColumns, subtrendsOf, type TrackerColumn, type TrackerSchema } from "./schema.js";
 
 /**
  * A dropdown value folded for matching: case, spacing, curly vs straight
@@ -49,7 +49,12 @@ export interface ImportColumnRule {
 export function importRules(schema: TrackerSchema): ImportColumnRule[] {
   return sortedColumns(schema)
     .filter((c) => !AUTO_KEYS.includes(c.key))
-    .map((c) => ({ key: c.key, label: c.label, required: c.required, accepts: accepts(schema, c), ...(hasOptions(c) ? { options: optionsOf(schema, c) } : {}) }));
+    .map((c) =>
+      c.key === FIELDS.id
+        ? // Optional: left blank, it is filled in as Date_Competitor_Title (Primary: _Key Intelligence Question).
+          { key: c.key, label: c.label, required: false, accepts: "Text, or leave blank to fill it in from the Event Date, Competitors and Title (Primary: Key Intelligence Question)" }
+        : { key: c.key, label: c.label, required: c.required, accepts: accepts(schema, c), ...(hasOptions(c) ? { options: optionsOf(schema, c) } : {}) },
+    );
 }
 
 function accepts(schema: TrackerSchema, c: TrackerColumn): string {

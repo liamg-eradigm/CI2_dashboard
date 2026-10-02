@@ -40,6 +40,7 @@ export type AuditAction =
   | "item.returned_by_client"
   | "item.recalled_from_client"
   | "inbox.cleared"
+  | "item.split"
   | "comment.added"
   | "comment.resolved"
   | "comment.deleted"

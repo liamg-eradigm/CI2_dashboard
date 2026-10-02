@@ -188,10 +188,20 @@ const ALIASES: Readonly<Record<string, string>> = {
   telix: "Telix Pharmaceuticals",
   sanegene: "SanegeneBio",
   intracellular: "Intra-Cellular Therapies",
-};
+  bristolmyersquibb: "Bristol Myers Squibb",
+  beigene: "BeOne",
+  beonemedicines: "BeOne",
+  veeva: "Veeva Systems",
+  goodrx: "GoodRx Holdings",
+  nvidiacorporation: "NVIDIA",
+  hoffmannlaroche: "Roche",
+  frochoffmannlaroche: "Roche",
+  rocheholdings: "Roche",
+  takedapharmaceuticalcompany: "Takeda",
+}
 
 /** Words dropped when matching names ("Takeda Pharmaceutical Co., Ltd." → "takeda"). */
-const SUFFIXES = /^(and|incorporated|inc|plc|ag|sa|se|nv|co|ltd|limited|llc|corp|corporation|company|group|holdings|pharmaceuticals?|pharma|therapeutics|biosciences|bioscience|biotechnologies|biotechnology|biotech|biologics|bio|laboratories|labs)$/;
+const SUFFIXES = /^(and|incorporated|inc|plc|ag|sa|se|nv|co|ltd|limited|llc|corp|corporation|company|group|holdings|systems|medicines|pharmaceuticals?|pharma|therapeutics|biosciences|bioscience|biotechnologies|biotechnology|biotech|biologics|bio|laboratories|labs)$/;
 
 /** A name reduced to lower-case letters and digits ("Johnson & Johnson" → "johnsonandjohnson"). */
 export function competitorKey(name: string): string {
@@ -236,6 +246,41 @@ export const defaultCompetitorSummary = (name: string): string | null => {
   const key = defaultCompetitorName(name);
   return key ? (DEFAULT_COMPETITOR_SUMMARIES[key] ?? null) : null;
 };
+
+// ---------------------------------------------------------------------------
+// Tiers (contract 1.15): set by admins; any competitor not listed is Tier 4.
+// ---------------------------------------------------------------------------
+
+export const COMPETITOR_TIERS = [1, 2, 3, 4] as const;
+export type CompetitorTier = (typeof COMPETITOR_TIERS)[number];
+export interface CompetitorTiers {
+  tier1: string[];
+  tier2: string[];
+  tier3: string[];
+}
+export const DEFAULT_COMPETITOR_TIERS: CompetitorTiers = {
+  tier1: ["Johnson & Johnson", "Roche", "Novartis", "Bristol Myers Squibb", "Eli Lilly", "AstraZeneca", "Sanofi", "Pfizer", "Takeda"],
+  tier2: ["Amgen", "Salesforce", "Veeva Systems", "BeOne"],
+  tier3: ["GSK", "NVIDIA", "GoodRx Holdings", "OpenEvidence", "Novo Nordisk"],
+};
+
+/**
+ * One key per company however it is written: aliases ("BMS", "J&J", "Lilly",
+ * "Veeva"), "&" / "and", punctuation and corporate suffixes all collapse.
+ */
+export function companyKey(name: string): string {
+  const canonical = ALIASES[competitorKey(name)] ?? ALIASES[coreKey(name)] ?? name;
+  return coreKey(canonical);
+}
+
+/** A competitor's tier: the first tier that lists it (by companyKey), else 4. */
+export function tierOf(name: string, tiers: CompetitorTiers): CompetitorTier {
+  const key = companyKey(name);
+  if (tiers.tier1.some((n) => companyKey(n) === key)) return 1;
+  if (tiers.tier2.some((n) => companyKey(n) === key)) return 2;
+  if (tiers.tier3.some((n) => companyKey(n) === key)) return 3;
+  return 4;
+}
 
 /** Competitor values that mean "no competitor" (N/A, None, Not applicable, -, …): never a node on the Competitors tab. */
 const PLACEHOLDERS = new Set(["", "na", "nan", "none", "nil", "null", "notapplicable", "notavailable", "nocompetitor", "nocompetitors", "tbc", "tbd", "unknown"]);

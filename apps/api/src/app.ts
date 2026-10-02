@@ -25,6 +25,7 @@ import {
   UpdateTrendSummaryRequest,
   normaliseNavOrder,
   ClearDecidedRequest,
+  SplitRequest,
   DeleteItemRequest,
   CONTRACT_VERSION,
   CreateSavedViewRequest,
@@ -78,7 +79,7 @@ import { audit, listAudit, verifyChain } from "./services/audit.js";
 import { clientInboxCount, getDetail, getItemRow, inboxCounts, listItems } from "./services/items.js";
 import { qualityMetrics } from "./services/metrics.js";
 import { dashboard, dateBounds, exportRows, trackerPage, trendTest, type Scope } from "./services/query.js";
-import { approve, clearDecided, deleteFromTable, reject, reprocess, revise, saveDraft, softDelete } from "./services/review.js";
+import { approve, clearDecided, deleteFromTable, reject, splitItem, reprocess, revise, saveDraft, softDelete } from "./services/review.js";
 import {
   addColumn,
   addOption,
@@ -764,7 +765,13 @@ app.get("/api/items/:id/snapshot", async (c) => {
 app.patch("/api/items/:id/draft", async (c) => {
   requirePermission(P(c), "item:edit");
   const b = await body(c, SaveDraftRequest);
-  return c.json(await saveDraft(c.env, await schemasFor(c), P(c), c.req.param("id"), b.values, b.version));
+  return c.json(await saveDraft(c.env, await schemasFor(c), P(c), c.req.param("id"), b.values, b.version, b.kiqs));
+});
+
+// Primary entries: one Inbox entry per Key Intelligence Question, before Push to Tracker.
+app.post("/api/items/:id/split", async (c) => {
+  const b = await body(c, SplitRequest);
+  return c.json(await splitItem(c.env, await schemasFor(c), P(c), c.req.param("id"), b.version, b.kiqs));
 });
 
 app.post("/api/items/:id/approve", async (c) => {

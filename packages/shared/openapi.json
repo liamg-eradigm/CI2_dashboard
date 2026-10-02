@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Eradigm Competitive Intelligence API",
-    "version": "1.14.0",
+    "version": "1.15.0",
     "description": "Generated from packages/shared/src/api.ts. Every request is checked for both role and tenant server-side. Send X-Tenant-Id to select a tenant when the user belongs to more than one."
   },
   "components": {
@@ -2602,6 +2602,58 @@
                       "type": "integer",
                       "minimum": -9007199254740991,
                       "maximum": 9007199254740991
+                    },
+                    "kiqs": {
+                      "default": null,
+                      "nullable": true,
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "topic": {
+                            "type": "string",
+                            "maxLength": 2000
+                          },
+                          "kiqs": {
+                            "maxItems": 40,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "question": {
+                                  "type": "string",
+                                  "maxLength": 20000
+                                },
+                                "details": {
+                                  "type": "string",
+                                  "maxLength": 20000
+                                },
+                                "metrics": {
+                                  "type": "string",
+                                  "maxLength": 20000
+                                }
+                              },
+                              "required": [
+                                "question",
+                                "details",
+                                "metrics"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "topic",
+                          "kiqs"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "splitFrom": {
+                      "default": null,
+                      "nullable": true,
+                      "type": "string"
                     }
                   },
                   "required": [
@@ -2635,7 +2687,9 @@
                     "withClient",
                     "sentToClient",
                     "returnedByClient",
-                    "comments"
+                    "comments",
+                    "kiqs",
+                    "splitFrom"
                   ],
                   "additionalProperties": false
                 }
@@ -3054,6 +3108,58 @@
                       "type": "integer",
                       "minimum": -9007199254740991,
                       "maximum": 9007199254740991
+                    },
+                    "kiqs": {
+                      "default": null,
+                      "nullable": true,
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "topic": {
+                            "type": "string",
+                            "maxLength": 2000
+                          },
+                          "kiqs": {
+                            "maxItems": 40,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "question": {
+                                  "type": "string",
+                                  "maxLength": 20000
+                                },
+                                "details": {
+                                  "type": "string",
+                                  "maxLength": 20000
+                                },
+                                "metrics": {
+                                  "type": "string",
+                                  "maxLength": 20000
+                                }
+                              },
+                              "required": [
+                                "question",
+                                "details",
+                                "metrics"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "topic",
+                          "kiqs"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "splitFrom": {
+                      "default": null,
+                      "nullable": true,
+                      "type": "string"
                     }
                   },
                   "required": [
@@ -3087,7 +3193,9 @@
                     "withClient",
                     "sentToClient",
                     "returnedByClient",
-                    "comments"
+                    "comments",
+                    "kiqs",
+                    "splitFrom"
                   ],
                   "additionalProperties": false
                 }
@@ -3499,6 +3607,58 @@
                         "type": "integer",
                         "minimum": -9007199254740991,
                         "maximum": 9007199254740991
+                      },
+                      "kiqs": {
+                        "default": null,
+                        "nullable": true,
+                        "maxItems": 20,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "topic": {
+                              "type": "string",
+                              "maxLength": 2000
+                            },
+                            "kiqs": {
+                              "maxItems": 40,
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "question": {
+                                    "type": "string",
+                                    "maxLength": 20000
+                                  },
+                                  "details": {
+                                    "type": "string",
+                                    "maxLength": 20000
+                                  },
+                                  "metrics": {
+                                    "type": "string",
+                                    "maxLength": 20000
+                                  }
+                                },
+                                "required": [
+                                  "question",
+                                  "details",
+                                  "metrics"
+                                ],
+                                "additionalProperties": false
+                              }
+                            }
+                          },
+                          "required": [
+                            "topic",
+                            "kiqs"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "splitFrom": {
+                        "default": null,
+                        "nullable": true,
+                        "type": "string"
                       }
                     },
                     "required": [
@@ -3532,7 +3692,9 @@
                       "withClient",
                       "sentToClient",
                       "returnedByClient",
-                      "comments"
+                      "comments",
+                      "kiqs",
+                      "splitFrom"
                     ],
                     "additionalProperties": false
                   }
@@ -4033,6 +4195,58 @@
                       "minimum": -9007199254740991,
                       "maximum": 9007199254740991
                     },
+                    "kiqs": {
+                      "default": null,
+                      "nullable": true,
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "topic": {
+                            "type": "string",
+                            "maxLength": 2000
+                          },
+                          "kiqs": {
+                            "maxItems": 40,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "question": {
+                                  "type": "string",
+                                  "maxLength": 20000
+                                },
+                                "details": {
+                                  "type": "string",
+                                  "maxLength": 20000
+                                },
+                                "metrics": {
+                                  "type": "string",
+                                  "maxLength": 20000
+                                }
+                              },
+                              "required": [
+                                "question",
+                                "details",
+                                "metrics"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "topic",
+                          "kiqs"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "splitFrom": {
+                      "default": null,
+                      "nullable": true,
+                      "type": "string"
+                    },
                     "bodyText": {
                       "nullable": true,
                       "type": "string"
@@ -4325,6 +4539,8 @@
                     "sentToClient",
                     "returnedByClient",
                     "comments",
+                    "kiqs",
+                    "splitFrom",
                     "bodyText",
                     "publicationDate",
                     "revisions",
@@ -4727,6 +4943,58 @@
                       "type": "integer",
                       "minimum": -9007199254740991,
                       "maximum": 9007199254740991
+                    },
+                    "kiqs": {
+                      "default": null,
+                      "nullable": true,
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "topic": {
+                            "type": "string",
+                            "maxLength": 2000
+                          },
+                          "kiqs": {
+                            "maxItems": 40,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "question": {
+                                  "type": "string",
+                                  "maxLength": 20000
+                                },
+                                "details": {
+                                  "type": "string",
+                                  "maxLength": 20000
+                                },
+                                "metrics": {
+                                  "type": "string",
+                                  "maxLength": 20000
+                                }
+                              },
+                              "required": [
+                                "question",
+                                "details",
+                                "metrics"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "topic",
+                          "kiqs"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "splitFrom": {
+                      "default": null,
+                      "nullable": true,
+                      "type": "string"
                     }
                   },
                   "required": [
@@ -4760,7 +5028,9 @@
                     "withClient",
                     "sentToClient",
                     "returnedByClient",
-                    "comments"
+                    "comments",
+                    "kiqs",
+                    "splitFrom"
                   ],
                   "additionalProperties": false
                 }
@@ -5179,6 +5449,58 @@
                       "type": "integer",
                       "minimum": -9007199254740991,
                       "maximum": 9007199254740991
+                    },
+                    "kiqs": {
+                      "default": null,
+                      "nullable": true,
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "topic": {
+                            "type": "string",
+                            "maxLength": 2000
+                          },
+                          "kiqs": {
+                            "maxItems": 40,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "question": {
+                                  "type": "string",
+                                  "maxLength": 20000
+                                },
+                                "details": {
+                                  "type": "string",
+                                  "maxLength": 20000
+                                },
+                                "metrics": {
+                                  "type": "string",
+                                  "maxLength": 20000
+                                }
+                              },
+                              "required": [
+                                "question",
+                                "details",
+                                "metrics"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "topic",
+                          "kiqs"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "splitFrom": {
+                      "default": null,
+                      "nullable": true,
+                      "type": "string"
                     }
                   },
                   "required": [
@@ -5212,7 +5534,9 @@
                     "withClient",
                     "sentToClient",
                     "returnedByClient",
-                    "comments"
+                    "comments",
+                    "kiqs",
+                    "splitFrom"
                   ],
                   "additionalProperties": false
                 }
@@ -7792,12 +8116,19 @@
                               "entries"
                             ],
                             "additionalProperties": false
+                          },
+                          "tier": {
+                            "default": 4,
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 4
                           }
                         },
                         "required": [
                           "name",
                           "count",
-                          "summary"
+                          "summary",
+                          "tier"
                         ],
                         "additionalProperties": false
                       }
@@ -12164,6 +12495,58 @@
                           "type": "integer",
                           "minimum": -9007199254740991,
                           "maximum": 9007199254740991
+                        },
+                        "kiqs": {
+                          "default": null,
+                          "nullable": true,
+                          "maxItems": 20,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "topic": {
+                                "type": "string",
+                                "maxLength": 2000
+                              },
+                              "kiqs": {
+                                "maxItems": 40,
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "question": {
+                                      "type": "string",
+                                      "maxLength": 20000
+                                    },
+                                    "details": {
+                                      "type": "string",
+                                      "maxLength": 20000
+                                    },
+                                    "metrics": {
+                                      "type": "string",
+                                      "maxLength": 20000
+                                    }
+                                  },
+                                  "required": [
+                                    "question",
+                                    "details",
+                                    "metrics"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              }
+                            },
+                            "required": [
+                              "topic",
+                              "kiqs"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "splitFrom": {
+                          "default": null,
+                          "nullable": true,
+                          "type": "string"
                         }
                       },
                       "required": [
@@ -12197,7 +12580,9 @@
                         "withClient",
                         "sentToClient",
                         "returnedByClient",
-                        "comments"
+                        "comments",
+                        "kiqs",
+                        "splitFrom"
                       ],
                       "additionalProperties": false
                     },
@@ -12640,6 +13025,58 @@
                           "type": "integer",
                           "minimum": -9007199254740991,
                           "maximum": 9007199254740991
+                        },
+                        "kiqs": {
+                          "default": null,
+                          "nullable": true,
+                          "maxItems": 20,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "topic": {
+                                "type": "string",
+                                "maxLength": 2000
+                              },
+                              "kiqs": {
+                                "maxItems": 40,
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "question": {
+                                      "type": "string",
+                                      "maxLength": 20000
+                                    },
+                                    "details": {
+                                      "type": "string",
+                                      "maxLength": 20000
+                                    },
+                                    "metrics": {
+                                      "type": "string",
+                                      "maxLength": 20000
+                                    }
+                                  },
+                                  "required": [
+                                    "question",
+                                    "details",
+                                    "metrics"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              }
+                            },
+                            "required": [
+                              "topic",
+                              "kiqs"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "splitFrom": {
+                          "default": null,
+                          "nullable": true,
+                          "type": "string"
                         }
                       },
                       "required": [
@@ -12673,7 +13110,9 @@
                         "withClient",
                         "sentToClient",
                         "returnedByClient",
-                        "comments"
+                        "comments",
+                        "kiqs",
+                        "splitFrom"
                       ],
                       "additionalProperties": false
                     },
@@ -13245,6 +13684,58 @@
                         "type": "integer",
                         "minimum": -9007199254740991,
                         "maximum": 9007199254740991
+                      },
+                      "kiqs": {
+                        "default": null,
+                        "nullable": true,
+                        "maxItems": 20,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "topic": {
+                              "type": "string",
+                              "maxLength": 2000
+                            },
+                            "kiqs": {
+                              "maxItems": 40,
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "question": {
+                                    "type": "string",
+                                    "maxLength": 20000
+                                  },
+                                  "details": {
+                                    "type": "string",
+                                    "maxLength": 20000
+                                  },
+                                  "metrics": {
+                                    "type": "string",
+                                    "maxLength": 20000
+                                  }
+                                },
+                                "required": [
+                                  "question",
+                                  "details",
+                                  "metrics"
+                                ],
+                                "additionalProperties": false
+                              }
+                            }
+                          },
+                          "required": [
+                            "topic",
+                            "kiqs"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "splitFrom": {
+                        "default": null,
+                        "nullable": true,
+                        "type": "string"
                       }
                     },
                     "required": [
@@ -13278,7 +13769,9 @@
                       "withClient",
                       "sentToClient",
                       "returnedByClient",
-                      "comments"
+                      "comments",
+                      "kiqs",
+                      "splitFrom"
                     ],
                     "additionalProperties": false
                   }
@@ -13678,6 +14171,58 @@
                       "minimum": -9007199254740991,
                       "maximum": 9007199254740991
                     },
+                    "kiqs": {
+                      "default": null,
+                      "nullable": true,
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "topic": {
+                            "type": "string",
+                            "maxLength": 2000
+                          },
+                          "kiqs": {
+                            "maxItems": 40,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "question": {
+                                  "type": "string",
+                                  "maxLength": 20000
+                                },
+                                "details": {
+                                  "type": "string",
+                                  "maxLength": 20000
+                                },
+                                "metrics": {
+                                  "type": "string",
+                                  "maxLength": 20000
+                                }
+                              },
+                              "required": [
+                                "question",
+                                "details",
+                                "metrics"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "topic",
+                          "kiqs"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "splitFrom": {
+                      "default": null,
+                      "nullable": true,
+                      "type": "string"
+                    },
                     "bodyText": {
                       "nullable": true,
                       "type": "string"
@@ -13970,6 +14515,8 @@
                     "sentToClient",
                     "returnedByClient",
                     "comments",
+                    "kiqs",
+                    "splitFrom",
                     "bodyText",
                     "publicationDate",
                     "revisions",
@@ -14370,6 +14917,58 @@
                       "type": "integer",
                       "minimum": -9007199254740991,
                       "maximum": 9007199254740991
+                    },
+                    "kiqs": {
+                      "default": null,
+                      "nullable": true,
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "topic": {
+                            "type": "string",
+                            "maxLength": 2000
+                          },
+                          "kiqs": {
+                            "maxItems": 40,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "question": {
+                                  "type": "string",
+                                  "maxLength": 20000
+                                },
+                                "details": {
+                                  "type": "string",
+                                  "maxLength": 20000
+                                },
+                                "metrics": {
+                                  "type": "string",
+                                  "maxLength": 20000
+                                }
+                              },
+                              "required": [
+                                "question",
+                                "details",
+                                "metrics"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "topic",
+                          "kiqs"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "splitFrom": {
+                      "default": null,
+                      "nullable": true,
+                      "type": "string"
                     }
                   },
                   "required": [
@@ -14403,7 +15002,9 @@
                     "withClient",
                     "sentToClient",
                     "returnedByClient",
-                    "comments"
+                    "comments",
+                    "kiqs",
+                    "splitFrom"
                   ],
                   "additionalProperties": false
                 }
@@ -14826,6 +15427,58 @@
                       "type": "integer",
                       "minimum": -9007199254740991,
                       "maximum": 9007199254740991
+                    },
+                    "kiqs": {
+                      "default": null,
+                      "nullable": true,
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "topic": {
+                            "type": "string",
+                            "maxLength": 2000
+                          },
+                          "kiqs": {
+                            "maxItems": 40,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "question": {
+                                  "type": "string",
+                                  "maxLength": 20000
+                                },
+                                "details": {
+                                  "type": "string",
+                                  "maxLength": 20000
+                                },
+                                "metrics": {
+                                  "type": "string",
+                                  "maxLength": 20000
+                                }
+                              },
+                              "required": [
+                                "question",
+                                "details",
+                                "metrics"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "topic",
+                          "kiqs"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "splitFrom": {
+                      "default": null,
+                      "nullable": true,
+                      "type": "string"
                     }
                   },
                   "required": [
@@ -14859,7 +15512,9 @@
                     "withClient",
                     "sentToClient",
                     "returnedByClient",
-                    "comments"
+                    "comments",
+                    "kiqs",
+                    "splitFrom"
                   ],
                   "additionalProperties": false
                 }
@@ -14967,11 +15622,611 @@
                     "type": "integer",
                     "minimum": -9007199254740991,
                     "maximum": 9007199254740991
+                  },
+                  "kiqs": {
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "topic": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "kiqs": {
+                          "maxItems": 40,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "question": {
+                                "type": "string",
+                                "maxLength": 20000
+                              },
+                              "details": {
+                                "type": "string",
+                                "maxLength": 20000
+                              },
+                              "metrics": {
+                                "type": "string",
+                                "maxLength": 20000
+                              }
+                            },
+                            "required": [
+                              "question",
+                              "details",
+                              "metrics"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "topic",
+                        "kiqs"
+                      ],
+                      "additionalProperties": false
+                    }
                   }
                 },
                 "required": [
                   "values",
                   "version"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/items/{id}/split": {
+      "post": {
+        "summary": "Primary entries: one Inbox entry per Key Intelligence Question, before Push to Tracker (staff; clients for entries in their inbox)",
+        "description": "Roles: admin, analyst, client",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "code": {
+                        "type": "string"
+                      },
+                      "stream": {
+                        "default": "primary",
+                        "type": "string",
+                        "enum": [
+                          "primary",
+                          "secondary"
+                        ]
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "queued",
+                          "fetching",
+                          "extracting",
+                          "needs_review",
+                          "approved",
+                          "rejected",
+                          "failed",
+                          "deleted"
+                        ]
+                      },
+                      "inputType": {
+                        "type": "string",
+                        "enum": [
+                          "url",
+                          "file",
+                          "manual"
+                        ]
+                      },
+                      "outlet": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "submittedUrl": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "url": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "receivedAt": {
+                        "type": "string"
+                      },
+                      "submittedBy": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "title": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "draft": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            {
+                              "type": "string",
+                              "nullable": true,
+                              "enum": [
+                                null
+                              ]
+                            }
+                          ]
+                        }
+                      },
+                      "provenance": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "nullable": true,
+                          "type": "string",
+                          "enum": [
+                            "source",
+                            "ai",
+                            "analyst"
+                          ]
+                        }
+                      },
+                      "extraction": {
+                        "nullable": true,
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "object",
+                          "properties": {
+                            "value": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                {
+                                  "type": "string",
+                                  "nullable": true,
+                                  "enum": [
+                                    null
+                                  ]
+                                }
+                              ]
+                            },
+                            "confidence": {
+                              "nullable": true,
+                              "type": "number"
+                            },
+                            "evidence": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "nullReason": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "warnings": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "required": [
+                            "value",
+                            "confidence",
+                            "evidence",
+                            "nullReason",
+                            "warnings"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "warningsCount": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "modelWarnings": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "error": {
+                        "nullable": true,
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "code",
+                          "message"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "duplicateOf": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "duplicateItemId": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "duplicateBasis": {
+                        "nullable": true,
+                        "type": "string",
+                        "enum": [
+                          "url",
+                          "file",
+                          "content"
+                        ]
+                      },
+                      "quarantined": {
+                        "type": "boolean"
+                      },
+                      "version": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "attempts": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "signalCode": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "publishedRev": {
+                        "nullable": true,
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "decision": {
+                        "nullable": true,
+                        "type": "object",
+                        "properties": {
+                          "decision": {
+                            "type": "string",
+                            "enum": [
+                              "approve",
+                              "reject",
+                              "reprocess"
+                            ]
+                          },
+                          "by": {
+                            "type": "string"
+                          },
+                          "at": {
+                            "type": "string"
+                          },
+                          "note": {
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "decision",
+                          "by",
+                          "at",
+                          "note"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "hasSnapshot": {
+                        "type": "boolean"
+                      },
+                      "withClient": {
+                        "default": false,
+                        "type": "boolean"
+                      },
+                      "sentToClient": {
+                        "default": null,
+                        "nullable": true,
+                        "type": "object",
+                        "properties": {
+                          "by": {
+                            "type": "string"
+                          },
+                          "at": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "by",
+                          "at"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "returnedByClient": {
+                        "default": null,
+                        "nullable": true,
+                        "type": "object",
+                        "properties": {
+                          "by": {
+                            "type": "string"
+                          },
+                          "at": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "by",
+                          "at"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "comments": {
+                        "default": 0,
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "kiqs": {
+                        "default": null,
+                        "nullable": true,
+                        "maxItems": 20,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "topic": {
+                              "type": "string",
+                              "maxLength": 2000
+                            },
+                            "kiqs": {
+                              "maxItems": 40,
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "question": {
+                                    "type": "string",
+                                    "maxLength": 20000
+                                  },
+                                  "details": {
+                                    "type": "string",
+                                    "maxLength": 20000
+                                  },
+                                  "metrics": {
+                                    "type": "string",
+                                    "maxLength": 20000
+                                  }
+                                },
+                                "required": [
+                                  "question",
+                                  "details",
+                                  "metrics"
+                                ],
+                                "additionalProperties": false
+                              }
+                            }
+                          },
+                          "required": [
+                            "topic",
+                            "kiqs"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "splitFrom": {
+                        "default": null,
+                        "nullable": true,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "code",
+                      "stream",
+                      "status",
+                      "inputType",
+                      "outlet",
+                      "submittedUrl",
+                      "url",
+                      "receivedAt",
+                      "submittedBy",
+                      "title",
+                      "draft",
+                      "provenance",
+                      "extraction",
+                      "warningsCount",
+                      "modelWarnings",
+                      "error",
+                      "duplicateOf",
+                      "duplicateItemId",
+                      "duplicateBasis",
+                      "quarantined",
+                      "version",
+                      "attempts",
+                      "signalCode",
+                      "publishedRev",
+                      "decision",
+                      "hasSnapshot",
+                      "withClient",
+                      "sentToClient",
+                      "returnedByClient",
+                      "comments",
+                      "kiqs",
+                      "splitFrom"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "version": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "kiqs": {
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "topic": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "kiqs": {
+                          "maxItems": 40,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "question": {
+                                "type": "string",
+                                "maxLength": 20000
+                              },
+                              "details": {
+                                "type": "string",
+                                "maxLength": 20000
+                              },
+                              "metrics": {
+                                "type": "string",
+                                "maxLength": 20000
+                              }
+                            },
+                            "required": [
+                              "question",
+                              "details",
+                              "metrics"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "topic",
+                        "kiqs"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "version",
+                  "kiqs"
                 ],
                 "additionalProperties": false
               }
@@ -15302,6 +16557,58 @@
                       "type": "integer",
                       "minimum": -9007199254740991,
                       "maximum": 9007199254740991
+                    },
+                    "kiqs": {
+                      "default": null,
+                      "nullable": true,
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "topic": {
+                            "type": "string",
+                            "maxLength": 2000
+                          },
+                          "kiqs": {
+                            "maxItems": 40,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "question": {
+                                  "type": "string",
+                                  "maxLength": 20000
+                                },
+                                "details": {
+                                  "type": "string",
+                                  "maxLength": 20000
+                                },
+                                "metrics": {
+                                  "type": "string",
+                                  "maxLength": 20000
+                                }
+                              },
+                              "required": [
+                                "question",
+                                "details",
+                                "metrics"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "topic",
+                          "kiqs"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "splitFrom": {
+                      "default": null,
+                      "nullable": true,
+                      "type": "string"
                     }
                   },
                   "required": [
@@ -15335,7 +16642,9 @@
                     "withClient",
                     "sentToClient",
                     "returnedByClient",
-                    "comments"
+                    "comments",
+                    "kiqs",
+                    "splitFrom"
                   ],
                   "additionalProperties": false
                 }
@@ -15785,6 +17094,58 @@
                       "type": "integer",
                       "minimum": -9007199254740991,
                       "maximum": 9007199254740991
+                    },
+                    "kiqs": {
+                      "default": null,
+                      "nullable": true,
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "topic": {
+                            "type": "string",
+                            "maxLength": 2000
+                          },
+                          "kiqs": {
+                            "maxItems": 40,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "question": {
+                                  "type": "string",
+                                  "maxLength": 20000
+                                },
+                                "details": {
+                                  "type": "string",
+                                  "maxLength": 20000
+                                },
+                                "metrics": {
+                                  "type": "string",
+                                  "maxLength": 20000
+                                }
+                              },
+                              "required": [
+                                "question",
+                                "details",
+                                "metrics"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "topic",
+                          "kiqs"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "splitFrom": {
+                      "default": null,
+                      "nullable": true,
+                      "type": "string"
                     }
                   },
                   "required": [
@@ -15818,7 +17179,9 @@
                     "withClient",
                     "sentToClient",
                     "returnedByClient",
-                    "comments"
+                    "comments",
+                    "kiqs",
+                    "splitFrom"
                   ],
                   "additionalProperties": false
                 }
@@ -16241,6 +17604,58 @@
                       "type": "integer",
                       "minimum": -9007199254740991,
                       "maximum": 9007199254740991
+                    },
+                    "kiqs": {
+                      "default": null,
+                      "nullable": true,
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "topic": {
+                            "type": "string",
+                            "maxLength": 2000
+                          },
+                          "kiqs": {
+                            "maxItems": 40,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "question": {
+                                  "type": "string",
+                                  "maxLength": 20000
+                                },
+                                "details": {
+                                  "type": "string",
+                                  "maxLength": 20000
+                                },
+                                "metrics": {
+                                  "type": "string",
+                                  "maxLength": 20000
+                                }
+                              },
+                              "required": [
+                                "question",
+                                "details",
+                                "metrics"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "topic",
+                          "kiqs"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "splitFrom": {
+                      "default": null,
+                      "nullable": true,
+                      "type": "string"
                     }
                   },
                   "required": [
@@ -16274,7 +17689,9 @@
                     "withClient",
                     "sentToClient",
                     "returnedByClient",
-                    "comments"
+                    "comments",
+                    "kiqs",
+                    "splitFrom"
                   ],
                   "additionalProperties": false
                 }
@@ -17321,6 +18738,70 @@
                         ]
                       }
                     },
+                    "competitorTiers": {
+                      "default": {
+                        "tier1": [
+                          "Johnson & Johnson",
+                          "Roche",
+                          "Novartis",
+                          "Bristol Myers Squibb",
+                          "Eli Lilly",
+                          "AstraZeneca",
+                          "Sanofi",
+                          "Pfizer",
+                          "Takeda"
+                        ],
+                        "tier2": [
+                          "Amgen",
+                          "Salesforce",
+                          "Veeva Systems",
+                          "BeOne"
+                        ],
+                        "tier3": [
+                          "GSK",
+                          "NVIDIA",
+                          "GoodRx Holdings",
+                          "OpenEvidence",
+                          "Novo Nordisk"
+                        ]
+                      },
+                      "type": "object",
+                      "properties": {
+                        "tier1": {
+                          "maxItems": 300,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 120
+                          }
+                        },
+                        "tier2": {
+                          "maxItems": 300,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 120
+                          }
+                        },
+                        "tier3": {
+                          "maxItems": 300,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 120
+                          }
+                        }
+                      },
+                      "required": [
+                        "tier1",
+                        "tier2",
+                        "tier3"
+                      ],
+                      "additionalProperties": false
+                    },
                     "megatrends": {
                       "default": {
                         "summaryDays": 90,
@@ -17369,6 +18850,7 @@
                     "redaction",
                     "phantoms",
                     "navOrder",
+                    "competitorTiers",
                     "megatrends"
                   ],
                   "additionalProperties": false
@@ -17603,6 +19085,70 @@
                         ]
                       }
                     },
+                    "competitorTiers": {
+                      "default": {
+                        "tier1": [
+                          "Johnson & Johnson",
+                          "Roche",
+                          "Novartis",
+                          "Bristol Myers Squibb",
+                          "Eli Lilly",
+                          "AstraZeneca",
+                          "Sanofi",
+                          "Pfizer",
+                          "Takeda"
+                        ],
+                        "tier2": [
+                          "Amgen",
+                          "Salesforce",
+                          "Veeva Systems",
+                          "BeOne"
+                        ],
+                        "tier3": [
+                          "GSK",
+                          "NVIDIA",
+                          "GoodRx Holdings",
+                          "OpenEvidence",
+                          "Novo Nordisk"
+                        ]
+                      },
+                      "type": "object",
+                      "properties": {
+                        "tier1": {
+                          "maxItems": 300,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 120
+                          }
+                        },
+                        "tier2": {
+                          "maxItems": 300,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 120
+                          }
+                        },
+                        "tier3": {
+                          "maxItems": 300,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 120
+                          }
+                        }
+                      },
+                      "required": [
+                        "tier1",
+                        "tier2",
+                        "tier3"
+                      ],
+                      "additionalProperties": false
+                    },
                     "megatrends": {
                       "default": {
                         "summaryDays": 90,
@@ -17651,6 +19197,7 @@
                     "redaction",
                     "phantoms",
                     "navOrder",
+                    "competitorTiers",
                     "megatrends"
                   ],
                   "additionalProperties": false
@@ -17861,6 +19408,70 @@
                         "admin"
                       ]
                     }
+                  },
+                  "competitorTiers": {
+                    "default": {
+                      "tier1": [
+                        "Johnson & Johnson",
+                        "Roche",
+                        "Novartis",
+                        "Bristol Myers Squibb",
+                        "Eli Lilly",
+                        "AstraZeneca",
+                        "Sanofi",
+                        "Pfizer",
+                        "Takeda"
+                      ],
+                      "tier2": [
+                        "Amgen",
+                        "Salesforce",
+                        "Veeva Systems",
+                        "BeOne"
+                      ],
+                      "tier3": [
+                        "GSK",
+                        "NVIDIA",
+                        "GoodRx Holdings",
+                        "OpenEvidence",
+                        "Novo Nordisk"
+                      ]
+                    },
+                    "type": "object",
+                    "properties": {
+                      "tier1": {
+                        "maxItems": 300,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 120
+                        }
+                      },
+                      "tier2": {
+                        "maxItems": 300,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 120
+                        }
+                      },
+                      "tier3": {
+                        "maxItems": 300,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 120
+                        }
+                      }
+                    },
+                    "required": [
+                      "tier1",
+                      "tier2",
+                      "tier3"
+                    ],
+                    "additionalProperties": false
                   },
                   "megatrends": {
                     "type": "object",
