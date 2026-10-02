@@ -220,30 +220,40 @@ export function Graph3D({
       controls.addEventListener("end", onEnd);
       controls.addEventListener("change", onChange);
 
+      // Centre the graph in the space beside the summary and Macrotrend list
+      // (the .mg-side column over its right edge): shift the view left by half
+      // the width they cover. Picking follows, as it uses the same projection.
+      // The library clears the camera's view offset once after it starts, so
+      // the frame loop puts it back whenever it is missing.
+      const cam = g.camera() as ThreeNS.PerspectiveCamera;
+      let shift = 0;
+      const applyShift = () => {
+        const w = el.clientWidth;
+        const h = el.clientHeight;
+        if (shift > 0) cam.setViewOffset(w, h, shift, 0, w, h);
+        else cam.clearViewOffset();
+        cam.updateProjectionMatrix();
+      };
+      const fit = () => {
+        const w = el.clientWidth;
+        g.width(w).height(el.clientHeight);
+        const side = el.parentElement?.querySelector(".mg-side");
+        const covered = side && getComputedStyle(side).position === "absolute" ? Math.max(0, el.getBoundingClientRect().right - side.getBoundingClientRect().left) : 0;
+        shift = covered > 0 && covered < w * 0.6 ? covered / 2 : 0;
+        applyShift();
+      };
+
       // The selected node's ring turns slowly; the stars drift.
       let spin = 0;
       const tick = () => {
         spin = requestAnimationFrame(tick);
+        if (shift > 0 && (!cam.view?.enabled || cam.view.fullWidth !== el.clientWidth)) applyShift();
         if (reducedMotion) return;
         stars.rotation.y += 0.00006;
         for (const p of parts.current.values()) if (p.ring?.visible) p.ring.rotation.z += 0.004;
       };
       tick();
 
-      // Centre the graph in the space beside the summary and Macrotrend list
-      // (the .mg-side column over its left edge): shift the view right by half
-      // the width they cover. Picking follows, as it uses the same projection.
-      const fit = () => {
-        const w = el.clientWidth;
-        const h = el.clientHeight;
-        g.width(w).height(h);
-        const side = el.parentElement?.querySelector(".mg-side");
-        const covered = side && getComputedStyle(side).position === "absolute" ? Math.max(0, side.getBoundingClientRect().right - el.getBoundingClientRect().left) : 0;
-        const cam = g.camera() as ThreeNS.PerspectiveCamera;
-        if (covered > 0 && covered < w * 0.6) cam.setViewOffset(w, h, -covered / 2, 0, w, h);
-        else cam.clearViewOffset();
-        cam.updateProjectionMatrix();
-      };
       fit();
       const ro = new ResizeObserver(fit);
       ro.observe(el);
