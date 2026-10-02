@@ -223,7 +223,10 @@ analyst-entered information distinguishable; in the prototype every value is
   - One sphere per competitor named by a Tracker entry; radius grows
     exponentially with its entries relative to the most-named competitor
     (`competitorRadius`), so those named once or twice stay very small (and
-    unlabelled; the name shows on hover). Pairs of competitors named by the
+    unlabelled; the name shows on hover). "N/A" and similar placeholders
+    (None, Not applicable, -, TBC, Unknown: `isPlaceholderCompetitor`) are
+    not competitors: no node or tie, and an entry naming only those is left
+    out of the tab. Pairs of competitors named by the
     same entries are tied by a link force (stronger with more shared entries),
     so they sit close together; an open competitor lights its ties.
   - Summaries: 73 defaults ship in `packages/shared/src/competitors.ts`,

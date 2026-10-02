@@ -18,6 +18,7 @@ import {
   FIELDS,
   MAX_SAVED_PAGES,
   SOURCE_TIER,
+  autoRecordId,
   checkAndNormaliseUrl,
   dedupeKey,
   excelDate,
@@ -46,7 +47,7 @@ import { audit } from "./audit.js";
 import { contentFingerprintInput, getItemRow } from "./items.js";
 import { listPages } from "./pages.js";
 import { snapshotPhantom } from "./phantoms.js";
-import { todayIn } from "./review.js";
+import { freeRecordIds, todayIn } from "./review.js";
 import { PHYSICAL, loadSettings, type Schemas } from "./schema.js";
 
 export interface ImportRow {
@@ -158,6 +159,7 @@ export async function importRows(
   const today = await todayIn(env, p.tenantId);
   const hasReviewDate = schema.columns.some((c) => c.key === FIELDS.reviewDate);
   const hasTier = schema.columns.some((c) => c.key === FIELDS.sourceTier);
+  const hasId = schema.columns.some((c) => c.key === FIELDS.id);
 
   const parsed = rows.map((r) => {
     const raw: Record<string, unknown> = {};
@@ -172,8 +174,17 @@ export async function importRows(
     const values = canonicalise(schema, normaliseValues(schema, raw));
     if (hasTier) values[FIELDS.sourceTier] = SOURCE_TIER[stream];
     if (hasReviewDate && !values[FIELDS.reviewDate]) values[FIELDS.reviewDate] = today;
+    // A blank ID is filled in like the Inbox does: Date_Competitor_Title (or Key Intelligence Question).
+    let auto = false;
+    if (hasId && !values[FIELDS.id]) {
+      const a = autoRecordId(stream, values);
+      if (a) {
+        values[FIELDS.id] = a;
+        auto = true;
+      }
+    }
     for (const e of validateValues(schema, values, { forApproval: true })) errors.push({ row: r.row, column: e.label, message: explain(schema, other, stream, values, e) });
-    return { row: r.row, values };
+    return { row: r.row, values, auto };
   });
   for (const u of unknown) errors.push({ row: 1, column: u, message: `“${u}” is not a column of the ${stream === "primary" ? "Primary" : "Secondary"} Tracker` });
 
@@ -182,12 +193,12 @@ export async function importRows(
   const seen = new Map<string, number>();
   for (const r of parsed) {
     const id = r.values[FIELDS.id];
-    if (typeof id !== "string" || !id) continue;
+    if (typeof id !== "string" || !id || r.auto) continue;
     const prev = seen.get(id.toLowerCase());
     if (prev) errors.push({ row: r.row, column: idLabel, message: `${idLabel} “${id}” is also used on row ${prev}` });
     else seen.set(id.toLowerCase(), r.row);
   }
-  const ids = parsed.map((r) => r.values[FIELDS.id]).filter((v): v is string => typeof v === "string" && !!v);
+  const ids = parsed.filter((r) => !r.auto).map((r) => r.values[FIELDS.id]).filter((v): v is string => typeof v === "string" && !!v);
   if (ids.length) {
     const taken = await env.DB.prepare(
       `SELECT record_id, signal_code FROM intelligence_items WHERE tenant_id = ? AND status = 'approved' AND record_id IN (${ids.map(() => "?").join(",")})`,
@@ -201,6 +212,18 @@ export async function importRows(
   }
   errors.sort((a, b) => a.row - b.row);
   if (errors.length || dryRun) return { ok: !errors.length, imported: 0, errors, codes: [] };
+  // Automatic IDs already used (by the Tracker, the sheet's own IDs or each other) get _2, _3…
+  const autoRows = parsed.filter((r) => r.auto);
+  if (autoRows.length) {
+    const own = new Set(parsed.filter((r) => !r.auto).map((r) => String(r.values[FIELDS.id] ?? "")));
+    const free = await freeRecordIds(env, p.tenantId, autoRows.map((r) => String(r.values[FIELDS.id])), null);
+    autoRows.forEach((r, i) => {
+      let v = free[i]!;
+      for (let n = 2; own.has(v); n++) v = `${String(r.values[FIELDS.id])}_${n}`;
+      own.add(v);
+      r.values[FIELDS.id] = v;
+    });
+  }
 
   // ---- write (one atomic batch per request) --------------------------------
   const n = parsed.length;

@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { COMPLETE, approveWith, call, env, ingestTo, json, nextRecordId, seedWorld, type World } from "./helpers";
+import { markdownFileName, yamlScalar } from "@eradigm/shared";
 
 let w: World;
 beforeAll(async () => {
@@ -105,10 +106,8 @@ describe("Phantoms", () => {
 
   it("generates the Markdown from the tracker fields only, as valid YAML front matter", async () => {
     const item = await ingestTo("secondary", w.a.analyst, "Markdown source page", body("Roche opens a lab"));
-    const rid = `MD-${nextRecordId()}`;
     const pub = await json(
       approveWith(w.a.analyst, item, {
-        record_id: rid,
         title: "Roche: new robotics lab #1",
         date: "2026-09-24",
         review_date: "2026-09-29",
@@ -127,13 +126,16 @@ describe("Phantoms", () => {
         ci_perspective: "Raises the bar for peers.",
       }),
     );
+    // The ID is filled in automatically: Date_Competitor_Title.
+    const rid = pub.draft.record_id as string;
+    expect(rid).toBe("2026-09-24_Roche & Pfizer_Roche: new robotics lab #1");
     const res = await call(w.a.client, "GET", `/api/signals/${pub.id}/markdown`);
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toMatch(/^text\/markdown/);
     expect(await res.text()).toBe(
       [
         "---",
-        `id: ${rid}`,
+        `id: ${yamlScalar(rid)}`,
         'title: "Roche: new robotics lab #1"',
         "event_date: 2026-09-24",
         "source_type: PR",
@@ -166,7 +168,7 @@ describe("Phantoms", () => {
       ].join("\n"),
     );
     const dl = await call(w.a.client, "GET", `/api/signals/${pub.id}/markdown?download=1`);
-    expect(dl.headers.get("content-disposition")).toBe(`attachment; filename="${rid}.md"`);
+    expect(dl.headers.get("content-disposition")).toBe(`attachment; filename="${markdownFileName({ record_id: rid }, "x")}"`);
     const ev = await env.DB.prepare("SELECT COUNT(*) AS n FROM audit_events WHERE action = 'markdown.downloaded' AND target_id = ?1").bind(pub.id).first<{ n: number }>();
     expect(ev?.n).toBe(1);
   });
@@ -184,10 +186,8 @@ describe("Phantoms", () => {
 describe("Primary Markdown", () => {
   it("uses the Primary fields (no classification columns) with Key Intelligence Question, Key Details and Key Metrics", async () => {
     const item = await ingestTo("primary", w.a.analyst, "Primary markdown page", body("Roche shares launch plans with KOLs"));
-    const rid = `P-MD-${nextRecordId()}`;
     const pub = await json(
       approveWith(w.a.analyst, item, {
-        record_id: rid,
         title: "Roche plans a Q3 launch",
         date: "2026-09-24",
         source_role: "Oncology KOL",
@@ -204,10 +204,13 @@ describe("Primary Markdown", () => {
         key_metrics: "40% of KOLs aware",
       }),
     );
+    // Primary IDs: Date_Competitor_Key Intelligence Question.
+    const rid = pub.draft.record_id as string;
+    expect(rid).toBe("2026-09-24_Roche_When will Roche launch?");
     expect(await (await call(w.a.client, "GET", `/api/signals/${pub.id}/markdown`)).text()).toBe(
       [
         "---",
-        `id: ${rid}`,
+        `id: ${yamlScalar(rid)}`,
         "title: Roche plans a Q3 launch",
         "event_date: 2026-09-24",
         "Source:",
@@ -239,22 +242,19 @@ describe("Primary Markdown", () => {
   });
 });
 
-describe("analyst-entered ID", () => {
-  it("is required and must be unique among tracker entries (across both streams)", async () => {
+describe("automatic ID", () => {
+  it("is filled in from the Event Date, Competitors and Title (Primary: Key Intelligence Question), and gets _2 when already used", async () => {
     const one = await ingestTo("primary", w.a.analyst, "ID uniqueness one", body("Novartis launches an AI academy"));
     const two = await ingestTo("secondary", w.a.analyst, "ID uniqueness two", body("Sanofi launches an AI academy"));
-    const missing = await call(w.a.analyst, "POST", `/api/items/${one.id}/approve`, { body: { values: { ...one.draft, ...COMPLETE, record_id: "" }, version: one.version } });
+    // Without the fields it is made from, approval names those fields.
+    const missing = await call(w.a.analyst, "POST", `/api/items/${one.id}/approve`, { body: { values: { ...one.draft, ...COMPLETE, competitors: [], record_id: "" }, version: one.version } });
     expect(missing.status).toBe(422);
-    expect((await missing.json<any>()).error.fields.map((f: any) => f.key)).toContain("record_id");
-    const rid = `DUP-${nextRecordId()}`;
-    const first = await json(approveWith(w.a.analyst, one, { record_id: rid }));
-    const clash = await approveWith(w.a.analyst, two, { record_id: rid });
-    expect(clash.status).toBe(422);
-    const err = (await clash.json<any>()).error;
-    expect(err.message).toContain(`“${rid}” is already used by ${first.signalCode}`);
-    expect(err.fields[0].key).toBe("record_id");
-    // Once the first entry is deleted from the tracker, the ID is free again.
-    await call(w.a.analyst, "DELETE", `/api/items/${first.id}`);
-    expect((await approveWith(w.a.analyst, two, { record_id: rid })).status).toBe(200);
+    expect((await missing.json<any>()).error.fields.map((f: any) => f.key)).toContain("competitors");
+    const same = { title: "Novartis opens an AI academy", date: "2026-08-01", competitors: ["Novartis"], key_intelligence_question: null, record_id: "typed-by-hand" };
+    const first = await json(approveWith(w.a.analyst, one, same));
+    expect(first.draft.record_id).toBe("2026-08-01_Novartis_Novartis opens an AI academy");
+    // The same ID in the other stream: _2.
+    const second = await json(approveWith(w.a.analyst, two, same));
+    expect(second.draft.record_id).toBe("2026-08-01_Novartis_Novartis opens an AI academy_2");
   });
 });

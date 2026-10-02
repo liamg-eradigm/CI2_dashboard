@@ -9,6 +9,7 @@ import {
   MAX_TEXT_LENGTH,
   TYPE_LABEL,
   CORE,
+  DEFAULT_COMPETITOR_TIERS,
   DEFAULT_NAV_ORDER,
   DEFAULT_TREND_THRESHOLDS,
   STREAMS,
@@ -123,6 +124,7 @@ export const DEFAULT_SETTINGS: TenantSettings = {
   phantoms: { secondaryMinImpact: "Low" },
   navOrder: [...DEFAULT_NAV_ORDER],
   megatrends: { summaryDays: 90, summarySentences: 2, model: "claude-opus-5-5", perspective: "AbbVie" },
+  competitorTiers: structuredClone(DEFAULT_COMPETITOR_TIERS),
 };
 
 export async function loadSettings(env: Env, tenantId: string): Promise<TenantSettings> {
@@ -138,6 +140,7 @@ export async function loadSettings(env: Env, tenantId: string): Promise<TenantSe
     phantoms: { ...DEFAULT_SETTINGS.phantoms, ...s.phantoms },
     navOrder: normaliseNavOrder(s.navOrder),
     megatrends: { ...DEFAULT_SETTINGS.megatrends, ...s.megatrends },
+    competitorTiers: { ...DEFAULT_SETTINGS.competitorTiers, ...s.competitorTiers },
   };
 }
 

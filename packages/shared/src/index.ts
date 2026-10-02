@@ -17,3 +17,4 @@ export * from "./docx.js";
 export * from "./importRules.js";
 export * from "./megatrends.js";
 export * from "./competitors.js";
+export * from "./kiq.js";
