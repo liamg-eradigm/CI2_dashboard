@@ -133,12 +133,23 @@ analyst-entered information distinguishable; in the prototype every value is
   still be deleted (Phantoms only, or globally). Dropdown option renames reach
   the snapshots (a label, not content). The Phantoms queries read the
   snapshot under the Tracker's column names (`itemsFrom` in `query.ts`).
+- **Text ⇄ Long text** (contract 1.13): the column editor switches a Text
+  column to Long text (a bigger box with bullet indenting) and back, via
+  `PATCH /api/schema/columns/:key {type}`. Back to Text is refused while any
+  entry has more than 2,000 characters in it. Migration 0013 makes an
+  existing "Tell Me More" Text column Long text, like Header, Key Details and
+  CI Perspective.
 - **Eradigm Inbox and Client Inbox** (contract 1.12, migration 0012):
   - One Eradigm Inbox for Primary and Secondary entries (filter All /
     Secondary / Primary); each entry shows its own tracker's fields and a
     stream tag. Actions: **Reject**, **Send to Client**, **Push to Tracker**
     (the former Approve). Tabs: Needs review, With client, Processing,
-    Failed, Pushed & rejected.
+    Failed, Pushed & Rejected.
+  - **Delete All** (Pushed & Rejected view, staff; contract 1.13, migration
+    0013; `POST /api/items/clear-decided {stream?}`) follows the "Show
+    entries from" filter: rejected entries are deleted (`status = 'deleted'`);
+    pushed entries only leave the Inbox (`inbox_cleared_at`) and stay in the
+    Tracker and Phantoms. One audit entry (`inbox.cleared`) with the counts.
   - Send to Client sets `with_client_at` (the entry stays `needs_review`):
     it appears in the client's **Client Inbox** and is read-only for Eradigm
     until it comes back (Eradigm can also Recall it). The client can **Send
@@ -191,6 +202,9 @@ analyst-entered information distinguishable; in the prototype every value is
 - **Megatrends** (tab, all roles; `GET /api/megatrends?stream=all|primary|secondary&from&to`)
   is a 3D knowledge graph of the Tracker entries (same rows as the Tracker:
   approved, not deleted from the Tracker) with a timeline below.
+  - The summary of the trend in view is a centred box at the top of the page
+    (title 30px, summary 21px), on a surface only a shade lighter than the
+    page so it stands out without becoming a separate block.
   - Macrotrend spheres around a central core, sized by their number of
     entries (only those with 1 or more); selecting one reveals its Subtrends
     (also 1 or more), selecting a Subtrend its entries. Zooming in on a node

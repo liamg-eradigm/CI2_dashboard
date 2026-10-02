@@ -24,6 +24,7 @@ import {
   VersionRequest,
   UpdateTrendSummaryRequest,
   normaliseNavOrder,
+  ClearDecidedRequest,
   DeleteItemRequest,
   CONTRACT_VERSION,
   CreateSavedViewRequest,
@@ -77,7 +78,7 @@ import { audit, listAudit, verifyChain } from "./services/audit.js";
 import { clientInboxCount, getDetail, getItemRow, inboxCounts, listItems } from "./services/items.js";
 import { qualityMetrics } from "./services/metrics.js";
 import { dashboard, dateBounds, exportRows, trackerPage, trendTest, type Scope } from "./services/query.js";
-import { approve, deleteFromTable, reject, reprocess, revise, saveDraft, softDelete } from "./services/review.js";
+import { approve, clearDecided, deleteFromTable, reject, reprocess, revise, saveDraft, softDelete } from "./services/review.js";
 import {
   addColumn,
   addOption,
@@ -332,7 +333,7 @@ app.patch("/api/schema/columns/:key", async (c) => {
   const b = await body(c, UpdateColumnRequest);
   const stream = streamOf(c);
   const r = await updateColumn(c.env, P(c).tenantId, stream, c.req.param("key"), b);
-  return schemaChanged(c, stream, { op: "update_column", key: c.req.param("key"), renamed: r.before.label !== r.after.label, required: r.after.required, inTracker: r.after.inTracker, inPhantoms: r.after.inPhantoms });
+  return schemaChanged(c, stream, { op: "update_column", key: c.req.param("key"), renamed: r.before.label !== r.after.label, required: r.after.required, inTracker: r.after.inTracker, inPhantoms: r.after.inPhantoms, type: r.after.type });
 });
 
 app.delete("/api/schema/columns/:key", async (c) => {
@@ -645,6 +646,13 @@ app.get("/api/items/:id", async (c) => {
 // ---------------------------------------------------------------------------
 // Eradigm Inbox ⇄ Client Inbox, and comments on an entry's text
 // ---------------------------------------------------------------------------
+
+// "Delete All" in the Eradigm Inbox's Pushed & Rejected view.
+app.post("/api/items/clear-decided", async (c) => {
+  requirePermission(P(c), "item:delete");
+  const b = await body(c, ClearDecidedRequest);
+  return c.json(await clearDecided(c.env, P(c), b.stream ?? null));
+});
 
 app.post("/api/items/:id/send-to-client", async (c) => {
   requirePermission(P(c), "item:review");

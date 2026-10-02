@@ -6,6 +6,8 @@
  */
 import {
   ALL,
+  MAX_TEXT_LENGTH,
+  TYPE_LABEL,
   CORE,
   DEFAULT_NAV_ORDER,
   DEFAULT_TREND_THRESHOLDS,
@@ -219,10 +221,22 @@ export async function addColumn(env: Env, tenantId: string, stream: Stream, labe
   return { key, label: chk.value };
 }
 
-export async function updateColumn(env: Env, tenantId: string, stream: Stream, key: string, patch: { label?: string; required?: boolean; inTracker?: boolean; inPhantoms?: boolean }) {
+export async function updateColumn(
+  env: Env,
+  tenantId: string,
+  stream: Stream,
+  key: string,
+  patch: { label?: string; required?: boolean; inTracker?: boolean; inPhantoms?: boolean; type?: "text" | "long" },
+) {
   const schema = await loadSchema(env, tenantId, stream);
   const col = requireColumn(schema, key);
   const stmts: D1PreparedStatement[] = [];
+  // Text ⇄ Long text: the only type change allowed (same values, a different box and limit).
+  const type = patch.type ?? col.type;
+  if (patch.type && patch.type !== col.type) {
+    if (col.type !== "text" && col.type !== "long") throw new ApiError("CONFLICT", `${col.label} is a ${TYPE_LABEL[col.type]} column: only Text and Long text columns can switch type`);
+    if (patch.type === "text") await assertFitsShortText(env, tenantId, stream, col);
+  }
   let label = col.label;
   if (patch.label !== undefined) {
     const chk = checkColumnLabel(schema, patch.label, key);
@@ -235,7 +249,7 @@ export async function updateColumn(env: Env, tenantId: string, stream: Stream, k
   const phantomsPosition = patch.inPhantoms && !col.inPhantoms ? end("phantoms") : col.phantomsPosition;
   stmts.push(
     env.DB.prepare(
-      "UPDATE tracker_columns SET label = ?1, required = ?2, in_tracker = ?5, tracker_position = ?7, in_phantoms = ?8, phantoms_position = ?9 WHERE tenant_id = ?3 AND key = ?4 AND stream = ?6",
+      "UPDATE tracker_columns SET label = ?1, required = ?2, in_tracker = ?5, tracker_position = ?7, in_phantoms = ?8, phantoms_position = ?9, type = ?10 WHERE tenant_id = ?3 AND key = ?4 AND stream = ?6",
     ).bind(
       label,
       (patch.required ?? col.required) ? 1 : 0,
@@ -246,14 +260,28 @@ export async function updateColumn(env: Env, tenantId: string, stream: Stream, k
       trackerPosition,
       (patch.inPhantoms ?? col.inPhantoms) ? 1 : 0,
       phantomsPosition,
+      type,
     ),
     bump(env, tenantId),
   );
   await env.DB.batch(stmts);
   return {
-    before: { label: col.label, required: col.required, inTracker: col.inTracker, inPhantoms: col.inPhantoms },
-    after: { label, required: patch.required ?? col.required, inTracker: patch.inTracker ?? col.inTracker, inPhantoms: patch.inPhantoms ?? col.inPhantoms },
+    before: { label: col.label, required: col.required, inTracker: col.inTracker, inPhantoms: col.inPhantoms, type: col.type },
+    after: { label, required: patch.required ?? col.required, inTracker: patch.inTracker ?? col.inTracker, inPhantoms: patch.inPhantoms ?? col.inPhantoms, type },
   };
+}
+
+/** Long text → Text only when no entry (draft or published) is longer than Text allows. */
+async function assertFitsShortText(env: Env, tenantId: string, stream: Stream, col: TrackerColumn): Promise<void> {
+  const published = PHYSICAL[col.key] ?? `json_extract(extra_json, '${jsonPath(col.key)}')`;
+  const r = await env.DB.prepare(
+    `SELECT COUNT(*) AS n FROM intelligence_items WHERE tenant_id = ?1 AND stream = ?2 AND status != 'deleted'
+        AND (length(json_extract(draft_json, ?3)) > ?4 OR length(${published}) > ?4)`,
+  )
+    .bind(tenantId, stream, jsonPath(col.key), MAX_TEXT_LENGTH)
+    .first<{ n: number }>();
+  const n = r?.n ?? 0;
+  if (n) throw new ApiError("CONFLICT", `${n} entr${n === 1 ? "y has" : "ies have"} more than ${MAX_TEXT_LENGTH} characters in ${col.label}, so it must stay Long text`);
 }
 
 /**

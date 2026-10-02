@@ -346,7 +346,21 @@ export function SchemaEditor({ stream = "primary" }: { stream?: Stream }) {
                   </button>
                 </span>
                 <RenameInput value={c.label} label={`Rename column ${c.label}`} onCommit={(label) => call(`/api/schema/columns/${c.key}`, "PATCH", { label }, `Renamed column “${c.label}” to “${label}”`)} />
-                <span style={{ fontSize: 12.5, color: "var(--muted)" }}>{TYPE_LABEL[c.type]}</span>
+                {c.type === "text" || c.type === "long" ? (
+                  <button
+                    className="type-switch"
+                    title={`Switch to ${c.type === "text" ? "Long text (a bigger box with bullet indenting)" : "Text (a single line)"}`}
+                    aria-label={`${c.label}: ${TYPE_LABEL[c.type]}. Switch to ${c.type === "text" ? TYPE_LABEL.long : TYPE_LABEL.text}`}
+                    onClick={() => {
+                      const type = c.type === "text" ? "long" : "text";
+                      void call(`/api/schema/columns/${c.key}`, "PATCH", { type }, `${c.label} is now ${TYPE_LABEL[type]}`);
+                    }}
+                  >
+                    {TYPE_LABEL[c.type]} <span aria-hidden="true">⇄</span>
+                  </button>
+                ) : (
+                  <span style={{ fontSize: 12.5, color: "var(--muted)" }}>{TYPE_LABEL[c.type]}</span>
+                )}
                 <div>
                   {hasOptions(c) ? (
                     <button className="btn secondary small" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : c.key)} style={isOpen ? { background: "var(--tint)", borderColor: "var(--focus)" } : undefined}>

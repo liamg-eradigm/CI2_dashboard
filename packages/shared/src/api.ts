@@ -57,8 +57,20 @@ export const UpdateColumnRequest = z
     /** Add the column to (true, at the end) or remove it from (false) the Tracker / Phantoms table. */
     inTracker: z.boolean().optional(),
     inPhantoms: z.boolean().optional(),
+    /** Switch between Text and Long text (contract 1.13): the only type change there is. */
+    type: z.enum(["text", "long"]).optional(),
   })
-  .refine((v) => v.label !== undefined || v.required !== undefined || v.inTracker !== undefined || v.inPhantoms !== undefined, "Nothing to update");
+  .refine((v) => v.label !== undefined || v.required !== undefined || v.inTracker !== undefined || v.inPhantoms !== undefined || v.type !== undefined, "Nothing to update");
+/**
+ * "Delete All" in the Eradigm Inbox's Pushed & Rejected view (contract 1.13):
+ * rejected entries are deleted; pushed entries only leave the Inbox and stay
+ * in the Tracker and Phantoms. Omit `stream` for both streams.
+ */
+export const ClearDecidedRequest = z.object({ stream: z.enum(STREAMS).optional() });
+export type ClearDecidedRequest = z.infer<typeof ClearDecidedRequest>;
+export const ClearDecidedResultSchema = z.object({ rejectedDeleted: z.number().int(), pushedCleared: z.number().int() });
+export type ClearDecidedResult = z.infer<typeof ClearDecidedResultSchema>;
+
 /** Optional reason recorded in the audit log when an item or tracker entry is deleted. */
 export const DeleteItemRequest = z.object({
   reason: z.string().max(500).optional(),
@@ -692,10 +704,11 @@ export const ENDPOINTS: EndpointDef[] = [
   { method: "post", path: "/api/me/sessions/revoke", summary: "End all of my active sessions", roles: ALL_ROLES },
   { method: "get", path: "/api/schema", summary: "Tracker columns and taxonomy", roles: ALL_ROLES, response: TrackerSchemaSchema },
   { method: "post", path: "/api/schema/columns", summary: "Add a column", roles: STAFF, request: AddColumnRequest, response: TrackerSchemaSchema },
-  { method: "patch", path: "/api/schema/columns/{key}", summary: "Rename a column or toggle Required", roles: STAFF, request: UpdateColumnRequest, response: TrackerSchemaSchema },
+  { method: "patch", path: "/api/schema/columns/{key}", summary: "Rename a column, toggle Required or the Tracker/Phantoms tables, or switch Text ⇄ Long text", roles: STAFF, request: UpdateColumnRequest, response: TrackerSchemaSchema },
   { method: "delete", path: "/api/schema/columns/{key}", summary: "Delete a non-core column", roles: STAFF, response: TrackerSchemaSchema },
   { method: "post", path: "/api/import", summary: "Import approved entries into a tracker (query: stream). At most 200 rows per request for a dry run, 8 otherwise", roles: STAFF, request: ImportRequest, response: ImportResponse },
   { method: "post", path: "/api/items/{id}/snapshot", summary: `Attach a saved HTML page to a tracker entry (multipart: file). The first becomes the entry's page; later ones are added to its list (at most ${MAX_SAVED_PAGES})`, roles: STAFF, response: z.object({ id: z.string(), hasSnapshot: z.boolean(), pages: z.number().int() }) },
+  { method: "post", path: "/api/items/clear-decided", summary: "Eradigm Inbox \"Delete All\" in Pushed & Rejected: delete rejected entries; pushed entries leave the Inbox but stay in the Tracker and Phantoms", roles: STAFF, request: ClearDecidedRequest, response: ClearDecidedResultSchema },
   { method: "post", path: "/api/items/{id}/send-to-client", summary: "Eradigm Inbox: send an entry awaiting review to the Client Inbox", roles: STAFF, request: VersionRequest, response: ItemSummarySchema },
   { method: "post", path: "/api/items/{id}/recall", summary: "Eradigm Inbox: take an entry back from the Client Inbox", roles: STAFF, request: VersionRequest, response: ItemSummarySchema },
   { method: "get", path: "/api/client-inbox", summary: "Client Inbox: entries Eradigm sent to the client to check", roles: CLIENT_INBOX, response: z.array(ItemSummarySchema) },

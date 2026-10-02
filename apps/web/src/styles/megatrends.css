@@ -105,25 +105,50 @@
 .mg-subs button { font-size: 12px; padding: 5px 8px; }
 .mg-subs .dot { width: 8px; height: 8px; }
 
-/* The summary of the trend in view: a band at the top, in large type. */
-.mg-panel { flex: none; position: relative; z-index: 3; display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); gap: 8px 36px; margin: 0 20px 12px; border-radius: 18px; padding: 20px 28px 18px; max-height: 38vh; overflow: auto; animation: mg-in 0.35s ease both; }
-.mg-panel-id { min-width: 0; padding-top: 2px; }
-.mg-panel-body { min-width: 0; }
+/*
+ * The summary of the trend in view: a centred box at the top of the page, in
+ * large type. Its surface is only a shade lighter than the page so it stands
+ * out without becoming a separate block.
+ */
+.mg-panel {
+  flex: none;
+  position: relative;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  width: min(1040px, calc(100% - 40px));
+  margin: 0 auto 12px;
+  border-radius: 18px;
+  padding: 22px 36px 20px;
+  max-height: 42vh;
+  overflow: auto;
+  animation: mg-in 0.35s ease both;
+}
+.mg-panel {
+  background: rgba(150, 205, 222, 0.045);
+  border-color: rgba(127, 211, 216, 0.14);
+  box-shadow: 0 10px 30px rgba(0, 6, 12, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.mg-panel-id { min-width: 0; display: flex; flex-direction: column; align-items: center; }
+.mg-panel-body { min-width: 0; display: flex; flex-direction: column; align-items: center; margin-top: 14px; }
 .mg-panel-body > .mg-summary:first-child { margin-top: 0; }
-.mg-kicker { display: flex; align-items: center; gap: 8px; font: 700 10.5px var(--sans); letter-spacing: 0.14em; text-transform: uppercase; color: var(--cyan-2); }
-.mg-panel-title { font: 800 24px/1.22 var(--sans); color: #fff; margin-top: 10px; }
-.mg-count { margin: 7px 0 0; font-size: 13px; color: var(--mg-ink-3); }
-.mg-summary { margin: 0; font: 400 19px/1.6 var(--sans); color: #f4fafb; max-width: 76ch; text-wrap: pretty; }
+.mg-kicker { display: flex; align-items: center; justify-content: center; gap: 8px; font: 700 11.5px var(--sans); letter-spacing: 0.16em; text-transform: uppercase; color: var(--cyan-2); }
+.mg-panel-title { font: 800 30px/1.2 var(--sans); color: #fff; margin-top: 8px; }
+.mg-count { margin: 6px 0 0; font-size: 13.5px; color: var(--mg-ink-3); }
+.mg-summary { margin: 0; font: 400 21px/1.6 var(--sans); color: #f4fafb; max-width: 72ch; text-wrap: pretty; }
 .mg-summary.muted { color: var(--mg-ink-3); font-style: italic; }
 .mg-prov { margin: 10px 0 0; font-size: 11.5px; color: var(--mg-ink-3); }
 .mg-hint { margin: 12px 0 0; font-size: 11.5px; color: var(--mg-ink-3); }
 .mg-err { margin: 10px 0 0; font-size: 12.5px; color: #ffb4ad; }
-.mg-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.mg-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 14px; }
 .mg-btn { height: 30px; padding: 0 13px; border-radius: 8px; border: 1px solid rgba(127, 211, 216, 0.5); background: rgba(28, 156, 165, 0.45); color: #fff; font: 700 12.5px var(--sans); }
 .mg-btn:hover:not(:disabled) { background: rgba(28, 156, 165, 0.65); }
 .mg-btn.ghost { background: transparent; border-color: rgba(127, 211, 216, 0.3); color: var(--mg-ink-2); }
 .mg-btn.ghost:hover:not(:disabled) { background: rgba(127, 211, 216, 0.1); color: #fff; }
-.mg-edit textarea { width: 100%; margin-top: 14px; border-radius: 10px; border: 1px solid rgba(127, 211, 216, 0.35); background: rgba(2, 12, 20, 0.6); color: var(--mg-ink); padding: 10px 12px; font: 13.5px/1.55 var(--sans); resize: vertical; }
+.mg-edit { width: min(72ch, 100%); }
+.mg-edit textarea { width: 100%; text-align: left; margin-top: 14px; border-radius: 10px; border: 1px solid rgba(127, 211, 216, 0.35); background: rgba(2, 12, 20, 0.6); color: var(--mg-ink); padding: 10px 12px; font: 13.5px/1.55 var(--sans); resize: vertical; }
 @keyframes mg-in {
   from { opacity: 0; transform: translateY(-6px); }
   to { opacity: 1; transform: none; }
@@ -192,14 +217,14 @@
 }
 @media (max-width: 1100px) {
   .mg-rail { width: 210px; }
-  .mg-panel { width: 290px; }
 }
 @media (max-width: 860px), (max-height: 700px) {
   .mg-page { height: auto; min-height: 100vh; overflow: visible; }
   .mg-stage { min-height: 420px; }
   .mg-rail { position: static; width: auto; margin: 56px 12px 0; max-height: 220px; }
-  .mg-panel { grid-template-columns: 1fr; max-height: none; padding: 16px 18px; }
-  .mg-summary { font-size: 17px; }
+  .mg-panel { width: calc(100% - 32px); max-height: none; padding: 16px 18px; }
+  .mg-panel-title { font-size: 24px; }
+  .mg-summary { font-size: 17.5px; }
   .mg-stage { display: flex; flex-direction: column; justify-content: flex-end; }
   .mg-crumbs { max-width: calc(100% - 32px); }
 }

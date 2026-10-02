@@ -86,7 +86,7 @@ test.describe("Eradigm staff (admin)", () => {
     await fillEntry(card, { id: `P-E2E-${uid()}`, title: "AstraZeneca and Roche form pre-competitive AI alliance", extra: { "Key Details": "Shared models.\n\nEach partner keeps its own assets." } });
     await card.getByRole("button", { name: "✓ Push to Tracker" }).click();
     await expect(page.getByText(/SIG-\d+ published to the tracker as rev 1/).first()).toBeVisible();
-    await page.getByRole("button", { name: /Pushed & rejected/ }).click();
+    await page.getByRole("button", { name: /Pushed & Rejected/ }).click();
     await expect(page.locator(".inbox-card", { hasText: "AstraZeneca and Roche form pre-competitive AI alliance" }).getByText(/Pushed to Tracker · SIG-/)).toBeVisible();
   });
 
@@ -419,7 +419,7 @@ test.describe("Eradigm staff (admin)", () => {
     await expect(page.locator(".dates-banner")).toHaveCount(0);
     // From the Inbox: View in Tracker opens the entry.
     await page.goto("/inbox?stream=secondary");
-    await page.getByRole("button", { name: /^Pushed & rejected/ }).click();
+    await page.getByRole("button", { name: /^Pushed & Rejected/ }).click();
     const done = page.locator(".inbox-card", { has: page.locator(".code", { hasText: code }) });
     await done.getByRole("link", { name: "View in Tracker →" }).click();
     await expect(page).toHaveURL(/\/tracker\?.*signal=/);
