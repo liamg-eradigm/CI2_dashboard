@@ -417,12 +417,12 @@ export async function reorderOptions(env: Env, tenantId: string, stream: Stream,
 }
 
 /**
- * A renamed Macrotrend / Subtrend keeps its Megatrends summary (stored, else
- * the default text). The old name keeps its own too: the other tracker may
- * still use it.
+ * A renamed Macrotrend / Subtrend / competitor keeps its summary (stored,
+ * else the default text). The old name keeps its own too: the other tracker
+ * may still use it.
  */
 function summaryRename(env: Env, tenantId: string, type: string, from: string, to: string): D1PreparedStatement[] {
-  const level: TrendLevel | null = type === "macro" ? "macro" : type === "sub" ? "sub" : null;
+  const level: TrendLevel | null = type === "macro" ? "macro" : type === "sub" ? "sub" : type === "competitor" ? "competitor" : null;
   if (!level) return [];
   const stmts = [
     env.DB.prepare(
@@ -452,7 +452,7 @@ export async function renameOption(env: Env, tenantId: string, stream: Stream, k
   const stmts: D1PreparedStatement[] = [
     env.DB.prepare("UPDATE column_options SET value = ?1 WHERE tenant_id = ?2 AND column_key = ?3 AND value = ?4 AND stream = ?5").bind(v, tenantId, key, from, stream),
     bump(env, tenantId),
-    ...summaryRename(env, tenantId, col.type, from, v),
+    ...summaryRename(env, tenantId, key === CORE.competitors ? "competitor" : col.type, from, v),
   ];
   if (col.type === "macro") {
     stmts.push(env.DB.prepare("UPDATE column_options SET parent = ?1 WHERE tenant_id = ?2 AND column_key = ?3 AND parent = ?4 AND stream = ?5").bind(v, tenantId, CORE.subtrend, from, stream));

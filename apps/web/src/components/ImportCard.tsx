@@ -264,13 +264,30 @@ export function ImportCard() {
         <p className="card-sub" style={{ margin: "6px 0 0" }}>Dropdown values match whatever their capitals, spacing, quotes or dashes. Each Inbox has its own options, so add missing ones to the {STREAM_LABEL[stream]} Inbox.</p>
       </details>
       <div className="source-row">
-        <label className={`drop${dragging ? " over" : ""}`} data-testid="drop-zone-import">
-          <input ref={inputRef} type="file" accept=".xlsx,.csv,.tsv,text/csv,text/tab-separated-values,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="sr-only" onChange={(e) => void read(e.target.files?.[0] ?? null)} aria-label={`Spreadsheet to import into the ${trackerName}`} />
-          <span style={{ fontSize: 14, fontWeight: 700, color: "var(--navy-700)" }}>{dragging ? "Drop the spreadsheet here" : file ? file.name : "Drag and drop a spreadsheet here, or click to choose"}</span>
-          <span style={{ fontSize: 12, color: "var(--muted)" }}>
-            {rows && !headerErrors.length ? `${rows.length} row${rows.length === 1 ? "" : "s"} ready to check and import` : ".xlsx, .csv or .tsv · first sheet of a workbook"}
-          </span>
-        </label>
+        <div className="drop-wrap">
+          <label className={`drop${dragging ? " over" : ""}`} data-testid="drop-zone-import">
+            <input ref={inputRef} type="file" accept=".xlsx,.csv,.tsv,text/csv,text/tab-separated-values,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="sr-only" onChange={(e) => void read(e.target.files?.[0] ?? null)} aria-label={`Spreadsheet to import into the ${trackerName}`} />
+            <span style={{ fontSize: 14, fontWeight: 700, color: "var(--navy-700)" }}>{dragging ? "Drop the spreadsheet here" : file ? file.name : "Drag and drop a spreadsheet here, or click to choose"}</span>
+            <span style={{ fontSize: 12, color: "var(--muted)" }}>
+              {rows && !headerErrors.length ? `${rows.length} row${rows.length === 1 ? "" : "s"} ready to check and import` : ".xlsx, .csv or .tsv · first sheet of a workbook"}
+            </span>
+          </label>
+          {file && (
+            <button
+              type="button"
+              className="drop-remove"
+              disabled={busy}
+              aria-label={`Remove ${file.name}`}
+              title="Remove this file"
+              onClick={() => {
+                void read(null);
+                if (inputRef.current) inputRef.current.value = "";
+              }}
+            >
+              ✕ Remove
+            </button>
+          )}
+        </div>
         <button className="btn lg" onClick={() => void run()} disabled={!ready || busy}>
           {busy ? "Importing…" : "Check and import"}
         </button>

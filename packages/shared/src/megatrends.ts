@@ -1,3 +1,4 @@
+import { defaultCompetitorSummary } from "./competitors.js";
 import type { Role } from "./permissions.js";
 
 /**
@@ -11,7 +12,8 @@ import type { Role } from "./permissions.js";
  * are shared by the Primary and Secondary trackers.
  */
 
-export const TREND_LEVELS = ["macro", "sub"] as const;
+/** Summary levels: Macrotrend, Subtrend, and (contract 1.14) a competitor on the Competitors tab. */
+export const TREND_LEVELS = ["macro", "sub", "competitor"] as const;
 export type TrendLevel = (typeof TREND_LEVELS)[number];
 
 /** Where a summary came from: the built-in text, an analyst, or the AI writer. */
@@ -85,13 +87,13 @@ export const DEFAULT_SUB_SUMMARIES: Readonly<Record<string, string>> = {
 };
 
 export const defaultSummary = (level: TrendLevel, name: string): string | null =>
-  (level === "macro" ? DEFAULT_MACRO_SUMMARIES[name] : DEFAULT_SUB_SUMMARIES[name]) ?? null;
+  level === "competitor" ? defaultCompetitorSummary(name) : ((level === "macro" ? DEFAULT_MACRO_SUMMARIES[name] : DEFAULT_SUB_SUMMARIES[name]) ?? null);
 
 // ---------------------------------------------------------------------------
 // Navigation (the tab order is an admin setting since contract 1.10)
 // ---------------------------------------------------------------------------
 
-export const NAV_TABS = ["dashboard", "tracker", "phantoms", "deliverables", "megatrends", "inbox", "clientinbox", "input", "admin"] as const;
+export const NAV_TABS = ["dashboard", "tracker", "phantoms", "deliverables", "megatrends", "competitors", "inbox", "clientinbox", "input", "admin"] as const;
 export type NavTab = (typeof NAV_TABS)[number];
 export const NAV_LABEL: Record<NavTab, string> = {
   dashboard: "Dashboard",
@@ -99,6 +101,7 @@ export const NAV_LABEL: Record<NavTab, string> = {
   phantoms: "Phantoms",
   deliverables: "Deliverables",
   megatrends: "Megatrends",
+  competitors: "Competitors",
   inbox: "Eradigm Inbox",
   clientinbox: "Client Inbox",
   input: "Input",
@@ -113,6 +116,7 @@ export const NAV_PATH: Record<NavTab, string> = {
   phantoms: "/phantoms",
   deliverables: "/deliverables",
   megatrends: "/megatrends",
+  competitors: "/competitors",
   inbox: "/inbox",
   clientinbox: "/client-inbox",
   input: "/input",
@@ -121,14 +125,15 @@ export const NAV_PATH: Record<NavTab, string> = {
 
 /**
  * Which roles see each tab (contract 1.12): clients see Dashboard, Tracker,
- * Megatrends, Phantoms and the Client Inbox; analysts the same with the
- * Eradigm Inbox instead; admins see everything.
+ * Megatrends, Competitors, Phantoms and the Client Inbox; analysts the same
+ * with the Eradigm Inbox instead; admins see everything.
  */
 const TAB_ROLES: Record<NavTab, readonly Role[]> = {
   dashboard: ["admin", "analyst", "client"],
   tracker: ["admin", "analyst", "client"],
   phantoms: ["admin", "analyst", "client"],
   megatrends: ["admin", "analyst", "client"],
+  competitors: ["admin", "analyst", "client"],
   inbox: ["admin", "analyst"],
   clientinbox: ["admin", "client"],
   deliverables: ["admin"],
@@ -137,10 +142,18 @@ const TAB_ROLES: Record<NavTab, readonly Role[]> = {
 };
 export const canSeeTab = (role: Role | null | undefined, tab: NavTab): boolean => !!role && TAB_ROLES[tab].includes(role);
 
-/** A stored tab order made whole: unknown or repeated tabs dropped, tabs added since appended at the end. */
+/**
+ * A stored tab order made whole: unknown or repeated tabs dropped; a tab added
+ * since goes right after the tab it follows by default (Competitors after
+ * Megatrends), or first when it leads the default order.
+ */
 export function normaliseNavOrder(order: readonly string[] | undefined): NavTab[] {
-  const seen = new Set<NavTab>();
-  for (const k of order ?? []) if ((NAV_TABS as readonly string[]).includes(k)) seen.add(k as NavTab);
-  for (const k of NAV_TABS) seen.add(k);
-  return [...seen];
+  const out: NavTab[] = [];
+  for (const k of order ?? []) if ((NAV_TABS as readonly string[]).includes(k) && !out.includes(k as NavTab)) out.push(k as NavTab);
+  NAV_TABS.forEach((k, i) => {
+    if (out.includes(k)) return;
+    const before = NAV_TABS.slice(0, i).reverse().find((t) => out.includes(t));
+    out.splice(before ? out.indexOf(before) + 1 : 0, 0, k);
+  });
+  return out;
 }
