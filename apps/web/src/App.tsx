@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { canSeeTab, type NavTab } from "@eradigm/shared";
 import { useMe } from "./api/hooks";
 import { getContractWarning } from "./api/client";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Sidebar } from "./components/Sidebar";
 import { DashboardPage } from "./pages/DashboardPage";
 import { TrackerPage } from "./pages/TrackerPage";
@@ -56,9 +57,12 @@ function SignedIn() {
   if (loc.pathname.startsWith("/source/")) {
     return (
       <main id="main" tabIndex={-1}>
-        <Routes>
-          <Route path="/source/:id" element={<SourcePage me={me.data} />} />
-        </Routes>
+        {/* A page that fails shows a message instead of blanking the dashboard (reset on navigation). */}
+        <ErrorBoundary key={loc.pathname} label="This page">
+          <Routes>
+            <Route path="/source/:id" element={<SourcePage me={me.data} />} />
+          </Routes>
+        </ErrorBoundary>
       </main>
     );
   }
@@ -69,34 +73,36 @@ function SignedIn() {
       <Sidebar me={me.data} />
       <main id="main" tabIndex={-1}>
         {warning && <div className="banner" role="alert">{warning}</div>}
-        <Routes>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<DashboardPage me={me.data} />} />
-          <Route path="/tracker" element={<TrackerPage me={me.data} view="tracker" />} />
-          <Route path="/phantoms" element={<TrackerPage key="phantoms" me={me.data} view="phantoms" />} />
-          <Route path="/deliverables" element={only("deliverables", <DeliverablesPage me={me.data} />)} />
-          <Route
-            path="/megatrends"
-            element={
-              <Suspense fallback={<div className="empty" role="status">Loading Megatrends…</div>}>
-                <MegatrendsPage me={me.data} />
-              </Suspense>
-            }
-          />
-          <Route
-            path="/competitors"
-            element={
-              <Suspense fallback={<div className="empty" role="status">Loading Competitors…</div>}>
-                <CompetitorsPage me={me.data} />
-              </Suspense>
-            }
-          />
-          <Route path="/inbox" element={only("inbox", <InboxPage me={me.data} />)} />
-          <Route path="/client-inbox" element={only("clientinbox", <ClientInboxPage me={me.data} />)} />
-          <Route path="/input" element={only("input", <InputPage me={me.data} />)} />
-          <Route path="/admin" element={only("admin", <AdminPage me={me.data} />)} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
+        <ErrorBoundary key={loc.pathname} label="This page">
+          <Routes>
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard" element={<DashboardPage me={me.data} />} />
+            <Route path="/tracker" element={<TrackerPage me={me.data} view="tracker" />} />
+            <Route path="/phantoms" element={<TrackerPage key="phantoms" me={me.data} view="phantoms" />} />
+            <Route path="/deliverables" element={only("deliverables", <DeliverablesPage me={me.data} />)} />
+            <Route
+              path="/megatrends"
+              element={
+                <Suspense fallback={<div className="empty" role="status">Loading Megatrends…</div>}>
+                  <MegatrendsPage me={me.data} />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/competitors"
+              element={
+                <Suspense fallback={<div className="empty" role="status">Loading Competitors…</div>}>
+                  <CompetitorsPage me={me.data} />
+                </Suspense>
+              }
+            />
+            <Route path="/inbox" element={only("inbox", <InboxPage me={me.data} />)} />
+            <Route path="/client-inbox" element={only("clientinbox", <ClientInboxPage me={me.data} />)} />
+            <Route path="/input" element={only("input", <InputPage me={me.data} />)} />
+            <Route path="/admin" element={only("admin", <AdminPage me={me.data} />)} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
+        </ErrorBoundary>
       </main>
     </div>
   );

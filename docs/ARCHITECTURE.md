@@ -9,7 +9,7 @@
 | Page retrieval & parsing of untrusted HTML | `apps/capture` (Worker) | No D1, storage, queue or application secrets. Reached only through the API's service binding. |
 | Draft pre-fill | `apps/api/src/pipeline/prefill.ts` | The one decision point: `LLM_PROVIDER = "none"` (prototype) → empty draft; otherwise the LLM adapter. See [ENABLING-AUTOFILL.md](ENABLING-AUTOFILL.md). |
 | LLM calls (off in the prototype) | `packages/llm` | Only package allowed to import a model SDK (ESLint). Swappable via `LLM_PROVIDER`. |
-| Shared, versioned definitions | `packages/shared` | `CONTRACT_VERSION` (sent as `X-Contract-Version`; the dashboard warns on a major mismatch), zod request/response schemas, generated `openapi.json`. |
+| Shared, versioned definitions | `packages/shared` | `CONTRACT_VERSION` (sent as `X-Contract-Version`; the dashboard warns on a major mismatch, and when the API is older than the dashboard), zod request/response schemas, generated `openapi.json`. |
 
 Each Worker has its own `wrangler.jsonc`, environments and secrets, so a
 dashboard change cannot reveal API credentials or bypass permission checks —
@@ -224,9 +224,11 @@ analyst-entered information distinguishable; in the prototype every value is
     exponentially with its entries relative to the most-named competitor
     (`competitorRadius`), so those named once or twice stay very small (and
     unlabelled; the name shows on hover). "N/A" and similar placeholders
-    (None, Not applicable, -, TBC, Unknown: `isPlaceholderCompetitor`) are
+    (None, Not applicable, Not specified, -, #N/A, TBC, Unknown, also with a
+    bracketed note such as "N/A (none named)": `isPlaceholderCompetitor`) are
     not competitors: no node or tie, and an entry naming only those is left
-    out of the tab. Pairs of competitors named by the
+    out of the tab. The page filters them again on its side, so an older API
+    deploy cannot bring an N/A sphere back. Pairs of competitors named by the
     same entries are tied by a link force (stronger with more shared entries),
     so they sit close together; an open competitor lights its ties.
   - Summaries: 73 defaults ship in `packages/shared/src/competitors.ts`,
@@ -270,6 +272,17 @@ analyst-entered information distinguishable; in the prototype every value is
   orange-yellow, Tier 3 green, Tier 4 grey; inner tiers have more opaque,
   brighter shells, and a radial force pulls each tier to its band (Tier 1 at
   the centre). The list is grouped by tier; the summary shows the tier.
+  The whole sphere (shell, rim and glow) takes the tier colour; the dots
+  inside stay coloured by Impact. The page works out each competitor's tier
+  itself from the setting (falling back to the defaults), so tiers and
+  colours still show if the API returns no tier.
+- **Error boundaries**: each page, and each Administration card, is wrapped
+  in an `ErrorBoundary`, so a failure shows "… could not be shown" with a
+  Try again button instead of a blank site. The dashboard also warns when
+  the API's contract version is older than its own (same major), which means
+  the API (or its migrations) was not deployed with the web app. The
+  Administration page no longer shows the audit log (the audit API and
+  integrity check remain).
 - **Summary column width**: the column over the graph's left edge (Megatrends
   and Competitors) has a grip on its right edge that drags (or takes ←/→) its
   width, 300px to 70% of the graph, remembered per browser and tab

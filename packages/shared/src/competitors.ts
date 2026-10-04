@@ -283,9 +283,30 @@ export function tierOf(name: string, tiers: CompetitorTiers): CompetitorTier {
 }
 
 /** Competitor values that mean "no competitor" (N/A, None, Not applicable, -, …): never a node on the Competitors tab. */
-const PLACEHOLDERS = new Set(["", "na", "nan", "none", "nil", "null", "notapplicable", "notavailable", "nocompetitor", "nocompetitors", "tbc", "tbd", "unknown"]);
+const PLACEHOLDERS = new Set([
+  "",
+  "na",
+  "nan",
+  "none",
+  "nil",
+  "null",
+  "notapplicable",
+  "notavailable",
+  "nocompetitor",
+  "nocompetitors",
+  "nonenamed",
+  "nonespecified",
+  "notspecified",
+  "notstated",
+  "notmentioned",
+  "notidentified",
+  "tbc",
+  "tbd",
+  "unknown",
+]);
 export function isPlaceholderCompetitor(name: string): boolean {
-  return PLACEHOLDERS.has(competitorKey(name));
+  // "N/A (none named)", "#N/A", "n/a." all count: notes in brackets are ignored.
+  return PLACEHOLDERS.has(competitorKey(name.replace(/\([^)]*\)|\[[^\]]*\]/g, " ")));
 }
 
 /**

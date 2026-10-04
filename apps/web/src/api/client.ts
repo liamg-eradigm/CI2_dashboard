@@ -4,6 +4,14 @@
  */
 import { CONTRACT_VERSION, isContractCompatible, type ApiError as ApiErrorBody } from "@eradigm/shared";
 
+/** Whether version `a` is older than `b` (major.minor.patch). */
+function contractOlder(a: string, b: string): boolean {
+  const pa = a.split(".").map((n) => Number.parseInt(n, 10) || 0);
+  const pb = b.split(".").map((n) => Number.parseInt(n, 10) || 0);
+  for (let i = 0; i < 3; i++) if ((pa[i] ?? 0) !== (pb[i] ?? 0)) return (pa[i] ?? 0) < (pb[i] ?? 0);
+  return false;
+}
+
 const TENANT_KEY = "eradigm.tenant";
 const DEV_USER_KEY = "eradigm.devUser";
 
@@ -68,6 +76,9 @@ export async function request(path: string, init: RequestInit & { json?: unknown
   const v = res.headers.get("x-contract-version");
   if (v && !isContractCompatible(v, CONTRACT_VERSION)) {
     contractWarning = `This dashboard (contract ${CONTRACT_VERSION}) is out of date with the service (${v}). Please reload.`;
+  } else if (v && contractOlder(v, CONTRACT_VERSION)) {
+    // Same major version, but the API is behind the web app (e.g. the API deploy step was skipped).
+    contractWarning = `The API service (contract ${v}) is older than this dashboard (${CONTRACT_VERSION}), so newer features may not work. Deploy the API (and apply any new migrations), then reload.`;
   }
   if (res.status === 401 && !DEV_AUTH && path !== "/api/me") {
     // Session missing or ended: go to the sign-in page and come back here afterwards.

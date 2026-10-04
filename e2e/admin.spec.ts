@@ -3,12 +3,11 @@ import { expect, expectAccessible, signInAs, test } from "./fixtures";
 test.describe("admin role", () => {
   test.beforeEach(async ({ page }) => signInAs(page, "admin"));
 
-  test("verifies the audit chain and manages users", async ({ page }) => {
+  test("manages users (the audit log is no longer shown here)", async ({ page }) => {
     await page.goto("/admin");
     await expect(page.getByRole("heading", { name: "Administration" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Deployment status" })).toBeVisible();
-    await page.getByRole("button", { name: "Verify integrity" }).click();
-    await expect(page.getByText(/Chain intact · \d+ events verified/)).toBeVisible();
+    await expect(page.getByRole("button", { name: "Verify integrity" })).toHaveCount(0);
 
     const email = `e2e.${Date.now()}@example.com`;
     await page.getByLabel("Email", { exact: true }).fill(email);
