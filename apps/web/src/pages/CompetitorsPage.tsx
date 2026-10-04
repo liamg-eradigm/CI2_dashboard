@@ -13,10 +13,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { DEFAULT_COMPETITOR_TIERS, can, competitorRadius, isPlaceholderCompetitor, tierOf, type CompetitorEntry, type Me } from "@eradigm/shared";
 import { useCompetitors, useSettings } from "../api/hooks";
-import { EntrySheet } from "../components/megatrends/EntrySheet";
+import { EntrySheet, useSourcesList } from "../components/megatrends/EntrySheet";
 import { GraphShell } from "../components/megatrends/GraphShell";
 import type { GraphSpec } from "../components/megatrends/Graph3D";
-import { colourMap, impactColour, impactOrder, NEUTRAL, plural } from "../components/megatrends/model";
+import { bySourceOrder, colourMap, impactColour, impactOrder, NEUTRAL, plural } from "../components/megatrends/model";
 import { SummaryPanel, type PanelNode } from "../components/megatrends/SummaryPanel";
 import { Timeline, type LegendItem } from "../components/megatrends/Timeline";
 import "../styles/megatrends.css";
@@ -160,14 +160,21 @@ export function CompetitorsPage({ me }: { me: Me }) {
     return names.map((name) => ({ name, colour: colourBy === "impact" ? impactColour(name === "No Impact" ? null : name) : (macroColour.get(name) ?? NEUTRAL), count: n.get(name) ?? 0 }));
   }, [shownEntries, colourBy, groupOf, macroColour]);
 
+  // A selected competitor lists its sources on the right (High Impact first); ‹ › then step through that list.
+  const sourcesList = useSourcesList(selected);
+  const sources = useMemo(() => (selected ? bySourceOrder(ofComp.get(selected) ?? []) : []), [selected, ofComp]);
+  const inList = openId && selected ? sources.findIndex((e) => e.id === openId) : -1;
   const openIndex = openId ? items.findIndex((i) => i.entry.id === openId) : -1;
-  // An entry opened from the graph may be outside the timeline's legend filter.
+  // An entry opened from the graph or the list may be outside the timeline's legend filter.
   const elsewhere = openId && openIndex < 0 ? entries.find((x) => x.id === openId) : undefined;
   const openEntry = openIndex >= 0 ? items[openIndex] : elsewhere ? { entry: elsewhere, colour: colourOf(elsewhere) } : undefined;
-  const closeSheet = useCallback(() => set({ e: null }, false), [set]);
+  const closeSheet = useCallback(() => {
+    set({ e: null }, false);
+    sourcesList.hide();
+  }, [set, sourcesList]);
   const step = (dir: -1 | 1) => {
-    const next = items[openIndex + dir];
-    if (next) set({ e: next.entry.id }, false);
+    const next = inList >= 0 ? sources[inList + dir]?.id : items[openIndex + dir]?.entry.id;
+    if (next) set({ e: next }, false);
   };
 
   const list = useMemo(() => {
@@ -260,8 +267,23 @@ export function CompetitorsPage({ me }: { me: Me }) {
           </div>
         </>
       }
-      drawerOpen={!!openEntry}
-      drawer={<EntrySheet entry={openEntry?.entry ?? null} colour={openEntry?.colour ?? NEUTRAL} position={openIndex >= 0 ? { index: openIndex, total: items.length } : null} onClose={closeSheet} onStep={step} />}
+      drawerOpen={!!openEntry || (sourcesList.shown && !!sources.length)}
+      drawer={
+        <EntrySheet
+          entry={openEntry?.entry ?? null}
+          colour={openEntry?.colour ?? NEUTRAL}
+          position={inList >= 0 ? { index: inList, total: sources.length } : openIndex >= 0 ? { index: openIndex, total: items.length } : null}
+          stepIn={inList >= 0 ? "in the sources list" : "on the timeline"}
+          onClose={closeSheet}
+          onStep={step}
+          sources={selected ? { title: selected, entries: sources, shown: sourcesList.shown, onShow: sourcesList.show, onHide: sourcesList.hide } : null}
+          onOpen={(id) => set({ e: id }, false)}
+          onBack={() => {
+            set({ e: null }, false);
+            sourcesList.show();
+          }}
+        />
+      }
       timeline={
         <Timeline
           items={items}

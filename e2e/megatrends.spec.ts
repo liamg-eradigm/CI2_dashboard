@@ -60,10 +60,13 @@ test.describe("Megatrends", () => {
     await expect(sheet).not.toHaveClass(/open/);
     await expect(page).not.toHaveURL(/e=/);
 
-    // Keyboard: arrows move along the timeline, Enter opens, Esc closes.
+    // Keyboard: arrows move along the timeline, Enter opens; Esc goes back to the Subtrend's sources (request 26), then closes them.
     await page.getByTestId("mg-ball").first().focus();
     await page.keyboard.press("Enter");
     await expect(sheet).toHaveClass(/open/);
+    await page.keyboard.press("Escape");
+    await expect(page).not.toHaveURL(/e=/);
+    await expect(sheet.getByTestId("mg-sources")).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(sheet).not.toHaveClass(/open/);
 
