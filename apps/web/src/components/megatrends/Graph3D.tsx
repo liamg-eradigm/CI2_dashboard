@@ -502,7 +502,8 @@ export function Graph3D({
       );
       shell.renderOrder = 1;
       group.add(shell);
-      const rim = new T.Mesh(new T.SphereGeometry(n.r * 1.002, 48, 32), track(new T.MeshBasicMaterial({ color: colour, wireframe: false, side: T.BackSide, opacity: 0.16, depthWrite: false })));
+      // The far side of the shell, in the same colour: denser shells (competitor tiers) read as solid spheres of that colour.
+      const rim = new T.Mesh(new T.SphereGeometry(n.r * 1.002, 48, 32), track(new T.MeshBasicMaterial({ color: colour, side: T.BackSide, opacity: Math.min(0.5, (n.opacity ?? 0.24) * 0.7), depthWrite: false })));
       rim.renderOrder = 1;
       group.add(rim);
       if (n.dots.length) {

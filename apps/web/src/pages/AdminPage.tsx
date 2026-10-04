@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { NAV_LABEL, ROLES, ROLE_LABEL, SUMMARY_MODELS, canCreateUserWithRole, type Invite, type Me, type NavTab, type Role, type TenantSettings, type UserWithInvite } from "@eradigm/shared";
+import { DEFAULT_COMPETITOR_TIERS, NAV_LABEL, ROLES, ROLE_LABEL, SUMMARY_MODELS, canCreateUserWithRole, type Invite, type Me, type NavTab, type Role, type TenantSettings, type UserWithInvite } from "@eradigm/shared";
 import { api } from "../api/client";
-import { useAudit, useConfigStatus, useIncidents, useInvalidate, useNotifications, useQuality, useSchema, useSettings, useUsers } from "../api/hooks";
+import { useConfigStatus, useIncidents, useInvalidate, useNotifications, useQuality, useSchema, useSettings, useUsers } from "../api/hooks";
 import { Combobox } from "../components/Combobox";
+import { ErrorBoundary } from "../components/ErrorBoundary";
 import { ReorderList } from "../components/SchemaEditor";
 import { localDateTime, pct } from "../lib/format";
 import { useToast } from "../state/toast";
@@ -21,14 +22,38 @@ export function AdminPage({ me }: { me: Me }) {
         </div>
       </section>
       <div className="content">
-        {isAdmin && <ConfigStatus />}
-        <Users me={me} />
-        <Quality manual={me.features.prefill === "manual"} />
-        {isAdmin && <TabOrder />}
-        {isAdmin && <CompetitorTiersCard />}
-        {isAdmin && <Settings />}
-        {isAdmin && <Incidents />}
-        {isAdmin && <Audit />}
+        {/* Each card on its own: one failing never takes the page (or the dashboard) down. */}
+        {isAdmin && (
+          <ErrorBoundary label="Configuration">
+            <ConfigStatus />
+          </ErrorBoundary>
+        )}
+        <ErrorBoundary label="Users">
+          <Users me={me} />
+        </ErrorBoundary>
+        <ErrorBoundary label="Extraction quality">
+          <Quality manual={me.features.prefill === "manual"} />
+        </ErrorBoundary>
+        {isAdmin && (
+          <ErrorBoundary label="Tabs">
+            <TabOrder />
+          </ErrorBoundary>
+        )}
+        {isAdmin && (
+          <ErrorBoundary label="Competitor tiers">
+            <CompetitorTiersCard />
+          </ErrorBoundary>
+        )}
+        {isAdmin && (
+          <ErrorBoundary label="Settings">
+            <Settings />
+          </ErrorBoundary>
+        )}
+        {isAdmin && (
+          <ErrorBoundary label="Incidents">
+            <Incidents />
+          </ErrorBoundary>
+        )}
       </div>
     </>
   );
@@ -357,8 +382,9 @@ function CompetitorTiersCard() {
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (s.data && !text) {
-      const t = s.data.competitorTiers;
-      setText({ tier1: t.tier1.join("\n"), tier2: t.tier2.join("\n"), tier3: t.tier3.join("\n") });
+      // An API from before contract 1.15 has no tiers yet: start from the defaults.
+      const t = { ...DEFAULT_COMPETITOR_TIERS, ...(s.data.competitorTiers ?? {}) };
+      setText({ tier1: (t.tier1 ?? []).join("\n"), tier2: (t.tier2 ?? []).join("\n"), tier3: (t.tier3 ?? []).join("\n") });
     }
   }, [s.data, text]);
   if (!s.data || !text) return null;
@@ -391,7 +417,7 @@ function CompetitorTiersCard() {
             <span>
               <i className={`tier-dot t${n}`} aria-hidden="true" /> Tier {n} <small>({TIER_NOTE[n]})</small>
             </span>
-            <textarea className="control" rows={9} value={text[`tier${n}`]} onChange={(e) => setText({ ...text, [`tier${n}`]: e.target.value })} aria-label={`Tier ${n} competitors, one per line`} />
+            <textarea className="control" rows={9} style={{ height: 190, padding: 8 }} value={text[`tier${n}`]} onChange={(e) => setText({ ...text, [`tier${n}`]: e.target.value })} aria-label={`Tier ${n} competitors, one per line`} />
           </label>
         ))}
       </div>
@@ -592,66 +618,6 @@ function Incidents() {
         </table>
       </div>
       {inc.data && !inc.data.length && <div className="empty">No incidents.</div>}
-    </section>
-  );
-}
-
-function Audit() {
-  const audit = useAudit(true);
-  const [verify, setVerify] = useState<{ ok: boolean; checked: number; reason: string | null } | null>(null);
-  return (
-    <section className="card flush" aria-labelledby="aud-title">
-      <div className="card-head" style={{ padding: "16px 20px 12px" }}>
-        <div>
-          <h2 className="card-title" id="aud-title">
-            Audit record
-          </h2>
-          <span className="card-sub">Append-only, hash-chained record of sign-ins, account and role changes, submissions, classifications, edits, approvals, rejections, exports and deletions.</span>
-        </div>
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          {verify && (
-            <span className={verify.ok ? "ok-msg" : "err-msg"} role="status">
-              {verify.ok ? `✓ Chain intact · ${verify.checked} events verified` : `✕ Chain broken · ${verify.reason}`}
-            </span>
-          )}
-          <button className="btn secondary" onClick={async () => setVerify(await api("/api/audit/verify"))}>
-            Verify integrity
-          </button>
-        </div>
-      </div>
-      <div className="table-wrap" style={{ maxHeight: 420, overflowY: "auto" }} tabIndex={0} role="region" aria-label="Audit events (scrollable)">
-        <table className="data" style={{ fontSize: 12.5 }}>
-          <caption className="sr-only">Recent audit events</caption>
-          <thead>
-            <tr>
-              <th scope="col">#</th>
-              <th scope="col">Time</th>
-              <th scope="col">Actor</th>
-              <th scope="col">Action</th>
-              <th scope="col">Target</th>
-              <th scope="col">Details</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(audit.data ?? []).map((e) => (
-              <tr key={e.seq}>
-                <td className="mono">{e.seq}</td>
-                <td style={{ whiteSpace: "nowrap" }}>{localDateTime(e.at)}</td>
-                <td className="mono" style={{ fontSize: 11.5 }}>
-                  {e.actor ?? "system"}
-                </td>
-                <td style={{ fontWeight: 700, color: "var(--ink)" }}>{e.action}</td>
-                <td className="mono" style={{ fontSize: 11.5 }}>
-                  {e.targetType ? `${e.targetType}:${e.targetId?.slice(-8) ?? ""}` : "—"}
-                </td>
-                <td className="mono" style={{ fontSize: 11, overflowWrap: "anywhere", maxWidth: 360 }}>
-                  {JSON.stringify(e.details)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
     </section>
   );
 }

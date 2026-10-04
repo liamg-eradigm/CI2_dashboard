@@ -46,7 +46,7 @@ describe("default competitor summaries", () => {
   });
 
   it("treats N/A and the like as no competitor", () => {
-    for (const v of ["N/A", "n/a", "NA", "N.A.", "None", "Not applicable", "-", " ", "TBC", "Unknown"]) expect(isPlaceholderCompetitor(v), v).toBe(true);
+    for (const v of ["N/A", "n/a", "NA", "N.A.", "None", "Not applicable", "-", " ", "TBC", "Unknown", "#N/A", "N/A (none named)", "Not specified", "[N/A]"]) expect(isPlaceholderCompetitor(v), v).toBe(true);
     for (const v of ["Novartis", "Nanobiotix", "Unknown Pharma", "Pfizer"]) expect(isPlaceholderCompetitor(v), v).toBe(false);
   });
 
