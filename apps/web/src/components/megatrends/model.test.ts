@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MegatrendEntry } from "@eradigm/shared";
-import { NEUTRAL, PALETTE, colourMap, paletteOf, shade, spreadSlots, timelineEntries, type Macro } from "./model";
+import { NEUTRAL, PALETTE, bySourceOrder, colourMap, paletteOf, shade, spreadSlots, timelineEntries, type Macro } from "./model";
 
 const node = (name: string, count: number, subs: [string, number][] = []): Macro => ({
   name,
@@ -66,5 +66,13 @@ describe("spreadSlots", () => {
   it("handles none and one", () => {
     expect(spreadSlots([])).toEqual([]);
     expect(spreadSlots([5])[0]![1]).toBe(0);
+  });
+});
+
+describe("bySourceOrder", () => {
+  it("lists High, Medium, Low, then others and none; newest first within each", () => {
+    const e = (title: string, impact: string | null, date: string) => ({ title, impact, date });
+    const out = bySourceOrder([e("a", "Low", "2026-01-01"), e("b", null, "2026-05-01"), e("c", "High", "2026-02-01"), e("d", "medium", "2026-03-01"), e("e", "High", "2026-04-01"), e("f", "Critical", "2026-01-01")]);
+    expect(out.map((x) => x.title)).toEqual(["e", "c", "d", "a", "f", "b"]);
   });
 });

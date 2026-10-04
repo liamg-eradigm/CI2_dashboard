@@ -2,7 +2,9 @@
  * The frame of the Megatrends and Competitors tabs: the knowledge graph, with
  * a column over its left edge holding the breadcrumbs, the summary in view and
  * the list (a bar between them drags to share the column's height), the
- * timeline below, and the entry drawer that opens from the right.
+ * timeline below, and the drawer that opens from the right (a selected
+ * Subtrend's or competitor's sources, or an entry); the graph moves left to
+ * stay clear of it.
  */
 import { lazy, Suspense, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import type { GraphSpec } from "./Graph3D";
@@ -145,7 +147,7 @@ export function GraphShell({
       <section className="mg-stage" aria-label={stageLabel} ref={stage}>
         {!noGl && (
           <Suspense fallback={<div className="mg-loading">Loading the knowledge graph…</div>}>
-            <Graph3D spec={spec} reducedMotion={reducedMotion} {...graph} onUnavailable={() => setNoGl(true)} />
+            <Graph3D spec={spec} reducedMotion={reducedMotion} {...graph} onUnavailable={() => setNoGl(true)} rightPanel={drawerOpen} />
           </Suspense>
         )}
         {noGl && <p className="mg-nogl">The 3D view needs WebGL, which is switched off in this browser. The list, summaries and timeline still work.</p>}

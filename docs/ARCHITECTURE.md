@@ -208,14 +208,28 @@ analyst-entered information distinguishable; in the prototype every value is
     20px) and the minimisable Macrotrend list; the bar between them drags (or
     takes ↑/↓) to share the height, remembered per browser and tab
     (`eradigm.<tab>.split`, default 72% summary). The camera's view offset
-    centres the graph in the space beside that column.
+    centres the graph in the space beside that column and, while the drawer
+    is open, left of the drawer (the view glides there as it opens). A hub
+    opened from a link is held in place once it has a position, so the
+    layout settles around it rather than carrying it off camera.
   - Hubs (Macrotrends, Subtrends, competitors) are translucent spheres holding
     one dot per entry, coloured by Impact, for a sense of the impact mix. The
     selected hub's entries orbit it, spread out (link distance 26 + 1.9 r),
     also coloured by Impact; those are the clickable ones.
-  - Opening an entry slides its Tracker row in from the right (a drawer over
-    the page). It opens the entry's saved page (or each of its pages) in a
-    popup window (`/source/:id`).
+  - The drawer from the right (`EntrySheet`, 400px wide, full height):
+    - Sources (request 26): selecting a Subtrend or a competitor (not a
+      Macrotrend) lists its entries, High → Medium → Low → others/none,
+      newest first within each (`bySourceOrder`). Each row is the Impact dot
+      (its name read out to screen readers) then as much of the title as
+      fits, wrapping; the list scrolls inside the drawer. ✕ or Esc hides it
+      for that selection; "☰ Sources" at the window's right edge brings it
+      back.
+    - Entry: opening one (from the list, the orbit or the timeline) shows its
+      Tracker row in the same drawer, with its saved page (or each of its
+      pages) in a popup window (`/source/:id`). ← (or Esc) goes back to the
+      list at the same scroll position, focusing the row just read; ‹ › step
+      through the list when the entry is in it, else along the timeline; ✕
+      closes the drawer.
 - **Competitors** (tab, all roles, after Megatrends; contract 1.14;
   `GET /api/competitors?stream=all|primary|secondary`) is the Megatrends view
   for competitors: the same frame (`GraphShell`), graph (`Graph3D`, layout

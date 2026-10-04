@@ -12,10 +12,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { can, type MegatrendEntry, type Me } from "@eradigm/shared";
 import { useMegatrends } from "../api/hooks";
-import { EntrySheet } from "../components/megatrends/EntrySheet";
+import { EntrySheet, useSourcesList } from "../components/megatrends/EntrySheet";
 import { GraphShell } from "../components/megatrends/GraphShell";
 import type { GraphSpec } from "../components/megatrends/Graph3D";
-import { impactColour, impactOrder, paletteOf, plural, timelineEntries, NEUTRAL, type Selection } from "../components/megatrends/model";
+import { bySourceOrder, impactColour, impactOrder, paletteOf, plural, timelineEntries, NEUTRAL, type Selection } from "../components/megatrends/model";
 import { SummaryPanel, type PanelNode } from "../components/megatrends/SummaryPanel";
 import { Timeline, type LegendItem } from "../components/megatrends/Timeline";
 import "../styles/megatrends.css";
@@ -138,12 +138,20 @@ export function MegatrendsPage({ me }: { me: Me }) {
     [colourBy, trendLegend, impacts, trendItems],
   );
 
+  // A selected Subtrend lists its sources on the right (High Impact first); ‹ › then step through that list.
+  const listKey = sel.macro && sel.sub ? subId(sel.macro, sel.sub) : null;
+  const sourcesList = useSourcesList(listKey);
+  const sources = useMemo(() => (listKey ? bySourceOrder(entries.filter((e) => e.macrotrend === sel.macro && e.subtrend === sel.sub)) : []), [listKey, entries, sel]);
+  const inList = openId && listKey ? sources.findIndex((e) => e.id === openId) : -1;
   const openIndex = openId ? items.findIndex((i) => i.entry.id === openId) : -1;
   const openItem = openIndex >= 0 ? items[openIndex] : openId ? timelineEntries(entries, { macro: null, sub: null }, palette).find((i) => i.entry.id === openId) : undefined;
-  const closeSheet = useCallback(() => set({ e: null }, false), [set]);
+  const closeSheet = useCallback(() => {
+    set({ e: null }, false);
+    sourcesList.hide();
+  }, [set, sourcesList]);
   const step = (dir: -1 | 1) => {
-    const next = items[openIndex + dir];
-    if (next) set({ e: next.entry.id }, false);
+    const next = inList >= 0 ? sources[inList + dir]?.id : items[openIndex + dir]?.entry.id;
+    if (next) set({ e: next }, false);
   };
 
   // The graph: Macrotrends (and the open one's Subtrends), each holding its entries as dots by Impact.
@@ -287,8 +295,23 @@ export function MegatrendsPage({ me }: { me: Me }) {
           </ul>
         </>
       }
-      drawerOpen={!!openItem}
-      drawer={<EntrySheet entry={openItem?.entry ?? null} colour={openItem?.colour ?? NEUTRAL} position={openIndex >= 0 ? { index: openIndex, total: items.length } : null} onClose={closeSheet} onStep={step} />}
+      drawerOpen={!!openItem || (sourcesList.shown && !!sources.length)}
+      drawer={
+        <EntrySheet
+          entry={openItem?.entry ?? null}
+          colour={openItem?.colour ?? NEUTRAL}
+          position={inList >= 0 ? { index: inList, total: sources.length } : openIndex >= 0 ? { index: openIndex, total: items.length } : null}
+          stepIn={inList >= 0 ? "in the sources list" : "on the timeline"}
+          onClose={closeSheet}
+          onStep={step}
+          sources={listKey && sel.sub ? { title: sel.sub, entries: sources, shown: sourcesList.shown, onShow: sourcesList.show, onHide: sourcesList.hide } : null}
+          onOpen={(id) => set({ e: id }, false)}
+          onBack={() => {
+            set({ e: null }, false);
+            sourcesList.show();
+          }}
+        />
+      }
       timeline={
         <Timeline
           items={items}

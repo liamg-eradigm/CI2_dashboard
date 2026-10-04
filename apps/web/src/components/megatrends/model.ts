@@ -124,3 +124,12 @@ export function spreadSlots(sizes: number[]): [number, number, number][] {
   }
   return out;
 }
+
+/** Sources for the right-hand list: High, Medium, Low, then any other or no Impact; newest first within each. */
+export function bySourceOrder<E extends { impact: string | null; date: string; title: string }>(list: E[]): E[] {
+  const rank = (v: string | null) => {
+    const i = ["high", "medium", "low"].indexOf((v ?? "").trim().toLowerCase());
+    return i < 0 ? (v ? 3 : 4) : i;
+  };
+  return [...list].sort((a, b) => rank(a.impact) - rank(b.impact) || b.date.localeCompare(a.date) || a.title.localeCompare(b.title));
+}

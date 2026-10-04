@@ -117,6 +117,7 @@ export function Graph3D({
   onFocus,
   onEntry,
   onUnavailable,
+  rightPanel = false,
 }: {
   spec: GraphSpec;
   reducedMotion: boolean;
@@ -126,6 +127,8 @@ export function Graph3D({
   onFocus: (id: string | null) => void;
   onEntry: (id: string) => void;
   onUnavailable: () => void;
+  /** The drawer is open over the stage's right edge: the graph moves left to stay in the space between. */
+  rightPanel?: boolean;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const graph = useRef<ForceGraph3DInstance | null>(null);
@@ -134,8 +137,9 @@ export function Graph3D({
   const parts = useRef(new Map<string, Parts>());
   const [ready, setReady] = useState(false);
   // Latest callbacks and spec, for the long-lived graph handlers.
-  const live = useRef({ onHub, onCore, onFocus, onEntry, spec });
-  live.current = { onHub, onCore, onFocus, onEntry, spec };
+  const live = useRef({ onHub, onCore, onFocus, onEntry, spec, rightPanel });
+  live.current = { onHub, onCore, onFocus, onEntry, spec, rightPanel };
+  const refit = useRef<() => void>(() => undefined);
   const layout = spec.layout;
 
   // Create the scene once.
@@ -288,13 +292,17 @@ export function Graph3D({
       controls.addEventListener("end", onEnd);
       controls.addEventListener("change", onChange);
 
-      // Centre the graph in the space beside the column of summary and list
-      // (.mg-side, over the stage's left or right edge): shift the view by half
-      // the width it covers. Picking follows, as it uses the same projection.
-      // The library clears the camera's view offset once after it starts, so
-      // the frame loop puts it back whenever it is missing.
+      // Centre the graph in the space left free by the column of summary and
+      // list (.mg-side, over the stage's left edge) and, while it is open, the
+      // drawer over its right edge: shift the view by half the difference.
+      // The view glides to a new shift (with the drawer). Picking follows, as
+      // it uses the same projection. The library clears the camera's view
+      // offset once after it starts, so the frame loop puts it back whenever
+      // it is missing.
       const cam = g.camera() as ThreeNS.PerspectiveCamera;
       let shift = 0;
+      let target = 0;
+      let placed = false;
       const applyShift = () => {
         const w = el.clientWidth;
         const h = el.clientHeight;
@@ -306,22 +314,34 @@ export function Graph3D({
         const w = el.clientWidth;
         g.width(w).height(el.clientHeight);
         const side = el.parentElement?.querySelector(".mg-side");
-        let covered = 0;
-        if (side && getComputedStyle(side).position === "absolute") {
+        if (!side || getComputedStyle(side).position !== "absolute") {
+          target = 0;
+        } else {
           const a = el.getBoundingClientRect();
           const b = side.getBoundingClientRect();
           // Left column: shift the view right (negative offset); right column: left.
-          covered = b.left - a.left < a.right - b.right ? -(b.right - a.left) : a.right - b.left;
+          const covered = b.left - a.left < a.right - b.right ? -(b.right - a.left) : a.right - b.left;
+          // The drawer (fixed, 16px in from the window's right edge), measured as it will sit when open.
+          const drawer = el.closest(".mg-page")?.querySelector<HTMLElement>(".mg-drawer");
+          const right = live.current.rightPanel && drawer ? Math.max(0, a.right - (window.innerWidth - 16 - drawer.offsetWidth)) : 0;
+          const base = Math.abs(covered) < w * 0.6 ? covered : 0;
+          target = Math.abs(base) + right < w * 0.8 ? (base + right) / 2 : base / 2;
         }
-        shift = covered !== 0 && Math.abs(covered) < w * 0.6 ? covered / 2 : 0;
+        if (!placed || reducedMotion) shift = target;
+        placed = true;
         applyShift();
       };
+      refit.current = fit;
 
       // The selected node's ring turns slowly; the stars drift.
       let spin = 0;
       const tick = () => {
         spin = requestAnimationFrame(tick);
-        if (shift !== 0 && (!cam.view?.enabled || cam.view.fullWidth !== el.clientWidth)) applyShift();
+        if (shift !== target) {
+          shift += (target - shift) * 0.12;
+          if (Math.abs(target - shift) < 0.5) shift = target;
+          applyShift();
+        } else if (shift !== 0 && (!cam.view?.enabled || cam.view.fullWidth !== el.clientWidth)) applyShift();
         if (reducedMotion) return;
         stars.rotation.y += 0.00006;
         for (const p of parts.current.values()) if (p.ring?.visible) p.ring.rotation.z += 0.004;
@@ -357,6 +377,11 @@ export function Graph3D({
     // The scene is created once; data and selection are applied below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // The drawer opened or closed: glide the graph into the space left free.
+  useEffect(() => {
+    refit.current();
+  }, [rightPanel, ready]);
 
   // Data and selection → nodes, links, emphasis and camera.
   const lastSel = useRef<string>("");
@@ -446,6 +471,14 @@ export function Graph3D({
     const target = spec.selected ? nodes.current.get(spec.selected) : null;
     const fly = () => {
       if (!target) return void g.cameraPosition({ x: 0, y: 40, z: spec.layout === "competitors" ? 420 : 360 }, { x: 0, y: 0, z: 0 }, 1400);
+      // Opened from a link, the node had no position to hold yet: hold it now, so the
+      // layout settles around it instead of carrying it away from the camera.
+      if (!target.pinned && target.x != null && lastSel.current === key) {
+        target.fx = target.x;
+        target.fy = target.y;
+        target.fz = target.z;
+        target.pinned = true;
+      }
       const { x = 0, y = 0, z = 0 } = target;
       // Look from beyond the node, away from its parent (the core, or the Macrotrend), so nothing blocks it.
       const parent = target.level === 2 ? nodes.current.get(target.root) : null;

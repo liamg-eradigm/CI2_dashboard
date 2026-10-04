@@ -5,6 +5,8 @@
   --mg-ink-3: #8fb4c4;
   --mg-line: rgba(127, 211, 216, 0.16);
   --mg-glass: rgba(5, 24, 37, 0.66);
+  /* The drawer on the right (sources list and entry): 400px, narrower than before. */
+  --mg-drawer-w: min(400px, calc(100vw - 32px));
   position: relative;
   isolation: isolate;
   height: 100vh;
@@ -186,8 +188,22 @@
 .mg-tl-tip i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
 
 /* The opened entry: a drawer from the right */
-.mg-drawer { position: fixed; z-index: 30; top: 16px; right: 16px; bottom: 16px; width: min(480px, calc(100vw - 32px)); display: flex; flex-direction: column; border-radius: 18px; overflow: hidden; background: rgba(5, 22, 35, 0.95); transform: translateX(calc(100% + 32px)); opacity: 0; transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.3s ease; }
+.mg-drawer { position: fixed; z-index: 30; top: 16px; right: 16px; bottom: 16px; width: var(--mg-drawer-w); display: flex; flex-direction: column; border-radius: 18px; overflow: hidden; background: rgba(5, 22, 35, 0.95); transform: translateX(calc(100% + 32px)); opacity: 0; transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.3s ease; }
 .mg-drawer.open { transform: none; opacity: 1; }
+/* The sources list of a Subtrend or competitor (same drawer, same size): one row per source, Impact dot first. */
+.mg-sources { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.mg-sources[hidden] { display: none; }
+.mg-sources .mg-hint { padding: 14px 22px; }
+.mg-source-list { list-style: none; margin: 0; padding: 8px 10px 14px; flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.mg-source-list button { display: flex; align-items: flex-start; gap: 11px; width: 100%; border: 0; background: transparent; color: var(--mg-ink); text-align: left; padding: 9px 12px; border-radius: 10px; font: 600 13px/1.4 var(--sans); }
+.mg-source-list button:hover { background: rgba(127, 211, 216, 0.1); color: #fff; }
+.mg-source-list button:focus-visible { outline: 2px solid var(--cyan-2); outline-offset: -2px; }
+.mg-source-list .dot { margin-top: 4px; }
+.mg-source-list .nm { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.mg-back { margin-right: 2px; }
+.mg-sources-open { position: fixed; z-index: 29; top: 28px; right: 0; display: flex; align-items: center; gap: 8px; padding: 9px 14px 9px 12px; border: 1px solid var(--mg-line); border-right: 0; border-radius: 12px 0 0 12px; background: rgba(5, 22, 35, 0.92); color: var(--mg-ink); font: 700 12.5px var(--sans); box-shadow: 0 10px 26px rgba(0, 6, 12, 0.4); }
+.mg-sources-open:hover { background: rgba(14, 45, 62, 0.95); color: #fff; }
+.mg-sources-open .ct { font: 700 11.5px var(--mono); color: var(--mg-ink-3); }
 .mg-pages { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 12px 22px 0; }
 .mg-pages .mg-hint { margin: 0; }
 .mg-pages-label { font: 700 10px var(--sans); letter-spacing: 0.12em; text-transform: uppercase; color: var(--cyan-2); margin-right: 4px; }
@@ -201,7 +217,7 @@
 .mg-stream { padding: 1px 8px; border-radius: 999px; font: 700 10.5px var(--sans); letter-spacing: 0.06em; text-transform: uppercase; border: 1px solid rgba(127, 211, 216, 0.35); color: var(--cyan-2); }
 .mg-stream.secondary { border-color: rgba(201, 133, 0, 0.5); color: #f2c47a; }
 .mg-pos { margin-left: auto; font: 600 11.5px var(--mono); }
-.mg-fields { margin: 0; flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); align-content: start; gap: 14px 22px; padding: 14px 22px 22px; overflow: auto; }
+.mg-fields { margin: 0; flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); align-content: start; gap: 14px 22px; padding: 14px 22px 22px; overflow: auto; }
 .mg-field { min-width: 0; }
 .mg-field.long { grid-column: 1 / -1; }
 .mg-field dt { font: 700 10px var(--sans); letter-spacing: 0.12em; text-transform: uppercase; color: var(--cyan-2); }
