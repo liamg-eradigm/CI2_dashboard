@@ -5,8 +5,10 @@
  *
  * Megatrends: Macrotrends around the core; an open Macrotrend shows its
  * Subtrends; a selected Subtrend has its entries in orbit. Competitors: every
- * competitor named by an entry, pulled towards the competitors it is named
- * together with; a selected competitor has its entries in orbit.
+ * competitor named by an entry, on the same orbit around the core and pulled
+ * towards the competitors it is named together with; a selected competitor
+ * has its entries in orbit. Hubs are linked to the core, so dragging the core
+ * brings them along.
  *
  * Each hub is a translucent sphere holding one small dot per entry, coloured
  * by Impact: a visual sense of the hub's impact mix. The entries in orbit are
@@ -37,11 +39,6 @@ export interface GraphHub {
   dots: string[];
   /** Size of the name label (1 = a Macrotrend's). */
   labelScale: number;
-  /** Shell opacity and glow (default 0.24 / 0.35): competitor tiers make the inner tiers brighter. */
-  opacity?: number;
-  glow?: number;
-  /** Distance from the centre the hub is pulled towards (competitor tiers: Tier 1 innermost). */
-  band?: number;
 }
 export interface GraphEntry {
   id: string;
@@ -75,9 +72,6 @@ interface GNode {
   dots: string[];
   dotsKey: string;
   labelScale: number;
-  opacity?: number;
-  glow?: number;
-  band?: number;
   vx?: number;
   vy?: number;
   vz?: number;
@@ -182,12 +176,8 @@ export function Graph3D({
           if (x.kind === "core") return `<div class="mg-tip"><b>All Tracker entries</b><span>${esc(plural(x.count, "entry", "entries"))}</span></div>`;
           return `<div class="mg-tip"><b>${esc(x.name)}</b><span>${esc(plural(x.count, "entry", "entries"))} · click to explore</span></div>`;
         })
-        // Competitors: the core only holds the graph together, and ties show for the open competitor.
-        .linkVisibility((l: object) => {
-          const x = l as GLink;
-          if (x.kind === "tie") return tieLit(x);
-          return !(x.kind === "core" && live.current.spec.layout === "competitors");
-        })
+        // Competitors: ties show for the open competitor only.
+        .linkVisibility((l: object) => ((l as GLink).kind === "tie" ? tieLit(l as GLink) : true))
         .linkColor((l: object) => ((l as GLink).kind === "core" ? "rgba(127, 211, 216, 0.30)" : (l as GLink).kind === "tie" ? "rgba(159, 216, 220, 0.75)" : "rgba(127, 211, 216, 0.42)"))
         .linkOpacity(0.5)
         .linkWidth((l: object) => ((l as GLink).kind === "entry" ? 0.15 : (l as GLink).kind === "tie" ? Math.min(1.2, 0.25 + 0.2 * (l as GLink).weight) : 0.35))
@@ -202,7 +192,7 @@ export function Graph3D({
           live.current.onHub(x.id);
         })
         .onNodeDragEnd((n: object) => {
-          // Let a dragged node float again (the core stays at the centre).
+          // Let a dragged node float again (a dragged core stays where it is dropped).
           const x = n as GNode;
           if (x.kind === "core") return;
           if (x.pinned) {
@@ -218,23 +208,25 @@ export function Graph3D({
           g.zoomToFit(900, 40, (n: object) => (n as GNode).kind !== "entry");
         });
       const comp = () => live.current.spec.layout === "competitors";
+      // No re-centring force: it would push the hubs away from a dragged core.
+      // The core is pinned and every hub is linked to it, so the graph holds together.
+      g.d3Force("center", null);
       g.d3Force("charge")?.strength?.((n: GNode) =>
-        n.kind === "entry" ? -18 : n.kind === "core" ? (comp() ? -10 : -40) : comp() ? -(18 + n.r * 6) : n.level === 1 ? -170 : -110,
+        n.kind === "entry" ? -18 : n.kind === "core" ? -40 : comp() ? -(40 + n.r * 5) : n.level === 1 ? -170 : -110,
       );
+      // Every level-1 hub hangs off the core on the same short orbit (so dragging
+      // the core brings them along); competitors named together pull closer.
       g.d3Force("link")
         ?.distance?.((l: GLink) => {
           const s = l.source as GNode;
           const t = l.target as GNode;
-          if (l.kind === "core") return comp() ? 150 : 66 + t.r * 2.2;
+          if (l.kind === "core") return 66 + t.r * 2.2;
           if (l.kind === "tie") return 16 + s.r + t.r + 40 / Math.max(1, l.weight);
           if (l.kind === "sub") return 34 + s.r + t.r * 2;
           // Entries orbit well clear of their hub, spread out rather than in a tight cluster.
           return 26 + s.r * 1.9;
         })
-        ?.strength?.((l: GLink) => (l.kind === "core" ? (comp() ? 0.025 : 0.6) : l.kind === "tie" ? Math.min(0.5, 0.06 + 0.08 * l.weight) : l.kind === "entry" ? 0.5 : 0.9));
-
-      // Competitor tiers: each hub is pulled towards its band (Tier 1 innermost).
-      g.d3Force("tiers", tierForce(0.09) as never);
+        ?.strength?.((l: GLink) => (l.kind === "core" ? 0.6 : l.kind === "tie" ? Math.min(0.3, 0.04 + 0.05 * l.weight) : l.kind === "entry" ? 0.5 : 0.9));
 
       // Lighting: a soft fill plus a key light, so spheres read as spheres.
       const key = new T.DirectionalLight(0xffffff, 2.6);
@@ -374,9 +366,8 @@ export function Graph3D({
       const dotsKey = n.dots.join(",");
       const cur = nodes.current.get(n.id);
       // Keep the same object (and so its position) unless its look changed.
-      if (cur && cur.colour === n.colour && cur.r === n.r && cur.dotsKey === dotsKey && cur.opacity === n.opacity) {
+      if (cur && cur.colour === n.colour && cur.r === n.r && cur.dotsKey === dotsKey) {
         cur.count = n.count;
-        cur.band = n.band;
         return cur;
       }
       const near = nodes.current.get(n.kind === "entry" ? n.root : n.level === 2 ? n.root : "core");
@@ -386,13 +377,14 @@ export function Graph3D({
       return fresh;
     };
     const core = node({ id: "core", kind: "core", level: 0, root: "core", name: "Tracker", count: spec.total, colour: "#7fd3d8", r: 4.5, dots: [], labelScale: 0 });
-    core.fx = core.fy = core.fz = 0;
+    // Pinned at the centre at first; a dragged core stays where it is dropped.
+    if (core.fx == null) core.fx = core.fy = core.fz = 0;
     want.push(core);
     const byId = new Map(spec.hubs.map((h) => [h.id, h]));
     for (const h of spec.hubs) {
       const root = h.level === 2 && h.parent ? h.parent : h.id;
       want.push(
-        node({ id: h.id, kind: "hub", level: h.level, root, name: h.name, count: h.count, colour: h.colour, r: h.r, dots: h.dots.slice(0, DOTS_MAX), labelScale: h.labelScale, opacity: h.opacity, glow: h.glow, band: h.band }),
+        node({ id: h.id, kind: "hub", level: h.level, root, name: h.name, count: h.count, colour: h.colour, r: h.r, dots: h.dots.slice(0, DOTS_MAX), labelScale: h.labelScale }),
       );
       links.push(h.level === 2 && h.parent && byId.has(h.parent) ? { source: h.parent, target: h.id, kind: "sub", weight: 1 } : { source: "core", target: h.id, kind: "core", weight: 1 });
     }
@@ -498,12 +490,11 @@ export function Graph3D({
       // A translucent shell, so the entries inside show through.
       const shell = new T.Mesh(
         new T.SphereGeometry(n.r, 48, 32),
-        track(new T.MeshStandardMaterial({ color: colour, emissive: colour, emissiveIntensity: 0.2 + (n.glow ?? 0.35) * 0.6, roughness: 0.3, metalness: 0.05, opacity: n.opacity ?? 0.24, depthWrite: false })),
+        track(new T.MeshStandardMaterial({ color: colour, emissive: colour, emissiveIntensity: 0.35, roughness: 0.3, metalness: 0.05, opacity: 0.24, depthWrite: false })),
       );
       shell.renderOrder = 1;
       group.add(shell);
-      // The far side of the shell, in the same colour: denser shells (competitor tiers) read as solid spheres of that colour.
-      const rim = new T.Mesh(new T.SphereGeometry(n.r * 1.002, 48, 32), track(new T.MeshBasicMaterial({ color: colour, side: T.BackSide, opacity: Math.min(0.5, (n.opacity ?? 0.24) * 0.7), depthWrite: false })));
+      const rim = new T.Mesh(new T.SphereGeometry(n.r * 1.002, 48, 32), track(new T.MeshBasicMaterial({ color: colour, side: T.BackSide, opacity: 0.16, depthWrite: false })));
       rim.renderOrder = 1;
       group.add(rim);
       if (n.dots.length) {
@@ -511,7 +502,7 @@ export function Graph3D({
         track(pts.material as ThreeNS.PointsMaterial);
         group.add(pts);
       }
-      group.add(glow(T, n.colour, n.r * 3.6, n.glow ?? 0.3, track));
+      group.add(glow(T, n.colour, n.r * 3.6, 0.3, track));
       // Hubs too small to label (competitors named once or twice) show their name on hover.
       if (n.labelScale > 0) {
         const label = textSprite(T, n.name, plural(n.count, "entry", "entries"), n.labelScale);
@@ -534,28 +525,6 @@ export function Graph3D({
   }
 
   return <div ref={host} className={`mg-canvas ${layout}`} aria-hidden="true" data-testid="mg-canvas" />;
-}
-
-/** Pulls each node with a `band` towards that distance from the centre (a d3-force-3d compatible force). */
-function tierForce(strength: number) {
-  let nodes: GNode[] = [];
-  const force = (alpha: number) => {
-    for (const n of nodes) {
-      if (n.band == null || n.x == null) continue;
-      const x = n.x;
-      const y = n.y ?? 0;
-      const z = n.z ?? 0;
-      const d = Math.hypot(x, y, z) || 1;
-      const k = ((n.band - d) / d) * strength * alpha;
-      n.vx = (n.vx ?? 0) + x * k;
-      n.vy = (n.vy ?? 0) + y * k;
-      n.vz = (n.vz ?? 0) + z * k;
-    }
-  };
-  force.initialize = (ns: GNode[]) => {
-    nodes = ns;
-  };
-  return force;
 }
 
 /** Hubs that stay bright: the open one, its Subtrends, and (Competitors) the competitors tied to it. */

@@ -269,11 +269,13 @@ analyst-entered information distinguishable; in the prototype every value is
   Competitor tiers; `competitorTiers` with Tier 1–3 lists, one name per line;
   anyone else is Tier 4). Names match by `companyKey` (aliases, "&"/"and",
   corporate suffixes). On the Competitors tab, Tier 1 is red, Tier 2
-  orange-yellow, Tier 3 green, Tier 4 grey; inner tiers have more opaque,
-  brighter shells, and a radial force pulls each tier to its band (Tier 1 at
-  the centre). The list is grouped by tier; the summary shows the tier.
-  The whole sphere (shell, rim and glow) takes the tier colour; the dots
-  inside stay coloured by Impact. The page works out each competitor's tier
+  orange-yellow, Tier 3 green, Tier 4 grey. The list is grouped by tier;
+  the summary shows the tier. The whole sphere (shell, rim and glow) takes
+  the tier colour, with the same translucency as the Megatrends spheres; the
+  dots inside stay coloured by Impact. Tiers do not change position: every
+  competitor is linked to the centre on the same orbit as the Macrotrends
+  (so dragging the centre brings them along), and competitors named together
+  pull closer. The page works out each competitor's tier
   itself from the setting (falling back to the defaults), so tiers and
   colours still show if the API returns no tier.
 - **Error boundaries**: each page, and each Administration card, is wrapped
