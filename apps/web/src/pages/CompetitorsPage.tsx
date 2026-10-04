@@ -21,19 +21,13 @@ import { Timeline, type LegendItem } from "../components/megatrends/Timeline";
 import "../styles/megatrends.css";
 
 /**
- * Tiers (Administration → Competitor tiers): Tier 1 red, at the centre and
- * brightest; Tier 2 orange-yellow; Tier 3 green; Tier 4 (everyone else) grey,
- * outermost and faintest. Impact colours the entries inside each sphere.
+ * Tiers (Administration → Competitor tiers) colour the spheres: Tier 1 red,
+ * Tier 2 orange-yellow, Tier 3 green, Tier 4 (everyone else) grey. Every
+ * competitor sits on the same orbit around the centre, with the Megatrends
+ * look. Impact colours the entries inside each sphere.
  */
 type Tier = 1 | 2 | 3 | 4;
 const TIER_COLOUR: Record<Tier, string> = { 1: "#e5534b", 2: "#e8a33d", 3: "#3fb37f", 4: "#8b9aa6" };
-/** The outer sphere is clearly its tier's colour; inner tiers are more solid and brighter. */
-const TIER_LOOK: Record<Tier, { opacity: number; glow: number; band: number }> = {
-  1: { opacity: 0.62, glow: 0.75, band: 18 },
-  2: { opacity: 0.54, glow: 0.6, band: 95 },
-  3: { opacity: 0.47, glow: 0.48, band: 165 },
-  4: { opacity: 0.38, glow: 0.34, band: 240 },
-};
 const tierOfC = (c: { tier?: number }): Tier => (c.tier === 1 || c.tier === 2 || c.tier === 3 ? c.tier : 4);
 const hubId = (name: string) => `c:${name}`;
 const R_MIN = 1.4;
@@ -124,7 +118,6 @@ export function CompetitorsPage({ me }: { me: Me }) {
           count: c.count,
           r,
           colour: TIER_COLOUR[tier],
-          ...TIER_LOOK[tier],
           dots: (ofComp.get(c.name) ?? []).map((e) => impactColour(e.impact)),
           // Named once or twice: too small to label (the name shows on hover).
           labelScale: r < 2.2 ? 0 : 0.45 + (0.5 * (r - R_MIN)) / (R_TOP - R_MIN),
@@ -212,7 +205,7 @@ export function CompetitorsPage({ me }: { me: Me }) {
           intro={{
             title: "Competitors",
             count: `${plural(total, "Tracker entry", "Tracker entries")} · ${plural(comps.length, "competitor")}`,
-            text: "Each sphere is a competitor, growing with the number of Tracker entries that name it, with those entries inside coloured by Impact. Tier 1 (red) sits at the centre, then Tier 2 (orange-yellow), Tier 3 (green) and everyone else (grey). Select one to read what it is doing and why it matters.",
+            text: "Each sphere is a competitor, growing with the number of Tracker entries that name it, with those entries inside coloured by Impact. Its colour is its tier: Tier 1 red, Tier 2 orange-yellow, Tier 3 green, everyone else grey. Select one to read what it is doing and why it matters.",
           }}
           canEdit={can(me.role, "item:edit")}
           aiConnected={!!data?.aiConnected}

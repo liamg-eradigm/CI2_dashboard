@@ -373,7 +373,7 @@ function TabOrder() {
 }
 
 /** Competitor tiers for the Competitors tab: one name per line; any competitor not listed is Tier 4. */
-const TIER_NOTE: Record<1 | 2 | 3, string> = { 1: "red · at the centre of the graph, brightest", 2: "orange-yellow", 3: "green" };
+const TIER_NOTE: Record<1 | 2 | 3, string> = { 1: "red", 2: "orange-yellow", 3: "green" };
 function CompetitorTiersCard() {
   const s = useSettings();
   const inv = useInvalidate();
@@ -408,7 +408,7 @@ function CompetitorTiersCard() {
           Competitor tiers
         </h2>
         <span className="card-sub">
-          On the Competitors tab, Tier 1 sits at the centre of the graph and is brightest; each tier further out is dimmer. One competitor per line; names match however entries write them (BMS, J&J, Lilly…). Any competitor not listed is Tier 4 (grey).
+          On the Competitors tab, each competitor's sphere takes its tier's colour. One competitor per line; names match however entries write them (BMS, J&J, Lilly…). Any competitor not listed is Tier 4 (grey).
         </span>
       </div>
       <div className="tiers-grid">
