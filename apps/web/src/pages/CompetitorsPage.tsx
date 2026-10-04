@@ -1,8 +1,9 @@
 /**
  * Competitors: the Megatrends view for competitors. Every competitor named by
  * a Tracker entry is a sphere (growing exponentially with its entries, so the
- * few most active stand out and those named once or twice stay small), pulled
- * towards the competitors it is named together with. Selecting one shows its
+ * few most active stand out and those named once or twice stay small), spread
+ * evenly around the centre with the biggest far apart; selecting one lights its
+ * ties to the competitors it is named together with. Selecting one shows its
  * CI summary, its entries in orbit and on the timeline; opening an entry
  * slides its Tracker row in from the right.
  *

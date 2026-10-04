@@ -5,9 +5,9 @@
  *
  * Megatrends: Macrotrends around the core; an open Macrotrend shows its
  * Subtrends; a selected Subtrend has its entries in orbit. Competitors: every
- * competitor named by an entry, on the same orbit around the core and pulled
- * towards the competitors it is named together with; a selected competitor
- * has its entries in orbit. Hubs are linked to the core, so dragging the core
+ * competitor named by an entry, on the same orbit around the core, spread
+ * evenly over it with the biggest ones far apart (`spreadSlots`); a selected
+ * competitor has its entries in orbit and lights its ties. Hubs are linked to the core, so dragging the core
  * brings them along.
  *
  * Each hub is a translucent sphere holding one small dot per entry, coloured
@@ -22,7 +22,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ForceGraph3DInstance } from "3d-force-graph";
 import type ForceGraph3DClass from "3d-force-graph";
 import type * as ThreeNS from "three";
-import { plural, shade } from "./model";
+import { plural, shade, spreadSlots } from "./model";
 
 type Three = typeof ThreeNS;
 
@@ -85,6 +85,8 @@ interface GNode {
   fz?: number;
   /** Held in place while selected (so the camera can settle on it). */
   pinned?: boolean;
+  /** Competitors: the direction from the core of this hub's place on the orbit. */
+  slot?: [number, number, number];
 }
 interface GLink {
   source: string | GNode;
@@ -211,22 +213,24 @@ export function Graph3D({
       // No re-centring force: it would push the hubs away from a dragged core.
       // The core is pinned and every hub is linked to it, so the graph holds together.
       g.d3Force("center", null);
+      g.d3Force("slots", slotForce(0.12) as never);
       g.d3Force("charge")?.strength?.((n: GNode) =>
         n.kind === "entry" ? -18 : n.kind === "core" ? -40 : comp() ? -(40 + n.r * 5) : n.level === 1 ? -170 : -110,
       );
       // Every level-1 hub hangs off the core on the same short orbit (so dragging
-      // the core brings them along); competitors named together pull closer.
+      // the core brings them along). Competitor ties are only drawn: each
+      // competitor keeps its own place on the orbit (the "slots" force).
       g.d3Force("link")
         ?.distance?.((l: GLink) => {
           const s = l.source as GNode;
           const t = l.target as GNode;
-          if (l.kind === "core") return 66 + t.r * 2.2;
+          if (l.kind === "core") return orbitOf(t);
           if (l.kind === "tie") return 16 + s.r + t.r + 40 / Math.max(1, l.weight);
           if (l.kind === "sub") return 34 + s.r + t.r * 2;
           // Entries orbit well clear of their hub, spread out rather than in a tight cluster.
           return 26 + s.r * 1.9;
         })
-        ?.strength?.((l: GLink) => (l.kind === "core" ? 0.6 : l.kind === "tie" ? Math.min(0.3, 0.04 + 0.05 * l.weight) : l.kind === "entry" ? 0.5 : 0.9));
+        ?.strength?.((l: GLink) => (l.kind === "core" ? 0.6 : l.kind === "tie" ? 0 : l.kind === "entry" ? 0.5 : 0.9));
 
       // Lighting: a soft fill plus a key light, so spheres read as spheres.
       const key = new T.DirectionalLight(0xffffff, 2.6);
@@ -362,6 +366,7 @@ export function Graph3D({
     if (!g || !T || !ready) return;
     const want: GNode[] = [];
     const links: GLink[] = [];
+    const born = new Set<string>();
     const node = (n: Omit<GNode, "dotsKey">): GNode => {
       const dotsKey = n.dots.join(",");
       const cur = nodes.current.get(n.id);
@@ -373,6 +378,7 @@ export function Graph3D({
       const near = nodes.current.get(n.kind === "entry" ? n.root : n.level === 2 ? n.root : "core");
       const jitter = () => (Math.random() - 0.5) * 18;
       const fresh: GNode = { ...n, dotsKey, ...(cur ? { x: cur.x, y: cur.y, z: cur.z } : near?.x != null ? { x: near.x + jitter(), y: (near.y ?? 0) + jitter(), z: (near.z ?? 0) + jitter() } : {}) };
+      if (!cur) born.add(n.id);
       nodes.current.set(n.id, fresh);
       return fresh;
     };
@@ -388,6 +394,19 @@ export function Graph3D({
       );
       links.push(h.level === 2 && h.parent && byId.has(h.parent) ? { source: h.parent, target: h.id, kind: "sub", weight: 1 } : { source: "core", target: h.id, kind: "core", weight: 1 });
     }
+    // Competitors: an even place on the orbit each, the biggest ones far apart.
+    const slotted = spec.layout === "competitors" ? want.filter((n) => n.kind === "hub" && n.level === 1) : [];
+    const slots = spreadSlots(slotted.map((n) => n.r));
+    slotted.forEach((n, i) => {
+      n.slot = slots[i];
+      // A new competitor starts at its place rather than drifting there from the core.
+      if (born.has(n.id)) {
+        const d = orbitOf(n);
+        n.x = (core.x ?? 0) + n.slot![0] * d;
+        n.y = (core.y ?? 0) + n.slot![1] * d;
+        n.z = (core.z ?? 0) + n.slot![2] * d;
+      }
+    });
     for (const t of spec.ties) if (byId.has(t.a) && byId.has(t.b)) links.push({ source: t.a, target: t.b, kind: "tie", weight: t.weight });
     if (spec.orbit && byId.has(spec.orbit.hub)) {
       const hub = spec.orbit.hub;
@@ -706,4 +725,31 @@ function starfield(T: Three) {
   ctx.fillRect(0, 0, 32, 32);
   const mat = new T.PointsMaterial({ size: 5, sizeAttenuation: true, vertexColors: true, map: new T.CanvasTexture(c), transparent: true, opacity: 0.8, depthWrite: false, blending: T.AdditiveBlending });
   return new T.Points(geo, mat);
+}
+
+/** How far a level-1 hub sits from the core: the same orbit for Macrotrends and competitors. */
+const orbitOf = (n: GNode) => 66 + n.r * 2.2;
+
+/** Pulls each hub with a `slot` towards its place on the orbit around the core (a d3-force-3d compatible force). */
+function slotForce(strength: number) {
+  let nodes: GNode[] = [];
+  let core: GNode | undefined;
+  const force = (alpha: number) => {
+    const cx = core?.x ?? 0;
+    const cy = core?.y ?? 0;
+    const cz = core?.z ?? 0;
+    for (const n of nodes) {
+      if (!n.slot || n.x == null) continue;
+      const d = orbitOf(n);
+      const k = strength * alpha;
+      n.vx = (n.vx ?? 0) + (cx + n.slot[0] * d - n.x) * k;
+      n.vy = (n.vy ?? 0) + (cy + n.slot[1] * d - (n.y ?? 0)) * k;
+      n.vz = (n.vz ?? 0) + (cz + n.slot[2] * d - (n.z ?? 0)) * k;
+    }
+  };
+  force.initialize = (ns: GNode[]) => {
+    nodes = ns;
+    core = ns.find((n) => n.kind === "core");
+  };
+  return force;
 }
