@@ -11,8 +11,13 @@ import {
   CORE,
   FIELDS,
   SOURCE_TIER,
+  autoRecordId,
+  can,
   canTransition,
+  flattenKiqs,
   normaliseValues,
+  withKiq,
+  type KiqTopic,
   validateValues,
   type ClearDecidedResult,
   type ItemStatus,
@@ -23,13 +28,13 @@ import {
 } from "@eradigm/shared";
 import type { Principal } from "../auth/context.js";
 import type { Env } from "../env.js";
-import { ApiError, conflict } from "../lib/errors.js";
+import { ApiError, conflict, forbidden } from "../lib/errors.js";
 import { newId, nowIso } from "../lib/ids.js";
 import { metric } from "../lib/log.js";
 import { enqueue } from "../pipeline/process.js";
 import { audit } from "./audit.js";
 import { snapshotPhantom } from "./phantoms.js";
-import { DUPLICATE_BASIS_LABEL, NO_PUBLISHED_DUPLICATE, getItemRow, getSummary, nextCode, publishedDuplicate, type ItemRow, type PublishedDuplicate } from "./items.js";
+import { DUPLICATE_BASIS_LABEL, NO_PUBLISHED_DUPLICATE, getItemRow, getSummaries, getSummary, nextCode, nextInboxCodes, publishedDuplicate, type ItemRow, type PublishedDuplicate } from "./items.js";
 import { PHYSICAL, loadSettings, type Schemas } from "./schema.js";
 
 function same(a: ItemValues[string] | undefined, b: ItemValues[string] | undefined): boolean {
@@ -116,6 +121,42 @@ function withAutoValues(schema: TrackerSchema, row: ItemRow, values: ItemValues)
   return { ...values, [FIELDS.sourceTier]: SOURCE_TIER[row.stream] ?? SOURCE_TIER.primary };
 }
 
+/**
+ * Inbox entries' IDs are filled in automatically (contract 1.15):
+ * Date_Competitor_Title (Secondary) or Date_Competitor_Key Intelligence
+ * Question (Primary), once those fields are filled in.
+ */
+function withAutoId(schema: TrackerSchema, row: ItemRow, values: ItemValues): ItemValues {
+  if (!schema.columns.some((c) => c.key === FIELDS.id)) return values;
+  const id = autoRecordId(row.stream, values);
+  return id ? { ...values, [FIELDS.id]: id } : values;
+}
+
+/**
+ * Free IDs for automatic ones: each base as it is, or with _2, _3… when a
+ * Tracker entry (or an earlier base in the list) already has it.
+ */
+export async function freeRecordIds(env: Env, tenantId: string, bases: string[], excludeItemId: string | null): Promise<string[]> {
+  if (!bases.length) return [];
+  const uniq = [...new Set(bases)];
+  const taken = new Set<string>();
+  // D1 limits LIKE patterns to 50 characters, so prefixes are compared with substr.
+  for (let i = 0; i < uniq.length; i += 40) {
+    const chunk = uniq.slice(i, i + 40);
+    const conds = chunk.map((_, j) => `record_id = ?${3 + j} OR substr(record_id, 1, length(?${3 + j}) + 1) = ?${3 + j} || '_'`).join(" OR ");
+    const res = await env.DB.prepare(`SELECT record_id FROM intelligence_items WHERE tenant_id = ?1 AND status = 'approved' AND id <> ?2 AND (${conds})`)
+      .bind(tenantId, excludeItemId ?? "", ...chunk)
+      .all<{ record_id: string }>();
+    for (const r of res.results ?? []) taken.add(r.record_id);
+  }
+  return bases.map((b) => {
+    let id = b;
+    for (let n = 2; taken.has(id); n++) id = `${b}_${n}`;
+    taken.add(id);
+    return id;
+  });
+}
+
 /** Today's date (YYYY-MM-DD) in the tenant's time zone. */
 export async function todayIn(env: Env, tenantId: string): Promise<string> {
   const { timezone } = await loadSettings(env, tenantId);
@@ -151,18 +192,31 @@ function validationError(errors: ReturnType<typeof validateValues>): ApiError {
 
 // ---------------------------------------------------------------------------
 
-export async function saveDraft(env: Env, schemas: Schemas, p: Principal, id: string, raw: Record<string, unknown>, version: number): Promise<ItemSummary> {
+export async function saveDraft(
+  env: Env,
+  schemas: Schemas,
+  p: Principal,
+  id: string,
+  raw: Record<string, unknown>,
+  version: number,
+  /** Primary entries: the topics and Key Intelligence Questions (the first fills the entry's own fields). */
+  kiqs?: KiqTopic[],
+): Promise<ItemSummary> {
   const row = await getItemRow(env, p.tenantId, id);
   assertNotWithClient(row);
   const schema = schemas[row.stream];
   if (row.status !== "needs_review") throw conflict("Only drafts awaiting review can be edited");
   assertVersion(row, version);
-  const values = withAutoValues(schema, row, normaliseValues(schema, raw));
+  const useKiqs = kiqs && row.stream === "primary";
+  let values = withAutoValues(schema, row, normaliseValues(schema, raw));
+  if (useKiqs) values = withKiq(values, flattenKiqs(kiqs)[0]);
+  values = withAutoId(schema, row, values);
   const errors = validateValues(schema, values, { forApproval: false });
   if (errors.length) throw new ApiError("VALIDATION", errors[0]?.message ?? "Invalid value", errors);
   const current = normaliseValues(schema, JSON.parse(row.draft_json || "{}"));
   const changed = changedKeys(schema, current, values);
-  if (!changed.length) return getSummary(env, schemas, p.tenantId, id);
+  const kiqJson = useKiqs ? JSON.stringify(kiqs) : row.kiq_json;
+  if (!changed.length && kiqJson === row.kiq_json) return getSummary(env, schemas, p.tenantId, id);
   const prov = JSON.parse(row.provenance_json || "{}") as Record<string, string | null>;
   for (const k of changed) prov[k] = values[k] == null ? null : "analyst";
   const token = newId("op");
@@ -170,8 +224,8 @@ export async function saveDraft(env: Env, schemas: Schemas, p: Principal, id: st
   const g = guard(env, id, token);
   const res = await env.DB.batch([
     env.DB.prepare(
-      "UPDATE intelligence_items SET draft_json = ?1, provenance_json = ?2, version = version + 1, op_token = ?3, updated_at = ?4 WHERE tenant_id = ?5 AND id = ?6 AND version = ?7 AND status = 'needs_review'",
-    ).bind(JSON.stringify(values), JSON.stringify(prov), token, now, p.tenantId, id, version),
+      "UPDATE intelligence_items SET draft_json = ?1, provenance_json = ?2, kiq_json = ?8, version = version + 1, op_token = ?3, updated_at = ?4 WHERE tenant_id = ?5 AND id = ?6 AND version = ?7 AND status = 'needs_review'",
+    ).bind(JSON.stringify(values), JSON.stringify(prov), token, now, p.tenantId, id, version, kiqJson),
     env.DB.prepare(
       `INSERT INTO item_revisions (id, tenant_id, item_id, seq, kind, values_json, provenance_json, changed_keys, created_by, created_at, note)
        SELECT ?, ?, ?, ?, 'analyst_edit', ?, ?, ?, ?, ?, 'Analyst edit' WHERE ${g.sql}`,
@@ -201,7 +255,10 @@ export async function approve(
   if (fromClientInbox && !row.with_client_at) throw conflict(`${row.code} is no longer in the Client Inbox`);
   if (!fromClientInbox) assertNotWithClient(row);
   assertVersion(row, version);
-  const values = withAutoValues(schema, row, normaliseValues(schema, raw));
+  const values = withAutoId(schema, row, withAutoValues(schema, row, normaliseValues(schema, raw)));
+  // An automatic ID already used by a Tracker entry gets _2, _3…
+  const rid = values[FIELDS.id];
+  if (typeof rid === "string" && rid === autoRecordId(row.stream, values)) values[FIELDS.id] = (await freeRecordIds(env, p.tenantId, [rid], id))[0] ?? rid;
   // Review Date defaults to the day of approval when the analyst leaves it empty.
   if (!values[FIELDS.reviewDate] && schema.columns.some((c) => c.key === FIELDS.reviewDate)) values[FIELDS.reviewDate] = await todayIn(env, p.tenantId);
   const errors = validateValues(schema, values, { forApproval: true });
@@ -338,6 +395,65 @@ export async function revise(env: Env, schemas: Schemas, p: Principal, id: strin
   }
   if ((res[0]?.meta.changes ?? 0) === 0) throw conflict("This signal was changed by someone else. Reload to see the latest version.");
   await audit(env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "item.revised", targetType: "item", targetId: id, details: { rev, changedKeys: changed } });
+}
+
+/**
+ * A Primary entry with several Key Intelligence Questions becomes one Inbox
+ * entry per question, before Push to Tracker: this entry keeps the first;
+ * new entries (split_from = this one, codes reserved at once) take the others,
+ * sharing every other field, its text and saved page. Fingerprints (URL, file,
+ * text) stay with this entry, so the new ones are not flagged as duplicates
+ * of it. Staff split entries in the Eradigm Inbox; the client those in theirs.
+ */
+export async function splitItem(env: Env, schemas: Schemas, p: Principal, id: string, version: number, kiqs: KiqTopic[]): Promise<ItemSummary[]> {
+  const row = await getItemRow(env, p.tenantId, id);
+  if (row.stream !== "primary") throw new ApiError("BAD_REQUEST", "Only Primary entries have Key Intelligence Questions");
+  if (row.status !== "needs_review") throw conflict(`${row.code} is not awaiting review`);
+  if (row.with_client_at ? !can(p.role, "clientInbox:act") : !can(p.role, "item:review")) throw forbidden("You cannot push this entry to the Tracker");
+  assertVersion(row, version);
+  const schema = schemas.primary;
+  const rows = flattenKiqs(kiqs);
+  if (!rows.length) throw new ApiError("VALIDATION", "Add at least one Key Intelligence Question", [{ key: FIELDS.keyQuestion, label: "Key Intelligence Question", code: "required", message: "Add at least one Key Intelligence Question" }]);
+  const base = normaliseValues(schema, JSON.parse(row.draft_json || "{}"));
+  const valuesOf = (i: number) => withAutoId(schema, row, withAutoValues(schema, row, withKiq(base, rows[i])));
+  const one = (r: (typeof rows)[number]) => JSON.stringify([{ topic: r.topic, kiqs: [{ question: r.question, details: r.details, metrics: r.metrics }] }]);
+  const now = nowIso();
+  const stmts: D1PreparedStatement[] = [
+    env.DB.prepare(
+      "UPDATE intelligence_items SET draft_json = ?1, kiq_json = ?2, version = version + 1, updated_at = ?3 WHERE tenant_id = ?4 AND id = ?5 AND version = ?6 AND status = 'needs_review'",
+    ).bind(JSON.stringify(valuesOf(0)), one(rows[0]!), now, p.tenantId, id, version),
+  ];
+  const ids = [id];
+  if (rows.length > 1) {
+    const codes = await nextInboxCodes(env, p.tenantId, rows.length - 1);
+    const reset: Record<string, unknown> = {
+      url_key: null,
+      file_sha256: null,
+      content_sha256: null,
+      duplicate_of: null,
+      signal_code: null,
+      published_rev: null,
+      approved_at: null,
+      approved_by: null,
+      record_id: null,
+      op_token: null,
+      version: 1,
+      split_from: row.split_from ?? row.id,
+      created_at: now,
+      updated_at: now,
+    };
+    const cols = Object.keys(row as unknown as Record<string, unknown>);
+    for (let i = 1; i < rows.length; i++) {
+      const nid = newId("itm");
+      ids.push(nid);
+      const rec: Record<string, unknown> = { ...(row as unknown as Record<string, unknown>), ...reset, id: nid, code: codes[i - 1], draft_json: JSON.stringify(valuesOf(i)), kiq_json: one(rows[i]!) };
+      stmts.push(env.DB.prepare(`INSERT INTO intelligence_items (${cols.join(", ")}) VALUES (${cols.map((_, j) => `?${j + 1}`).join(", ")})`).bind(...cols.map((c) => rec[c] ?? null)));
+    }
+  }
+  const res = await env.DB.batch(stmts);
+  if ((res[0]?.meta.changes ?? 0) === 0) throw conflict("This entry was changed by someone else. Reload to see the latest version.");
+  await audit(env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "item.split", targetType: "item", targetId: id, details: { code: row.code, entries: rows.length } });
+  return getSummaries(env, schemas, p.tenantId, ids);
 }
 
 export async function reject(env: Env, schemas: Schemas, p: Principal, id: string, reason: string | undefined, version: number): Promise<ItemSummary> {

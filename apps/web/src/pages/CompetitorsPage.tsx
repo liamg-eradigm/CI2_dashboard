@@ -20,8 +20,20 @@ import { SummaryPanel, type PanelNode } from "../components/megatrends/SummaryPa
 import { Timeline, type LegendItem } from "../components/megatrends/Timeline";
 import "../styles/megatrends.css";
 
-/** One hue for every competitor (there are too many for categorical colours); Impact colours the entries inside. */
-const HUB_COLOUR = "#3dc3c9";
+/**
+ * Tiers (Administration → Competitor tiers): Tier 1 red, at the centre and
+ * brightest; Tier 2 orange-yellow; Tier 3 green; Tier 4 (everyone else) grey,
+ * outermost and faintest. Impact colours the entries inside each sphere.
+ */
+type Tier = 1 | 2 | 3 | 4;
+const TIER_COLOUR: Record<Tier, string> = { 1: "#e5534b", 2: "#e8a33d", 3: "#3fb37f", 4: "#8b9aa6" };
+const TIER_LOOK: Record<Tier, { opacity: number; glow: number; band: number }> = {
+  1: { opacity: 0.42, glow: 0.62, band: 18 },
+  2: { opacity: 0.33, glow: 0.46, band: 95 },
+  3: { opacity: 0.26, glow: 0.34, band: 165 },
+  4: { opacity: 0.17, glow: 0.2, band: 240 },
+};
+const tierOfC = (c: { tier?: number }): Tier => (c.tier === 1 || c.tier === 2 || c.tier === 3 ? c.tier : 4);
 const hubId = (name: string) => `c:${name}`;
 const R_MIN = 1.4;
 const R_TOP = 26;
@@ -93,13 +105,15 @@ export function CompetitorsPage({ me }: { me: Me }) {
       total,
       hubs: comps.map((c) => {
         const r = competitorRadius(c.count, max, R_MIN, R_TOP);
+        const tier = tierOfC(c);
         return {
           id: hubId(c.name),
           level: 1,
           name: c.name,
           count: c.count,
           r,
-          colour: HUB_COLOUR,
+          colour: TIER_COLOUR[tier],
+          ...TIER_LOOK[tier],
           dots: (ofComp.get(c.name) ?? []).map((e) => impactColour(e.impact)),
           // Named once or twice: too small to label (the name shows on hover).
           labelScale: r < 2.2 ? 0 : 0.45 + (0.5 * (r - R_MIN)) / (R_TOP - R_MIN),
@@ -116,7 +130,9 @@ export function CompetitorsPage({ me }: { me: Me }) {
   // Panel: what the view zoomed in on, else the selection.
   const panelName = focus && focus !== selected ? focus : selected;
   const panelComp = panelName ? byName.get(panelName) : undefined;
-  const panel: PanelNode | null = panelComp ? { level: "competitor", name: panelComp.name, parent: null, count: panelComp.count, colour: HUB_COLOUR, summary: panelComp.summary, children: 0 } : null;
+  const panel: PanelNode | null = panelComp
+    ? { level: "competitor", name: panelComp.name, parent: null, count: panelComp.count, colour: TIER_COLOUR[tierOfC(panelComp)], summary: panelComp.summary, children: 0, note: `Tier ${tierOfC(panelComp)}` }
+    : null;
   const panelFocused = !!panel && panel.name !== selected;
 
   // Timeline: the selected competitor's entries (or every entry naming one), by Impact or by Macrotrend.
@@ -153,6 +169,8 @@ export function CompetitorsPage({ me }: { me: Me }) {
     const t = find.trim().toLowerCase();
     return t ? comps.filter((c) => c.name.toLowerCase().includes(t)) : comps;
   }, [comps, find]);
+  // The list by tier (most-named first within each).
+  const byTier = useMemo(() => ([1, 2, 3, 4] as Tier[]).map((tier) => ({ tier, items: list.filter((c) => tierOfC(c) === tier) })).filter((g) => g.items.length), [list]);
 
   const crumbs = (
     <nav className="mg-crumbs" aria-label="Graph level">
@@ -183,7 +201,7 @@ export function CompetitorsPage({ me }: { me: Me }) {
           intro={{
             title: "Competitors",
             count: `${plural(total, "Tracker entry", "Tracker entries")} · ${plural(comps.length, "competitor")}`,
-            text: "Each sphere is a competitor, growing with the number of Tracker entries that name it, with those entries inside coloured by Impact. Competitors named together sit close together. Select one to read what it is doing and why it matters.",
+            text: "Each sphere is a competitor, growing with the number of Tracker entries that name it, with those entries inside coloured by Impact. Tier 1 (red) sits at the centre, then Tier 2 (orange-yellow), Tier 3 (green) and everyone else (grey). Select one to read what it is doing and why it matters.",
           }}
           canEdit={can(me.role, "item:edit")}
           aiConnected={!!data?.aiConnected}
@@ -209,20 +227,32 @@ export function CompetitorsPage({ me }: { me: Me }) {
           )}
           {data && !comps.length && <p className="mg-hint">No Tracker entries name a competitor yet.</p>}
           {data && comps.length > 0 && !list.length && <p className="mg-hint">No competitor matches “{find}”.</p>}
-          <ul aria-labelledby="competitors-rail-title" data-testid="mg-competitors">
-            {list.map((c) => {
-              const on = selected === c.name;
-              return (
-                <li key={c.name}>
-                  <button className={on ? "on" : undefined} aria-pressed={on} onClick={() => select(on ? null : c.name)}>
-                    <span className="dot" style={{ background: HUB_COLOUR, transform: `scale(${0.55 + (0.45 * competitorRadius(c.count, max, R_MIN, R_TOP)) / R_TOP})` }} aria-hidden="true" />
-                    <span className="nm">{c.name}</span>
-                    <span className="ct">{c.count}</span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+          <div data-testid="mg-competitors">
+            {byTier.map((g) => (
+              <div key={g.tier} className="mg-tier">
+                <h3 className="mg-tier-h" id={`tier-${g.tier}`}>
+                  <span className="dot" style={{ background: TIER_COLOUR[g.tier] }} aria-hidden="true" />
+                  Tier {g.tier}
+                  {g.tier === 4 ? " · all others" : ""}
+                  <span className="ct">{g.items.length}</span>
+                </h3>
+                <ul aria-labelledby={`tier-${g.tier}`}>
+                  {g.items.map((c) => {
+                    const on = selected === c.name;
+                    return (
+                      <li key={c.name}>
+                        <button className={on ? "on" : undefined} aria-pressed={on} onClick={() => select(on ? null : c.name)}>
+                          <span className="dot" style={{ background: TIER_COLOUR[g.tier], transform: `scale(${0.55 + (0.45 * competitorRadius(c.count, max, R_MIN, R_TOP)) / R_TOP})` }} aria-hidden="true" />
+                          <span className="nm">{c.name}</span>
+                          <span className="ct">{c.count}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ))}
+          </div>
         </>
       }
       drawerOpen={!!openEntry}

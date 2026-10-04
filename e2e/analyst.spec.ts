@@ -7,8 +7,8 @@ import { choose, chooseMany, expect, expectAccessible, signInAs, test } from "./
 const uid = () => Date.now().toString(36);
 
 /** Fill every required tracker field of an Inbox card (plus any extras by label). */
-async function fillEntry(card: Locator, v: { id: string; title: string; impact?: string; competitors?: string[]; extra?: Record<string, string> }) {
-  await card.getByRole("textbox", { name: "ID", exact: true }).fill(v.id);
+async function fillEntry(card: Locator, v: { id?: string; title: string; impact?: string; competitors?: string[]; extra?: Record<string, string> }) {
+  // The ID is filled in automatically (Date_Competitor_Title); there is no field for it.
   await choose(card.getByRole("combobox", { name: "Macrotrend", exact: true }), "AI Investment in R&D");
   await choose(card.getByRole("combobox", { name: "Subtrend", exact: true }), "External Partnerships to Accelerate AI");
   await card.getByRole("textbox", { name: "Title", exact: true }).fill(v.title);
@@ -82,7 +82,7 @@ test.describe("Eradigm staff (admin)", () => {
     await expect(card.frameLocator("iframe.snapshot-frame").getByText("pool de-identified screening data")).toBeVisible();
 
     await card.getByRole("button", { name: "✓ Push to Tracker" }).click();
-    await expect(card.getByText(/Validation failed\. Complete: ID, Title, Event Date, Macrotrend, Subtrend, Growth Intensity, Impact, Source Type, Competitors, Action/)).toBeVisible();
+    await expect(card.getByText(/Validation failed\. Complete: Title, Event Date, Macrotrend, Subtrend, Growth Intensity, Impact, Source Type, Competitors, Action/)).toBeVisible();
     await fillEntry(card, { id: `P-E2E-${uid()}`, title: "AstraZeneca and Roche form pre-competitive AI alliance", extra: { "Key Details": "Shared models.\n\nEach partner keeps its own assets." } });
     await card.getByRole("button", { name: "✓ Push to Tracker" }).click();
     await expect(page.getByText(/SIG-\d+ published to the tracker as rev 1/).first()).toBeVisible();
@@ -567,9 +567,9 @@ test.describe("Eradigm staff (admin)", () => {
     const first = page.locator(".inbox-card", { hasText: title });
     const code = (await first.locator(".code").innerText()).trim();
     const card = page.locator(".inbox-card", { has: page.locator(".code", { hasText: code }) });
-    const rid = `S-PH-${uid()}`;
+    // The ID is filled in automatically: Date_Competitor_Title.
+    const rid = `2026-09-24_Sanofi_${title}: Paris`;
     await fillEntry(card, {
-      id: rid,
       title: `${title}: Paris`,
       impact: "High",
       competitors: ["Sanofi"],
@@ -594,7 +594,7 @@ test.describe("Eradigm staff (admin)", () => {
     await row.locator("td.md-col").getByRole("button", { name: `Open Markdown for ${title}: Paris` }).click();
     const panel = page.getByRole("dialog", { name: `${title}: Paris` });
     const md = panel.getByLabel("Markdown source");
-    await expect(md).toContainText(`id: ${rid}`);
+    await expect(md).toContainText(`id: "${rid}"`);
     const [paneBox, mdBox] = [(await panel.boundingBox())!, (await md.boundingBox())!];
     expect(mdBox.height).toBeGreaterThan(paneBox.height * 0.75);
     const dl = panel.getByRole("button", { name: "Download Markdown" });
@@ -602,9 +602,9 @@ test.describe("Eradigm staff (admin)", () => {
     expect(dlBox.y).toBeLessThan(paneBox.y + 80);
     expect(dlBox.x).toBeGreaterThan(paneBox.x + paneBox.width / 2);
     const [download] = await Promise.all([page.waitForEvent("download"), dl.click()]);
-    expect(download.suggestedFilename()).toBe(`${rid}.md`);
+    expect(download.suggestedFilename()).toBe(`${rid.replace(/[^A-Za-z0-9._-]+/g, "_")}.md`);
     const text = readFileSync((await download.path())!, "utf8");
-    expect(text.startsWith(`---\nid: ${rid}\ntitle: "${title}: Paris"\nevent_date: 2026-09-24\nsource_type: PR\nSource:\n  Publisher: Sanofi\n  URL: https://www.sanofi.com/ai-hub\n`)).toBe(true);
+    expect(text.startsWith(`---\nid: "${rid}"\ntitle: "${title}: Paris"\nevent_date: 2026-09-24\nsource_type: PR\nSource:\n  Publisher: Sanofi\n  URL: https://www.sanofi.com/ai-hub\n`)).toBe(true);
     expect(text).toContain("Source_tier: Reviewed-Secondary\nCompetitors: Sanofi\n");
     expect(text).toContain("QC:\n  Reviewed_by: E. Admin\n");
     expect(text).toContain("## Key Details\n300 staff.\n\nOpens 2027.\n");

@@ -710,3 +710,31 @@ a.link-btn { text-decoration: none; }
 .drop-remove { position: absolute; top: 8px; right: 8px; height: 26px; padding: 0 10px; border-radius: 6px; border: 1px solid #e3c9c6; background: #fff; color: var(--error); font: 700 12px var(--sans); cursor: pointer; }
 .drop-remove:hover:not(:disabled) { background: #f7e3e1; border-color: var(--high); }
 .drop-remove:disabled { opacity: 0.5; cursor: default; }
+/* Primary entries: Insight Topics → Key Intelligence Questions (each its own Tracker entry). */
+.kiq-block { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 12px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--tint-3); }
+.kiq-intro { display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: var(--muted); }
+.kiq-intro b { color: var(--ink); font-size: 13.5px; }
+.kiq-topic { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-radius: 9px; background: var(--surface); border: 1px solid var(--border); }
+.kiq-topic-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+.kiq { display: flex; flex-direction: column; gap: 6px; margin-left: 18px; padding-left: 14px; border-left: 3px solid var(--dashed); }
+.kiq-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.kiq-parts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-left: 14px; }
+.kiq-parts > div { display: flex; flex-direction: column; gap: 4px; }
+.kiq-add { align-self: flex-start; }
+.auto-id { margin-top: 3px; font: 600 12px var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+.auto-id b { font-family: var(--sans); font-weight: 700; color: var(--ink-2); margin-right: 6px; }
+@media (max-width: 900px) { .kiq-parts { grid-template-columns: 1fr; } }
+.client-kiqs { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+/* Administration → Competitor tiers */
+.tiers-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.tier-field { display: flex; flex-direction: column; gap: 6px; font: 700 13px var(--sans); color: var(--ink); }
+.tier-field small { font-weight: 600; color: var(--muted); }
+.tier-field textarea { font: 13px/1.5 var(--sans); resize: vertical; }
+.tier-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: -1px; }
+.tier-dot.t1 { background: #e5534b; } .tier-dot.t2 { background: #e8a33d; } .tier-dot.t3 { background: #3fb37f; } .tier-dot.t4 { background: #8b9aa6; }
+@media (max-width: 900px) { .tiers-grid { grid-template-columns: 1fr; } }
+/* Long file names (automatic IDs) shrink with an ellipsis, so the tools stay at the top right. */
+.md-pane .drawer-head > .drawer-meta { flex: 1 1 0; min-width: 0; flex-wrap: nowrap; overflow: hidden; }
+.md-pane .drawer-meta > span { flex: none; white-space: nowrap; }
+.md-pane .drawer-meta > .md-file { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.md-pane .drawer-head > div { flex: none; margin-left: auto; }

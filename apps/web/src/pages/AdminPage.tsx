@@ -25,6 +25,7 @@ export function AdminPage({ me }: { me: Me }) {
         <Users me={me} />
         <Quality manual={me.features.prefill === "manual"} />
         {isAdmin && <TabOrder />}
+        {isAdmin && <CompetitorTiersCard />}
         {isAdmin && <Settings />}
         {isAdmin && <Incidents />}
         {isAdmin && <Audit />}
@@ -346,6 +347,63 @@ function TabOrder() {
   );
 }
 
+/** Competitor tiers for the Competitors tab: one name per line; any competitor not listed is Tier 4. */
+const TIER_NOTE: Record<1 | 2 | 3, string> = { 1: "red · at the centre of the graph, brightest", 2: "orange-yellow", 3: "green" };
+function CompetitorTiersCard() {
+  const s = useSettings();
+  const inv = useInvalidate();
+  const toast = useToast();
+  const [text, setText] = useState<Record<"tier1" | "tier2" | "tier3", string> | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (s.data && !text) {
+      const t = s.data.competitorTiers;
+      setText({ tier1: t.tier1.join("\n"), tier2: t.tier2.join("\n"), tier3: t.tier3.join("\n") });
+    }
+  }, [s.data, text]);
+  if (!s.data || !text) return null;
+  const lines = (v: string) => [...new Set(v.split("\n").map((x) => x.trim()).filter(Boolean))];
+  const save = async () => {
+    setBusy(true);
+    try {
+      await api("/api/settings", { method: "PATCH", json: { competitorTiers: { tier1: lines(text.tier1), tier2: lines(text.tier2), tier3: lines(text.tier3) } } });
+      await inv("settings", "competitors");
+      toast("Competitor tiers saved");
+    } catch (e) {
+      toast((e as Error).message, false);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="card" aria-labelledby="tiers-title" data-testid="competitor-tiers">
+      <div>
+        <h2 className="card-title" id="tiers-title">
+          Competitor tiers
+        </h2>
+        <span className="card-sub">
+          On the Competitors tab, Tier 1 sits at the centre of the graph and is brightest; each tier further out is dimmer. One competitor per line; names match however entries write them (BMS, J&J, Lilly…). Any competitor not listed is Tier 4 (grey).
+        </span>
+      </div>
+      <div className="tiers-grid">
+        {([1, 2, 3] as const).map((n) => (
+          <label key={n} className="tier-field">
+            <span>
+              <i className={`tier-dot t${n}`} aria-hidden="true" /> Tier {n} <small>({TIER_NOTE[n]})</small>
+            </span>
+            <textarea className="control" rows={9} value={text[`tier${n}`]} onChange={(e) => setText({ ...text, [`tier${n}`]: e.target.value })} aria-label={`Tier ${n} competitors, one per line`} />
+          </label>
+        ))}
+      </div>
+      <div>
+        <button className="btn" disabled={busy} onClick={() => void save()}>
+          {busy ? "Saving…" : "Save tiers"}
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function Settings() {
   const s = useSettings();
   const secondary = useSchema("secondary");
@@ -364,7 +422,7 @@ function Settings() {
   const num = (v: string) => (Number.isFinite(Number(v)) ? Number(v) : 0);
   const save = async () => {
     try {
-      await api("/api/settings", { method: "PATCH", json: { ...draft, navOrder: undefined, redaction: { ...draft.redaction, quarantineMarkers: markers.split("\n").map((m) => m.trim()).filter((m) => m.length >= 3) } } });
+      await api("/api/settings", { method: "PATCH", json: { ...draft, navOrder: undefined, competitorTiers: undefined, redaction: { ...draft.redaction, quarantineMarkers: markers.split("\n").map((m) => m.trim()).filter((m) => m.length >= 3) } } });
       await inv("settings");
       toast("Settings saved");
     } catch (e) {

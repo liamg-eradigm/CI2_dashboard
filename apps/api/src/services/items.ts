@@ -1,6 +1,7 @@
 /**
  * Intelligence item repository: reads/writes are always scoped by tenant id.
  */
+import { KiqTopicsSchema, type KiqTopic } from "@eradigm/shared";
 import type {
   Attempt,
   ExtractedFieldView,
@@ -71,6 +72,9 @@ export interface ItemRow {
   sent_to_client_by: string | null;
   client_returned_at: string | null;
   client_returned_by: string | null;
+  /** Primary entries: topics and Key Intelligence Questions as JSON (migration 0015). */
+  kiq_json: string | null;
+  split_from: string | null;
 }
 
 type Enriched = ItemRow & {
@@ -184,7 +188,20 @@ export function toSummary(schemas: Schemas, r: Enriched): ItemSummary {
     sentToClient: r.sent_to_client_by && r.with_client_at ? { by: r.sent_by_name ?? "—", at: r.with_client_at } : null,
     returnedByClient: r.client_returned_at ? { by: r.returned_by_name ?? "—", at: r.client_returned_at } : null,
     comments: r.open_comments ?? 0,
+    kiqs: parseKiqs(r.kiq_json),
+    splitFrom: r.split_from ?? null,
   };
+}
+
+/** Stored topics and Key Intelligence Questions (null when none or unreadable). */
+export function parseKiqs(json: string | null | undefined): KiqTopic[] | null {
+  if (!json) return null;
+  try {
+    const r = KiqTopicsSchema.safeParse(JSON.parse(json));
+    return r.success ? r.data : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function getItemRow(env: Env, tenantId: string, id: string): Promise<ItemRow> {
@@ -197,6 +214,16 @@ export async function getSummary(env: Env, schemas: Schemas, tenantId: string, i
   const r = await env.DB.prepare(`${SELECT_ENRICHED} WHERE i.tenant_id = ?1 AND i.id = ?2`).bind(tenantId, id).first<Enriched>();
   if (!r) throw notFound("Item");
   return toSummary(schemas, r);
+}
+
+/** Several summaries in one query, in the order asked. */
+export async function getSummaries(env: Env, schemas: Schemas, tenantId: string, ids: string[]): Promise<ItemSummary[]> {
+  if (!ids.length) return [];
+  const res = await env.DB.prepare(`${SELECT_ENRICHED} WHERE i.tenant_id = ?1 AND i.id IN (${ids.map((_, i) => `?${i + 2}`).join(",")})`)
+    .bind(tenantId, ...ids)
+    .all<Enriched>();
+  const by = new Map((res.results ?? []).map((r) => [r.id, toSummary(schemas, r)]));
+  return ids.map((id) => by.get(id)).filter((x): x is ItemSummary => !!x);
 }
 
 export async function listItems(
@@ -333,6 +360,16 @@ export async function getDetail(env: Env, schemas: Schemas, tenantId: string, id
 }
 
 /** Allocate the next human-readable code (INB-2207 / SIG-1180) for a tenant. */
+/** `n` consecutive Inbox codes, reserved at once (one counter update). */
+export async function nextInboxCodes(env: Env, tenantId: string, n: number): Promise<string[]> {
+  if (n <= 0) return [];
+  const first = Number((await nextCode(env, tenantId, "inbox")).slice(4));
+  if (n === 1) return [`INB-${first}`];
+  const r = await env.DB.prepare("UPDATE counters SET value = value + ?3 WHERE tenant_id = ?1 AND name = ?2 RETURNING value").bind(tenantId, "inbox", n - 1).first<{ value: number }>();
+  const last = r?.value ?? first + n - 1;
+  return Array.from({ length: n }, (_, i) => `INB-${last - n + 1 + i}`);
+}
+
 export async function nextCode(env: Env, tenantId: string, name: "inbox" | "signal"): Promise<string> {
   const r = await env.DB.prepare("UPDATE counters SET value = value + 1 WHERE tenant_id = ?1 AND name = ?2 RETURNING value").bind(tenantId, name).first<{ value: number }>();
   let value = r?.value;

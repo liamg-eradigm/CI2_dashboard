@@ -223,7 +223,10 @@ analyst-entered information distinguishable; in the prototype every value is
   - One sphere per competitor named by a Tracker entry; radius grows
     exponentially with its entries relative to the most-named competitor
     (`competitorRadius`), so those named once or twice stay very small (and
-    unlabelled; the name shows on hover). Pairs of competitors named by the
+    unlabelled; the name shows on hover). "N/A" and similar placeholders
+    (None, Not applicable, -, TBC, Unknown: `isPlaceholderCompetitor`) are
+    not competitors: no node or tie, and an entry naming only those is left
+    out of the tab. Pairs of competitors named by the
     same entries are tied by a link force (stronger with more shared entries),
     so they sit close together; an open competitor lights its ties.
   - Summaries: 73 defaults ship in `packages/shared/src/competitors.ts`,
@@ -239,6 +242,38 @@ analyst-entered information distinguishable; in the prototype every value is
   - The timeline shows the selected competitor's entries (or all entries
     naming one), coloured by Impact or by Macrotrend; the list has a search
     box (there can be over 100 competitors).
+- **Automatic IDs** (contract 1.15): the ID is no longer a field in the Inbox.
+  It is filled in on every draft save and Push to Tracker as
+  `Date_Competitor_Title` (Secondary) or `Date_Competitor_Key Intelligence
+  Question` (Primary; the Title until a question is entered), competitors
+  joined with " & ", the last part cut to 120 characters. An ID already used
+  by a Tracker entry gets `_2`, `_3`… (`freeRecordIds`, a substr prefix match:
+  D1 limits LIKE patterns to 50 characters). Imports fill a blank ID the same
+  way; IDs typed in a spreadsheet are kept. Tracker edits keep the stored ID.
+- **Primary entries: one Tracker entry per Key Intelligence Question**
+  (contract 1.15, migration 0015). In the Inbox, a Primary entry's Insight
+  Topic, Key Intelligence Question, Key Details and Key Metrics are entered
+  as a list (`KiqEditor`): topics, each with questions, each with details and
+  metrics; add or remove either. It is saved as `kiq_json` with the draft (the
+  first question also fills the entry's own four fields). Push to Tracker
+  with several questions calls `POST /api/items/:id/split`: the entry keeps
+  the first question and new Inbox entries (`split_from`, consecutive codes)
+  take the others, sharing every other field, the text and the saved page;
+  URL/file/text fingerprints stay with the original, so the new ones are not
+  duplicates of it. The page then pushes each (a request each, within the
+  free-tier query limit). The Client Inbox shows the list (comments anchor to
+  `_kiq.<topic>.<question>.<part>`) and pushes the same way.
+- **Competitor tiers** (contract 1.15): an admin setting (Administration →
+  Competitor tiers; `competitorTiers` with Tier 1–3 lists, one name per line;
+  anyone else is Tier 4). Names match by `companyKey` (aliases, "&"/"and",
+  corporate suffixes). On the Competitors tab, Tier 1 is red, Tier 2
+  orange-yellow, Tier 3 green, Tier 4 grey; inner tiers have more opaque,
+  brighter shells, and a radial force pulls each tier to its band (Tier 1 at
+  the centre). The list is grouped by tier; the summary shows the tier.
+- **Summary column width**: the column over the graph's left edge (Megatrends
+  and Competitors) has a grip on its right edge that drags (or takes ←/→) its
+  width, 300px to 70% of the graph, remembered per browser and tab
+  (`eradigm.<tab>.width`).
 - **Input**: a chosen HTML file (Add a source) or spreadsheet (Import) has a
   ✕ Remove button, to take it off before it is sent.
   - Macrotrend spheres around a central core, sized by their number of

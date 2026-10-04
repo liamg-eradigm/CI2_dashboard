@@ -76,7 +76,7 @@
 .mg-canvas { position: absolute; inset: 0; cursor: grab; }
 .mg-canvas:active { cursor: grabbing; }
 .mg-canvas canvas { display: block; outline: none; }
-.mg-loading, .mg-nogl { position: absolute; inset: 0; display: grid; place-items: center; color: var(--mg-ink-3); font-size: 13px; padding: 0 40px 0 500px; text-align: center; }
+.mg-loading, .mg-nogl { position: absolute; inset: 0; display: grid; place-items: center; color: var(--mg-ink-3); font-size: 13px; padding: 0 40px 0 calc(var(--side-w, 460px) + 40px); text-align: center; }
 
 .mg-glass, .mg-rail, .mg-panel, .mg-crumbs, .mg-timeline, .mg-drawer {
   background: var(--mg-glass);
@@ -111,7 +111,7 @@
  * with a bar between them that drags to share the height. The graph itself
  * fills the whole stage behind it.
  */
-.mg-side { position: absolute; z-index: 2; left: 16px; top: 14px; bottom: 16px; width: 460px; display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
+.mg-side { position: absolute; z-index: 2; left: 16px; top: 14px; bottom: 16px; width: var(--side-w, 460px); display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
 .mg-side > * { pointer-events: auto; }
 .mg-split { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 .mg-split-a { min-height: 72px; display: flex; flex-direction: column; }
@@ -213,14 +213,13 @@
   .mg-drawer, .mg-ball { transition: none; }
 }
 @media (max-width: 1100px) {
-  .mg-side { width: 380px; }
   .mg-summary { font-size: 18px; }
-  .mg-loading, .mg-nogl { padding-left: 420px; }
 }
 @media (max-width: 860px), (max-height: 700px) {
   .mg-page { height: auto; min-height: 100vh; overflow: visible; }
   .mg-stage { min-height: 420px; }
   .mg-side { position: relative; inset: auto; width: auto; margin: 12px; }
+  .mg-side-grip { display: none; }
   .mg-split-a, .mg-panel, .mg-rail { flex: none !important; }
   .mg-splitter { display: none; }
   .mg-loading, .mg-nogl { padding: 0 40px; }
@@ -258,3 +257,13 @@
 .mg-find { width: calc(100% - 16px); margin: 0 8px 8px; height: 30px; padding: 0 10px; border-radius: 8px; border: 1px solid rgba(127, 211, 216, 0.28); background: rgba(2, 12, 20, 0.55); color: var(--mg-ink); font: 13px var(--sans); }
 .mg-find::placeholder { color: var(--mg-ink-3); }
 .mg-find:focus { outline: 2px solid var(--focus); outline-offset: 0; }
+/* Competitors: the list grouped by tier. */
+.mg-tier + .mg-tier { margin-top: 6px; }
+.mg-tier-h { display: flex; align-items: center; gap: 8px; padding: 6px 8px 4px; font: 700 10.5px var(--sans); letter-spacing: 0.12em; text-transform: uppercase; color: var(--mg-ink-3); }
+.mg-tier-h .ct { margin-left: auto; font: 700 11px var(--mono); }
+.mg-tier-h .dot { width: 9px; height: 9px; }
+/* The column's width: a grip on its right edge. */
+.mg-side-grip { position: absolute; top: 40px; bottom: 0; right: -12px; width: 12px; display: grid; place-items: center; cursor: ew-resize; touch-action: none; pointer-events: auto; border-radius: 6px; }
+.mg-side-grip span { width: 4px; height: 54px; border-radius: 4px; background: rgba(181, 207, 218, 0.32); transition: background 0.15s ease, height 0.15s ease; }
+.mg-side-grip:hover span, .mg-side-grip:focus-visible span { background: var(--cyan-2); height: 80px; }
+.mg-side-grip:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }

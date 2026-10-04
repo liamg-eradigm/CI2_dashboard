@@ -46,7 +46,7 @@ describe("Deliverables → Alerts", () => {
     const res = await call(w.a.client, "GET", `/api/deliverables/${row.alertId}/docx`);
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
-    expect(res.headers.get("content-disposition")).toMatch(/^inline; filename="T-[\w-]+-alert\.docx"$/);
+    expect(res.headers.get("content-disposition")).toMatch(/^inline; filename="[^"]+-alert\.docx"$/);
     const xml = await docxText(res);
     expect(xml).toContain("word/document.xml");
     // The Title, bold, 32 pt (w:sz is in half-points), XML-escaped.

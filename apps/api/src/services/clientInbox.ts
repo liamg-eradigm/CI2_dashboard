@@ -141,7 +141,8 @@ export async function addComment(env: Env, p: Principal, id: string, c: { field:
   const row = await commentableRow(env, p, id, true);
   if (c.end <= c.start) throw new ApiError("VALIDATION", "Highlight some text to comment on");
   const draft = JSON.parse(row.draft_json || "{}") as Record<string, unknown>;
-  if (c.field !== PAGE_TEXT_FIELD && !(c.field in draft)) throw new ApiError("VALIDATION", "Unknown field");
+  // Fields of the entry, its page text, or a Key Intelligence Question's parts ("_kiq.<topic>.<question>.<part>").
+  if (c.field !== PAGE_TEXT_FIELD && !/^_kiq\.\d+\.(topic|\d+\.(question|details|metrics))$/.test(c.field) && !(c.field in draft)) throw new ApiError("VALIDATION", "Unknown field");
   const cid = newId("cmt");
   await env.DB.prepare(
     "INSERT INTO item_comments (id, tenant_id, item_id, field_key, start_offset, end_offset, quote, body, author_id, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",

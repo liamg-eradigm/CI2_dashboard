@@ -6,10 +6,11 @@
  */
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { CORE, PAGE_TEXT_FIELD, STREAM_LABEL, can, displayValue, sortedColumns, type ItemDetail, type ItemSummary, type Me, type TrackerSchema } from "@eradigm/shared";
+import { CORE, FIELDS, PAGE_TEXT_FIELD, STREAM_LABEL, can, displayValue, flattenKiqs, kiqsFromValues, sortedColumns, type ItemDetail, type ItemSummary, type Me, type TrackerSchema } from "@eradigm/shared";
 import { api, type ApiError } from "../api/client";
 import { useClientInbox, useComments, useInvalidate, useSchema } from "../api/hooks";
 import { CommentableText, CommentsMargin, useCommentNumbers } from "../components/Comments";
+import { KIQ_KEYS, kiqFieldLabel, kiqLabels } from "../components/KiqEditor";
 import { SnapshotActions } from "../components/SnapshotFrame";
 import { localDateTime } from "../lib/format";
 import { useToast } from "../state/toast";
@@ -61,21 +62,31 @@ function ClientCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSc
   const canAct = can(me.role, "clientInbox:act");
   const comments = useComments(item.id);
   const detail = useQuery({ queryKey: ["client-inbox", "item", item.id], queryFn: () => api<ItemDetail>(`/api/client-inbox/${item.id}`), enabled: showText });
-  const cols = sortedColumns(schema).filter((c) => c.key !== CORE.title);
+  // The ID is filled in automatically; Primary topics and questions are shown as their list.
+  const primary = item.stream === "primary";
+  const cols = sortedColumns(schema).filter((c) => c.key !== CORE.title && c.key !== FIELDS.id && !(primary && KIQ_KEYS.includes(c.key)));
+  const topics = primary ? (item.kiqs ?? kiqsFromValues(item.draft)) : [];
+  const L = kiqLabels(schema);
+  const kiqFields = topics.flatMap((t, ti) => [`_kiq.${ti}.topic`, ...t.kiqs.flatMap((_, ki) => ["question", "details", "metrics"].map((p) => `_kiq.${ti}.${ki}.${p}`))]);
   const all = comments.data ?? [];
-  const order = [CORE.title, ...cols.map((c) => c.key), PAGE_TEXT_FIELD];
+  const order = [CORE.title, ...cols.map((c) => c.key), ...kiqFields, PAGE_TEXT_FIELD];
   const { numberOf } = useCommentNumbers(all, order);
-  const labelOf = (f: string) => (f === PAGE_TEXT_FIELD ? "Page text" : (schema.columns.find((c) => c.key === f)?.label ?? f));
+  const labelOf = (f: string) => (f === PAGE_TEXT_FIELD ? "Page text" : (kiqFieldLabel(f, schema) ?? schema.columns.find((c) => c.key === f)?.label ?? f));
   const of = (f: string) => all.filter((c) => c.field === f);
   const text = (k: string) => displayValue(schema.columns.find((c) => c.key === k), item.draft[k]);
   const title = text(CORE.title) || item.title || "Untitled";
 
+  const rows = primary ? flattenKiqs(topics) : [];
   const act = async (path: "send-to-eradigm" | "push", ok: string) => {
-    if (path === "push" && !window.confirm(`Push “${title}” to the Tracker as it stands?`)) return;
+    if (path === "push" && !window.confirm(rows.length > 1 ? `Push “${title}” to the Tracker as ${rows.length} entries, one per ${L.question}?` : `Push “${title}” to the Tracker as it stands?`)) return;
     setBusy(true);
     setMsg(null);
     try {
-      await api(`/api/client-inbox/${item.id}/${path}`, { method: "POST", json: { version: item.version } });
+      if (path === "push" && rows.length > 1) {
+        // One Tracker entry per Key Intelligence Question.
+        const parts = await api<ItemSummary[]>(`/api/items/${item.id}/split`, { method: "POST", json: { version: item.version, kiqs: topics } });
+        for (const p of parts) await api(`/api/client-inbox/${p.id}/push`, { method: "POST", json: { version: p.version } });
+      } else await api(`/api/client-inbox/${item.id}/${path}`, { method: "POST", json: { version: item.version } });
       toast(ok);
       await inv("client-inbox", "items", "tracker", "dashboard", "megatrends", "competitors", "bounds");
     } catch (e) {
@@ -134,6 +145,24 @@ function ClientCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSc
               </div>
             ))}
           </div>
+          {primary && (
+            <div className="client-kiqs" role="group" aria-label={`${L.topic}s and ${L.question}s`}>
+              {topics.map((t, ti) => (
+                <div className="kiq-topic" key={ti}>
+                  <CommentableText itemId={item.id} field={`_kiq.${ti}.topic`} label={`${L.topic} ${ti + 1}`} text={t.topic} comments={of(`_kiq.${ti}.topic`)} numberOf={numberOf} canComment={canAct} />
+                  {t.kiqs.map((k, ki) => (
+                    <div className="kiq" key={ki}>
+                      <CommentableText itemId={item.id} field={`_kiq.${ti}.${ki}.question`} label={`${L.question} ${ki + 1}`} text={k.question} comments={of(`_kiq.${ti}.${ki}.question`)} numberOf={numberOf} canComment={canAct} />
+                      <div className="kiq-parts">
+                        <CommentableText itemId={item.id} field={`_kiq.${ti}.${ki}.details`} label={L.details} text={k.details} comments={of(`_kiq.${ti}.${ki}.details`)} numberOf={numberOf} canComment={canAct} />
+                        <CommentableText itemId={item.id} field={`_kiq.${ti}.${ki}.metrics`} label={L.metrics} text={k.metrics} comments={of(`_kiq.${ti}.${ki}.metrics`)} numberOf={numberOf} canComment={canAct} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
           <div className="client-source">
             <button className="link-btn" aria-expanded={showText} onClick={() => setShowText((o) => !o)}>
               {showText ? "Hide" : "Show"} the text of the saved page
