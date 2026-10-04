@@ -11,6 +11,11 @@ import {
   AUTO_KEYS,
   SOURCE_TIER,
   STREAM_LABEL,
+  FIELDS,
+  autoRecordId,
+  flattenKiqs,
+  kiqsFromValues,
+  withKiq,
   optionsOf,
   sortedColumns,
   splitMulti,
@@ -18,6 +23,7 @@ import {
   validateValues,
   type ClearDecidedResult,
   type ItemComment,
+  type KiqTopic,
   type ItemStatus,
   type ItemSummary,
   type Me,
@@ -29,6 +35,7 @@ import { useComments, useInvalidate, useItem, useItems, useSchema } from "../api
 import { StreamSwitch } from "../components/StreamSwitch";
 import { CommentsMargin, useCommentNumbers } from "../components/Comments";
 import { LIST_HINT, ListTextarea } from "../components/ListTextarea";
+import { KIQ_KEYS, KiqEditor, kiqFieldLabel } from "../components/KiqEditor";
 import { Combobox } from "../components/Combobox";
 import { ModelOutputTable } from "../components/ModelOutput";
 import { SchemaEditor, TableColumnsEditor } from "../components/SchemaEditor";
@@ -229,6 +236,11 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
   const [open, setOpen] = useState(false);
   const [evidence, setEvidence] = useState(false);
   const [draft, setDraft] = useState<Draft>(() => toDraft(schema, item));
+  // Primary: the Insight Topics and their Key Intelligence Questions (one Tracker entry each).
+  const primary = item.stream === "primary";
+  const [kiqs, setKiqs] = useState<KiqTopic[]>(() => item.kiqs ?? kiqsFromValues(item.draft));
+  const kiqsRef = useRef(kiqs);
+  kiqsRef.current = kiqs;
   const [errors, setErrors] = useState<string[]>([]);
   const [fieldMsg, setFieldMsg] = useState<Record<string, string>>({});
   const [msg, setMsg] = useState<string | null>(null);
@@ -244,7 +256,14 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
   const actionable = pending && !item.withClient;
   const comments = useComments(item.id, item.comments > 0 || !!item.returnedByClient);
   const allComments = comments.data ?? [];
-  const fieldOrder = useMemo(() => [...sortedColumns(schema).map((c) => c.key), "_text"], [schema]);
+  const fieldOrder = useMemo(
+    () => [
+      ...sortedColumns(schema).map((c) => c.key),
+      ...(item.kiqs ?? []).flatMap((t, ti) => [`_kiq.${ti}.topic`, ...t.kiqs.flatMap((_, ki) => ["question", "details", "metrics"].map((p) => `_kiq.${ti}.${ki}.${p}`))]),
+      "_text",
+    ],
+    [schema, item.kiqs],
+  );
   const { numberOf } = useCommentNumbers(allComments, fieldOrder);
   const openOn = (k: string) => allComments.filter((c) => c.field === k && !c.resolved).length;
   /** Jump to a comment's words in its field. */
@@ -264,7 +283,7 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
   // Latest version this card knows about, and the values last persisted. Saves
   // are queued so fast data entry never races itself into a version conflict.
   const versionRef = useRef(item.version);
-  const savedRef = useRef(JSON.stringify(normaliseValues(schema, item.draft)));
+  const savedRef = useRef(JSON.stringify([normaliseValues(schema, item.draft), primary ? (item.kiqs ?? null) : null]));
   const chainRef = useRef<Promise<void>>(Promise.resolve());
   const bump = (v: number) => {
     versionRef.current = Math.max(versionRef.current, v);
@@ -275,13 +294,22 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
   useEffect(() => {
     if (item.version > versionRef.current) {
       setDraft(toDraft(schema, item));
-      savedRef.current = JSON.stringify(normaliseValues(schema, item.draft));
+      if (primary) setKiqs(item.kiqs ?? kiqsFromValues(item.draft));
+      savedRef.current = JSON.stringify([normaliseValues(schema, item.draft), primary ? (item.kiqs ?? null) : null]);
       bump(item.version);
     }
   }, [item.version]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const cols = sortedColumns(schema);
-  const values = useMemo(() => normaliseValues(schema, draft), [schema, draft]);
+  // The ID is filled in automatically, and Primary topics and questions have their own editor.
+  const cols = sortedColumns(schema).filter((c) => c.key !== FIELDS.id && !(primary && KIQ_KEYS.includes(c.key)));
+  const hasId = schema.columns.some((c) => c.key === FIELDS.id);
+  const values = useMemo(() => {
+    let v = normaliseValues(schema, draft);
+    if (primary) v = withKiq(v, flattenKiqs(kiqs)[0]);
+    const id = autoRecordId(item.stream, v);
+    return hasId ? { ...v, [FIELDS.id]: id } : v;
+  }, [schema, draft, kiqs, primary, item.stream, hasId]);
+  const autoId = hasId ? (values[FIELDS.id] as string | null) : null;
   const valuesRef = useRef(values);
   valuesRef.current = values;
   const missingNow = new Set(actionable ? validateValues(schema, values, { forApproval: true }).filter((e) => e.code === "required").map((e) => e.key) : []);
@@ -294,11 +322,12 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
   /** Persist analyst edits (recorded as a revision) when a field loses focus. */
   const persist = async () => {
     const v = valuesRef.current;
-    const json = JSON.stringify(v);
+    const k = primary ? kiqsRef.current : null;
+    const json = JSON.stringify([v, k]);
     if (json === savedRef.current || !actionable) return;
     if (validateValues(schema, v, { forApproval: false }).length) return;
     try {
-      const r = await api<ItemSummary>(`/api/items/${item.id}/draft`, { method: "PATCH", json: { values: v, version: versionRef.current } });
+      const r = await api<ItemSummary>(`/api/items/${item.id}/draft`, { method: "PATCH", json: { values: v, version: versionRef.current, ...(k ? { kiqs: k } : {}) } });
       savedRef.current = json;
       bump(r.version);
       void inv("items");
@@ -342,7 +371,10 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
   };
 
   const approve = async (overrideDuplicate = false) => {
-    const errs = validateValues(schema, values, { forApproval: true });
+    // Primary: one Tracker entry per Key Intelligence Question (none entered: one entry, as before).
+    const rows = primary ? flattenKiqs(kiqs) : [];
+    // The ID's parts are checked instead of the (hidden) ID itself.
+    const errs = validateValues(schema, values, { forApproval: true }).filter((e) => e.key !== FIELDS.id);
     if (errs.length) {
       setErrors(errs.map((e) => e.key));
       setMsg(`Validation failed. Complete: ${errs.map((e) => e.label).join(", ")}`);
@@ -356,12 +388,40 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
     setDupConfirm(null);
     // Let any queued draft save finish first so approval uses the latest version.
     await chainRef.current;
+    if (rows.length > 1) return void pushEach(rows.length, overrideDuplicate);
     void act(
       "/approve",
       { values: valuesRef.current, version: versionRef.current, ...(overrideDuplicate ? { overrideDuplicate: true } : {}) },
       (r) =>
         `${r.signalCode} published to the tracker as rev ${r.publishedRev}${overrideDuplicate ? " (duplicate confirmed)" : ""}`,
     );
+  };
+
+  /**
+   * Several Key Intelligence Questions: save, split into one Inbox entry per
+   * question (this one keeps the first), then push each to the Tracker.
+   */
+  const pushEach = async (n: number, overrideDuplicate: boolean) => {
+    if (!window.confirm(`Push ${n} Tracker entries, one per Key Intelligence Question? Every other field is shared.`)) return;
+    setBusy(true);
+    setMsg(null);
+    let done = 0;
+    try {
+      await saveDraft();
+      const parts = await api<ItemSummary[]>(`/api/items/${item.id}/split`, { method: "POST", json: { version: versionRef.current, kiqs: kiqsRef.current } });
+      for (const [i, p] of parts.entries()) {
+        await api<ItemSummary>(`/api/items/${p.id}/approve`, { method: "POST", json: { values: p.draft, version: p.version, ...(i === 0 && overrideDuplicate ? { overrideDuplicate: true } : {}) } });
+        done++;
+      }
+      toast(`${done} Tracker entries pushed from ${item.code}, one per Key Intelligence Question`);
+    } catch (e) {
+      const err = e as ApiError;
+      setMsg(done ? `${done} of ${n} entries pushed; the rest stay in the Inbox as separate entries: ${err.message}` : err.message);
+      if (err.code === "DUPLICATE") setDupConfirm({ signalCode: (err.details as { duplicateOf?: string })?.duplicateOf ?? "an existing entry", id: null, basis: null });
+    } finally {
+      setBusy(false);
+      await inv();
+    }
   };
 
   const statusTag = item.status === "needs_review" ? "warn" : item.status === "approved" ? "ok" : item.status === "failed" || item.status === "rejected" ? "err" : "info";
@@ -425,6 +485,13 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
           <div className="inbox-title" id={`t-${item.id}`}>
             {String(item.draft[CORE.title] ?? "") || item.title || item.url || "Untitled submission"}
           </div>
+          {hasId && (pending || item.status === "approved") && (
+            <div className="auto-id" data-testid="auto-id">
+              <b>ID</b>
+              {(item.status === "approved" ? (item.draft[FIELDS.id] as string | null) : autoId) ??
+                `filled in once ${primary ? "Event Date, Competitors and a Key Intelligence Question" : "Event Date, Competitors and Title"} are entered`}
+            </div>
+          )}
           {item.error && (
             <div className="err-msg" style={{ marginTop: 4 }}>
               <span aria-hidden="true">✕ </span>
@@ -568,14 +635,14 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
             <CommentsMargin
               itemId={item.id}
               comments={allComments}
-              labelOf={(f) => (f === "_text" ? "Page text" : (schema.columns.find((c) => c.key === f)?.label ?? f))}
+              labelOf={(f) => (f === "_text" ? "Page text" : (kiqFieldLabel(f, schema) ?? schema.columns.find((c) => c.key === f)?.label ?? f))}
               numberOf={numberOf}
               canResolve={canReview}
               onShow={showComment}
               title="Client comments"
             />
           )}
-          {actionable && cols.some((c) => c.type === "long") && <div className="list-hint">{LIST_HINT}</div>}
+          {actionable && (primary || cols.some((c) => c.type === "long")) && <div className="list-hint">{LIST_HINT}</div>}
           <div className="draft-grid" role="group" aria-label={`Tracker fields for ${item.code}`}>
             {cols.map((c) => {
               const v = draft[c.key] ?? "";
@@ -666,6 +733,21 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
                 </div>
               );
             })}
+            {primary && (
+              <KiqEditor
+                idPrefix={`f-${item.id}`}
+                schema={schema}
+                topics={kiqs}
+                disabled={!actionable || !canReview}
+                invalid={errors.includes(FIELDS.keyQuestion)}
+                onChange={(t) => {
+                  setKiqs(t);
+                  setErrors((e) => e.filter((x) => x !== FIELDS.keyQuestion));
+                }}
+                onBlur={() => void saveDraft()}
+                openOn={openOn}
+              />
+            )}
           </div>
           {msg && (
             <div className="err-msg" role="alert">

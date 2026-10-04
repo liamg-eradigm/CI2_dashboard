@@ -37,6 +37,11 @@ export interface GraphHub {
   dots: string[];
   /** Size of the name label (1 = a Macrotrend's). */
   labelScale: number;
+  /** Shell opacity and glow (default 0.24 / 0.35): competitor tiers make the inner tiers brighter. */
+  opacity?: number;
+  glow?: number;
+  /** Distance from the centre the hub is pulled towards (competitor tiers: Tier 1 innermost). */
+  band?: number;
 }
 export interface GraphEntry {
   id: string;
@@ -70,6 +75,12 @@ interface GNode {
   dots: string[];
   dotsKey: string;
   labelScale: number;
+  opacity?: number;
+  glow?: number;
+  band?: number;
+  vx?: number;
+  vy?: number;
+  vz?: number;
   title?: string;
   date?: string;
   x?: number;
@@ -222,6 +233,9 @@ export function Graph3D({
         })
         ?.strength?.((l: GLink) => (l.kind === "core" ? (comp() ? 0.025 : 0.6) : l.kind === "tie" ? Math.min(0.5, 0.06 + 0.08 * l.weight) : l.kind === "entry" ? 0.5 : 0.9));
 
+      // Competitor tiers: each hub is pulled towards its band (Tier 1 innermost).
+      g.d3Force("tiers", tierForce(0.09) as never);
+
       // Lighting: a soft fill plus a key light, so spheres read as spheres.
       const key = new T.DirectionalLight(0xffffff, 2.6);
       key.position.set(160, 220, 260);
@@ -360,8 +374,9 @@ export function Graph3D({
       const dotsKey = n.dots.join(",");
       const cur = nodes.current.get(n.id);
       // Keep the same object (and so its position) unless its look changed.
-      if (cur && cur.colour === n.colour && cur.r === n.r && cur.dotsKey === dotsKey) {
+      if (cur && cur.colour === n.colour && cur.r === n.r && cur.dotsKey === dotsKey && cur.opacity === n.opacity) {
         cur.count = n.count;
+        cur.band = n.band;
         return cur;
       }
       const near = nodes.current.get(n.kind === "entry" ? n.root : n.level === 2 ? n.root : "core");
@@ -376,7 +391,9 @@ export function Graph3D({
     const byId = new Map(spec.hubs.map((h) => [h.id, h]));
     for (const h of spec.hubs) {
       const root = h.level === 2 && h.parent ? h.parent : h.id;
-      want.push(node({ id: h.id, kind: "hub", level: h.level, root, name: h.name, count: h.count, colour: h.colour, r: h.r, dots: h.dots.slice(0, DOTS_MAX), labelScale: h.labelScale }));
+      want.push(
+        node({ id: h.id, kind: "hub", level: h.level, root, name: h.name, count: h.count, colour: h.colour, r: h.r, dots: h.dots.slice(0, DOTS_MAX), labelScale: h.labelScale, opacity: h.opacity, glow: h.glow, band: h.band }),
+      );
       links.push(h.level === 2 && h.parent && byId.has(h.parent) ? { source: h.parent, target: h.id, kind: "sub", weight: 1 } : { source: "core", target: h.id, kind: "core", weight: 1 });
     }
     for (const t of spec.ties) if (byId.has(t.a) && byId.has(t.b)) links.push({ source: t.a, target: t.b, kind: "tie", weight: t.weight });
@@ -481,7 +498,7 @@ export function Graph3D({
       // A translucent shell, so the entries inside show through.
       const shell = new T.Mesh(
         new T.SphereGeometry(n.r, 48, 32),
-        track(new T.MeshStandardMaterial({ color: colour, emissive: colour, emissiveIntensity: 0.35, roughness: 0.3, metalness: 0.05, opacity: 0.24, depthWrite: false })),
+        track(new T.MeshStandardMaterial({ color: colour, emissive: colour, emissiveIntensity: 0.2 + (n.glow ?? 0.35) * 0.6, roughness: 0.3, metalness: 0.05, opacity: n.opacity ?? 0.24, depthWrite: false })),
       );
       shell.renderOrder = 1;
       group.add(shell);
@@ -493,7 +510,7 @@ export function Graph3D({
         track(pts.material as ThreeNS.PointsMaterial);
         group.add(pts);
       }
-      group.add(glow(T, n.colour, n.r * 3.6, 0.3, track));
+      group.add(glow(T, n.colour, n.r * 3.6, n.glow ?? 0.3, track));
       // Hubs too small to label (competitors named once or twice) show their name on hover.
       if (n.labelScale > 0) {
         const label = textSprite(T, n.name, plural(n.count, "entry", "entries"), n.labelScale);
@@ -516,6 +533,28 @@ export function Graph3D({
   }
 
   return <div ref={host} className={`mg-canvas ${layout}`} aria-hidden="true" data-testid="mg-canvas" />;
+}
+
+/** Pulls each node with a `band` towards that distance from the centre (a d3-force-3d compatible force). */
+function tierForce(strength: number) {
+  let nodes: GNode[] = [];
+  const force = (alpha: number) => {
+    for (const n of nodes) {
+      if (n.band == null || n.x == null) continue;
+      const x = n.x;
+      const y = n.y ?? 0;
+      const z = n.z ?? 0;
+      const d = Math.hypot(x, y, z) || 1;
+      const k = ((n.band - d) / d) * strength * alpha;
+      n.vx = (n.vx ?? 0) + x * k;
+      n.vy = (n.vy ?? 0) + y * k;
+      n.vz = (n.vz ?? 0) + z * k;
+    }
+  };
+  force.initialize = (ns: GNode[]) => {
+    nodes = ns;
+  };
+  return force;
 }
 
 /** Hubs that stay bright: the open one, its Subtrends, and (Competitors) the competitors tied to it. */

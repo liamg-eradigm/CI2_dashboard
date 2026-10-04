@@ -15,6 +15,8 @@ export interface PanelNode {
   summary: TrendSummary | null;
   /** Subtrends with entries (Macrotrends only). */
   children: number;
+  /** Shown after the kind ("Tier 1" for a competitor). */
+  note?: string;
 }
 
 /** What the panel shows with nothing selected. */
@@ -110,6 +112,7 @@ export function SummaryPanel({
           <span className="dot" style={{ background: node.colour }} aria-hidden="true" />
           {KICKER[node.level]}
           {node.level === "sub" && node.parent ? ` · ${node.parent}` : ""}
+          {node.note ? ` · ${node.note}` : ""}
           {focused ? " · in view" : ""}
         </span>
         <h2 className="mg-panel-title" id="mg-panel-title">

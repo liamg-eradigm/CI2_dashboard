@@ -49,6 +49,9 @@ export function useStored<T extends string | number | boolean>(key: string, init
 const SPLIT_MIN = 0.2;
 const SPLIT_MAX = 0.85;
 const clampSplit = (v: number) => Math.min(SPLIT_MAX, Math.max(SPLIT_MIN, Number.isFinite(v) ? v : 0.72));
+/** The column's width (px), as the user left it: at least 300, at most 70% of the graph. */
+const WIDTH_MIN = 300;
+const WIDTH_DEFAULT = 460;
 
 export function GraphShell({
   storageKey,
@@ -86,6 +89,32 @@ export function GraphShell({
   const ratio = clampSplit(split);
   const box = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
+  const stage = useRef<HTMLElement>(null);
+  const [width, setWidth] = useStored<number>(`eradigm.${storageKey}.width`, WIDTH_DEFAULT);
+  const widthMax = () => Math.max(WIDTH_MIN, Math.round((stage.current?.clientWidth ?? 1200) * 0.7));
+  const clampWidth = (v: number) => Math.round(Math.min(widthMax(), Math.max(WIDTH_MIN, Number.isFinite(v) ? v : WIDTH_DEFAULT)));
+  const w = clampWidth(width);
+  const widening = useRef(false);
+  const side = useRef<HTMLDivElement>(null);
+  const onWDown = (e: PointerEvent<HTMLDivElement>) => {
+    widening.current = true;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  };
+  const onWMove = (e: PointerEvent<HTMLDivElement>) => {
+    const r = side.current?.getBoundingClientRect();
+    if (widening.current && r) setWidth(clampWidth(e.clientX - r.left));
+  };
+  const onWUp = () => {
+    widening.current = false;
+  };
+  const onWKey = (e: KeyboardEvent<HTMLDivElement>) => {
+    const step = e.shiftKey ? 60 : 20;
+    const next = e.key === "ArrowLeft" ? w - step : e.key === "ArrowRight" ? w + step : e.key === "Home" ? WIDTH_MIN : e.key === "End" ? widthMax() : null;
+    if (next == null) return;
+    e.preventDefault();
+    setWidth(clampWidth(next));
+  };
 
   const move = (clientY: number) => {
     const r = box.current?.getBoundingClientRect();
@@ -112,15 +141,34 @@ export function GraphShell({
   };
 
   return (
-    <div className={`mg-page${drawerOpen ? " drawer-open" : ""}`} data-testid={storageKey}>
-      <section className="mg-stage" aria-label={stageLabel}>
+    <div className={`mg-page${drawerOpen ? " drawer-open" : ""}`} data-testid={storageKey} style={{ ["--side-w" as string]: `${w}px` }}>
+      <section className="mg-stage" aria-label={stageLabel} ref={stage}>
         {!noGl && (
           <Suspense fallback={<div className="mg-loading">Loading the knowledge graph…</div>}>
             <Graph3D spec={spec} reducedMotion={reducedMotion} {...graph} onUnavailable={() => setNoGl(true)} />
           </Suspense>
         )}
         {noGl && <p className="mg-nogl">The 3D view needs WebGL, which is switched off in this browser. The list, summaries and timeline still work.</p>}
-        <div className="mg-side">
+        <div className="mg-side" ref={side}>
+          <div
+            className="mg-side-grip"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label={`Resize the width of the summary and the ${railNoun}`}
+            aria-valuemin={WIDTH_MIN}
+            aria-valuemax={widthMax()}
+            aria-valuenow={w}
+            tabIndex={0}
+            title="Drag to make the summary column wider or narrower"
+            onPointerDown={onWDown}
+            onPointerMove={onWMove}
+            onPointerUp={onWUp}
+            onPointerCancel={onWUp}
+            onKeyDown={onWKey}
+            data-testid="mg-width-grip"
+          >
+            <span />
+          </div>
           {crumbs}
           <div className="mg-split" ref={box}>
             <div className="mg-split-a" style={{ flex: railOpen ? `${ratio} 1 0` : "1 1 0" }}>

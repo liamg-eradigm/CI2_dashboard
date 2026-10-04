@@ -90,7 +90,7 @@ export function MarkdownPanel({ id, onClose, onOpenRecord, onEdit }: { id: strin
       <div className="drawer source-drawer md-pane" role="dialog" aria-modal="true" aria-labelledby="md-title" ref={ref}>
         <div className="drawer-head">
           <span className="drawer-meta">
-            <span className="mono" style={{ color: "var(--ink)" }}>
+            <span className="mono md-file" style={{ color: "var(--ink)" }} title={`${rid || sig.data?.code || ""}.md`}>
               {rid || sig.data?.code || "…"}.md
             </span>
             {sig.data && (

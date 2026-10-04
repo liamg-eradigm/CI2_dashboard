@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { COMPLETE, approveWith, call, env, ingestTo, json, nextRecordId, seedWorld, type World } from "./helpers";
+import { COMPLETE, approveWith, call, env, ingestTo, json, seedWorld, type World } from "./helpers";
 import { markdownFileName, yamlScalar } from "@eradigm/shared";
 
 let w: World;
