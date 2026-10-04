@@ -85,3 +85,42 @@ export function impactOrder(values: (string | null)[]): string[] {
   });
   return values.some((v) => !v) ? [...named, "No Impact"] : named;
 }
+
+/**
+ * Even places around the centre for `sizes.length` hubs: unit directions on a
+ * Fibonacci sphere (evenly spread over it). The biggest hub takes the first,
+ * and each next-biggest takes the free place farthest from those already
+ * taken, so the large hubs spread around the whole orbit instead of bunching
+ * up, and the small ones fill the gaps. Returned in the order of `sizes`.
+ */
+export function spreadSlots(sizes: number[]): [number, number, number][] {
+  const n = sizes.length;
+  const points: [number, number, number][] = [];
+  const golden = Math.PI * (3 - Math.sqrt(5));
+  for (let i = 0; i < n; i++) {
+    // Squashed towards the equator (y × 0.6), so few hubs hide at the poles behind one another.
+    const y = n === 1 ? 0 : (1 - (2 * (i + 0.5)) / n) * 0.6;
+    const ring = Math.sqrt(1 - y * y);
+    const a = golden * i;
+    points.push([Math.cos(a) * ring, y, Math.sin(a) * ring]);
+  }
+  const order = sizes.map((s, i) => [s, i] as const).sort((a, b) => b[0] - a[0] || a[1] - b[1]);
+  const free = new Set(points.keys());
+  const taken: [number, number, number][] = [];
+  const out: [number, number, number][] = new Array(n);
+  for (const [, i] of order) {
+    let best = -1;
+    let bestD = -1;
+    for (const p of free) {
+      const d = taken.length ? Math.min(...taken.map((t) => Math.hypot(t[0] - points[p]![0], t[1] - points[p]![1], t[2] - points[p]![2]))) : 0;
+      if (d > bestD) {
+        bestD = d;
+        best = p;
+      }
+    }
+    free.delete(best);
+    taken.push(points[best]!);
+    out[i] = points[best]!;
+  }
+  return out;
+}

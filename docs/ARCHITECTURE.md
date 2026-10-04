@@ -228,9 +228,12 @@ analyst-entered information distinguishable; in the prototype every value is
     bracketed note such as "N/A (none named)": `isPlaceholderCompetitor`) are
     not competitors: no node or tie, and an entry naming only those is left
     out of the tab. The page filters them again on its side, so an older API
-    deploy cannot bring an N/A sphere back. Pairs of competitors named by the
-    same entries are tied by a link force (stronger with more shared entries),
-    so they sit close together; an open competitor lights its ties.
+    deploy cannot bring an N/A sphere back. Competitors are spread evenly
+    around the orbit (`spreadSlots`: places on a Fibonacci sphere; the
+    biggest takes the first, each next-biggest the free place farthest from
+    those taken), so the large ones never bunch together. Pairs named by the
+    same entries are tied, but the tie is only drawn (for the open
+    competitor); it does not move them.
   - Summaries: 73 defaults ship in `packages/shared/src/competitors.ts`,
     matched to names in entries by a normalised key, aliases (BMS, J&J,
     Lilly, Novo, GSK, MSD…) and corporate suffixes. Stored summaries use the
@@ -274,8 +277,7 @@ analyst-entered information distinguishable; in the prototype every value is
   the tier colour, with the same translucency as the Megatrends spheres; the
   dots inside stay coloured by Impact. Tiers do not change position: every
   competitor is linked to the centre on the same orbit as the Macrotrends
-  (so dragging the centre brings them along), and competitors named together
-  pull closer. The page works out each competitor's tier
+  (so dragging the centre brings them along), each at its own even place. The page works out each competitor's tier
   itself from the setting (falling back to the defaults), so tiers and
   colours still show if the API returns no tier.
 - **Error boundaries**: each page, and each Administration card, is wrapped
