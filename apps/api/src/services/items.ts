@@ -102,8 +102,12 @@ export interface PublishedDuplicate {
  * rejected or still-in-review copy never blocks a new submission. Evaluated at
  * read time, so the warning is always current (e.g. the other copy is approved
  * or deleted later). `i` is the item being checked, `d` the tracker entry.
+ *
+ * Secondary entries only (request 27): a Primary entry from the same source is
+ * an update, not a duplicate; it is linked to its earlier entry instead
+ * (`source_key`, see sourceLink.ts).
  */
-const DUP_MATCH = `d.tenant_id = i.tenant_id AND d.id <> i.id AND d.status = 'approved' AND (
+const DUP_MATCH = `d.tenant_id = i.tenant_id AND d.id <> i.id AND d.status = 'approved' AND i.stream = 'secondary' AND d.stream = 'secondary' AND (
     (i.url_key IS NOT NULL AND d.url_key = i.url_key) OR
     (i.file_sha256 IS NOT NULL AND d.file_sha256 = i.file_sha256) OR
     (i.content_sha256 IS NOT NULL AND d.content_sha256 = i.content_sha256))`;

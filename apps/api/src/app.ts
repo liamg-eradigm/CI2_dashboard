@@ -95,7 +95,7 @@ import {
   saveSettings,
   updateColumn,
 } from "./services/schema.js";
-import { signalDetail, signalMarkdown } from "./services/signals.js";
+import { primarySources, signalDetail, signalMarkdown } from "./services/signals.js";
 import { attachSnapshot, importRows } from "./services/imports.js";
 import { submitFile, submitManual, submitUrl } from "./services/submissions.js";
 import { competitors, generateSummary, megatrends, writeSummary } from "./services/megatrends.js";
@@ -407,6 +407,12 @@ app.get("/api/tracker/bounds", async (c) => {
 });
 app.get("/api/tracker", (c) => tablePage(c, "tracker"));
 app.get("/api/phantoms", (c) => tablePage(c, "phantoms"));
+
+/** Primary entries with a source, for the "prior primary information" flag in the Inbox. */
+app.get("/api/primary-sources", async (c) => {
+  requirePermission(P(c), "tracker:read");
+  return c.json(await primarySources(c.env, P(c).tenantId));
+});
 app.get("/api/deliverables/alerts", (c) => tablePage(c, "alerts"));
 app.get("/api/deliverables/newsletter", (c) => tablePage(c, "newsletter"));
 

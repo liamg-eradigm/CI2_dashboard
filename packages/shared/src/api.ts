@@ -436,7 +436,26 @@ export const SignalSchema = z.object({
   pages: z.number().int().default(0),
   /** Deliverables → Alerts rows only: the stored .docx alert. Added in contract 1.7. */
   alertId: z.string().nullable().optional(),
+  /**
+   * Primary entries from the same source (Source Role + Source Company): the
+   * entry just before this one and just after it, by Event Date (ids). Added
+   * in contract 1.16.
+   */
+  linkedEarlier: z.string().nullable().optional(),
+  linkedLater: z.string().nullable().optional(),
 });
+
+/** An approved Primary entry with a source (Source Role + Source Company), for "prior primary information" while entering one. Contract 1.16. */
+export const PrimarySourceSchema = z.object({
+  /** primarySourceKey(role, company) */
+  key: z.string(),
+  id: z.string(),
+  code: z.string(),
+  recordId: z.string().nullable(),
+  title: z.string(),
+  date: z.string().nullable(),
+});
+export type PrimarySource = z.infer<typeof PrimarySourceSchema>;
 
 export const SignalDetailSchema = SignalSchema.extend({
   inboxCode: z.string(),
@@ -761,6 +780,7 @@ export const ENDPOINTS: EndpointDef[] = [
   { method: "patch", path: "/api/items/{id}/comments/{cid}", summary: "Resolve or reopen a comment (Eradigm)", roles: STAFF, request: UpdateCommentRequest, response: z.array(CommentSchema) },
   { method: "delete", path: "/api/items/{id}/comments/{cid}", summary: "Delete a comment (its author, or an admin)", roles: ALL_ROLES, response: z.array(CommentSchema) },
   { method: "get", path: "/api/items/{id}/snapshots", summary: "The saved HTML pages of an entry, first page first", roles: ALL_ROLES, response: z.array(SavedPageSchema) },
+  { method: "get", path: "/api/primary-sources", summary: "Approved Primary entries with a Source Role and Source Company (newest first), to flag “This Source Has Prior Primary Information” while one is entered", roles: ALL_ROLES, response: z.array(PrimarySourceSchema) },
   { method: "get", path: "/api/phantoms", summary: "Phantoms table (query: stream, filters, sort, page): every Primary entry, and Secondary entries at or above the admin-set Impact", roles: ALL_ROLES, response: TrackerPageSchema },
   { method: "get", path: "/api/deliverables/alerts", summary: "Deliverables → Alerts: Phantoms with the highest Impact (High), each with its stored .docx alert (generated automatically)", roles: ALL_ROLES, response: TrackerPageSchema },
   { method: "get", path: "/api/deliverables/newsletter", summary: "Deliverables → Newsletter: Phantoms with High or Medium Impact, to build newsletters from", roles: ALL_ROLES, response: TrackerPageSchema },

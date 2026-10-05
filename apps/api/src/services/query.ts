@@ -160,9 +160,26 @@ interface SignalRow {
   approved_by_name: string | null;
   has_snapshot: number | null;
   page_count: number | null;
+  linked_earlier: string | null;
+  linked_later: string | null;
 }
 
+/**
+ * The Primary entry from the same source (Source Role + Source Company,
+ * `source_key`) just before (earlier) or after (later) entry `i`, by Event
+ * Date, then approval time and id: the links between entries from one source.
+ * Read from the live entry (`me`), so the Tracker and Phantoms agree.
+ */
+export const linkedExpr = (dir: "earlier" | "later") => {
+  const [op, ord] = dir === "earlier" ? ["<", "DESC"] : [">", "ASC"];
+  return `(SELECT p.id FROM intelligence_items me JOIN intelligence_items p ON p.tenant_id = me.tenant_id AND p.source_key = me.source_key AND p.id <> me.id
+     WHERE me.id = i.id AND me.source_key IS NOT NULL AND p.status = 'approved' AND p.deleted_at IS NULL
+       AND (COALESCE(p.pub_date, ''), COALESCE(p.approved_at, ''), p.id) ${op} (COALESCE(me.pub_date, ''), COALESCE(me.approved_at, ''), me.id)
+     ORDER BY COALESCE(p.pub_date, '') ${ord}, COALESCE(p.approved_at, '') ${ord}, p.id ${ord} LIMIT 1)`;
+};
+
 const signalColumns = (scope: Scope = {}) => `i.id, i.signal_code, i.stream, i.record_id, i.pub_date, i.title, i.macrotrend, i.subtrend, i.growth, i.impact, i.extra_json,
+  ${linkedExpr("earlier")} AS linked_earlier, ${linkedExpr("later")} AS linked_later,
   ${competitorsExpr(scope)} AS competitors,
   substr(i.body_text, 1, 600) AS body_text, i.final_url, i.published_rev, i.approved_at,
   (SELECT u.name FROM users u WHERE u.id = i.approved_by) AS approved_by_name,
@@ -197,6 +214,8 @@ function toSignal(schema: TrackerSchema, r: SignalRow): Signal {
     approvedBy: r.approved_by_name ?? "—",
     hasSnapshot: !!r.has_snapshot,
     pages: r.page_count ?? 0,
+    linkedEarlier: r.linked_earlier ?? null,
+    linkedLater: r.linked_later ?? null,
   };
 }
 

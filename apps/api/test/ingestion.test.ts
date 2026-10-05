@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { captureUrlIsolated, parseUploadIsolated, setInlineCaptureFetcher } from "../src/pipeline/capture-client";
 import { peekTestQueue, runJob } from "../src/pipeline/process";
-import { COMPLETE, WITH_LLM, approveWith, nextRecordId, articleHtml, call, drain, env, ingest, json, seedWorld, upload, type World } from "./helpers";
+import { COMPLETE, WITH_LLM, approveWith, nextRecordId, articleHtml, call, drain, env, ingest, ingestTo, json, seedWorld, upload, type World } from "./helpers";
 
 let w: World;
 beforeAll(async () => {
@@ -62,9 +62,9 @@ describe("URL submissions", () => {
     expect(n?.n).toBe(1);
   });
 
-  it("warns (but proceeds) when the source is already in the tracker, and approval requires an explicit override", async () => {
+  it("warns (but proceeds) when the source is already in the tracker, and approval requires an explicit override (Secondary entries only, request 27)", async () => {
     const html = articleHtml({ url: "https://news.example.com/in-tracker", title: "Already tracked story", body: "Roche expands its robotics-enabled lab network across three new sites in Europe.\nThe expansion completes in 2027." });
-    const r1 = await upload(w.a.analyst, html, "tracked.html");
+    const r1 = await upload(w.a.analyst, html, "tracked.html", {}, "secondary");
     expect(r1.status).toBe(201);
     await drain();
     const firstItem = await json(call(w.a.analyst, "GET", `/api/items/${(await r1.json<any>()).item.id}`));
@@ -74,14 +74,14 @@ describe("URL submissions", () => {
     expect(published.duplicateOf).toBeNull();
 
     // Same URL typed on the Input page: created and sent to the Inbox, flagged as a duplicate.
-    const byUrl = await call(w.a.analyst, "POST", "/api/submissions", { body: { url: "https://news.example.com/in-tracker" } });
+    const byUrl = await call(w.a.analyst, "POST", "/api/submissions", { body: { url: "https://news.example.com/in-tracker", stream: "secondary" } });
     expect(byUrl.status).toBe(201);
     const u = await byUrl.json<any>();
     expect(u.duplicate).toBe(false);
     expect(u.item).toMatchObject({ duplicateOf: published.signalCode, duplicateItemId: published.id, duplicateBasis: "url" });
 
     // The same file uploaded again: also allowed, and flagged.
-    const r2 = await upload(w.a.analyst, html, "tracked-again.html");
+    const r2 = await upload(w.a.analyst, html, "tracked-again.html", {}, "secondary");
     expect(r2.status).toBe(201);
     const second = (await r2.json<any>()).item;
     expect(second.duplicateOf).toBe(published.signalCode);
@@ -333,9 +333,9 @@ describe("file submissions and the review lifecycle", () => {
 
   it("flags duplicate content across different uploads only once a copy is in the tracker", async () => {
     const body = "Unique duplicate-content body about Roche and robotics-enabled labs in Basel.\nThe lab doubles throughput by 2027.";
-    const first = await ingest(w.a.analyst, "Duplicate content test", body);
+    const first = await ingestTo("secondary", w.a.analyst, "Duplicate content test", body);
     expect(first.status).toBe("needs_review");
-    const res = await upload(w.a.analyst, articleHtml({ title: "Duplicate content test", body }) + "<!-- different bytes -->", "copy.html");
+    const res = await upload(w.a.analyst, articleHtml({ title: "Duplicate content test", body }) + "<!-- different bytes -->", "copy.html", {}, "secondary");
     const { item } = await res.json<any>();
     await drain();
     const second = await json(call(w.a.analyst, "GET", `/api/items/${item.id}`));
