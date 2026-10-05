@@ -778,8 +778,24 @@ a.link-btn { text-decoration: none; }
 .nav-parent { display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 42px; padding: 0 12px; border: 0; border-left: 3px solid transparent; border-radius: 0 7px 7px 0; background: transparent; font: 600 14.5px var(--sans); color: var(--on-dark); text-align: left; cursor: pointer; }
 .nav-parent:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
 .nav-group.within > .nav-parent { color: #fff; border-left-color: rgba(61, 195, 201, 0.5); }
+.nav-parent { justify-content: flex-start; }
+.nav-parent > span:first-child { flex: 1 1 auto; min-width: 0; }
+.nav-parent .badge { margin-right: 4px; }
 .nav-chev { font-size: 11px; opacity: 0.8; }
 .nav-chev::before { content: "▸"; }
 .nav-parent[aria-expanded="true"] .nav-chev::before { content: "▾"; }
 .nav-sub { display: flex; flex-direction: column; gap: 2px; margin: 0 0 4px 14px; padding-left: 8px; border-left: 1px solid rgba(255, 255, 255, 0.14); }
 .nav .nav-sub a { height: 34px; font-size: 13.5px; font-weight: 600; }
+/* Administration → Menu (request 28): groups, each with its tabs, renamed in place. */
+.menu-editor { max-width: 640px; gap: 6px; }
+.menu-group-row { display: flex; flex-direction: column; gap: 4px; padding: 6px 0 10px; border-bottom: 1px solid var(--rule); }
+.menu-row { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 10px; align-items: center; }
+.menu-group-row > .menu-row .control { font-weight: 700; }
+.menu-items { margin-left: 34px; padding-left: 12px; border-left: 2px solid var(--rule); display: flex; flex-direction: column; gap: 2px; }
+.menu-label { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.menu-label .control { height: 32px; max-width: 280px; }
+.menu-default { font-size: 12px; color: var(--muted); white-space: nowrap; }
+/* Input → Capture log: about eight rows high, scrolling, header kept in view. */
+.table-wrap.capture-log { max-height: 360px; overflow: auto; }
+.table-wrap.capture-log thead th { position: sticky; top: 0; z-index: 1; background: #fff; box-shadow: inset 0 -1px 0 var(--rule); }
+.table-wrap.capture-log:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }

@@ -308,7 +308,8 @@ analyst-entered information distinguishable; in the prototype every value is
   width, 300px to 70% of the graph, remembered per browser and tab
   (`eradigm.<tab>.width`).
 - **Input**: a chosen HTML file (Add a source) or spreadsheet (Import) has a
-  ✕ Remove button, to take it off before it is sent.
+  ✕ Remove button, to take it off before it is sent. The capture log is a
+  scrollable table about eight rows high, its header kept in view.
 - **Primary sources** (request 27, contract 1.16, migration 0016): two Primary
   entries come from the same source when their Source Role and Source Company
   match, ignoring case and spacing (`primarySourceKey`,
@@ -341,7 +342,9 @@ analyst-entered information distinguishable; in the prototype every value is
   Macrotrend (Competitors) in the same time frame, and the analysis of the
   trend: the knowledge graph's summary (`SummaryPanel`, editable by analysts).
   State is in the URL (`m`, `s` / `c`, `t`). Built from the Megatrends and
-  Competitors responses (no new endpoint).
+  Competitors responses (no new endpoint). On Competitors, the list is ordered by High-impact
+  signals, then Medium, then Low (then total and name), each cell showing its
+  High / Medium / Low counts (all time).
   - Macrotrend spheres around a central core, sized by their number of
     entries (only those with 1 or more); selecting one reveals its Subtrends
     (also 1 or more), selecting a Subtrend its entries. Zooming in on a node
@@ -376,9 +379,21 @@ analyst-entered information distinguishable; in the prototype every value is
     with `megatrends.model` (Administration → Workspace settings →
     Megatrends · AI summaries). Renaming a Macrotrend / Subtrend keeps its
     summary.
-- **Tab order** (`navOrder` in tenant settings; Administration → Tabs, admins)
-  sets the order of the menu for everyone in a workspace; roles still only see
-  the tabs they may use.
+- **Menu in groups** (request 28, contract 1.17; `packages/shared/src/menu.ts`):
+  the menu is five groups, each a button that opens its tabs: Trackers
+  (Tracker, Dashboard, Phantoms), Megatrends and Competitors (Knowledge graph,
+  Trend analysis), Inputs (Input, Eradigm Inbox, Client Inbox) and Admin
+  (Deliverables, Administration). A group is open while one of its pages is
+  open, unless closed; a closed group shows its tabs' badges. People only see
+  the tabs their role allows (`canSeeTab`); a group with none is hidden. Each
+  link's accessible name is "Group: Tab".
+  - Administration → Menu (admins; `menu` in tenant settings, saved straight
+    away): drag or ↑ ↓ the groups, and the tabs within each group (a tab stays
+    in its group); type a new name for a group or tab (empty, or the usual
+    name, means the usual name); Restore the usual menu. `normaliseMenu` makes
+    any stored menu whole (unknown or repeated entries dropped, missing ones
+    back after the tab they follow by default). `navOrder` (the old flat order)
+    is kept for older dashboards but no longer used.
 - **Markdown** (`GET /api/signals/:id/markdown`, `?download=1` for a file named
   `<ID>.md`) is generated from the published field values only. The front
   matter is valid YAML (two-space indentation; values quoted only when YAML

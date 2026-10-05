@@ -300,6 +300,9 @@
 .ta-cell .nm { flex: 1 1 auto; min-width: 0; }
 .ta-note { font: 600 12.5px var(--sans); color: var(--mg-ink-3); white-space: nowrap; }
 .ta-cell .ct { font: 700 13px var(--mono); color: var(--mg-ink-2); white-space: nowrap; min-width: 90px; text-align: right; }
+.ta-impacts { display: inline-flex; gap: 12px; font: 700 12.5px var(--mono); color: var(--mg-ink-2); white-space: nowrap; }
+.ta-imp { display: inline-flex; align-items: center; gap: 5px; min-width: 34px; }
+.ta-impacts .dot.sm { width: 8px; height: 8px; }
 .ta-chev { color: var(--mg-ink-3); font-size: 13px; width: 14px; text-align: center; }
 .ta-detail { padding: 4px 20px 20px; display: flex; flex-direction: column; gap: 14px; }
 .ta-sub, .ta-frame { display: inline-flex; align-items: center; gap: 10px; font: 700 11px var(--sans); letter-spacing: 0.1em; text-transform: uppercase; color: var(--cyan-2); }

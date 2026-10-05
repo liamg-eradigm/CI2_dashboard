@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Eradigm Competitive Intelligence API",
-    "version": "1.16.0",
+    "version": "1.17.0",
     "description": "Generated from packages/shared/src/api.ts. Every request is checked for both role and tenant server-side. Send X-Tenant-Id to select a tenant when the user belongs to more than one."
   },
   "components": {
@@ -18910,6 +18910,142 @@
                         ]
                       }
                     },
+                    "menu": {
+                      "default": {
+                        "groups": [
+                          {
+                            "key": "trackers",
+                            "items": [
+                              {
+                                "key": "tracker"
+                              },
+                              {
+                                "key": "dashboard"
+                              },
+                              {
+                                "key": "phantoms"
+                              }
+                            ]
+                          },
+                          {
+                            "key": "megatrends",
+                            "items": [
+                              {
+                                "key": "megatrends"
+                              },
+                              {
+                                "key": "megatrends-analysis"
+                              }
+                            ]
+                          },
+                          {
+                            "key": "competitors",
+                            "items": [
+                              {
+                                "key": "competitors"
+                              },
+                              {
+                                "key": "competitors-analysis"
+                              }
+                            ]
+                          },
+                          {
+                            "key": "inputs",
+                            "items": [
+                              {
+                                "key": "input"
+                              },
+                              {
+                                "key": "inbox"
+                              },
+                              {
+                                "key": "clientinbox"
+                              }
+                            ]
+                          },
+                          {
+                            "key": "admin",
+                            "items": [
+                              {
+                                "key": "deliverables"
+                              },
+                              {
+                                "key": "admin"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      "type": "object",
+                      "properties": {
+                        "groups": {
+                          "maxItems": 5,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string",
+                                "enum": [
+                                  "trackers",
+                                  "megatrends",
+                                  "competitors",
+                                  "inputs",
+                                  "admin"
+                                ]
+                              },
+                              "label": {
+                                "type": "string",
+                                "maxLength": 80
+                              },
+                              "items": {
+                                "maxItems": 12,
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "key": {
+                                      "type": "string",
+                                      "enum": [
+                                        "tracker",
+                                        "dashboard",
+                                        "phantoms",
+                                        "megatrends",
+                                        "megatrends-analysis",
+                                        "competitors",
+                                        "competitors-analysis",
+                                        "input",
+                                        "inbox",
+                                        "clientinbox",
+                                        "deliverables",
+                                        "admin"
+                                      ]
+                                    },
+                                    "label": {
+                                      "type": "string",
+                                      "maxLength": 80
+                                    }
+                                  },
+                                  "required": [
+                                    "key"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "items"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "groups"
+                      ],
+                      "additionalProperties": false
+                    },
                     "competitorTiers": {
                       "default": {
                         "tier1": [
@@ -19022,6 +19158,7 @@
                     "redaction",
                     "phantoms",
                     "navOrder",
+                    "menu",
                     "competitorTiers",
                     "megatrends"
                   ],
@@ -19257,6 +19394,142 @@
                         ]
                       }
                     },
+                    "menu": {
+                      "default": {
+                        "groups": [
+                          {
+                            "key": "trackers",
+                            "items": [
+                              {
+                                "key": "tracker"
+                              },
+                              {
+                                "key": "dashboard"
+                              },
+                              {
+                                "key": "phantoms"
+                              }
+                            ]
+                          },
+                          {
+                            "key": "megatrends",
+                            "items": [
+                              {
+                                "key": "megatrends"
+                              },
+                              {
+                                "key": "megatrends-analysis"
+                              }
+                            ]
+                          },
+                          {
+                            "key": "competitors",
+                            "items": [
+                              {
+                                "key": "competitors"
+                              },
+                              {
+                                "key": "competitors-analysis"
+                              }
+                            ]
+                          },
+                          {
+                            "key": "inputs",
+                            "items": [
+                              {
+                                "key": "input"
+                              },
+                              {
+                                "key": "inbox"
+                              },
+                              {
+                                "key": "clientinbox"
+                              }
+                            ]
+                          },
+                          {
+                            "key": "admin",
+                            "items": [
+                              {
+                                "key": "deliverables"
+                              },
+                              {
+                                "key": "admin"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      "type": "object",
+                      "properties": {
+                        "groups": {
+                          "maxItems": 5,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string",
+                                "enum": [
+                                  "trackers",
+                                  "megatrends",
+                                  "competitors",
+                                  "inputs",
+                                  "admin"
+                                ]
+                              },
+                              "label": {
+                                "type": "string",
+                                "maxLength": 80
+                              },
+                              "items": {
+                                "maxItems": 12,
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "key": {
+                                      "type": "string",
+                                      "enum": [
+                                        "tracker",
+                                        "dashboard",
+                                        "phantoms",
+                                        "megatrends",
+                                        "megatrends-analysis",
+                                        "competitors",
+                                        "competitors-analysis",
+                                        "input",
+                                        "inbox",
+                                        "clientinbox",
+                                        "deliverables",
+                                        "admin"
+                                      ]
+                                    },
+                                    "label": {
+                                      "type": "string",
+                                      "maxLength": 80
+                                    }
+                                  },
+                                  "required": [
+                                    "key"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "items"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "groups"
+                      ],
+                      "additionalProperties": false
+                    },
                     "competitorTiers": {
                       "default": {
                         "tier1": [
@@ -19369,6 +19642,7 @@
                     "redaction",
                     "phantoms",
                     "navOrder",
+                    "menu",
                     "competitorTiers",
                     "megatrends"
                   ],
@@ -19580,6 +19854,77 @@
                         "admin"
                       ]
                     }
+                  },
+                  "menu": {
+                    "type": "object",
+                    "properties": {
+                      "groups": {
+                        "maxItems": 5,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "key": {
+                              "type": "string",
+                              "enum": [
+                                "trackers",
+                                "megatrends",
+                                "competitors",
+                                "inputs",
+                                "admin"
+                              ]
+                            },
+                            "label": {
+                              "type": "string",
+                              "maxLength": 80
+                            },
+                            "items": {
+                              "maxItems": 12,
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "key": {
+                                    "type": "string",
+                                    "enum": [
+                                      "tracker",
+                                      "dashboard",
+                                      "phantoms",
+                                      "megatrends",
+                                      "megatrends-analysis",
+                                      "competitors",
+                                      "competitors-analysis",
+                                      "input",
+                                      "inbox",
+                                      "clientinbox",
+                                      "deliverables",
+                                      "admin"
+                                    ]
+                                  },
+                                  "label": {
+                                    "type": "string",
+                                    "maxLength": 80
+                                  }
+                                },
+                                "required": [
+                                  "key"
+                                ],
+                                "additionalProperties": false
+                              }
+                            }
+                          },
+                          "required": [
+                            "key",
+                            "items"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "groups"
+                    ],
+                    "additionalProperties": false
                   },
                   "competitorTiers": {
                     "default": {

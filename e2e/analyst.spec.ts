@@ -2,7 +2,7 @@ import path from "node:path";
 import { readFileSync, writeFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import type { Locator, Page } from "@playwright/test";
-import { choose, chooseMany, expect, expectAccessible, signInAs, test } from "./fixtures";
+import { choose, chooseMany, expect, expectAccessible, signInAs, test, goTab, navLink } from "./fixtures";
 
 const uid = () => Date.now().toString(36);
 
@@ -466,7 +466,7 @@ test.describe("Eradigm staff (admin)", () => {
     await expect(page.locator(".toast")).toContainText(`Deleted ${code} from the Tracker · still in Phantoms`);
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(page.locator("table tbody td.title", { hasText: title })).toHaveCount(0);
-    await page.getByRole("navigation").getByRole("link", { name: "Phantoms" }).click();
+    await goTab(page, "Trackers", "Phantoms");
     await page.getByRole("searchbox").fill(title);
     await expect(page.locator("table tbody td.title", { hasText: title })).toBeVisible();
   });
@@ -509,7 +509,7 @@ test.describe("Eradigm staff (admin)", () => {
     await expect(page.locator(".toast")).toContainText("Deleted 2 entries globally");
     await expect(page.getByRole("alertdialog")).toHaveCount(0);
     for (const t of titles) await expect(page.locator("table tbody td.title", { hasText: t })).toHaveCount(0);
-    await page.getByRole("navigation").getByRole("link", { name: "Tracker" }).click();
+    await goTab(page, "Trackers", "Tracker");
     const search = page.getByRole("searchbox");
     await search.fill(titles[0]!);
     await expect(page.locator("table tbody td.title", { hasText: titles[0]! })).toHaveCount(0);
@@ -600,7 +600,7 @@ test.describe("Eradigm staff (admin)", () => {
     await expect(page.locator("td.title", { hasText: `${title}: Paris` })).toBeVisible();
     await page.getByTestId("stream-primary").click();
     await expect(page.locator("td.title", { hasText: `${title}: Paris` })).toHaveCount(0);
-    await page.getByRole("navigation").getByRole("link", { name: "Phantoms" }).click();
+    await goTab(page, "Trackers", "Phantoms");
     await page.getByTestId("stream-secondary").click();
     const row = page.locator("table tbody tr", { hasText: `${title}: Paris` });
     await expect(row).toBeVisible();
@@ -759,7 +759,7 @@ test.describe("Eradigm staff (admin)", () => {
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog")).toHaveCount(0);
     // It is in Primary Phantoms with the Primary Markdown.
-    await page.getByRole("navigation").getByRole("link", { name: "Phantoms" }).click();
+    await goTab(page, "Trackers", "Phantoms");
     await expect(page).toHaveURL(/\/phantoms\?stream=primary&q=/);
     const ph = page.locator("table tbody tr", { hasText: title });
     await ph.locator("td.title button").click();
@@ -772,7 +772,7 @@ test.describe("Eradigm staff (admin)", () => {
 
   test("Deliverables → Alerts: High Impact Phantoms of both streams, each with a .docx alert that opens as a side pane", async ({ page }) => {
     await page.goto("/deliverables");
-    await expect(page.getByRole("navigation").getByRole("link", { name: "Deliverables" })).toHaveAttribute("aria-current", "page");
+    await expect(navLink(page, "Admin", "Deliverables")).toHaveAttribute("aria-current", "page");
     // The central Alerts / Newsletter switch.
     const sw = page.getByRole("group", { name: "Deliverable" });
     const [swBox, content] = [(await sw.boundingBox())!, (await page.locator(".content").boundingBox())!];

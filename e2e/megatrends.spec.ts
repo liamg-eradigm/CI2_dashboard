@@ -1,4 +1,4 @@
-import { expect, expectAccessible, signInAs, test } from "./fixtures";
+import { expect, expectAccessible, signInAs, test, goTab, navOf, menuOf } from "./fixtures";
 
 const R_AND_D = "AI Investment in R&D";
 
@@ -7,8 +7,7 @@ test.describe("Megatrends", () => {
     await signInAs(page, "client");
     await page.goto("/dashboard");
     // Megatrends opens its two subtabs in the menu (request 27); the knowledge graph is the first.
-    await page.getByRole("navigation").getByRole("button", { name: "Megatrends" }).click();
-    await page.getByRole("navigation").getByRole("link", { name: "Megatrends: Knowledge graph" }).click();
+    await goTab(page, "Megatrends", "Knowledge graph");
     await expect(page.getByTestId("mg-panel")).toBeVisible();
     const rail = page.getByTestId("mg-macros");
     // Only Macrotrends with entries are listed, with their counts.
@@ -98,28 +97,48 @@ test.describe("Megatrends", () => {
 });
 
 test.describe("tab order", () => {
-  test("admin reorders the tabs for everyone", async ({ page, browser }) => {
+  test("admin reorders and renames the menu's groups and tabs for everyone (request 28)", async ({ page, browser }) => {
     await signInAs(page, "admin");
     await page.goto("/admin");
     const card = page.getByTestId("tab-order");
-    await expect(card.getByRole("button", { name: /Sort Tabs/ })).toHaveCount(0);
-    await card.getByRole("button", { name: "Move tab Megatrends up" }).click();
-    await expect(card.getByTestId("tab-megatrends")).toBeVisible();
-    const nav = page.getByRole("navigation", { name: "COMPETITIVE INTELLIGENCE" });
-    // Top-level tabs: links, and the Megatrends / Competitors buttons that open their subtabs.
-    const labels = () => nav.locator(":scope > a, :scope > .nav-group > .nav-parent").allInnerTexts();
-    await expect.poll(async () => (await labels()).map((t) => t.replace(/\d+$/, "").trim()).slice(3, 5)).toEqual(["Megatrends", "Deliverables"]);
-    // A client sees the same order (without the staff tabs).
+    await expect(card.getByRole("heading", { name: "Menu" })).toBeVisible();
+    const groups = () => navOf(page).locator(".nav-group > .nav-parent > span:first-child").allInnerTexts();
+    await expect.poll(groups).toEqual(["Trackers", "Megatrends", "Competitors", "Inputs", "Admin"]);
+    // Groups move; tabs move within their group.
+    await card.getByRole("button", { name: "Move group Inputs up" }).click();
+    await expect.poll(groups).toEqual(["Trackers", "Megatrends", "Inputs", "Competitors", "Admin"]);
+    await card.getByTestId("menu-group-trackers").getByRole("button", { name: "Move tab Trackers: Phantoms up" }).click();
+    await expect(page.locator(".toast").last()).toContainText("Moved");
+    // Renamed: a group and a tab.
+    await card.getByLabel("Name of the Inputs group").fill("Sources");
+    await card.getByLabel("Name of the Inputs group").press("Enter");
+    await expect(page.locator(".toast").last()).toContainText("Group renamed to “Sources”");
+    await card.getByLabel("Name of the Trackers tab Phantoms").fill("Phantom files");
+    await card.getByLabel("Name of the Trackers tab Phantoms").press("Tab");
+    await expect(page.locator(".toast").last()).toContainText("Tab renamed to “Phantom files”");
+    await expect(card.getByTestId("menu-item-phantoms")).toContainText("was Phantoms");
+    await expectAccessible(page, "Administration with the menu editor");
+    expect(await menuOf(page)).toEqual([
+      "Trackers: Tracker, Phantom files, Dashboard",
+      "Megatrends: Knowledge graph, Trend analysis",
+      "Sources: Input, Eradigm Inbox, Client Inbox",
+      "Competitors: Knowledge graph, Trend analysis",
+      "Admin: Deliverables, Administration",
+    ]);
+    await goTab(page, "Trackers", "Phantom files");
+    await expect(page).toHaveURL(/\/phantoms/);
+    // A client sees the same order and names (without the staff tabs and the Admin group).
     const ctx = await browser.newContext();
     const other = await ctx.newPage();
     await signInAs(other, "client");
     await other.goto("/dashboard");
-    await expect.poll(async () => (await other.getByRole("navigation", { name: "COMPETITIVE INTELLIGENCE" }).locator(":scope > a, :scope > .nav-group > .nav-parent").allInnerTexts()).map((t) => t.replace(/\s*\d+$/, "").trim())).toEqual(["Dashboard", "Tracker", "Phantoms", "Megatrends", "Competitors", "Client Inbox"]);
+    expect(await menuOf(other)).toEqual(["Trackers: Tracker, Phantom files, Dashboard", "Megatrends: Knowledge graph, Trend analysis", "Sources: Client Inbox", "Competitors: Knowledge graph, Trend analysis"]);
     await ctx.close();
     // Restore.
-    await card.getByRole("button", { name: "Move tab Megatrends down" }).click();
-    await expect.poll(async () => (await labels()).map((t) => t.replace(/\d+$/, "").trim()).slice(3, 5)).toEqual(["Deliverables", "Megatrends"]);
-    await expectAccessible(page, "Administration with tab order");
+    await page.goto("/admin");
+    await card.getByRole("button", { name: "Restore the usual menu" }).click();
+    await expect.poll(groups).toEqual(["Trackers", "Megatrends", "Competitors", "Inputs", "Admin"]);
+    await expect(card.getByLabel("Name of the Trackers tab Phantoms")).toHaveValue("");
   });
 
   test("admin sets how AI summaries are written", async ({ page }) => {

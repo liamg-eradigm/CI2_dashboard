@@ -13,6 +13,7 @@ import { EXPORT_FORMATS } from "./export.js";
 import { DEFAULT_NAV_ORDER, MAX_SUMMARY_LENGTH, NAV_TABS, SUMMARY_MODELS, SUMMARY_SOURCES, TREND_LEVELS } from "./megatrends.js";
 import { DEFAULT_COMPETITOR_TIERS } from "./competitors.js";
 import { KiqTopicsSchema } from "./kiq.js";
+import { DEFAULT_MENU, MAX_MENU_LABEL, MENU_GROUPS, MENU_ITEMS } from "./menu.js";
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD");
 const isoDateTime = z.string();
@@ -625,6 +626,25 @@ export const TenantSettingsSchema = z.object({
     .max(NAV_TABS.length)
     .refine((a) => new Set(a).size === a.length, "Each tab can appear only once")
     .default([...DEFAULT_NAV_ORDER]),
+  /**
+   * The menu (contract 1.17): groups (Trackers, Megatrends, Competitors,
+   * Inputs, Admin) in order, each with its subtabs in order, and any names an
+   * admin gave them. Made whole when read (normaliseMenu). navOrder above is
+   * kept for older dashboards.
+   */
+  menu: z
+    .object({
+      groups: z
+        .array(
+          z.object({
+            key: z.enum(MENU_GROUPS),
+            label: z.string().max(MAX_MENU_LABEL * 2).optional(),
+            items: z.array(z.object({ key: z.enum(MENU_ITEMS), label: z.string().max(MAX_MENU_LABEL * 2).optional() })).max(MENU_ITEMS.length),
+          }),
+        )
+        .max(MENU_GROUPS.length),
+    })
+    .default(structuredClone(DEFAULT_MENU)),
   /** Competitor tiers on the Competitors tab (contract 1.15); any competitor not listed is Tier 4. */
   competitorTiers: z
     .object({
@@ -648,6 +668,7 @@ export const TenantSettingsSchema = z.object({
 });
 export const UpdateSettingsRequest = TenantSettingsSchema.partial().extend({
   navOrder: TenantSettingsSchema.shape.navOrder.unwrap().optional(),
+  menu: TenantSettingsSchema.shape.menu.unwrap().optional(),
   megatrends: TenantSettingsSchema.shape.megatrends.unwrap().partial().optional(),
 });
 

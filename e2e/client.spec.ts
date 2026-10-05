@@ -1,4 +1,4 @@
-import { choose, expect, expectAccessible, signInAs, test } from "./fixtures";
+import { choose, expect, expectAccessible, signInAs, test, goTab, navLink, navOf, menuOf } from "./fixtures";
 
 test.describe("client role", () => {
   test.beforeEach(async ({ page }) => signInAs(page, "client"));
@@ -6,11 +6,9 @@ test.describe("client role", () => {
   test("sees only published data and no analyst tools", async ({ page }) => {
     await page.goto("/dashboard");
     await expect(page.getByRole("heading", { name: "Intelligence Dashboard" })).toBeVisible();
-    const nav = page.getByRole("navigation");
-    await expect(nav.getByRole("link", { name: "Dashboard" })).toBeVisible();
-    await expect(nav.getByRole("link", { name: "Tracker" })).toBeVisible();
-    await expect(nav.getByRole("link", { name: /Eradigm Inbox/ })).toHaveCount(0);
-    await expect(nav.getByRole("link", { name: "Input" })).toHaveCount(0);
+    // Request 28: tabs in groups; a client's Inputs group has only the Client Inbox, and there is no Admin group.
+    expect(await menuOf(page)).toEqual(["Trackers: Tracker, Dashboard, Phantoms", "Megatrends: Knowledge graph, Trend analysis", "Competitors: Knowledge graph, Trend analysis", "Inputs: Client Inbox"]);
+    const nav = navOf(page);
     // The Inbox and Input pages do not exist for clients: direct links go to the dashboard.
     for (const path of ["/input", "/inbox", "/admin"]) {
       await page.goto(path);
@@ -18,7 +16,7 @@ test.describe("client role", () => {
       await expect(page.getByRole("heading", { name: "Intelligence Dashboard" })).toBeVisible();
     }
     await expect(nav.getByRole("link", { name: /Eradigm Inbox/ })).toHaveCount(0);
-    await expect(nav.getByRole("link", { name: "Input" })).toHaveCount(0);
+    await expect(nav.getByRole("link", { name: /: Input$/ })).toHaveCount(0);
     // And the API refuses them regardless of the UI.
     const res = await page.evaluate(async () => {
       const h = { "x-dev-user": "client@example.com" };
@@ -142,9 +140,11 @@ test.describe("client role", () => {
 
   test("has no Deliverables or Eradigm Inbox tab: those pages redirect to the Dashboard", async ({ page }) => {
     await page.goto("/dashboard");
-    const nav = page.getByRole("navigation", { name: "COMPETITIVE INTELLIGENCE" });
-    await expect(nav.getByRole("link", { name: "Deliverables" })).toHaveCount(0);
-    await expect(nav.getByRole("link", { name: /Client Inbox/ })).toBeVisible();
+    const nav = navOf(page);
+    await expect(nav.getByRole("link", { name: /Deliverables/ })).toHaveCount(0);
+    await expect(nav.getByRole("button", { name: /^Admin\b/ })).toHaveCount(0);
+    await nav.getByRole("button", { name: /^Inputs\b/ }).click();
+    await expect(navLink(page, "Inputs", "Client Inbox")).toBeVisible();
     for (const path of ["/deliverables", "/inbox", "/input", "/admin"]) {
       await page.goto(path);
       await expect(page).toHaveURL(/\/dashboard/);
@@ -192,7 +192,7 @@ test.describe("client role", () => {
     await expect(page.locator(".pill", { hasText: "Macrotrend:" })).toBeVisible();
     await expect(page.locator(".kpi .v").first()).not.toHaveText(kpi);
     const filtered = await page.locator(".kpi .v").first().innerText();
-    await page.getByRole("navigation").getByRole("link", { name: "Tracker" }).click();
+    await goTab(page, "Trackers", "Tracker");
     // Filters are shared across Dashboard and Tracker via the URL.
     await expect(page.getByRole("region", { name: "Filters", exact: true }).getByRole("combobox", { name: "Macrotrend", exact: true })).toHaveValue("Portfolio Restructuring");
     // The Dashboard covers both streams: its count is the Primary Tracker plus the Secondary Tracker.

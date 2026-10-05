@@ -11,6 +11,7 @@ import {
   CORE,
   DEFAULT_COMPETITOR_TIERS,
   DEFAULT_NAV_ORDER,
+  DEFAULT_MENU,
   DEFAULT_TREND_THRESHOLDS,
   STREAMS,
   checkColumnLabel,
@@ -20,6 +21,7 @@ import {
   getColumn,
   hasOptions,
   normaliseNavOrder,
+  normaliseMenu,
   splitMulti,
   tableColumns,
   type CreatableColumnType,
@@ -123,6 +125,7 @@ export const DEFAULT_SETTINGS: TenantSettings = {
   redaction: { redactEmails: true, redactPhones: true, quarantineMarkers: [] },
   phantoms: { secondaryMinImpact: "Low" },
   navOrder: [...DEFAULT_NAV_ORDER],
+  menu: structuredClone(DEFAULT_MENU),
   megatrends: { summaryDays: 90, summarySentences: 2, model: "claude-opus-5-5", perspective: "AbbVie" },
   competitorTiers: structuredClone(DEFAULT_COMPETITOR_TIERS),
 };
@@ -139,6 +142,7 @@ export async function loadSettings(env: Env, tenantId: string): Promise<TenantSe
     redaction: { ...DEFAULT_SETTINGS.redaction, ...s.redaction },
     phantoms: { ...DEFAULT_SETTINGS.phantoms, ...s.phantoms },
     navOrder: normaliseNavOrder(s.navOrder),
+    menu: normaliseMenu(s.menu),
     megatrends: { ...DEFAULT_SETTINGS.megatrends, ...s.megatrends },
     competitorTiers: { ...DEFAULT_SETTINGS.competitorTiers, ...s.competitorTiers },
   };
