@@ -2,12 +2,12 @@
  * Approved signal detail (record drawer): source, snapshot, provenance,
  * company associations, classifications, revision history and related signals.
  */
-import { CORE, entryMarkdown, markdownFileName, tellMeMoreKey, type ExtractedFieldView, type SignalDetail, type Stream } from "@eradigm/shared";
+import { CORE, entryMarkdown, markdownFileName, tellMeMoreKey, type ExtractedFieldView, type PrimarySource, type SignalDetail, type Stream } from "@eradigm/shared";
 import type { Env } from "../env.js";
 import { notFound } from "../lib/errors.js";
 import { revisions, snapshotMeta } from "./items.js";
 import { listPages } from "./pages.js";
-import { itemsFrom, rowValues } from "./query.js";
+import { itemsFrom, linkedExpr, rowValues } from "./query.js";
 import type { Schemas } from "./schema.js";
 
 const SEP = "\u001f";
@@ -15,11 +15,12 @@ const SEP = "\u001f";
 export async function signalDetail(env: Env, schemas: Schemas, tenantId: string, id: string): Promise<SignalDetail> {
   const r = await env.DB.prepare(
     `SELECT i.*, (SELECT group_concat(c.competitor, '${SEP}') FROM item_competitors c WHERE c.item_id = i.id) AS competitors,
-            (SELECT u.name FROM users u WHERE u.id = i.approved_by) AS approved_by_name
+            (SELECT u.name FROM users u WHERE u.id = i.approved_by) AS approved_by_name,
+            ${linkedExpr("earlier")} AS linked_earlier, ${linkedExpr("later")} AS linked_later
        FROM intelligence_items i WHERE i.tenant_id = ?1 AND i.id = ?2 AND i.status = 'approved' AND i.deleted_at IS NULL`,
   )
     .bind(tenantId, id)
-    .first<Record<string, unknown> & { id: string; signal_code: string; stream: Stream; record_id: string | null; code: string; competitors: string | null; extra_json: string; pub_date: string; title: string | null; macrotrend: string | null; subtrend: string | null; growth: string | null; impact: string | null; body_text: string | null; final_url: string | null; submitted_url: string | null; published_rev: number; approved_at: string; approved_by_name: string | null; received_at: string; current_snapshot_id: string | null; provenance_json: string; extraction_json: string | null }>();
+    .first<Record<string, unknown> & { id: string; signal_code: string; stream: Stream; record_id: string | null; code: string; competitors: string | null; extra_json: string; pub_date: string; title: string | null; macrotrend: string | null; subtrend: string | null; growth: string | null; impact: string | null; body_text: string | null; final_url: string | null; submitted_url: string | null; published_rev: number; approved_at: string; approved_by_name: string | null; received_at: string; current_snapshot_id: string | null; provenance_json: string; extraction_json: string | null; linked_earlier: string | null; linked_later: string | null }>();
   if (!r) throw notFound("Signal");
   const values = rowValues(schemas[r.stream] ?? schemas.primary, r);
   const attempt = await env.DB.prepare(
@@ -49,6 +50,8 @@ export async function signalDetail(env: Env, schemas: Schemas, tenantId: string,
     approvedBy: r.approved_by_name ?? "—",
     hasSnapshot: !!r.current_snapshot_id,
     pages: r.current_snapshot_id ? (await listPages(env, tenantId, id)).length : 0,
+    linkedEarlier: r.linked_earlier ?? null,
+    linkedLater: r.linked_later ?? null,
     inboxCode: r.code,
     receivedAt: r.received_at,
     submittedUrl: r.submitted_url,
@@ -84,4 +87,20 @@ export async function signalMarkdown(env: Env, schemas: Schemas, tenantId: strin
   const schema = schemas[r.stream] ?? schemas.primary;
   const values = rowValues(schema, r);
   return { markdown: entryMarkdown(values, { reviewedBy: r.approved_by_name, tellMeMoreKey: tellMeMoreKey(schema.columns) }, r.stream), fileName: markdownFileName(values, r.signal_code), code: r.signal_code };
+}
+
+/**
+ * Approved Primary entries with a source (Source Role + Source Company), newest
+ * first: the Inbox flags a Primary entry from one of these sources with
+ * "This Source Has Prior Primary Information" while it is entered.
+ */
+export async function primarySources(env: Env, tenantId: string): Promise<PrimarySource[]> {
+  const r = await env.DB.prepare(
+    `SELECT source_key, id, signal_code, record_id, title, pub_date FROM intelligence_items
+      WHERE tenant_id = ?1 AND status = 'approved' AND deleted_at IS NULL AND source_key IS NOT NULL
+      ORDER BY COALESCE(pub_date, '') DESC, COALESCE(approved_at, '') DESC LIMIT 5000`,
+  )
+    .bind(tenantId)
+    .all<{ source_key: string; id: string; signal_code: string; record_id: string | null; title: string | null; pub_date: string | null }>();
+  return (r.results ?? []).map((x) => ({ key: x.source_key, id: x.id, code: x.signal_code, recordId: x.record_id, title: x.title ?? "", date: x.pub_date }));
 }

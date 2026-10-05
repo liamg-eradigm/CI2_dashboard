@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Eradigm Competitive Intelligence API",
-    "version": "1.15.0",
+    "version": "1.16.0",
     "description": "Generated from packages/shared/src/api.ts. Every request is checked for both role and tenant server-side. Send X-Tenant-Id to select a tenant when the user belongs to more than one."
   },
   "components": {
@@ -6539,6 +6539,130 @@
         ]
       }
     },
+    "/api/primary-sources": {
+      "get": {
+        "summary": "Approved Primary entries with a Source Role and Source Company (newest first), to flag “This Source Has Prior Primary Information” while one is entered",
+        "description": "Roles: admin, analyst, client",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "key": {
+                        "type": "string"
+                      },
+                      "id": {
+                        "type": "string"
+                      },
+                      "code": {
+                        "type": "string"
+                      },
+                      "recordId": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "date": {
+                        "nullable": true,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "key",
+                      "id",
+                      "code",
+                      "recordId",
+                      "title",
+                      "date"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
     "/api/phantoms": {
       "get": {
         "summary": "Phantoms table (query: stream, filters, sort, page): every Primary entry, and Secondary entries at or above the admin-set Impact",
@@ -6623,6 +6747,14 @@
                             "maximum": 9007199254740991
                           },
                           "alertId": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "linkedEarlier": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "linkedLater": {
                             "nullable": true,
                             "type": "string"
                           }
@@ -6860,6 +6992,14 @@
                           "alertId": {
                             "nullable": true,
                             "type": "string"
+                          },
+                          "linkedEarlier": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "linkedLater": {
+                            "nullable": true,
+                            "type": "string"
                           }
                         },
                         "required": [
@@ -7093,6 +7233,14 @@
                             "maximum": 9007199254740991
                           },
                           "alertId": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "linkedEarlier": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "linkedLater": {
                             "nullable": true,
                             "type": "string"
                           }
@@ -10204,6 +10352,14 @@
                           "alertId": {
                             "nullable": true,
                             "type": "string"
+                          },
+                          "linkedEarlier": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "linkedLater": {
+                            "nullable": true,
+                            "type": "string"
                           }
                         },
                         "required": [
@@ -10589,6 +10745,14 @@
                       "maximum": 9007199254740991
                     },
                     "alertId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "linkedEarlier": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "linkedLater": {
                       "nullable": true,
                       "type": "string"
                     },
@@ -11055,6 +11219,14 @@
                       "maximum": 9007199254740991
                     },
                     "alertId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "linkedEarlier": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "linkedLater": {
                       "nullable": true,
                       "type": "string"
                     },

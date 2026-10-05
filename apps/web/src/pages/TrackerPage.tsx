@@ -120,6 +120,8 @@ export function TrackerPage({ me, view = "tracker", title, above }: { me: Me; vi
   const phantoms = view !== "tracker";
   const newsletter = view === "newsletter";
   const [stream, setStream] = useStreamParam();
+  // Primary Tracker and Phantoms: 🔗 marks entries linked to others from the same source (request 27).
+  const linkCol = stream === "primary" && (view === "tracker" || view === "phantoms");
   const schema = useSchema(stream);
   const settings = useSettings();
   const f = useFilters(schema.data, settings.data?.timezone ?? me.timezone);
@@ -348,7 +350,7 @@ export function TrackerPage({ me, view = "tracker", title, above }: { me: Me; vi
             </div>
           </div>
           <div className={showAll ? "table-wrap all" : "table-wrap"} tabIndex={showAll ? 0 : undefined} role={showAll ? "region" : undefined} aria-label={showAll ? "All entries (scrollable)" : undefined}>
-            <table className="data" style={{ minWidth: Math.max(1100, cols.length * 125 + (phantoms ? 150 : 0) + (view === "alerts" ? 70 : 0)) }}>
+            <table className="data" style={{ minWidth: Math.max(1100, cols.length * 125 + (phantoms ? 150 : 0) + (linkCol ? 60 : 0) + (view === "alerts" ? 70 : 0)) }}>
               <caption className="sr-only">Approved signals, sorted by {getColumn(s, sortKey)?.label ?? "Date"} {dir === "asc" ? "ascending" : "descending"}</caption>
               <thead>
                 <tr>
@@ -379,6 +381,12 @@ export function TrackerPage({ me, view = "tracker", title, above }: { me: Me; vi
                   <th scope="col" className="src-col">
                     <span>Source</span>
                   </th>
+                  {linkCol && (
+                    <th scope="col" className="link-col" title="Linked to other entries from the same source (Source Role and Source Company)">
+                      <span aria-hidden="true">🔗</span>
+                      <span className="sr-only">Linked</span>
+                    </th>
+                  )}
                   {canEdit && (
                     <th scope="col" className="src-col">
                       <span>Edit</span>
@@ -419,6 +427,25 @@ export function TrackerPage({ me, view = "tracker", title, above }: { me: Me; vi
                       </td>
                     )}
                     <SourceCell s={r} canAttach={canAttach} onOpen={(pageId) => setParam({ saved: r.id, savedPage: pageId }, true)} />
+                    {linkCol && (
+                      <td className="link-col">
+                        {r.linkedEarlier || r.linkedLater ? (
+                          <button
+                            className="src-btn open link-btn-cell"
+                            data-testid="linked-cell"
+                            onClick={() => setParam(phantoms ? { md: r.id } : { signal: r.id }, true)}
+                            aria-label={`Linked to ${r.linkedEarlier ? "an earlier" : "a later"} entry from the same source: open ${titleOf(r)} side by side`}
+                            title={`Same source as ${r.linkedEarlier && r.linkedLater ? "an earlier and a later entry" : r.linkedEarlier ? "an earlier entry" : "a later entry"} · open side by side`}
+                          >
+                            <span aria-hidden="true">🔗</span>
+                          </button>
+                        ) : (
+                          <span className="src-none" aria-label="Not linked">
+                            —
+                          </span>
+                        )}
+                      </td>
+                    )}
                     {canEdit && (
                       <td className="src-col">
                         <button className="src-btn open edit-btn" onClick={() => setParam({ signal: r.id, edit: "1" }, true)} aria-label={`Edit ${titleOf(r)}`} title="Edit, then approve again">

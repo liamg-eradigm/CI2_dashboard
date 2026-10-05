@@ -16,6 +16,7 @@ import {
   canTransition,
   flattenKiqs,
   normaliseValues,
+  primarySourceKey,
   withKiq,
   type KiqTopic,
   validateValues,
@@ -78,6 +79,12 @@ function guard(env: Env, itemId: string, token: string) {
 }
 
 /** Statements that write the published projection (tracker columns + competitor associations). */
+/** A Primary entry's source (Source Role + Source Company), for linking entries from the same source; null otherwise. */
+export function sourceKeyFor(schema: TrackerSchema, values: ItemValues): string | null {
+  const has = (k: string) => schema.columns.some((c) => c.key === k);
+  return has(FIELDS.sourceRole) && has(FIELDS.sourceCompany) ? primarySourceKey(values[FIELDS.sourceRole], values[FIELDS.sourceCompany]) : null;
+}
+
 function projectionStatements(env: Env, schema: TrackerSchema, tenantId: string, itemId: string, values: ItemValues, token: string): D1PreparedStatement[] {
   const g = guard(env, itemId, token);
   const extra: Record<string, unknown> = {};
@@ -85,7 +92,7 @@ function projectionStatements(env: Env, schema: TrackerSchema, tenantId: string,
   const comps = Array.isArray(values[CORE.competitors]) ? (values[CORE.competitors] as string[]) : [];
   return [
     env.DB.prepare(
-      `UPDATE intelligence_items SET pub_date = ?1, title = ?2, macrotrend = ?3, subtrend = ?4, growth = ?5, impact = ?6, extra_json = ?7, record_id = ?11 WHERE id = ?8 AND tenant_id = ?9 AND op_token = ?10`,
+      `UPDATE intelligence_items SET pub_date = ?1, title = ?2, macrotrend = ?3, subtrend = ?4, growth = ?5, impact = ?6, extra_json = ?7, record_id = ?11, source_key = ?12 WHERE id = ?8 AND tenant_id = ?9 AND op_token = ?10`,
     ).bind(
       values[CORE.date] ?? null,
       values[CORE.title] ?? null,
@@ -98,6 +105,7 @@ function projectionStatements(env: Env, schema: TrackerSchema, tenantId: string,
       tenantId,
       token,
       typeof values[FIELDS.id] === "string" ? values[FIELDS.id] : null,
+      sourceKeyFor(schema, values),
     ),
     env.DB.prepare(`DELETE FROM item_competitors WHERE item_id = ? AND ${g.sql}`).bind(itemId, ...g.binds),
     ...comps.map((c) =>

@@ -102,13 +102,20 @@ export interface PublishedDuplicate {
  * rejected or still-in-review copy never blocks a new submission. Evaluated at
  * read time, so the warning is always current (e.g. the other copy is approved
  * or deleted later). `i` is the item being checked, `d` the tracker entry.
+ *
+ * Secondary entries only (request 27): a Primary entry from the same source is
+ * an update, not a duplicate; it is linked to its earlier entry instead
+ * (`source_key`, see sourceLink.ts).
+ *
+ * The first tracker entry with the same URL, else the same file, else the same
+ * text. One indexed lookup per basis (an OR of the three would read every
+ * entry of the workspace for each item checked).
  */
-const DUP_MATCH = `d.tenant_id = i.tenant_id AND d.id <> i.id AND d.status = 'approved' AND (
-    (i.url_key IS NOT NULL AND d.url_key = i.url_key) OR
-    (i.file_sha256 IS NOT NULL AND d.file_sha256 = i.file_sha256) OR
-    (i.content_sha256 IS NOT NULL AND d.content_sha256 = i.content_sha256))`;
-const DUP_BASIS = `CASE WHEN i.url_key IS NOT NULL AND d.url_key = i.url_key THEN 'url' WHEN i.file_sha256 IS NOT NULL AND d.file_sha256 = i.file_sha256 THEN 'file' ELSE 'content' END`;
-const DUP_SELECT = `SELECT d.id || ' ' || d.signal_code || ' ' || ${DUP_BASIS} FROM intelligence_items d WHERE ${DUP_MATCH} ORDER BY d.approved_at LIMIT 1`;
+const DUP_ONE = (basis: "url" | "file" | "content", col: string, index: string) =>
+  `(SELECT d.id || ' ' || d.signal_code || ' ${basis}' FROM intelligence_items d INDEXED BY ${index}
+     WHERE i.${col} IS NOT NULL AND d.tenant_id = i.tenant_id AND d.${col} = i.${col} AND d.id <> i.id AND d.status = 'approved' AND i.stream = 'secondary' AND d.stream = 'secondary'
+     ORDER BY d.approved_at LIMIT 1)`;
+const DUP_SELECT = `SELECT COALESCE(${DUP_ONE("url", "url_key", "ix_item_url")}, ${DUP_ONE("file", "file_sha256", "ix_item_file")}, ${DUP_ONE("content", "content_sha256", "ix_item_content")})`;
 
 function parseDup(v: string | null): PublishedDuplicate | null {
   const [id, signalCode, basis] = (v ?? "").split(" ");
@@ -122,7 +129,7 @@ export async function publishedDuplicate(env: Env, tenantId: string, id: string)
 }
 
 /** SQL condition that is true when item `?` has NO duplicate in the tracker (for guarded approval). */
-export const NO_PUBLISHED_DUPLICATE = `NOT EXISTS (SELECT 1 FROM intelligence_items i, intelligence_items d WHERE i.id = ? AND ${DUP_MATCH})`;
+export const NO_PUBLISHED_DUPLICATE = `NOT EXISTS (SELECT 1 FROM intelligence_items i WHERE i.id = ? AND (${DUP_SELECT}) IS NOT NULL)`;
 
 export const DUPLICATE_BASIS_LABEL: Record<DuplicateBasis, string> = { url: "same URL", file: "same uploaded file", content: "same article text" };
 
@@ -139,7 +146,7 @@ const SELECT_ENRICHED = `SELECT i.*,
   rd.decision AS decision, (SELECT u.name FROM users u WHERE u.id = rd.reviewer_id) AS decision_by, rd.decided_at AS decision_at, rd.note AS decision_note,
   (SELECT u.name FROM users u WHERE u.id = i.sent_to_client_by) AS sent_by_name,
   (SELECT u.name FROM users u WHERE u.id = i.client_returned_by) AS returned_by_name,
-  (SELECT COUNT(*) FROM item_comments m WHERE m.item_id = i.id AND m.deleted_at IS NULL AND m.resolved_at IS NULL) AS open_comments
+  (SELECT COUNT(*) FROM item_comments m WHERE m.tenant_id = i.tenant_id AND m.item_id = i.id AND m.deleted_at IS NULL AND m.resolved_at IS NULL) AS open_comments
   FROM intelligence_items i
   LEFT JOIN review_decisions rd ON rd.id = (SELECT id FROM review_decisions x WHERE x.item_id = i.id ORDER BY x.decided_at DESC LIMIT 1)`;
 
@@ -249,7 +256,8 @@ export async function listItems(
 /** Items awaiting the analyst (Needs review or still processing) per stream: the Inbox badges. */
 export async function inboxCounts(env: Env, tenantId: string): Promise<Record<Stream, number>> {
   const res = await env.DB.prepare(
-    "SELECT stream, COUNT(*) AS n FROM intelligence_items WHERE tenant_id = ?1 AND status IN ('needs_review', 'queued', 'fetching', 'extracting') AND with_client_at IS NULL GROUP BY stream",
+    // From the index alone: only the entries waiting are read.
+    "SELECT stream, COUNT(*) AS n FROM intelligence_items INDEXED BY ix_item_waiting WHERE tenant_id = ?1 AND status IN ('needs_review', 'queued', 'fetching', 'extracting') AND with_client_at IS NULL GROUP BY stream",
   )
     .bind(tenantId)
     .all<{ stream: Stream; n: number }>();
@@ -260,7 +268,7 @@ export async function inboxCounts(env: Env, tenantId: string): Promise<Record<St
 
 /** Entries waiting in the Client Inbox (its badge). */
 export async function clientInboxCount(env: Env, tenantId: string): Promise<number> {
-  const r = await env.DB.prepare("SELECT COUNT(*) AS n FROM intelligence_items WHERE tenant_id = ?1 AND status = 'needs_review' AND with_client_at IS NOT NULL")
+  const r = await env.DB.prepare("SELECT COUNT(*) AS n FROM intelligence_items INDEXED BY ix_item_waiting WHERE tenant_id = ?1 AND status = 'needs_review' AND with_client_at IS NOT NULL")
     .bind(tenantId)
     .first<{ n: number }>();
   return r?.n ?? 0;

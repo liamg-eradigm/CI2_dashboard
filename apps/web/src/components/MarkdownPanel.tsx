@@ -2,6 +2,7 @@ import { useState } from "react";
 import { request } from "../api/client";
 import { useMarkdown, useSignal } from "../api/hooks";
 import { useToast } from "../state/toast";
+import { LinkedPanes } from "./LinkedPanes";
 import { useFocusTrap } from "./RecordDrawer";
 
 /** Save an entry's Markdown file (named after its ID). Returns the file name. */
@@ -83,11 +84,13 @@ export function MarkdownPanel({ id, onClose, onOpenRecord, onEdit }: { id: strin
   const doc = md.data ? parse(md.data) : null;
   const rid = doc?.fm.find((l) => l.key === "id")?.value;
   const title = doc?.fm.find((l) => l.key === "title")?.value || sig.data?.values.title?.toString() || "Markdown";
+  // A Primary entry linked to others from the same source: its Markdown beside the earlier (or later) one's.
+  const linked = !!sig.data && !!(sig.data.linkedEarlier || sig.data.linkedLater);
 
   return (
     <>
       <div className="scrim" onClick={onClose} aria-hidden="true" />
-      <div className="drawer source-drawer md-pane" role="dialog" aria-modal="true" aria-labelledby="md-title" ref={ref}>
+      <div className={`drawer source-drawer md-pane${linked ? " linked-drawer" : ""}`} role="dialog" aria-modal="true" aria-labelledby="md-title" ref={ref}>
         <div className="drawer-head">
           <span className="drawer-meta">
             <span className="mono md-file" style={{ color: "var(--ink)" }} title={`${rid || sig.data?.code || ""}.md`}>
@@ -150,31 +153,62 @@ export function MarkdownPanel({ id, onClose, onOpenRecord, onEdit }: { id: strin
             {title}
           </h2>
         </div>
-        <div className="md-pane-body">
-          {md.isLoading && <div className="skeleton" style={{ height: 240, margin: 16 }} />}
-          {md.isError && (
-            <p className="err-msg" role="alert" style={{ margin: 24 }}>
-              {(md.error as Error).message}
-            </p>
-          )}
-          {md.data && tab === "raw" && (
-            <pre className="md-raw" tabIndex={0} aria-label="Markdown source">
-              {md.data}
-            </pre>
-          )}
-          {doc && tab === "preview" && (
-            <div className="md-preview">
-              <FrontMatter lines={doc.fm} />
-              {doc.sections.map((sec) => (
-                <section key={sec.title}>
-                  <h3>{sec.title}</h3>
-                  {sec.body ? sec.body.split(/\n{2,}/).map((p, i) => <p key={i}>{p}</p>) : <p className="md-empty">Empty</p>}
-                </section>
-              ))}
-            </div>
-          )}
-        </div>
+        {linked && sig.data ? (
+          <LinkedPanes opened={sig.data} render={(x) => <MdDoc id={x.id} tab={tab} own={x.id === id} />} />
+        ) : (
+          <div className="md-pane-body">
+            <MdDoc id={id} tab={tab} own />
+          </div>
+        )}
       </div>
+    </>
+  );
+}
+
+/** One entry's Markdown file, as source or rendered (in the pane, or one side of two linked entries). */
+function MdDoc({ id, tab, own }: { id: string; tab: "raw" | "preview"; own: boolean }) {
+  const md = useMarkdown(id);
+  const toast = useToast();
+  const doc = md.data ? parse(md.data) : null;
+  return (
+    <>
+      {md.isLoading && <div className="skeleton" style={{ height: 240, margin: 16 }} />}
+      {md.isError && (
+        <p className="err-msg" role="alert" style={{ margin: 24 }}>
+          {(md.error as Error).message}
+        </p>
+      )}
+      {!own && md.data && (
+        <div className="md-doc-bar">
+          <button
+            className="link-btn"
+            onClick={() =>
+              void downloadMarkdown(id).then(
+                (name) => toast(`Downloaded ${name}`),
+                (e: Error) => toast(`Download failed · ${e.message}`, false),
+              )
+            }
+          >
+            Download this Markdown
+          </button>
+        </div>
+      )}
+      {md.data && tab === "raw" && (
+        <pre className="md-raw" tabIndex={0} aria-label="Markdown source">
+          {md.data}
+        </pre>
+      )}
+      {doc && tab === "preview" && (
+        <div className="md-preview">
+          <FrontMatter lines={doc.fm} />
+          {doc.sections.map((sec) => (
+            <section key={sec.title}>
+              <h3>{sec.title}</h3>
+              {sec.body ? sec.body.split(/\n{2,}/).map((p, i) => <p key={i}>{p}</p>) : <p className="md-empty">Empty</p>}
+            </section>
+          ))}
+        </div>
+      )}
     </>
   );
 }

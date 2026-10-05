@@ -70,6 +70,7 @@ import { requirePermission, resolvePrincipal, type Principal } from "./auth/cont
 import { allowedTenants, entraConfigured } from "./auth/entra.js";
 import { registerAuthRoutes } from "./auth/routes.js";
 import type { Env } from "./env.js";
+import { bumpDataVersion, cacheGet, cachePut, dataVersion, memo, type DataVersions } from "./lib/cache.js";
 import { ApiError, badRequest, forbidden, notFound } from "./lib/errors.js";
 import { newId, nowIso } from "./lib/ids.js";
 import { log, metric } from "./lib/log.js";
@@ -86,7 +87,6 @@ import {
   deleteColumn,
   deleteOption,
   loadSchema,
-  loadSchemas,
   loadSettings,
   optionUsageMap,
   renameOption,
@@ -94,8 +94,9 @@ import {
   reorderOptions,
   saveSettings,
   updateColumn,
+  type Schemas,
 } from "./services/schema.js";
-import { signalDetail, signalMarkdown } from "./services/signals.js";
+import { primarySources, signalDetail, signalMarkdown } from "./services/signals.js";
 import { attachSnapshot, importRows } from "./services/imports.js";
 import { submitFile, submitManual, submitUrl } from "./services/submissions.js";
 import { competitors, generateSummary, megatrends, writeSummary } from "./services/megatrends.js";
@@ -104,7 +105,7 @@ import { addComment, backToEradigm, clientPush, listComments, sendToClient, upda
 import { createNewsletter, ensureAlerts, listNewsletters, readDeliverable } from "./services/deliverables.js";
 import { createInvite, createUser, listUsers, revokeSessions, updateUser } from "./services/users.js";
 
-type Vars = { principal: Principal; requestId: string };
+type Vars = { principal: Principal; requestId: string; dataVersion?: DataVersions };
 type C = Context<{ Bindings: Env; Variables: Vars }>;
 
 export const app = new Hono<{ Bindings: Env; Variables: Vars }>();
@@ -169,7 +170,75 @@ app.use("/api/*", async (c, next) => {
     if (!success) throw new ApiError("RATE_LIMITED", "Too many requests. Please slow down and try again shortly.");
   }
   await next();
+  // Anything but a read may have changed the workspace: answers cached before are no longer used
+  // (whether it succeeded or not, so a partial change is never hidden).
+  if (!["GET", "HEAD", "OPTIONS"].includes(c.req.method)) {
+    // The route of the handler that ran (the last match that is not a middleware).
+    const handler = c.req.matchedRoutes.filter((r) => r.method !== "ALL").pop();
+    const route = `${c.req.method} ${handler?.path ?? c.req.path}`;
+    if (!READ_ONLY_POSTS.has(route)) await bumpDataVersion(c.env, p.tenantId, INBOX_ONLY.has(route) ? "inbox" : "all");
+  }
 });
+
+/** POSTs that only read (nothing to bump). */
+const READ_ONLY_POSTS = new Set(["POST /api/trend-test"]);
+/**
+ * Changes that never reach the Tracker, Phantoms, Dashboard, Megatrends or
+ * Competitors (entries still in the Inbox, comments, saved views, users):
+ * they leave Tracker-side reads cached. Anything not listed counts as both.
+ */
+const INBOX_ONLY = new Set([
+  "POST /api/submissions",
+  "POST /api/submissions/manual",
+  "PATCH /api/items/:id/draft",
+  "POST /api/items/:id/split",
+  "POST /api/items/:id/reject",
+  "POST /api/items/:id/reprocess",
+  "POST /api/items/:id/send-to-client",
+  "POST /api/items/:id/recall",
+  "POST /api/client-inbox/:id/send-to-eradigm",
+  "POST /api/items/clear-decided",
+  "POST /api/items/:id/comments",
+  "PATCH /api/items/:id/comments/:cid",
+  "DELETE /api/items/:id/comments/:cid",
+  "POST /api/views",
+  "DELETE /api/views/:id",
+  "POST /api/me/sessions/revoke",
+  "POST /api/users",
+  "PATCH /api/users/:id",
+  "POST /api/users/:id/invite",
+  "POST /api/users/:id/sessions/revoke",
+  "POST /api/incidents/:id/resolve",
+]);
+
+/** The workspace's data versions, read once per request. */
+async function versionsOf(c: C): Promise<DataVersions> {
+  const have = c.get("dataVersion");
+  if (have) return have;
+  const v = await dataVersion(c.env, P(c).tenantId);
+  c.set("dataVersion", v);
+  return v;
+}
+
+/**
+ * A read answered from memory while the workspace has not changed (its data
+ * version, lib/cache.ts): one row read instead of the query's. Keyed by
+ * workspace, version, role, day (for "today") and the full URL.
+ */
+async function cachedJson(c: C, make: () => Promise<unknown>, scope: "tracker" | "all" = "tracker"): Promise<Response> {
+  const headers = { "content-type": "application/json; charset=UTF-8" };
+  if (c.env.READ_CACHE === "off" || c.req.method !== "GET") return c.body(JSON.stringify(await make()), 200, headers);
+  const p = P(c);
+  const url = new URL(c.req.url);
+  const ver = await versionsOf(c);
+  // Tracker-side reads follow t; Inbox reads (which also show Tracker entries) follow every change (v).
+  const key = `${p.tenantId}|${scope === "tracker" ? `t${ver.t}` : `v${ver.v}`}|${p.role}|${new Date().toISOString().slice(0, 10)}|${url.pathname}?${url.searchParams.toString()}`;
+  const hit = cacheGet(key);
+  if (hit !== undefined) return c.body(hit, 200, { ...headers, "X-Read-Cache": "hit" });
+  const text = JSON.stringify(await make());
+  cachePut(key, text);
+  return c.body(text, 200, { ...headers, "X-Read-Cache": "miss" });
+}
 
 async function body<T extends z.ZodType>(c: C, schema: T): Promise<z.infer<T>> {
   let raw: unknown;
@@ -205,12 +274,17 @@ function streamOf(c: C, raw: string | null | undefined = c.req.query("stream")):
   return raw;
 }
 
+/** A stream's column set, kept in memory while the workspace has not changed (a copy each time: callers may change it). */
 async function schemaFor(c: C, stream: Stream = streamOf(c)) {
-  return loadSchema(c.env, P(c).tenantId, stream);
+  // Requests that change things always read the current columns (and may be changing them).
+  if (c.env.READ_CACHE === "off" || c.req.method !== "GET") return loadSchema(c.env, P(c).tenantId, stream);
+  const t = P(c).tenantId;
+  return structuredClone(await memo(`schema|${t}|${(await versionsOf(c)).t}|${stream}`, () => loadSchema(c.env, t, stream)));
 }
 
-async function schemasFor(c: C) {
-  return loadSchemas(c.env, P(c).tenantId);
+async function schemasFor(c: C): Promise<Schemas> {
+  const [primary, secondary] = await Promise.all([schemaFor(c, "primary"), schemaFor(c, "secondary")]);
+  return { primary, secondary };
 }
 
 /** Both streams as one read-only schema: the Dashboard covers every source. */
@@ -395,18 +469,27 @@ async function tablePage(c: C, view: TableView) {
   const page = Math.max(0, Number.parseInt(c.req.query("page") ?? "0", 10) || 0);
   // "Display all" asks for up to TABLE_ALL_MAX rows on one page.
   const pageSize = Math.min(TABLE_ALL_MAX, Math.max(1, Number.parseInt(c.req.query("pageSize") ?? "10", 10) || 10));
-  const result = await trackerPage(c.env, schema, P(c).tenantId, f, sortOf(c, schema), page, pageSize, scope);
-  // Each alert row carries its .docx, created (or refreshed after a revision) on first sight.
-  if (view === "alerts") result.rows = await ensureAlerts(c.env, P(c).tenantId, result.rows);
-  return c.json(result);
+  // Each alert row carries its .docx, created (or refreshed after a revision) on first sight (a write: never cached).
+  if (view === "alerts") {
+    const result = await trackerPage(c.env, schema, P(c).tenantId, f, sortOf(c, schema), page, pageSize, scope);
+    result.rows = await ensureAlerts(c.env, P(c).tenantId, result.rows);
+    return c.json(result);
+  }
+  return cachedJson(c, () => trackerPage(c.env, schema, P(c).tenantId, f, sortOf(c, schema), page, pageSize, scope));
 }
 
 app.get("/api/tracker/bounds", async (c) => {
   requirePermission(P(c), "tracker:read");
-  return c.json(await dateBounds(c.env, P(c).tenantId));
+  return cachedJson(c, () => dateBounds(c.env, P(c).tenantId));
 });
 app.get("/api/tracker", (c) => tablePage(c, "tracker"));
 app.get("/api/phantoms", (c) => tablePage(c, "phantoms"));
+
+/** Primary entries with a source, for the "prior primary information" flag in the Inbox. */
+app.get("/api/primary-sources", async (c) => {
+  requirePermission(P(c), "tracker:read");
+  return cachedJson(c, () => primarySources(c.env, P(c).tenantId));
+});
 app.get("/api/deliverables/alerts", (c) => tablePage(c, "alerts"));
 app.get("/api/deliverables/newsletter", (c) => tablePage(c, "newsletter"));
 
@@ -424,7 +507,8 @@ app.get("/api/megatrends", async (c) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) throw badRequest(`${k} must be YYYY-MM-DD`);
     return v;
   };
-  return c.json(await megatrends(c.env, P(c).tenantId, { stream: raw, from: date("from"), to: date("to") }, prefillMode(c.env) === "llm"));
+  const range = { stream: raw as "all" | Stream, from: date("from"), to: date("to") };
+  return cachedJson(c, () => megatrends(c.env, P(c).tenantId, range, prefillMode(c.env) === "llm"));
 });
 
 // Competitors: entries per competitor named, co-occurrence, summaries, the timeline.
@@ -432,7 +516,7 @@ app.get("/api/competitors", async (c) => {
   requirePermission(P(c), "tracker:read");
   const raw = c.req.query("stream") ?? "all";
   if (raw !== "all" && !isStream(raw)) throw badRequest("stream must be “all”, “primary” or “secondary”");
-  return c.json(await competitors(c.env, P(c).tenantId, raw, prefillMode(c.env) === "llm"));
+  return cachedJson(c, () => competitors(c.env, P(c).tenantId, raw, prefillMode(c.env) === "llm"));
 });
 
 app.put("/api/megatrends/summaries", async (c) => {
@@ -517,7 +601,8 @@ app.get("/api/tracker/export", async (c) => {
 
 app.get("/api/signals/:id", async (c) => {
   requirePermission(P(c), "tracker:read");
-  return c.json(await signalDetail(c.env, await schemasFor(c), P(c).tenantId, c.req.param("id")));
+  const schemas = await schemasFor(c);
+  return cachedJson(c, () => signalDetail(c.env, schemas, P(c).tenantId, c.req.param("id")));
 });
 
 /** The Phantoms Markdown for an entry (inline for the side panel, or ?download=1 as a file). */
@@ -551,7 +636,7 @@ app.get("/api/dashboard", async (c) => {
   requirePermission(P(c), "dashboard:read");
   const schema = await mergedSchema(c);
   const f = await filtersOf(c, schema);
-  return c.json(await dashboard(c.env, schema, P(c).tenantId, f));
+  return cachedJson(c, () => dashboard(c.env, schema, P(c).tenantId, f));
 });
 
 app.post("/api/trend-test", async (c) => {
@@ -638,18 +723,20 @@ app.get("/api/items", async (c) => {
   );
   if (!statuses.length) throw badRequest("Unknown status");
   const stream = c.req.query("stream") ? streamOf(c) : null;
-  return c.json(await listItems(c.env, await schemasFor(c), P(c).tenantId, statuses, stream));
+  const schemas = await schemasFor(c);
+  return cachedJson(c, () => listItems(c.env, schemas, P(c).tenantId, statuses, stream), "all");
 });
 
 // Registered before "/api/items/:id". Items awaiting the analyst, per inbox (the red badges).
 app.get("/api/items/counts", async (c) => {
   requirePermission(P(c), "inbox:read");
-  return c.json(await inboxCounts(c.env, P(c).tenantId));
+  return cachedJson(c, () => inboxCounts(c.env, P(c).tenantId), "all");
 });
 
 app.get("/api/items/:id", async (c) => {
   requirePermission(P(c), "inbox:read");
-  return c.json(await getDetail(c.env, await schemasFor(c), P(c).tenantId, c.req.param("id")));
+  const schemas = await schemasFor(c);
+  return cachedJson(c, () => getDetail(c.env, schemas, P(c).tenantId, c.req.param("id")), "all");
 });
 
 // ---------------------------------------------------------------------------
@@ -678,12 +765,13 @@ app.post("/api/items/:id/recall", async (c) => {
 
 app.get("/api/client-inbox", async (c) => {
   requirePermission(P(c), "clientInbox:read");
-  return c.json(await listItems(c.env, await schemasFor(c), P(c).tenantId, ["needs_review"], null, 200, true));
+  const schemas = await schemasFor(c);
+  return cachedJson(c, () => listItems(c.env, schemas, P(c).tenantId, ["needs_review"], null, 200, true), "all");
 });
 
 app.get("/api/client-inbox/count", async (c) => {
   requirePermission(P(c), "clientInbox:read");
-  return c.json({ count: await clientInboxCount(c.env, P(c).tenantId) });
+  return cachedJson(c, async () => ({ count: await clientInboxCount(c.env, P(c).tenantId) }), "all");
 });
 
 app.get("/api/client-inbox/:id", async (c) => {

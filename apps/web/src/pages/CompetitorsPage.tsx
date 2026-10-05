@@ -16,7 +16,7 @@ import { useCompetitors, useSettings } from "../api/hooks";
 import { EntrySheet, useSourcesList } from "../components/megatrends/EntrySheet";
 import { GraphShell } from "../components/megatrends/GraphShell";
 import type { GraphSpec } from "../components/megatrends/Graph3D";
-import { bySourceOrder, colourMap, impactColour, impactOrder, NEUTRAL, plural } from "../components/megatrends/model";
+import { TIER_COLOUR, bySourceOrder, colourMap, impactColour, impactOrder, NEUTRAL, plural } from "../components/megatrends/model";
 import { SummaryPanel, type PanelNode } from "../components/megatrends/SummaryPanel";
 import { Timeline, type LegendItem } from "../components/megatrends/Timeline";
 import "../styles/megatrends.css";
@@ -28,7 +28,7 @@ import "../styles/megatrends.css";
  * look. Impact colours the entries inside each sphere.
  */
 type Tier = 1 | 2 | 3 | 4;
-const TIER_COLOUR: Record<Tier, string> = { 1: "#e5534b", 2: "#e8a33d", 3: "#3fb37f", 4: "#8b9aa6" };
+
 const tierOfC = (c: { tier?: number }): Tier => (c.tier === 1 || c.tier === 2 || c.tier === 3 ? c.tier : 4);
 const hubId = (name: string) => `c:${name}`;
 const R_MIN = 1.4;

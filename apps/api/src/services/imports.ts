@@ -47,7 +47,7 @@ import { audit } from "./audit.js";
 import { contentFingerprintInput, getItemRow } from "./items.js";
 import { listPages } from "./pages.js";
 import { snapshotPhantom } from "./phantoms.js";
-import { freeRecordIds, todayIn } from "./review.js";
+import { freeRecordIds, sourceKeyFor, todayIn } from "./review.js";
 import { PHYSICAL, loadSettings, type Schemas } from "./schema.js";
 
 export interface ImportRow {
@@ -258,8 +258,8 @@ export async function importRows(
       env.DB.prepare(
         `INSERT INTO intelligence_items (id, tenant_id, submission_id, code, signal_code, stream, record_id, status, version, attempts, input_type, url_key, content_sha256, outlet,
            final_url, received_at, submitted_by, headline, body_text, publication_date, draft_json, provenance_json, published_rev, pub_date, title, macrotrend, subtrend,
-           growth, impact, extra_json, approved_at, approved_by, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'approved', 1, 1, 'file', ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, 1, ?16, ?14, ?19, ?20, ?21, ?22, ?23, ?12, ?13, ?12, ?12)`,
+           growth, impact, extra_json, approved_at, approved_by, created_at, updated_at, source_key)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'approved', 1, 1, 'file', ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, 1, ?16, ?14, ?19, ?20, ?21, ?22, ?23, ?12, ?13, ?12, ?12, ?24)`,
       ).bind(
         id,
         p.tenantId,
@@ -284,6 +284,7 @@ export async function importRows(
         values[CORE.growth] ?? null,
         values[CORE.impact] ?? null,
         JSON.stringify(extra),
+        sourceKeyFor(schema, values),
       ),
       env.DB.prepare("INSERT INTO item_competitors (tenant_id, item_id, competitor) SELECT ?1, ?2, value FROM json_each(?3)").bind(
         p.tenantId,

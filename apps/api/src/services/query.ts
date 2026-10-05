@@ -160,9 +160,27 @@ interface SignalRow {
   approved_by_name: string | null;
   has_snapshot: number | null;
   page_count: number | null;
+  linked_earlier: string | null;
+  linked_later: string | null;
 }
 
+/**
+ * The Primary entry from the same source (Source Role + Source Company,
+ * `source_key`) just before (earlier) or after (later) entry `i`, by Event
+ * Date, then approval time and id: the links between entries from one source.
+ * Read from the live entry (`me`), so the Tracker and Phantoms agree.
+ */
+export const linkedExpr = (dir: "earlier" | "later") => {
+  const [op, ord] = dir === "earlier" ? ["<", "DESC"] : [">", "ASC"];
+  // INDEXED BY: only the entries from that source are read (a few rows), never the whole Tracker.
+  return `(SELECT p.id FROM intelligence_items me JOIN intelligence_items p INDEXED BY ix_item_source_key ON p.tenant_id = me.tenant_id AND p.source_key = me.source_key AND p.id <> me.id
+     WHERE me.id = i.id AND me.source_key IS NOT NULL AND p.source_key IS NOT NULL AND p.status = 'approved' AND p.deleted_at IS NULL
+       AND (COALESCE(p.pub_date, ''), COALESCE(p.approved_at, ''), p.id) ${op} (COALESCE(me.pub_date, ''), COALESCE(me.approved_at, ''), me.id)
+     ORDER BY COALESCE(p.pub_date, '') ${ord}, COALESCE(p.approved_at, '') ${ord}, p.id ${ord} LIMIT 1)`;
+};
+
 const signalColumns = (scope: Scope = {}) => `i.id, i.signal_code, i.stream, i.record_id, i.pub_date, i.title, i.macrotrend, i.subtrend, i.growth, i.impact, i.extra_json,
+  ${linkedExpr("earlier")} AS linked_earlier, ${linkedExpr("later")} AS linked_later,
   ${competitorsExpr(scope)} AS competitors,
   substr(i.body_text, 1, 600) AS body_text, i.final_url, i.published_rev, i.approved_at,
   (SELECT u.name FROM users u WHERE u.id = i.approved_by) AS approved_by_name,
@@ -197,6 +215,8 @@ function toSignal(schema: TrackerSchema, r: SignalRow): Signal {
     approvedBy: r.approved_by_name ?? "—",
     hasSnapshot: !!r.has_snapshot,
     pages: r.page_count ?? 0,
+    linkedEarlier: r.linked_earlier ?? null,
+    linkedLater: r.linked_later ?? null,
   };
 }
 
@@ -237,7 +257,13 @@ export async function trackerPage(
   const w = buildWhere(schema, tenantId, f, [], scope);
   const o = orderBy(schema, sort.key, sort.dir, scope);
   const [rows, count, span] = await env.DB.batch([
-    env.DB.prepare(`SELECT ${signalColumns(scope)} FROM ${itemsFrom(scope)} WHERE ${w.sql} ORDER BY ${o.sql} LIMIT ? OFFSET ?`).bind(...w.binds, ...o.binds, pageSize, page * pageSize),
+    // The page's entries are chosen first (sorting only what the sort needs), so the per-row extras
+    // (competitors, saved pages, links, names) are worked out for the rows shown, not for every match.
+    env.DB.prepare(
+      `SELECT ${signalColumns(scope)} FROM ${itemsFrom(scope)}
+        WHERE i.id IN (SELECT i.id FROM ${itemsFrom(scope)} WHERE ${w.sql} ORDER BY ${o.sql} LIMIT ? OFFSET ?)
+        ORDER BY ${o.sql}`,
+    ).bind(...w.binds, ...o.binds, pageSize, page * pageSize, ...o.binds),
     env.DB.prepare(`SELECT COUNT(*) AS n FROM ${itemsFrom(scope)} WHERE ${w.sql}`).bind(...w.binds),
     outsideDatesStmt(env, schema, tenantId, f, scope),
   ]);

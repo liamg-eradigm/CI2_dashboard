@@ -17,6 +17,7 @@
 import { EXTRACTION_VERSION, LLM_DRAFT_STEPS, MANUAL_DRAFT_STEPS, applyRedactionPolicy, REDACTION_POLICY_VERSION, type PrefillMode } from "@eradigm/shared";
 import type { CaptureStep } from "@eradigm/capture";
 import type { Env, JobMessage } from "../env.js";
+import { bumpDataVersion } from "../lib/cache.js";
 import { sha256Hex } from "../lib/crypto.js";
 import { newId, nowIso } from "../lib/ids.js";
 import { alert, log, metric } from "../lib/log.js";
@@ -75,20 +76,27 @@ export async function runJob(env: Env, msg: JobMessage, delivery: number, maxDel
   try {
     return await processJob(env, msg);
   } catch (err) {
-    if (err instanceof RetryableError && delivery < maxDeliveries) {
-      log("warn", "job_retry", { item: msg.itemId, attempt: msg.attempt, delivery, code: err.code });
-      return "retry";
-    }
-    const code = err instanceof RetryableError ? err.code : "INTERNAL";
-    const message = err instanceof RetryableError ? `${err.message} (after ${delivery} tries)` : "Unexpected processing error";
-    log("error", "job_failed", { item: msg.itemId, attempt: msg.attempt, code, message: (err as Error).message });
-    await failItem(env, msg, code, message, null);
-    const row = await env.DB.prepare("SELECT input_type, submitted_url FROM intelligence_items WHERE tenant_id = ?1 AND id = ?2")
-      .bind(msg.tenantId, msg.itemId)
-      .first<{ input_type: string; submitted_url: string | null }>();
-    if (row?.input_type === "url") await logCapture(env, msg.tenantId, msg.itemId, row.submitted_url ?? "", null, `Failed · ${message}`, false);
-    return "done";
+    return await jobFailed(env, msg, err, delivery, maxDeliveries);
+  } finally {
+    // The entry changed in the background: cached reads of the workspace are no longer current.
+    await bumpDataVersion(env, msg.tenantId, "inbox").catch(() => undefined);
   }
+}
+
+async function jobFailed(env: Env, msg: JobMessage, err: unknown, delivery: number, maxDeliveries: number): Promise<"done" | "retry"> {
+  if (err instanceof RetryableError && delivery < maxDeliveries) {
+    log("warn", "job_retry", { item: msg.itemId, attempt: msg.attempt, delivery, code: err.code });
+    return "retry";
+  }
+  const code = err instanceof RetryableError ? err.code : "INTERNAL";
+  const message = err instanceof RetryableError ? `${err.message} (after ${delivery} tries)` : "Unexpected processing error";
+  log("error", "job_failed", { item: msg.itemId, attempt: msg.attempt, code, message: (err as Error).message });
+  await failItem(env, msg, code, message, null);
+  const row = await env.DB.prepare("SELECT input_type, submitted_url FROM intelligence_items WHERE tenant_id = ?1 AND id = ?2")
+    .bind(msg.tenantId, msg.itemId)
+    .first<{ input_type: string; submitted_url: string | null }>();
+  if (row?.input_type === "url") await logCapture(env, msg.tenantId, msg.itemId, row.submitted_url ?? "", null, `Failed · ${message}`, false);
+  return "done";
 }
 
 // ---------------------------------------------------------------------------
@@ -100,7 +108,10 @@ async function setStatus(env: Env, msg: JobMessage, from: string[], to: string):
   const r = await env.DB.prepare(`UPDATE intelligence_items SET status = ?1, updated_at = ?2 WHERE tenant_id = ?3 AND id = ?4 AND attempts = ?${from.length + 5} AND status IN (${ph})`)
     .bind(to, nowIso(), msg.tenantId, msg.itemId, ...from, msg.attempt)
     .run();
-  return (r.meta.changes ?? 0) > 0;
+  const moved = (r.meta.changes ?? 0) > 0;
+  // Progress shows in the Inbox (Processing → Needs review).
+  if (moved) await bumpDataVersion(env, msg.tenantId, "inbox");
+  return moved;
 }
 
 async function saveSteps(env: Env, msg: JobMessage, stage: string, steps: CaptureStep[]): Promise<void> {
@@ -128,6 +139,7 @@ export async function failItem(env: Env, msg: JobMessage, code: string, message:
     ).bind(now, code, message.slice(0, 500), msg.tenantId, msg.itemId, msg.attempt, ...(steps ? [JSON.stringify(steps)] : [])),
   ];
   await env.DB.batch(stmts);
+  await bumpDataVersion(env, msg.tenantId, "inbox");
   await audit(env, { tenantId: msg.tenantId, actorId: null, actorEmail: "system", action: "item.failed", targetType: "item", targetId: msg.itemId, details: { attempt: msg.attempt, code } });
   metric(env, "item_failed", 1, { tenant: msg.tenantId, code });
 }

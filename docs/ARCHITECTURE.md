@@ -68,6 +68,8 @@ analyst-entered information distinguishable; in the prototype every value is
    still sent to the Inbox with a warning (`duplicateOf`); approval is refused
    with `DUPLICATE` unless the reviewer explicitly overrides it, and the
    override is audited. Failed, rejected and in-review copies never block.
+   **Secondary entries only** (request 27): a Primary entry from the same
+   source is an update, not a duplicate (see *Primary sources* below).
 3. **Create submission** → item **Queued**, processing attempt 1, job enqueued.
 4. **Isolated retrieval** (capture worker): DNS-over-HTTPS resolution with every
    address checked, manual redirects (≤ 5) re-checked hop by hop, robots.txt,
@@ -307,6 +309,39 @@ analyst-entered information distinguishable; in the prototype every value is
   (`eradigm.<tab>.width`).
 - **Input**: a chosen HTML file (Add a source) or spreadsheet (Import) has a
   ✕ Remove button, to take it off before it is sent.
+- **Primary sources** (request 27, contract 1.16, migration 0016): two Primary
+  entries come from the same source when their Source Role and Source Company
+  match, ignoring case and spacing (`primarySourceKey`,
+  `packages/shared/src/sourceLink.ts`; stored as `intelligence_items.source_key`
+  when an entry is pushed, edited or imported, and backfilled).
+  - While a Primary entry is entered (Eradigm Inbox, Client Inbox), a source
+    already in the Primary Tracker flags it: **“This Source Has Prior Primary
+    Information”**, with how many entries and the latest one
+    (`GET /api/primary-sources`, `PriorFlag`).
+  - In the Tracker, each Primary entry is linked to the entry from its source
+    just before it and just after it, by Event Date, then approval time
+    (`linkedEarlier` / `linkedLater` on rows and entry detail, worked out at
+    read time from the index on `source_key`, so edits and deletions re-link
+    by themselves).
+  - The Primary Tracker and Primary Phantoms tables have a 🔗 column on linked
+    entries. Opening a linked entry (record or Markdown) shows the earlier
+    entry on the left and the later on the right (`LinkedPanes`), each
+    scrolling on its own, labelled Earlier / Later entry with its Event Date
+    and which one was opened; ‹ Earlier / Later › walk along the source's
+    entries.
+- **Knowledge graph and Trend analysis** (request 27): Megatrends and
+  Competitors each open a small list in the menu with their two subtabs:
+  Knowledge graph (`/megatrends`, `/competitors`, as before) and Trend
+  analysis (`/megatrends/analysis`, `/competitors/analysis`,
+  `TrendAnalysisPage`). Trend analysis lists the Macrotrends or competitors in
+  wide cells; selecting one (a Macrotrend also has a Subtrend dropdown,
+  closed by default, on "All subtrends") shows, in order: signals per month in
+  a time frame (last 1, 3 (default), 6 or 12 months, or all time; by Impact,
+  against the period before), signals by competitor (Megatrends) or by
+  Macrotrend (Competitors) in the same time frame, and the analysis of the
+  trend: the knowledge graph's summary (`SummaryPanel`, editable by analysts).
+  State is in the URL (`m`, `s` / `c`, `t`). Built from the Megatrends and
+  Competitors responses (no new endpoint).
   - Macrotrend spheres around a central core, sized by their number of
     entries (only those with 1 or more); selecting one reveals its Subtrends
     (also 1 or more), selecting a Subtrend its entries. Zooming in on a node
@@ -427,6 +462,36 @@ shared filter state and reuses it for the tracker page, KPI counts, timeline,
 every bar chart (each ignoring only its own dimension) and exports, so dashboard
 totals reconcile with filtered tracker records by construction (asserted by
 integration tests).
+
+### D1 rows read (Workers Free: 5 million a day)
+- **Read cache by data version** (`apps/api/src/lib/cache.ts`, migration
+  0017): each workspace has two versions in `tenant_data_versions`. `v` goes
+  up with every change: any API request that is not a read (bumped by the
+  authentication middleware after the handler, whatever its outcome), every
+  background job step and the nightly retention run. `t` goes up only with
+  changes that can reach the Tracker side (not Inbox drafts, comments,
+  rejections, sends to the client, saved views or users: `INBOX_ONLY` in
+  `app.ts`). The heavy reads (Tracker, Phantoms, Newsletter table, bounds,
+  Dashboard, Megatrends, Competitors, primary sources, entry detail; and,
+  keyed by `v`, the Inbox list, item detail, badges and the Client Inbox) are
+  answered from the isolate's memory while their version has not moved:
+  one row (the version) instead of the query. The column sets are kept the
+  same way. Requests that change things never use the cache. The Alerts table
+  is not cached (it creates alerts as it reads). `READ_CACHE=off` turns it off.
+- **Query shapes**: the duplicate check is three indexed lookups (URL, file,
+  text) instead of an OR that read the whole workspace per Inbox item; table
+  pages pick their rows first and work out per-row extras (competitors, saved
+  pages, links, names) only for the rows shown; link lookups are pinned to
+  the `source_key` index; the Inbox badges and the audit chain are read from
+  indexes (`ix_item_waiting`, `ix_audit_chain_seq`).
+- **Polling**: the Inbox refreshes every 3 s while something is being
+  captured, else every 8 s; badges and the Client Inbox every 20 s; an entry
+  being captured on the Input page until it has arrived. Unchanged answers
+  cost one row; hidden tabs do not poll.
+- `apps/api/test/rows-read.test.ts` counts D1's own `rows_read` per request on
+  a workspace of ~460 entries, with a budget per endpoint (first read) and
+  ≤ 12 rows for a repeat, and checks that an Inbox change leaves Tracker reads
+  cached while pushing to the Tracker refreshes them.
 
 ## Frontend
 React 19 + React Router + TanStack Query, hand-built accessible charts matching

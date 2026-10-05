@@ -83,7 +83,8 @@ test.describe("request 23", () => {
     await page.reload();
     const panel = page.getByTestId("mg-panel");
     await expect(panel).toBeVisible();
-    await expect(page.getByText("Knowledge graph", { exact: true })).toHaveCount(0);
+    // No "Knowledge graph" heading on the page (the menu's subtab has that name, request 27).
+    await expect(page.locator("main").getByText("Knowledge graph", { exact: true })).toHaveCount(0);
     const stage = (await page.locator(".mg-stage").boundingBox())!;
     const rail = page.locator("#megatrends-rail");
     let p = (await panel.boundingBox())!;
@@ -123,7 +124,8 @@ test.describe("request 23", () => {
       { title: `Lilly and Novo cut prices ${tag}`, competitors: ["Eli Lilly", "Novo Nordisk"], impact: "Medium" },
       { title: `Metsera bidding war ${tag}`, competitors: ["Pfizer", "Metsera", "Novo Nordisk"], impact: "High" },
     ]);
-    await page.getByRole("navigation", { name: "COMPETITIVE INTELLIGENCE" }).getByRole("link", { name: "Competitors" }).click();
+    await page.getByRole("navigation", { name: "COMPETITIVE INTELLIGENCE" }).getByRole("button", { name: "Competitors" }).click();
+    await page.getByRole("navigation", { name: "COMPETITIVE INTELLIGENCE" }).getByRole("link", { name: "Competitors: Knowledge graph" }).click();
     await expect(page).toHaveURL(/\/competitors$/);
     await expect(page.getByTestId("mg-panel")).toContainText("Each sphere is a competitor");
     const list = page.getByTestId("mg-competitors");

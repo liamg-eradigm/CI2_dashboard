@@ -12,8 +12,38 @@ const DEV_USERS = [
   ["analyst@northwind.example.com", "N. Analyst · other tenant"],
 ];
 
+/** Tabs with two subtabs in the menu: Knowledge graph and Trend analysis (request 27). */
+const GROUPED: NavTab[] = ["megatrends", "competitors"];
+
+/** A tab that opens a small list of its subtabs: Knowledge graph (`/megatrends`) and Trend analysis (`/megatrends/analysis`). */
+function NavGroup({ to, label, open, onToggle }: { to: string; label: string; open: boolean; onToggle: (open: boolean) => void }) {
+  const loc = useLocation();
+  const within = loc.pathname === to || loc.pathname.startsWith(`${to}/`);
+  const id = `nav-sub-${to.slice(1)}`;
+  return (
+    <div className={`nav-group${within ? " within" : ""}`}>
+      <button className="nav-parent" aria-expanded={open} aria-controls={id} onClick={() => onToggle(!open)}>
+        <span>{label}</span>
+        <span className="nav-chev" aria-hidden="true" />
+      </button>
+      {open && (
+        <div className="nav-sub" id={id} role="group" aria-label={label}>
+          <NavLink to={to} end aria-label={`${label}: Knowledge graph`} className={({ isActive }) => (isActive ? "active" : "")}>
+            <span>Knowledge graph</span>
+          </NavLink>
+          <NavLink to={`${to}/analysis`} aria-label={`${label}: Trend analysis`} className={({ isActive }) => (isActive ? "active" : "")}>
+            <span>Trend analysis</span>
+          </NavLink>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Sidebar({ me }: { me: Me }) {
   const [open, setOpen] = useState(true);
+  // Megatrends / Competitors subtab lists the user opened or closed (else open while on one of their pages).
+  const [expanded, setExpanded] = useState<Partial<Record<NavTab, boolean>>>({});
   const qc = useQueryClient();
   const staff = can(me.role, "inbox:read");
   const counts = useInboxCounts(staff);
@@ -43,7 +73,7 @@ export function Sidebar({ me }: { me: Me }) {
     );
   }
   // The tabs, in the order an admin set (Administration → Tabs); each role sees only its own tabs.
-  const links: [string, string, boolean][] = (settings.data?.navOrder ?? DEFAULT_NAV_ORDER).map((k: NavTab) => [NAV_PATH[k], NAV_LABEL[k], canSeeTab(me.role, k)]);
+  const links: [string, string, boolean, NavTab][] = (settings.data?.navOrder ?? DEFAULT_NAV_ORDER).map((k: NavTab) => [NAV_PATH[k], NAV_LABEL[k], canSeeTab(me.role, k), k]);
   const waiting = clientCount.data?.count ?? 0;
   return (
     <aside className="sidebar" aria-label="Main menu">
@@ -65,21 +95,25 @@ export function Sidebar({ me }: { me: Me }) {
       <nav className="nav" aria-labelledby="nav-label">
         {links
           .filter(([, , show]) => show)
-          .map(([to, label]) => (
-            <NavLink key={to} to={withFilters(to)} className={({ isActive }) => (isActive ? "active" : "")}>
-              <span>{label}</span>
-              {to === "/inbox" && n > 0 && (
-                <span className="badge" aria-label={`${n} unprocessed`}>
-                  {n}
-                </span>
-              )}
-              {to === "/client-inbox" && waiting > 0 && (
-                <span className="badge" aria-label={`${waiting} to check`}>
-                  {waiting}
-                </span>
-              )}
-            </NavLink>
-          ))}
+          .map(([to, label, , k]) =>
+            GROUPED.includes(k) ? (
+              <NavGroup key={to} to={to} label={label} open={expanded[k] ?? loc.pathname.startsWith(to)} onToggle={(o) => setExpanded((e) => ({ ...e, [k]: o }))} />
+            ) : (
+              <NavLink key={to} to={withFilters(to)} className={({ isActive }) => (isActive ? "active" : "")}>
+                <span>{label}</span>
+                {to === "/inbox" && n > 0 && (
+                  <span className="badge" aria-label={`${n} unprocessed`}>
+                    {n}
+                  </span>
+                )}
+                {to === "/client-inbox" && waiting > 0 && (
+                  <span className="badge" aria-label={`${waiting} to check`}>
+                    {waiting}
+                  </span>
+                )}
+              </NavLink>
+            ),
+          )}
       </nav>
       <div className="side-foot">
         <div className="who">{me.user.name}</div>

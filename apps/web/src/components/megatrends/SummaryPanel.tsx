@@ -50,6 +50,7 @@ export function SummaryPanel({
   exploreLabel,
   onExplore,
   invalidate = "megatrends",
+  exploreAlways = false,
 }: {
   node: PanelNode | null;
   intro: PanelIntro;
@@ -57,6 +58,8 @@ export function SummaryPanel({
   aiConnected: boolean;
   /** Shown because the view zoomed in on it (not selected). */
   focused: boolean;
+  /** Offer the explore button even when the hub is selected, not just in view (Trend analysis → knowledge graph). */
+  exploreAlways?: boolean;
   /** The button that opens the hub in view ("Explore subtrends"); none when null. */
   exploreLabel: string | null;
   onExplore: () => void;
@@ -160,7 +163,7 @@ export function SummaryPanel({
           </p>
         )}
         <div className="mg-actions">
-          {exploreLabel && focused && (
+          {exploreLabel && (focused || exploreAlways) && (
             <button className="mg-btn" onClick={onExplore}>
               {exploreLabel}
             </button>
