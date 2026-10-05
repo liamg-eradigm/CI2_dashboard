@@ -472,7 +472,19 @@ test.describe("Eradigm staff (admin)", () => {
   });
 
   test("selects Phantoms entries with tick boxes: Delete Phantom Entry, then Delete Globally", async ({ page }) => {
-    await page.goto("/phantoms");
+    // Three entries of its own (in the Tracker and Phantoms), so other tests' deletions never get in the way.
+    const tag = `TICK-${uid()}`;
+    await page.goto("/dashboard");
+    await page.evaluate(async (tag) => {
+      const h = { "x-eci-request": "1", "x-dev-user": localStorage.getItem("eradigm.devUser") ?? "", "content-type": "application/json" };
+      for (const n of [1, 2, 3]) {
+        const { item } = await (await fetch("/api/submissions/manual", { method: "POST", headers: h, body: JSON.stringify({ stream: "secondary" }) })).json();
+        const values = { ...item.draft, title: `${tag} entry ${n}`, date: `2026-09-1${n}`, macrotrend: "Geopolitics", subtrend: "IRA Pricing/Tariffs", growth: "Stable", impact: "High", source: "PR", competitors: ["Roche"], action: "Not Actioned" };
+        const res = await fetch(`/api/items/${item.id}/approve`, { method: "POST", headers: h, body: JSON.stringify({ values, version: item.version }) });
+        if (!res.ok) throw new Error(await res.text());
+      }
+    }, tag);
+    await page.goto(`/phantoms?q=${tag}`);
     const rows = page.locator("table tbody tr");
     await expect(rows.first()).toBeVisible();
     const bar = page.getByRole("group", { name: "Selected entries" });
