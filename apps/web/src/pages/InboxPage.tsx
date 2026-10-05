@@ -29,15 +29,17 @@ import {
   type Me,
   type Stream,
   type TrackerSchema,
+  primarySourceKey,
 } from "@eradigm/shared";
 import { api, ApiError } from "../api/client";
-import { useComments, useInvalidate, useItem, useItems, useSchema } from "../api/hooks";
+import { useComments, useInvalidate, useItem, useItems, usePrimarySources, useSchema } from "../api/hooks";
 import { StreamSwitch } from "../components/StreamSwitch";
 import { CommentsMargin, useCommentNumbers } from "../components/Comments";
 import { LIST_HINT, ListTextarea } from "../components/ListTextarea";
 import { KIQ_KEYS, KiqEditor, kiqFieldLabel } from "../components/KiqEditor";
 import { Combobox } from "../components/Combobox";
 import { ModelOutputTable } from "../components/ModelOutput";
+import { PriorFlag } from "../components/PriorFlag";
 import { SchemaEditor, TableColumnsEditor } from "../components/SchemaEditor";
 import { SnapshotActions, SnapshotFrame } from "../components/SnapshotFrame";
 import { localDateTime, pct } from "../lib/format";
@@ -310,6 +312,10 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
     return hasId ? { ...v, [FIELDS.id]: id } : v;
   }, [schema, draft, kiqs, primary, item.stream, hasId]);
   const autoId = hasId ? (values[FIELDS.id] as string | null) : null;
+  // Primary: the same source (Source Role + Source Company) as entries already in the Tracker (request 27).
+  const sources = usePrimarySources(primary && pending);
+  const sourceKey = primary && pending ? primarySourceKey(values[FIELDS.sourceRole], values[FIELDS.sourceCompany]) : null;
+  const prior = sourceKey ? (sources.data ?? []).filter((x) => x.key === sourceKey) : [];
   const valuesRef = useRef(values);
   valuesRef.current = values;
   const missingNow = new Set(actionable ? validateValues(schema, values, { forApproval: true }).filter((e) => e.code === "required").map((e) => e.key) : []);
@@ -469,6 +475,11 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
             )}
             {!extraction && emptyDraft && <span className="tag info">Awaiting analyst entry</span>}
             {item.duplicateOf && pending && <span className="tag err">⚠ Duplicate of {item.duplicateOf}</span>}
+            {prior.length > 0 && (
+              <span className="tag info" data-testid="prior-tag">
+                🔗 Prior primary information
+              </span>
+            )}
             {item.attempts > 1 && <span className="tag info">Attempt {item.attempts}</span>}
             {withClient && item.sentToClient && (
               <span className="tag info">
@@ -580,6 +591,8 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
           onConfirm={() => void approve(true)}
         />
       )}
+
+      {prior.length > 0 && <PriorFlag code={item.code} role={String(values[FIELDS.sourceRole] ?? "")} company={String(values[FIELDS.sourceCompany] ?? "")} prior={prior} />}
 
       {item.hasSnapshot && !open && pending && (
         <div className="source-hint">

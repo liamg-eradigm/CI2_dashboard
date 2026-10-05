@@ -1,5 +1,7 @@
 /** Bindings and configuration for the API worker (see wrangler.jsonc). */
 export interface Env {
+  /** "off": answer every read from D1 (no read cache, lib/cache.ts). */
+  READ_CACHE?: string;
   DB: D1Database;
   /** Optional R2 bucket for snapshots. When absent, snapshots are stored in D1 (Workers Free plan default). */
   SNAPSHOTS?: R2Bucket;

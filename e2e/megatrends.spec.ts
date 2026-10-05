@@ -6,7 +6,9 @@ test.describe("Megatrends", () => {
   test("client: explores Macrotrends and Subtrends with their summaries, filters the timeline and opens an entry's row", async ({ page }) => {
     await signInAs(page, "client");
     await page.goto("/dashboard");
-    await page.getByRole("navigation").getByRole("link", { name: "Megatrends" }).click();
+    // Megatrends opens its two subtabs in the menu (request 27); the knowledge graph is the first.
+    await page.getByRole("navigation").getByRole("button", { name: "Megatrends" }).click();
+    await page.getByRole("navigation").getByRole("link", { name: "Megatrends: Knowledge graph" }).click();
     await expect(page.getByTestId("mg-panel")).toBeVisible();
     const rail = page.getByTestId("mg-macros");
     // Only Macrotrends with entries are listed, with their counts.
@@ -104,14 +106,15 @@ test.describe("tab order", () => {
     await card.getByRole("button", { name: "Move tab Megatrends up" }).click();
     await expect(card.getByTestId("tab-megatrends")).toBeVisible();
     const nav = page.getByRole("navigation", { name: "COMPETITIVE INTELLIGENCE" });
-    const labels = () => nav.getByRole("link").allInnerTexts();
+    // Top-level tabs: links, and the Megatrends / Competitors buttons that open their subtabs.
+    const labels = () => nav.locator(":scope > a, :scope > .nav-group > .nav-parent").allInnerTexts();
     await expect.poll(async () => (await labels()).map((t) => t.replace(/\d+$/, "").trim()).slice(3, 5)).toEqual(["Megatrends", "Deliverables"]);
     // A client sees the same order (without the staff tabs).
     const ctx = await browser.newContext();
     const other = await ctx.newPage();
     await signInAs(other, "client");
     await other.goto("/dashboard");
-    await expect.poll(async () => (await other.getByRole("navigation", { name: "COMPETITIVE INTELLIGENCE" }).getByRole("link").allInnerTexts()).map((t) => t.replace(/\s*\d+$/, "").trim())).toEqual(["Dashboard", "Tracker", "Phantoms", "Megatrends", "Competitors", "Client Inbox"]);
+    await expect.poll(async () => (await other.getByRole("navigation", { name: "COMPETITIVE INTELLIGENCE" }).locator(":scope > a, :scope > .nav-group > .nav-parent").allInnerTexts()).map((t) => t.replace(/\s*\d+$/, "").trim())).toEqual(["Dashboard", "Tracker", "Phantoms", "Megatrends", "Competitors", "Client Inbox"]);
     await ctx.close();
     // Restore.
     await card.getByRole("button", { name: "Move tab Megatrends down" }).click();

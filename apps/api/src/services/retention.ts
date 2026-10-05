@@ -6,6 +6,7 @@
  *   - items stuck in processing for over 30 minutes are marked Failed so they can be retried.
  * The audit trail itself is append-only and retained.
  */
+import { bumpAllDataVersions } from "../lib/cache.js";
 import type { Env } from "../env.js";
 import { nowIso } from "../lib/ids.js";
 import { alert, log } from "../lib/log.js";
@@ -26,6 +27,15 @@ async function purgeContent(env: Env, tenantId: string, itemId: string) {
 }
 
 export async function runRetention(env: Env): Promise<Record<string, number>> {
+  try {
+    return await retention(env);
+  } finally {
+    // Entries may have been purged or expired: cached reads are no longer current.
+    await bumpAllDataVersions(env).catch(() => undefined);
+  }
+}
+
+async function retention(env: Env): Promise<Record<string, number>> {
   const totals = { snapshotsExpired: 0, itemsPurged: 0, stuckFailed: 0, sessionsPurged: await purgeExpiredSessions(env) };
   const tenants = await env.DB.prepare("SELECT id FROM tenants WHERE active = 1").all<{ id: string }>();
   const now = nowIso();

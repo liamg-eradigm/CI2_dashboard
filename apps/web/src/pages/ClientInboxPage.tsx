@@ -6,11 +6,12 @@
  */
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { CORE, FIELDS, PAGE_TEXT_FIELD, STREAM_LABEL, can, displayValue, flattenKiqs, kiqsFromValues, sortedColumns, type ItemDetail, type ItemSummary, type Me, type TrackerSchema } from "@eradigm/shared";
+import { CORE, FIELDS, PAGE_TEXT_FIELD, STREAM_LABEL, can, displayValue, flattenKiqs, kiqsFromValues, primarySourceKey, sortedColumns, type ItemDetail, type ItemSummary, type Me, type TrackerSchema } from "@eradigm/shared";
 import { api, type ApiError } from "../api/client";
-import { useClientInbox, useComments, useInvalidate, useSchema } from "../api/hooks";
+import { useClientInbox, useComments, useInvalidate, usePrimarySources, useSchema } from "../api/hooks";
 import { CommentableText, CommentsMargin, useCommentNumbers } from "../components/Comments";
 import { KIQ_KEYS, kiqFieldLabel, kiqLabels } from "../components/KiqEditor";
+import { PriorFlag } from "../components/PriorFlag";
 import { SnapshotActions } from "../components/SnapshotFrame";
 import { localDateTime } from "../lib/format";
 import { useToast } from "../state/toast";
@@ -77,6 +78,10 @@ function ClientCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSc
   const title = text(CORE.title) || item.title || "Untitled";
 
   const rows = primary ? flattenKiqs(topics) : [];
+  // The same source as Primary entries already in the Tracker (request 27).
+  const sources = usePrimarySources(primary);
+  const sourceKey = primary ? primarySourceKey(item.draft[FIELDS.sourceRole], item.draft[FIELDS.sourceCompany]) : null;
+  const prior = sourceKey ? (sources.data ?? []).filter((x) => x.key === sourceKey) : [];
   const act = async (path: "send-to-eradigm" | "push", ok: string) => {
     if (path === "push" && !window.confirm(rows.length > 1 ? `Push “${title}” to the Tracker as ${rows.length} entries, one per ${L.question}?` : `Push “${title}” to the Tracker as it stands?`)) return;
     setBusy(true);
@@ -119,6 +124,11 @@ function ClientCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSc
             {title}
           </div>
         </div>
+        {prior.length > 0 && (
+          <div style={{ gridColumn: "1 / -1" }}>
+            <PriorFlag code={item.code} role={String(item.draft[FIELDS.sourceRole] ?? "")} company={String(item.draft[FIELDS.sourceCompany] ?? "")} prior={prior} />
+          </div>
+        )}
         {canAct && (
           <div className="inbox-actions">
             <button className="btn secondary" disabled={busy} onClick={() => void act("send-to-eradigm", `${item.code} sent back to Eradigm`)}>

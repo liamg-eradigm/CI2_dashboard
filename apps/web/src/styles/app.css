@@ -738,3 +738,48 @@ a.link-btn { text-decoration: none; }
 .md-pane .drawer-meta > span { flex: none; white-space: nowrap; }
 .md-pane .drawer-meta > .md-file { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .md-pane .drawer-head > div { flex: none; margin-left: auto; }
+
+/* Request 27: Primary entries from the same source, side by side (earlier left, later right). */
+.drawer.linked-drawer { width: min(1320px, 97vw); overflow: hidden; }
+.linked-wrap { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.linked-note { margin: 0; padding: 10px 24px; background: var(--tint-2); border-bottom: 1px solid var(--rule); font-size: 13px; color: var(--ink-2); }
+.linked-panes { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; }
+.linked-pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.linked-pane + .linked-pane { border-left: 2px solid var(--rule); }
+.linked-pane-head { flex: none; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 20px; border-bottom: 1px solid var(--rule); font-size: 12px; color: var(--muted); }
+.linked-pane-head .mono { color: var(--ink); }
+.linked-pane.earlier .linked-pane-head { background: #f4f6f8; }
+.linked-pane.later .linked-pane-head { background: var(--tint); }
+.linked-badge { font: 800 11px var(--sans); letter-spacing: 0.08em; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; color: #fff; }
+.linked-badge.earlier { background: #5d7484; }
+.linked-badge.later { background: var(--teal); }
+.linked-nav { margin-left: auto; font-size: 12.5px; color: var(--teal-press); font-weight: 700; }
+.linked-pane-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 18px 20px 36px; display: flex; flex-direction: column; gap: 22px; }
+.linked-pane-body:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.md-pane .linked-pane-body { padding: 0; gap: 0; }
+.md-pane .linked-pane-body .md-raw { flex: 1 0 auto; max-height: none; border-radius: 0; padding: 18px 22px; font-size: 12.5px; margin: 0; }
+.md-pane .linked-pane-body .md-preview { padding: 18px 22px 32px; }
+.md-doc-bar { padding: 8px 22px; border-bottom: 1px solid var(--rule); display: flex; justify-content: flex-end; }
+@media (max-width: 900px) {
+  .linked-panes { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+  .linked-pane + .linked-pane { border-left: 0; border-top: 2px solid var(--rule); }
+}
+/* The link column (Primary Tracker and Phantoms). */
+.link-col { width: 1%; text-align: center; white-space: nowrap; }
+.src-btn.link-btn-cell { font-size: 15px; }
+/* "This Source Has Prior Primary Information" while a Primary entry is entered. */
+.prior-flag { display: flex; gap: 12px; align-items: flex-start; margin: 0 0 4px; padding: 12px 16px; border-radius: 12px; border: 1px solid #9fd4d8; background: var(--tint); color: var(--ink); }
+.prior-flag .prior-icon { font-size: 18px; line-height: 1.2; }
+.prior-flag b { display: block; font-size: 14px; }
+.prior-flag p { margin: 3px 0 0; font-size: 13px; color: var(--ink-2); }
+.prior-flag a { color: var(--teal-press); font-weight: 700; }
+/* Megatrends and Competitors: a menu button opening its two subtabs (request 27). */
+.nav-group { display: flex; flex-direction: column; gap: 2px; }
+.nav-parent { display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 42px; padding: 0 12px; border: 0; border-left: 3px solid transparent; border-radius: 0 7px 7px 0; background: transparent; font: 600 14.5px var(--sans); color: var(--on-dark); text-align: left; cursor: pointer; }
+.nav-parent:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+.nav-group.within > .nav-parent { color: #fff; border-left-color: rgba(61, 195, 201, 0.5); }
+.nav-chev { font-size: 11px; opacity: 0.8; }
+.nav-chev::before { content: "▸"; }
+.nav-parent[aria-expanded="true"] .nav-chev::before { content: "▾"; }
+.nav-sub { display: flex; flex-direction: column; gap: 2px; margin: 0 0 4px 14px; padding-left: 8px; border-left: 1px solid rgba(255, 255, 255, 0.14); }
+.nav .nav-sub a { height: 34px; font-size: 13.5px; font-weight: 600; }

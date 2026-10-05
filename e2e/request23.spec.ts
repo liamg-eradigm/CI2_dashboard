@@ -123,7 +123,8 @@ test.describe("request 23", () => {
       { title: `Lilly and Novo cut prices ${tag}`, competitors: ["Eli Lilly", "Novo Nordisk"], impact: "Medium" },
       { title: `Metsera bidding war ${tag}`, competitors: ["Pfizer", "Metsera", "Novo Nordisk"], impact: "High" },
     ]);
-    await page.getByRole("navigation", { name: "COMPETITIVE INTELLIGENCE" }).getByRole("link", { name: "Competitors" }).click();
+    await page.getByRole("navigation", { name: "COMPETITIVE INTELLIGENCE" }).getByRole("button", { name: "Competitors" }).click();
+    await page.getByRole("navigation", { name: "COMPETITIVE INTELLIGENCE" }).getByRole("link", { name: "Competitors: Knowledge graph" }).click();
     await expect(page).toHaveURL(/\/competitors$/);
     await expect(page.getByTestId("mg-panel")).toContainText("Each sphere is a competitor");
     const list = page.getByTestId("mg-competitors");

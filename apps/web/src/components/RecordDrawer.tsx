@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { AUTO_KEYS, CORE, STREAM_LABEL, can, displayValue, normaliseValues, optionsOf, sortedColumns, splitMulti, subtrendsOf, type Me, type TrackerSchema } from "@eradigm/shared";
+import { AUTO_KEYS, CORE, STREAM_LABEL, can, displayValue, normaliseValues, optionsOf, sortedColumns, splitMulti, subtrendsOf, type Me, type SignalDetail, type TrackerSchema } from "@eradigm/shared";
 import { api, ApiError } from "../api/client";
 import { useInvalidate, useSchema, useSignal } from "../api/hooks";
 import { useToast } from "../state/toast";
 import { formatDate, localDateTime, pct } from "../lib/format";
 import { Combobox } from "./Combobox";
 import { DeleteEntries, type DeleteTable } from "./DeleteEntries";
+import { LinkedPanes } from "./LinkedPanes";
 import { LIST_HINT, ListTextarea } from "./ListTextarea";
 import { SnapshotFrame } from "./SnapshotFrame";
 
@@ -78,16 +79,16 @@ export function RecordDrawer({
   const [editing, setEditing] = useState(startEditing);
   const [deleting, setDeleting] = useState(false);
   const s = sig.data;
-  const cols = sortedColumns(schema);
   const canRevise = editable && can(me.role, "item:edit");
   // Admins and analysts only (the API enforces the same rule).
   const canDelete = can(me.role, "item:delete");
-  const published = s?.revisions.filter((r) => r.kind === "published") ?? [];
+  // A Primary entry linked to others from the same source: shown side by side with its earlier (or later) entry.
+  const linked = !!s && !!(s.linkedEarlier || s.linkedLater);
 
   return (
     <>
       <div className="scrim" onClick={onClose} aria-hidden="true" />
-      <div className="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title" ref={ref}>
+      <div className={`drawer${linked && !editing && !deleting ? " linked-drawer" : ""}`} role="dialog" aria-modal="true" aria-labelledby="drawer-title" ref={ref}>
         <div className="drawer-head">
           <div className="drawer-meta">
             <span className="mono" style={{ color: "var(--ink)" }}>
@@ -128,7 +129,13 @@ export function RecordDrawer({
             </p>
           </div>
         )}
-        {s && (
+        {s && linked && !editing && !deleting && (
+          <LinkedPanes
+            opened={s}
+            render={(x, titleId) => <RecordView s={x} schema={schema} me={me} onOpen={onOpen} titleId={titleId} />}
+          />
+        )}
+        {s && (!linked || editing || deleting) && (
           <div className="drawer-body">
             {deleting && (
               <DeleteEntries
@@ -138,15 +145,11 @@ export function RecordDrawer({
                 onDone={(ids) => (ids.length ? onClose() : undefined)}
               />
             )}
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <h2 id="drawer-title" style={{ font: "700 20px/1.3 var(--sans)", textWrap: "pretty" }}>
-                {String(s.values[CORE.title] ?? "")}
-              </h2>
-              {!editing && <div style={{ fontSize: 14, lineHeight: 1.6, color: "var(--ink-2)", whiteSpace: "pre-line" }}>{s.text}</div>}
-            </div>
-
             {editing ? (
               <>
+                <h2 id="drawer-title" style={{ font: "700 20px/1.3 var(--sans)", textWrap: "pretty" }}>
+                  {String(s.values[CORE.title] ?? "")}
+                </h2>
                 {/* Editing: the fields first, then the page text to check them against (no saved-page window). */}
                 <EditForm id={id} code={s.code} schema={schema} values={s.values} onDone={() => setEditing(false)} />
                 <div className="edit-source" data-testid="edit-source-text">
@@ -154,7 +157,29 @@ export function RecordDrawer({
                   <div style={{ fontSize: 14, lineHeight: 1.6, color: "var(--ink-2)", whiteSpace: "pre-line" }}>{s.text || "No text was captured for this entry."}</div>
                 </div>
               </>
-            ) : (
+            ) : linked ? null : (
+              <RecordView s={s} schema={schema} me={me} onOpen={onOpen} titleId="drawer-title" />
+            )}
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+/** An approved entry's record: title, page text, classifications, long fields, sources, provenance, history and related signals. */
+function RecordView({ s, schema, me, onOpen, titleId }: { s: SignalDetail; schema: TrackerSchema; me: Me; onOpen: (id: string) => void; titleId: string }) {
+  const cols = sortedColumns(schema);
+  const published = s.revisions.filter((r) => r.kind === "published");
+  return (
+    <>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <h2 id={titleId} style={{ font: "700 20px/1.3 var(--sans)", textWrap: "pretty" }}>
+                {String(s.values[CORE.title] ?? "")}
+              </h2>
+              <div style={{ fontSize: 14, lineHeight: 1.6, color: "var(--ink-2)", whiteSpace: "pre-line" }}>{s.text}</div>
+            </div>
+
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 <div className="section-h">Classifications</div>
                 <div className="cls-grid">
@@ -175,10 +200,8 @@ export function RecordDrawer({
                     })}
                 </div>
               </div>
-            )}
 
-            {!editing &&
-              cols
+            {cols
                 .filter((c) => c.type === "long")
                 .map((c) => (
                   <div key={c.key} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -187,8 +210,7 @@ export function RecordDrawer({
                   </div>
                 ))}
 
-            {!editing && (
-              <>
+            <>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   <div className="section-h">Company associations</div>
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -289,10 +311,7 @@ export function RecordDrawer({
                   ))}
                 </div>
               </>
-            )}
-          </div>
-        )}
-      </div>
+            
     </>
   );
 }

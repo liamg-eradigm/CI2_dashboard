@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import {
+  IN_PROGRESS_STATUSES,
   filtersToParams,
   type AuditEvent,
   type CaptureLogEntry,
@@ -14,6 +15,7 @@ import {
   type Competitors,
   type Megatrends,
   type Newsletter,
+  type PrimarySource,
   type QualityMetrics,
   type SavedView,
   type SignalDetail,
@@ -89,12 +91,16 @@ export const useMarkdown = (id: string | null) =>
 
 /** Items awaiting the analyst in each inbox (the red badges). */
 export const useClientInboxCount = (enabled: boolean) =>
-  useQuery({ queryKey: ["client-inbox", "count"], queryFn: () => api<{ count: number }>("/api/client-inbox/count"), enabled, refetchInterval: enabled ? 15_000 : false });
-export const useClientInbox = () => useQuery({ queryKey: ["client-inbox", "list"], queryFn: () => api<ItemSummary[]>("/api/client-inbox"), refetchInterval: 15_000 });
+  useQuery({ queryKey: ["client-inbox", "count"], queryFn: () => api<{ count: number }>("/api/client-inbox/count"), enabled, refetchInterval: enabled ? 30_000 : false });
+export const useClientInbox = () => useQuery({ queryKey: ["client-inbox", "list"], queryFn: () => api<ItemSummary[]>("/api/client-inbox"), refetchInterval: 30_000 });
 export const useComments = (itemId: string | null, enabled = true) =>
   useQuery({ queryKey: ["comments", itemId], queryFn: () => api<ItemComment[]>(`/api/items/${itemId}/comments`), enabled: !!itemId && enabled });
 export const useInboxCounts = (enabled: boolean) =>
-  useQuery({ queryKey: ["counts"], queryFn: () => api<Record<Stream, number>>("/api/items/counts"), enabled, refetchInterval: enabled ? 10_000 : false });
+  useQuery({ queryKey: ["counts"], queryFn: () => api<Record<Stream, number>>("/api/items/counts"), enabled, refetchInterval: enabled ? 30_000 : false });
+
+/** Approved Primary entries with a source (Source Role + Source Company), for "This Source Has Prior Primary Information". */
+export const usePrimarySources = (enabled: boolean) =>
+  useQuery({ queryKey: ["primary-sources"], queryFn: () => api<PrimarySource[]>("/api/primary-sources"), enabled, staleTime: 30_000 });
 
 export const useSignal = (id: string | null) =>
   useQuery({ queryKey: ["signal", id], queryFn: () => api<SignalDetail>(`/api/signals/${id}`), enabled: !!id });
@@ -104,11 +110,18 @@ export const useItems = (statuses: string[], enabled = true, poll = false, strea
     queryKey: ["items", statuses, stream ?? "both"],
     queryFn: () => api<ItemSummary[]>(`/api/items?status=${statuses.join(",")}${stream ? `&stream=${stream}` : ""}`),
     enabled,
-    refetchInterval: poll ? 3000 : false,
+    // Every 3 s while something is being captured (to show it arrive), else every 30 s (D1 rows read).
+    refetchInterval: poll ? (q) => (q.state.data?.some((i) => (IN_PROGRESS_STATUSES as readonly string[]).includes(i.status)) ? 3000 : 30_000) : false,
   });
 
 export const useItem = (id: string | null, poll = false) =>
-  useQuery({ queryKey: ["item", id], queryFn: () => api<ItemDetail>(`/api/items/${id}`), enabled: !!id, refetchInterval: poll ? 1000 : false });
+  useQuery({
+    queryKey: ["item", id],
+    queryFn: () => api<ItemDetail>(`/api/items/${id}`),
+    enabled: !!id,
+    // While it is being captured; once it has arrived (or failed) there is nothing more to wait for.
+    refetchInterval: poll ? (q) => (q.state.data && !(IN_PROGRESS_STATUSES as readonly string[]).includes(q.state.data.status) ? false : 2000) : false,
+  });
 
 export const useCaptureLog = (enabled: boolean) => useQuery({ queryKey: ["capture-log"], queryFn: () => api<CaptureLogEntry[]>("/api/capture-log"), enabled });
 export const useViews = () => useQuery({ queryKey: ["views"], queryFn: () => api<SavedView[]>("/api/views") });
@@ -130,7 +143,7 @@ export const runTrend = (cfg: TrendConfig) => api<TrendResult & { counts: { curr
 /** Invalidate everything derived from published signals or the schema. */
 export function useInvalidate() {
   const qc = useQueryClient();
-  return (...keys: string[]) => Promise.all((keys.length ? keys : ["dashboard", "tracker", "items", "item", "signal", "schema", "counts", "megatrends", "competitors", "bounds", "client-inbox", "comments"]).map((k) => qc.invalidateQueries({ queryKey: [k] })));
+  return (...keys: string[]) => Promise.all((keys.length ? keys : ["dashboard", "tracker", "items", "item", "signal", "schema", "counts", "megatrends", "competitors", "bounds", "client-inbox", "comments", "primary-sources"]).map((k) => qc.invalidateQueries({ queryKey: [k] })));
 }
 
 export function useApiMutation<TVars, TRes>(fn: (v: TVars) => Promise<TRes>, invalidate: string[] = []) {
