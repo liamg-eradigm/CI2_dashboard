@@ -484,10 +484,10 @@ integration tests).
   pages, links, names) only for the rows shown; link lookups are pinned to
   the `source_key` index; the Inbox badges and the audit chain are read from
   indexes (`ix_item_waiting`, `ix_audit_chain_seq`).
-- **Polling**: the Inbox refreshes every 3 s only while something is being
-  captured (else every 30 s); badges and the Client Inbox every 30 s; an
-  entry being captured on the Input page until it has arrived. Hidden tabs do
-  not poll.
+- **Polling**: the Inbox refreshes every 3 s while something is being
+  captured, else every 8 s; badges and the Client Inbox every 20 s; an entry
+  being captured on the Input page until it has arrived. Unchanged answers
+  cost one row; hidden tabs do not poll.
 - `apps/api/test/rows-read.test.ts` counts D1's own `rows_read` per request on
   a workspace of ~460 entries, with a budget per endpoint (first read) and
   ≤ 12 rows for a repeat, and checks that an Inbox change leaves Tracker reads

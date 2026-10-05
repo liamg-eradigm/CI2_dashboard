@@ -91,12 +91,12 @@ export const useMarkdown = (id: string | null) =>
 
 /** Items awaiting the analyst in each inbox (the red badges). */
 export const useClientInboxCount = (enabled: boolean) =>
-  useQuery({ queryKey: ["client-inbox", "count"], queryFn: () => api<{ count: number }>("/api/client-inbox/count"), enabled, refetchInterval: enabled ? 30_000 : false });
-export const useClientInbox = () => useQuery({ queryKey: ["client-inbox", "list"], queryFn: () => api<ItemSummary[]>("/api/client-inbox"), refetchInterval: 30_000 });
+  useQuery({ queryKey: ["client-inbox", "count"], queryFn: () => api<{ count: number }>("/api/client-inbox/count"), enabled, refetchInterval: enabled ? 20_000 : false });
+export const useClientInbox = () => useQuery({ queryKey: ["client-inbox", "list"], queryFn: () => api<ItemSummary[]>("/api/client-inbox"), refetchInterval: 20_000 });
 export const useComments = (itemId: string | null, enabled = true) =>
   useQuery({ queryKey: ["comments", itemId], queryFn: () => api<ItemComment[]>(`/api/items/${itemId}/comments`), enabled: !!itemId && enabled });
 export const useInboxCounts = (enabled: boolean) =>
-  useQuery({ queryKey: ["counts"], queryFn: () => api<Record<Stream, number>>("/api/items/counts"), enabled, refetchInterval: enabled ? 30_000 : false });
+  useQuery({ queryKey: ["counts"], queryFn: () => api<Record<Stream, number>>("/api/items/counts"), enabled, refetchInterval: enabled ? 20_000 : false });
 
 /** Approved Primary entries with a source (Source Role + Source Company), for "This Source Has Prior Primary Information". */
 export const usePrimarySources = (enabled: boolean) =>
@@ -110,8 +110,8 @@ export const useItems = (statuses: string[], enabled = true, poll = false, strea
     queryKey: ["items", statuses, stream ?? "both"],
     queryFn: () => api<ItemSummary[]>(`/api/items?status=${statuses.join(",")}${stream ? `&stream=${stream}` : ""}`),
     enabled,
-    // Every 3 s while something is being captured (to show it arrive), else every 30 s (D1 rows read).
-    refetchInterval: poll ? (q) => (q.state.data?.some((i) => (IN_PROGRESS_STATUSES as readonly string[]).includes(i.status)) ? 3000 : 30_000) : false,
+    // Every 3 s while something is being captured (to show it arrive), else every 8 s (unchanged answers cost the API one D1 row).
+    refetchInterval: poll ? (q) => (q.state.data?.some((i) => (IN_PROGRESS_STATUSES as readonly string[]).includes(i.status)) ? 3000 : 8000) : false,
   });
 
 export const useItem = (id: string | null, poll = false) =>

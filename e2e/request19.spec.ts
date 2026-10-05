@@ -2,7 +2,8 @@ import { expect, expectAccessible, signInAs, test } from "./fixtures";
 import type { Page } from "@playwright/test";
 
 const ANALYST = { "x-dev-user": "l.griffith@example.com" };
-const navLinks = (page: Page) => page.getByRole("navigation", { name: "COMPETITIVE INTELLIGENCE" }).getByRole("link").allInnerTexts();
+/** The menu's tabs (Megatrends and Competitors are buttons that open their two subtabs, request 27). */
+const navLinks = (page: Page) => page.getByRole("navigation", { name: "COMPETITIVE INTELLIGENCE" }).locator(":scope > a, :scope > .nav-group > .nav-parent").allInnerTexts();
 const clean = (l: string[]) => l.map((t) => t.replace(/\s*\d+$/, "").trim());
 
 /** A Secondary entry awaiting review with every field filled in (through the API, as an analyst). */
@@ -108,7 +109,8 @@ test.describe("request 19", () => {
 
     // Back in the Eradigm Inbox, with the comment: resolve it, then push to the Tracker.
     await page.getByRole("button", { name: /^Needs review/ }).click();
-    await expect(card).toContainText("Back from");
+    // The Inbox refreshes every few seconds.
+    await expect(card).toContainText("Back from", { timeout: 20_000 });
     const comments = card.getByTestId("comments");
     await expect(comments).toContainText("Is this for all Medicaid products or only some?");
     await expect(comments).toContainText("“most-favored-nation price deal”");

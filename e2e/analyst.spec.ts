@@ -241,36 +241,53 @@ test.describe("Eradigm staff (admin)", () => {
     await expect(page.getByText("Complete · sent to the Eradigm Inbox (Secondary)")).toBeVisible({ timeout: 30_000 });
   });
 
-  test("warns about a source already in the tracker, but lets it through and requires an explicit override to approve", async ({ page }) => {
+  test("warns about a source already in the tracker, but lets it through and requires an explicit override to approve (Secondary entries only)", async ({ page }) => {
     const dir = mkdtempSync(path.join(tmpdir(), "e2e-"));
-    const file = path.join(dir, "again.html");
-    // Same URL as the published seed entry SIG-1100.
+    // Same URL as the published Primary seed entry SIG-1100: Primary entries are never duplicates (request 27).
+    const primaryFile = path.join(dir, "primary-again.html");
     writeFileSync(
-      file,
-      `<!DOCTYPE html><html><!--\n Page saved with SingleFile \n url: https://source.example.com/sig-1100 \n saved date: Wed Sep 24 2026\n--><head><title>Roche DTP again</title></head><body><article><h1>Roche brings DTP offering to a national retail pharmacy chain (re-saved)</h1><p>Roche has extended its direct-to-patient offering to a national retail pharmacy chain, the company said.</p><p>The roll-out covers all stores by 2027.</p></article></body></html>`,
+      primaryFile,
+      `<!DOCTYPE html><html><!--\n Page saved with SingleFile \n url: https://source.example.com/sig-1100 \n saved date: Wed Sep 24 2026\n--><head><title>Roche DTP again</title></head><body><article><h1>Roche brings DTP offering to a national retail pharmacy chain (primary again)</h1><p>Roche has extended its direct-to-patient offering to a national retail pharmacy chain, the company said.</p><p>The roll-out covers all stores by 2027.</p></article></body></html>`,
     );
     await page.goto("/input");
-    await uploadTo(page, "primary", file);
-    await expect(page.getByText(/Possible duplicate: this source is already in the tracker as SIG-1100/)).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByText(/sent to the Eradigm Inbox \(Primary\)/).first()).toBeVisible();
+    await uploadTo(page, "primary", primaryFile);
+    await expect(page.getByText(/sent to the Eradigm Inbox \(Primary\)/).first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(/Possible duplicate/)).toHaveCount(0);
+    // Same URL as the published Secondary seed entry SIG-1102.
+    const file = path.join(dir, "again.html");
+    writeFileSync(
+      file,
+      `<!DOCTYPE html><html><!--\n Page saved with SingleFile \n url: https://newsroom.example.com/sig-1102 \n saved date: Wed Sep 24 2026\n--><head><title>Again</title></head><body><article><h1>A tracked story, re-saved</h1><p>The same story as a Secondary entry already in the Tracker, saved a second time.</p><p>It continues in 2027.</p></article></body></html>`,
+    );
+    await page.goto("/input");
+    await uploadTo(page, "secondary", file);
+    await expect(page.getByText(/Possible duplicate: this source is already in the tracker as SIG-1102/)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(/sent to the Eradigm Inbox \(Secondary\)/).first()).toBeVisible();
 
     await page.goto("/inbox");
+    await expect(page.locator(".inbox-card", { hasText: "primary again" }).first().getByText(/Duplicate of/)).toHaveCount(0);
     const first = page.locator(".inbox-card", { hasText: "re-saved" }).first();
-    await expect(first.getByText("⚠ Duplicate of SIG-1100")).toBeVisible();
+    await expect(first.getByText("⚠ Duplicate of SIG-1102")).toBeVisible();
     // Track the card by its Inbox code: its title changes once the analyst types one.
     const code = (await first.locator(".code").innerText()).trim();
     const card = page.locator(".inbox-card", { has: page.locator(".code", { hasText: code }) });
     await fillEntry(card, { id: `P-DUP-${uid()}`, title: "Roche DTP retail roll-out (second entry)", impact: "Medium", competitors: ["Roche"] });
     await card.getByRole("button", { name: "✓ Push to Tracker" }).click();
     const dialog = card.getByRole("alertdialog");
-    await expect(dialog).toContainText("Duplicate — SIG-1100 is already in the tracker");
-    await expect(dialog.getByRole("link", { name: /Open SIG-1100 in the Tracker/ })).toHaveAttribute("href", /\/tracker\?signal=/);
+    await expect(dialog).toContainText("Duplicate — SIG-1102 is already in the tracker");
+    await expect(dialog.getByRole("link", { name: /Open SIG-1102 in the Tracker/ })).toHaveAttribute("href", /\/tracker\?signal=/);
     await expectAccessible(page, "/inbox duplicate confirmation");
     await dialog.getByRole("button", { name: "Cancel — don't approve" }).click();
     await expect(card.getByRole("alertdialog")).toHaveCount(0);
     await card.getByRole("button", { name: "✓ Push to Tracker" }).click();
     await card.getByRole("button", { name: "Approve anyway (override duplicate)" }).click();
     await expect(page.getByText(/SIG-\d+ published to the tracker as rev 1 \(duplicate confirmed\)/).first()).toBeVisible();
+    // Leave the Inbox as the other tests expect it: reject the Primary copy.
+    await page.evaluate(async () => {
+      const h = { "x-eci-request": "1", "x-dev-user": localStorage.getItem("eradigm.devUser") ?? "", "content-type": "application/json" };
+      const items: { id: string; version: number; title: string | null }[] = await (await fetch("/api/items?status=needs_review", { headers: h })).json();
+      for (const i of items.filter((x) => (x.title ?? "").includes("primary again"))) await fetch(`/api/items/${i.id}/reject`, { method: "POST", headers: h, body: JSON.stringify({ version: i.version }) });
+    });
   });
 
   test("reorders tracker columns: A–Z, Z–A, move buttons and drag and drop", async ({ page }) => {
@@ -336,7 +353,7 @@ test.describe("Eradigm staff (admin)", () => {
 
     // The tables follow.
     await page.goto("/tracker?stream=primary");
-    const heads = () => page.locator("table thead th:not(.src-col):not(.pick-col)").allInnerTexts();
+    const heads = () => page.locator("table thead th:not(.src-col):not(.pick-col):not(.link-col)").allInnerTexts();
     await expect.poll(async () => (await heads())[0]).toMatch(/^Action/i);
     await page.goto("/phantoms?stream=primary");
     await expect.poll(async () => (await heads()).at(-1)).toMatch(/^Macrotrend/i);

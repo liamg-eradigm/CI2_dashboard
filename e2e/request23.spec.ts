@@ -83,7 +83,8 @@ test.describe("request 23", () => {
     await page.reload();
     const panel = page.getByTestId("mg-panel");
     await expect(panel).toBeVisible();
-    await expect(page.getByText("Knowledge graph", { exact: true })).toHaveCount(0);
+    // No "Knowledge graph" heading on the page (the menu's subtab has that name, request 27).
+    await expect(page.locator("main").getByText("Knowledge graph", { exact: true })).toHaveCount(0);
     const stage = (await page.locator(".mg-stage").boundingBox())!;
     const rail = page.locator("#megatrends-rail");
     let p = (await panel.boundingBox())!;
