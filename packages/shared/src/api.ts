@@ -11,6 +11,7 @@ import { ITEM_STATUSES } from "./status.js";
 import { COLUMN_TYPES, CREATABLE_COLUMN_TYPES, MAX_LABEL_LENGTH, MAX_OPTION_LENGTH, STREAMS } from "./schema.js";
 import { EXPORT_FORMATS } from "./export.js";
 import { DEFAULT_NAV_ORDER, MAX_SUMMARY_LENGTH, NAV_TABS, SUMMARY_MODELS, SUMMARY_SOURCES, TREND_LEVELS } from "./megatrends.js";
+import { TREND_ANALYSIS_CATEGORIES, TREND_ANALYSIS_SOURCES } from "./trendAnalyses.js";
 import { DEFAULT_COMPETITOR_TIERS } from "./competitors.js";
 import { KiqTopicsSchema } from "./kiq.js";
 import { DEFAULT_MENU, MAX_MENU_LABEL, MENU_GROUPS, MENU_ITEMS } from "./menu.js";
@@ -379,6 +380,45 @@ export const GenerateTrendSummaryRequest = z.object({
   parent: z.string().max(MAX_OPTION_LENGTH).optional(),
 });
 export type TrendSummary = z.infer<typeof TrendSummarySchema>;
+
+/** Trend Analyses (contract 1.18): an analysis submitted on the Input page, kept in the Trend Analyses tracker. */
+export const TrendAnalysisSchema = z.object({
+  id: z.string(),
+  category: z.enum(TREND_ANALYSIS_CATEGORIES),
+  level: z.enum(TREND_LEVELS),
+  name: z.string(),
+  /** A Subtrend's Macrotrend. */
+  parent: z.string().nullable(),
+  text: z.string(),
+  submittedAt: isoDateTime,
+  submittedBy: z.string(),
+  source: z.enum(TREND_ANALYSIS_SOURCES),
+  /** The spreadsheet it was imported from. */
+  fileName: z.string().nullable(),
+});
+export const CreateTrendAnalysisRequest = z.object({
+  level: z.enum(TREND_LEVELS),
+  name: z.string().trim().min(1).max(MAX_OPTION_LENGTH),
+  /** A Subtrend's Macrotrend (worked out by the API when left out). */
+  parent: z.string().trim().max(MAX_OPTION_LENGTH).optional(),
+  text: z.string().trim().min(1, "Write the trend analysis").max(MAX_SUMMARY_LENGTH),
+});
+/** Rows keyed by the four column names (TREND_ANALYSIS_COLUMNS), already parsed by the dashboard. */
+export const ImportTrendAnalysesRequest = z.object({
+  fileName: z.string().min(1).max(255),
+  rows: z
+    .array(z.object({ row: z.number().int().min(1), values: z.record(z.string(), z.string()) }))
+    .min(1)
+    .max(200),
+  /** Only check the rows; nothing is written. At most IMPORT_CHUNK_ROWS rows otherwise. */
+  dryRun: z.boolean().optional(),
+});
+export const ImportTrendAnalysesResponse = z.object({
+  ok: z.boolean(),
+  imported: z.number().int(),
+  errors: z.array(z.object({ row: z.number().int(), column: z.string().nullable(), message: z.string() })),
+});
+export type TrendAnalysis = z.infer<typeof TrendAnalysisSchema>;
 export type MegatrendNode = z.infer<typeof MegatrendNodeSchema>;
 export type MegatrendEntry = z.infer<typeof MegatrendEntrySchema>;
 export type Megatrends = z.infer<typeof MegatrendsSchema>;
@@ -812,6 +852,11 @@ export const ENDPOINTS: EndpointDef[] = [
   { method: "get", path: "/api/competitors", summary: "Competitors: Tracker entries per competitor named, co-occurring competitors, their summaries and the entries for the timeline (query: stream all|primary|secondary)", roles: ALL_ROLES, query: ["stream"], response: CompetitorsSchema },
   { method: "put", path: "/api/megatrends/summaries", summary: "Write a Macrotrend, Subtrend or competitor summary by hand (empty text = back to the default)", roles: STAFF, request: UpdateTrendSummaryRequest, response: TrendSummarySchema },
   { method: "post", path: "/api/megatrends/summaries/generate", summary: "Write a Macrotrend, Subtrend or competitor summary with the AI writer from its entries (competitors: high-impact and recent first; 409 while the AI is not connected)", roles: STAFF, request: GenerateTrendSummaryRequest, response: TrendSummarySchema },
+  { method: "get", path: "/api/trend-analyses", summary: "Trend Analyses: every trend analysis submitted, newest first", roles: ALL_ROLES, response: z.array(TrendAnalysisSchema) },
+  { method: "post", path: "/api/trend-analyses", summary: "Submit a trend analysis: it becomes the analysis of that Macrotrend, Subtrend or competitor (Trend analysis subtab and knowledge graph) and is kept in Trend Analyses", roles: STAFF, request: CreateTrendAnalysisRequest, response: TrendAnalysisSchema },
+  { method: "post", path: "/api/trend-analyses/import", summary: "Import trend analyses from a spreadsheet (columns: Macrotrend or Competitor; Competitor, Macrotrend, or Subtrend; Name; Trend analysis). At most 200 rows for a dry run, 8 otherwise", roles: STAFF, request: ImportTrendAnalysesRequest, response: ImportTrendAnalysesResponse },
+  { method: "get", path: "/api/trend-analyses/{id}/markdown", summary: "A submitted trend analysis as Markdown (inline, or ?download=1 as a file)", roles: ALL_ROLES, raw: "text/markdown" },
+  { method: "delete", path: "/api/trend-analyses/{id}", summary: "Remove a submission from Trend Analyses (the trend keeps its current analysis)", roles: STAFF, response: z.object({ ok: z.literal(true) }) },
   { method: "get", path: "/api/signals/{id}/markdown", summary: "Markdown for a tracker entry (text/markdown; ?download=1 for an attachment)", roles: ALL_ROLES, raw: "text/markdown" },
   { method: "put", path: "/api/schema/columns/order", summary: "Change the column order of the Inbox, Tracker or Phantoms table", roles: STAFF, request: ReorderColumnsRequest, response: TrackerSchemaSchema },
   { method: "post", path: "/api/schema/columns/{key}/options", summary: "Add a dropdown option", roles: STAFF, request: AddOptionRequest, response: TrackerSchemaSchema },

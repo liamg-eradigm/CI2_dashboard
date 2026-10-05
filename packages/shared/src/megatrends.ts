@@ -28,7 +28,8 @@ export const SUMMARY_MODELS = [
 ] as const;
 export type SummaryModel = (typeof SUMMARY_MODELS)[number]["id"];
 
-export const MAX_SUMMARY_LENGTH = 2000;
+/** The longest summary or trend analysis (request 29: analyses can run to a few pages). */
+export const MAX_SUMMARY_LENGTH = 10_000;
 
 /** Default Macrotrend summaries, by Macrotrend name. */
 export const DEFAULT_MACRO_SUMMARIES: Readonly<Record<string, string>> = {

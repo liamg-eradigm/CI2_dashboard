@@ -20,3 +20,4 @@ export * from "./competitors.js";
 export * from "./kiq.js";
 export * from "./sourceLink.js";
 export * from "./menu.js";
+export * from "./trendAnalyses.js";

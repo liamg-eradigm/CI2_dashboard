@@ -25,6 +25,7 @@ import {
   type TrackerSchema,
   type TrendConfig,
   type TrendResult,
+  type TrendAnalysis,
   type User,
 } from "@eradigm/shared";
 import { api, request } from "./client";
@@ -102,6 +103,20 @@ export const useInboxCounts = (enabled: boolean) =>
 export const usePrimarySources = (enabled: boolean) =>
   useQuery({ queryKey: ["primary-sources"], queryFn: () => api<PrimarySource[]>("/api/primary-sources"), enabled, staleTime: 30_000 });
 
+/** Trend Analyses (contract 1.18): every analysis submitted, newest first. */
+export const useTrendAnalyses = () => useQuery({ queryKey: ["trend-analyses"], queryFn: () => api<TrendAnalysis[]>("/api/trend-analyses") });
+
+/** A submitted trend analysis as Markdown (text). */
+export const useTrendAnalysisMarkdown = (id: string | null) =>
+  useQuery({
+    queryKey: ["trend-analyses", id, "markdown"],
+    queryFn: async () => {
+      const res = await request(`/api/trend-analyses/${id}/markdown`);
+      return res.text();
+    },
+    enabled: !!id,
+  });
+
 export const useSignal = (id: string | null) =>
   useQuery({ queryKey: ["signal", id], queryFn: () => api<SignalDetail>(`/api/signals/${id}`), enabled: !!id });
 
@@ -143,7 +158,7 @@ export const runTrend = (cfg: TrendConfig) => api<TrendResult & { counts: { curr
 /** Invalidate everything derived from published signals or the schema. */
 export function useInvalidate() {
   const qc = useQueryClient();
-  return (...keys: string[]) => Promise.all((keys.length ? keys : ["dashboard", "tracker", "items", "item", "signal", "schema", "counts", "megatrends", "competitors", "bounds", "client-inbox", "comments", "primary-sources"]).map((k) => qc.invalidateQueries({ queryKey: [k] })));
+  return (...keys: string[]) => Promise.all((keys.length ? keys : ["dashboard", "tracker", "items", "item", "signal", "schema", "counts", "megatrends", "competitors", "bounds", "client-inbox", "comments", "primary-sources", "trend-analyses"]).map((k) => qc.invalidateQueries({ queryKey: [k] })));
 }
 
 export function useApiMutation<TVars, TRes>(fn: (v: TVars) => Promise<TRes>, invalidate: string[] = []) {

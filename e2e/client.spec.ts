@@ -7,7 +7,7 @@ test.describe("client role", () => {
     await page.goto("/dashboard");
     await expect(page.getByRole("heading", { name: "Intelligence Dashboard" })).toBeVisible();
     // Request 28: tabs in groups; a client's Inputs group has only the Client Inbox, and there is no Admin group.
-    expect(await menuOf(page)).toEqual(["Trackers: Tracker, Dashboard, Phantoms", "Megatrends: Knowledge graph, Trend analysis", "Competitors: Knowledge graph, Trend analysis", "Inputs: Client Inbox"]);
+    expect(await menuOf(page)).toEqual(["Trackers: Tracker, Dashboard, Phantoms, Trend Analyses", "Megatrends: Knowledge graph, Trend analysis", "Competitors: Knowledge graph, Trend analysis", "Inputs: Client Inbox"]);
     const nav = navOf(page);
     // The Inbox and Input pages do not exist for clients: direct links go to the dashboard.
     for (const path of ["/input", "/inbox", "/admin"]) {

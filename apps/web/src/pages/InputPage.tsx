@@ -5,6 +5,7 @@ import type { ApiError } from "../api/client";
 import { api } from "../api/client";
 import { useCaptureLog, useInvalidate, useItem, useSchema } from "../api/hooks";
 import { ImportCard } from "../components/ImportCard";
+import { TrendAnalysisInput } from "../components/TrendAnalysisInput";
 import { StreamSwitch } from "../components/StreamSwitch";
 import { ModelOutputTable } from "../components/ModelOutput";
 import { localDateTime } from "../lib/format";
@@ -300,6 +301,7 @@ export function InputPage({ me }: { me: Me }) {
         <div className="source-stack">
           <SourceCard busy={busy} onSubmit={submit} onManual={createManual} />
           <ImportCard />
+          <TrendAnalysisInput />
         </div>
         {pageErr && (
           <div className="err-msg" role="alert">

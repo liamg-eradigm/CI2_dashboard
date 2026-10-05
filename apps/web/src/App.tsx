@@ -14,13 +14,14 @@ import { InputPage } from "./pages/InputPage";
 import { AdminPage } from "./pages/AdminPage";
 import { InvitePage, SignInPage } from "./pages/SignInPage";
 import { SourcePage } from "./pages/SourcePage";
+import { TrendAnalysesPage } from "./pages/TrendAnalysesPage";
 
 // Loaded on first visit: it carries the 3D graph (three.js).
 const MegatrendsPage = lazy(() => import("./pages/MegatrendsPage").then((m) => ({ default: m.MegatrendsPage })));
 const CompetitorsPage = lazy(() => import("./pages/CompetitorsPage").then((m) => ({ default: m.CompetitorsPage })));
 const TrendAnalysisPage = lazy(() => import("./pages/TrendAnalysisPage").then((m) => ({ default: m.TrendAnalysisPage })));
 
-const TITLES: Record<string, string> = { "/dashboard": "Dashboard", "/tracker": "Tracker", "/phantoms": "Phantoms", "/deliverables": "Deliverables", "/megatrends": "Megatrends", "/competitors": "Competitors", "/inbox": "Eradigm Inbox", "/client-inbox": "Client Inbox", "/input": "Input", "/admin": "Administration" };
+const TITLES: Record<string, string> = { "/dashboard": "Dashboard", "/tracker": "Tracker", "/phantoms": "Phantoms", "/trend-analyses": "Trend Analyses", "/deliverables": "Deliverables", "/megatrends": "Megatrends", "/competitors": "Competitors", "/inbox": "Eradigm Inbox", "/client-inbox": "Client Inbox", "/input": "Input", "/admin": "Administration" };
 
 export function App() {
   const loc = useLocation();
@@ -80,6 +81,7 @@ function SignedIn() {
             <Route path="/dashboard" element={<DashboardPage me={me.data} />} />
             <Route path="/tracker" element={<TrackerPage me={me.data} view="tracker" />} />
             <Route path="/phantoms" element={<TrackerPage key="phantoms" me={me.data} view="phantoms" />} />
+            <Route path="/trend-analyses" element={<TrendAnalysesPage me={me.data} />} />
             <Route path="/deliverables" element={only("deliverables", <DeliverablesPage me={me.data} />)} />
             <Route
               path="/megatrends"

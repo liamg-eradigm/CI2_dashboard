@@ -19,12 +19,12 @@ describe("request 28: the menu in groups", () => {
     expect(m.groups.map((g) => g.key)).toEqual(["admin", "trackers", "megatrends", "competitors", "inputs"]);
     // Deliverables was missing: it leads the group by default, so it goes first.
     expect(m.groups[0]).toEqual({ key: "admin", label: "Back office", items: [{ key: "deliverables" }, { key: "admin", label: "Settings" }] });
-    // Dashboard was missing: it goes back after the tab it follows by default (Tracker).
-    expect(m.groups[1]).toEqual({ key: "trackers", items: [{ key: "phantoms" }, { key: "tracker" }, { key: "dashboard" }] });
+    // Dashboard was missing: it goes back after the tab it follows by default (Tracker); Trend Analyses (request 29) after Phantoms.
+    expect(m.groups[1]).toEqual({ key: "trackers", items: [{ key: "phantoms" }, { key: "trend-analyses" }, { key: "tracker" }, { key: "dashboard" }] });
     expect(normaliseMenu(undefined)).toEqual(DEFAULT_MENU);
     // A client sees no Admin group and only the Client Inbox in Inputs.
     expect(visibleMenu(DEFAULT_MENU, "client").map((g) => `${g.key}:${g.items.map((i) => i.key).join(",")}`)).toEqual([
-      "trackers:tracker,dashboard,phantoms",
+      "trackers:tracker,dashboard,phantoms,trend-analyses",
       "megatrends:megatrends,megatrends-analysis",
       "competitors:competitors,competitors-analysis",
       "inputs:clientinbox",

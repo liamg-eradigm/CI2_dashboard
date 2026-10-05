@@ -126,6 +126,7 @@ const BUDGETS: [string, number, boolean?][] = [
   ["/api/megatrends?stream=all", 2500],
   ["/api/competitors?stream=all", 9000],
   ["/api/primary-sources", 800],
+  ["/api/trend-analyses", 50],
   ["/api/schema?stream=primary", 300],
 ];
 
