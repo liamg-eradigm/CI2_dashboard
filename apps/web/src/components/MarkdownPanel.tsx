@@ -6,9 +6,14 @@ import { LinkedPanes } from "./LinkedPanes";
 import { useFocusTrap } from "./RecordDrawer";
 
 /** Save an entry's Markdown file (named after its ID). Returns the file name. */
-export async function downloadMarkdown(id: string): Promise<string> {
-  const res = await request(`/api/signals/${id}/markdown?download=1`);
-  const name = /filename="([^"]+)"/.exec(res.headers.get("content-disposition") ?? "")?.[1] ?? `${id}.md`;
+export function downloadMarkdown(id: string): Promise<string> {
+  return saveMarkdown(`/api/signals/${id}/markdown?download=1`, `${id}.md`);
+}
+
+/** Save the Markdown file an API path returns, under the name it gives. Returns the file name. */
+export async function saveMarkdown(path: string, fallback: string): Promise<string> {
+  const res = await request(path);
+  const name = /filename="([^"]+)"/.exec(res.headers.get("content-disposition") ?? "")?.[1] ?? fallback;
   const url = URL.createObjectURL(new Blob([await res.text()], { type: "text/markdown;charset=utf-8" }));
   const a = document.createElement("a");
   a.href = url;
@@ -36,7 +41,7 @@ const unquote = (v: string) => {
 };
 
 /** Parse the front matter this platform generates (two-space nesting, one key per line). */
-function parse(md: string): { fm: FmLine[]; sections: { title: string; body: string }[] } {
+export function parseMarkdown(md: string): { fm: FmLine[]; sections: { title: string; body: string }[] } {
   const m = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/.exec(md);
   if (!m) return { fm: [], sections: [{ title: "", body: md }] };
   const fm: FmLine[] = [];
@@ -57,7 +62,7 @@ function parse(md: string): { fm: FmLine[]; sections: { title: string; body: str
   return { fm, sections };
 }
 
-function FrontMatter({ lines }: { lines: FmLine[] }) {
+export function FrontMatter({ lines }: { lines: FmLine[] }) {
   return (
     <dl className="md-fm">
       {lines.map((l) => (
@@ -81,7 +86,7 @@ export function MarkdownPanel({ id, onClose, onOpenRecord, onEdit }: { id: strin
   const ref = useFocusTrap(true, onClose);
   const [tab, setTab] = useState<"raw" | "preview">("raw");
   const toast = useToast();
-  const doc = md.data ? parse(md.data) : null;
+  const doc = md.data ? parseMarkdown(md.data) : null;
   const rid = doc?.fm.find((l) => l.key === "id")?.value;
   const title = doc?.fm.find((l) => l.key === "title")?.value || sig.data?.values.title?.toString() || "Markdown";
   // A Primary entry linked to others from the same source: its Markdown beside the earlier (or later) one's.
@@ -169,7 +174,7 @@ export function MarkdownPanel({ id, onClose, onOpenRecord, onEdit }: { id: strin
 function MdDoc({ id, tab, own }: { id: string; tab: "raw" | "preview"; own: boolean }) {
   const md = useMarkdown(id);
   const toast = useToast();
-  const doc = md.data ? parse(md.data) : null;
+  const doc = md.data ? parseMarkdown(md.data) : null;
   return (
     <>
       {md.isLoading && <div className="skeleton" style={{ height: 240, margin: 16 }} />}

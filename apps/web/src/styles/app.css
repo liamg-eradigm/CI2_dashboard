@@ -262,7 +262,7 @@ td.long .clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient
 .md-fm { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; padding: 12px 14px; background: var(--subtle); border: 1px solid var(--rule); border-radius: 8px; font-size: 13px; }
 .md-fm > div { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 10px; }
 .md-fm > div.group { grid-template-columns: minmax(0, 1fr); }
-.md-fm dt { font: 600 12px var(--mono); color: var(--muted); }
+.md-fm dt { font: 600 12px var(--mono); color: var(--muted); overflow-wrap: anywhere; }
 .md-fm dd { margin: 0; overflow-wrap: anywhere; color: var(--ink); }
 .md-fm .md-fm { background: #fff; margin-top: 4px; }
 .md-empty { color: var(--muted-3); }
@@ -799,3 +799,34 @@ a.link-btn { text-decoration: none; }
 .table-wrap.capture-log { max-height: 360px; overflow: auto; }
 .table-wrap.capture-log thead th { position: sticky; top: 0; z-index: 1; background: #fff; box-shadow: inset 0 -1px 0 var(--rule); }
 .table-wrap.capture-log:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+/* Input → Input Trend Analysis (request 29). */
+.ta-input { display: flex; flex-direction: column; gap: 14px; }
+.ta-input .card-head .seg { min-width: 240px; }
+.tai-pick { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px 16px; align-items: end; }
+.tai-scope { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; margin: 0; padding: 0; border: 0; min-width: 0; font-size: 13.5px; color: var(--ink); }
+.tai-scope legend { float: left; width: 100%; margin-bottom: 4px; padding: 0; font: 600 10px var(--sans); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.tai-scope label { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; }
+.tai-scope:disabled { opacity: 0.55; }
+.tai-text { height: auto; min-height: 170px; padding: 8px 10px; line-height: 1.5; resize: vertical; }
+.tai-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.tai-current { font-size: 13px; color: var(--ink-2); }
+.tai-current summary { cursor: pointer; font-weight: 700; color: var(--navy-700); }
+.tai-current p { margin: 6px 0 0; padding: 10px 12px; border-radius: 8px; background: var(--page); white-space: pre-wrap; max-height: 200px; overflow: auto; }
+.tai-import { display: flex; flex-direction: column; gap: 10px; padding-top: 16px; border-top: 1px solid var(--rule); border-radius: 0; }
+.tai-import.drag-target { outline: 2px dashed var(--focus); outline-offset: 4px; }
+.tai-sub-title { margin: 0; font: 800 14px var(--sans); color: var(--navy-700); }
+/* Trackers → Trend Analyses (request 29). */
+.tas-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.tas-tools .seg { min-width: 280px; }
+.tas-find { width: 260px; max-width: 100%; }
+.table-wrap.tas-wrap { max-height: calc(100vh - 300px); min-height: 200px; overflow: auto; }
+.table-wrap.tas-wrap thead th { position: sticky; top: 0; z-index: 1; background: #fff; box-shadow: inset 0 -1px 0 var(--rule); }
+.tas-table td { vertical-align: top; }
+.tas-name b { display: block; }
+.tas-name span, .tas-by span { display: block; font-size: 12px; color: var(--muted); }
+.tas-text-col { min-width: 320px; }
+.tas-text div { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-wrap; max-width: 560px; font-size: 13px; line-height: 1.45; }
+.tas-md .md-fm > div { grid-template-columns: 260px minmax(0, 1fr); }
+@media (max-width: 640px) {
+  .tas-md .md-fm > div { grid-template-columns: minmax(0, 1fr); gap: 0; }
+}

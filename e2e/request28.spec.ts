@@ -27,18 +27,4 @@ test.describe("request 28", () => {
     expect((await log.boundingBox())!.height).toBeLessThanOrEqual(362);
     expect(await log.locator("thead th").first().evaluate((el) => getComputedStyle(el).position)).toBe("sticky");
   });
-
-  test("Competitors trend analysis lists companies by High, then Medium, then Low impact signals", async ({ page }) => {
-    await signInAs(page, "analyst");
-    await page.goto("/competitors/analysis");
-    const counts = page.getByRole("list", { name: "Competitors" }).getByTestId("ta-impacts");
-    await expect(counts.first()).toBeVisible();
-    const rows = (await counts.allInnerTexts()).map((t) => (t.match(/\d+/g) ?? []).map(Number));
-    expect(rows.length).toBeGreaterThan(3);
-    for (let i = 1; i < rows.length; i++) {
-      const [a, b] = [rows[i - 1]!, rows[i]!];
-      const cmp = b[0]! - a[0]! || b[1]! - a[1]! || b[2]! - a[2]!;
-      expect(cmp, `row ${i}: ${a.join("/")} before ${b.join("/")}`).toBeLessThanOrEqual(0);
-    }
-  });
 });

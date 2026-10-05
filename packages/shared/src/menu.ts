@@ -14,6 +14,7 @@ export const MENU_ITEMS = [
   "tracker",
   "dashboard",
   "phantoms",
+  "trend-analyses",
   "megatrends",
   "megatrends-analysis",
   "competitors",
@@ -28,7 +29,7 @@ export type MenuItemKey = (typeof MENU_ITEMS)[number];
 
 /** Each group's subtabs, in their default order (a subtab stays in its group). */
 export const MENU_GROUP_ITEMS: Record<MenuGroupKey, readonly MenuItemKey[]> = {
-  trackers: ["tracker", "dashboard", "phantoms"],
+  trackers: ["tracker", "dashboard", "phantoms", "trend-analyses"],
   megatrends: ["megatrends", "megatrends-analysis"],
   competitors: ["competitors", "competitors-analysis"],
   inputs: ["input", "inbox", "clientinbox"],
@@ -47,6 +48,7 @@ export const MENU_ITEM_LABEL: Record<MenuItemKey, string> = {
   tracker: "Tracker",
   dashboard: "Dashboard",
   phantoms: "Phantoms",
+  "trend-analyses": "Trend Analyses",
   megatrends: "Knowledge graph",
   "megatrends-analysis": "Trend analysis",
   competitors: "Knowledge graph",
@@ -62,6 +64,7 @@ export const MENU_ITEM_PATH: Record<MenuItemKey, string> = {
   tracker: "/tracker",
   dashboard: "/dashboard",
   phantoms: "/phantoms",
+  "trend-analyses": "/trend-analyses",
   megatrends: "/megatrends",
   "megatrends-analysis": "/megatrends/analysis",
   competitors: "/competitors",
@@ -78,6 +81,7 @@ export const MENU_ITEM_TAB: Record<MenuItemKey, NavTab> = {
   tracker: "tracker",
   dashboard: "dashboard",
   phantoms: "phantoms",
+  "trend-analyses": "tracker",
   megatrends: "megatrends",
   "megatrends-analysis": "megatrends",
   competitors: "competitors",

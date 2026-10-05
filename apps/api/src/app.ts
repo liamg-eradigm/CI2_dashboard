@@ -23,6 +23,8 @@ import {
   UpdateCommentRequest,
   VersionRequest,
   UpdateTrendSummaryRequest,
+  CreateTrendAnalysisRequest,
+  ImportTrendAnalysesRequest,
   normaliseNavOrder,
   normaliseMenu,
   ClearDecidedRequest,
@@ -101,6 +103,7 @@ import { primarySources, signalDetail, signalMarkdown } from "./services/signals
 import { attachSnapshot, importRows } from "./services/imports.js";
 import { submitFile, submitManual, submitUrl } from "./services/submissions.js";
 import { competitors, generateSummary, megatrends, writeSummary } from "./services/megatrends.js";
+import { createTrendAnalysis, deleteTrendAnalysis, importTrendAnalyses, listTrendAnalyses, trendAnalysisFile } from "./services/trendAnalyses.js";
 import { listPages, pageSnapshotId } from "./services/pages.js";
 import { addComment, backToEradigm, clientPush, listComments, sendToClient, updateComment } from "./services/clientInbox.js";
 import { createNewsletter, ensureAlerts, listNewsletters, readDeliverable } from "./services/deliverables.js";
@@ -534,6 +537,51 @@ app.post("/api/megatrends/summaries/generate", async (c) => {
     throw new ApiError("CONFLICT", "The AI writer is not connected yet (set LLM_PROVIDER and ANTHROPIC_API_KEY on the API). Write the summary by hand for now.");
   }
   return c.json(await generateSummary(c.env, p, b, await todayFor(c)));
+});
+
+// Trend Analyses (contract 1.18): analyses submitted on the Input page, kept as Markdown files.
+app.get("/api/trend-analyses", async (c) => {
+  requirePermission(P(c), "tracker:read");
+  return cachedJson(c, () => listTrendAnalyses(c.env, P(c).tenantId));
+});
+
+app.post("/api/trend-analyses", async (c) => {
+  const p = P(c);
+  requirePermission(p, "item:edit");
+  const b = await body(c, CreateTrendAnalysisRequest);
+  return c.json(await createTrendAnalysis(c.env, p, await schemasFor(c), b), 201);
+});
+
+app.post("/api/trend-analyses/import", async (c) => {
+  const p = P(c);
+  requirePermission(p, "item:edit");
+  const b = await body(c, ImportTrendAnalysesRequest);
+  return c.json(await importTrendAnalyses(c.env, p, await schemasFor(c), b));
+});
+
+app.get("/api/trend-analyses/:id/markdown", async (c) => {
+  const p = P(c);
+  requirePermission(p, "tracker:read");
+  const md = await trendAnalysisFile(c.env, p.tenantId, c.req.param("id"));
+  const download = c.req.query("download") === "1";
+  if (download) {
+    await audit(c.env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "markdown.downloaded", targetType: "trend_analysis", targetId: md.analysis.id, details: { file: md.fileName } });
+  }
+  return new Response(md.markdown, {
+    headers: {
+      "Content-Type": "text/markdown; charset=utf-8",
+      "Content-Disposition": `${download ? "attachment" : "inline"}; filename="${md.fileName}"`,
+      "X-Content-Type-Options": "nosniff",
+      "Cache-Control": "private, no-store",
+    },
+  });
+});
+
+app.delete("/api/trend-analyses/:id", async (c) => {
+  const p = P(c);
+  requirePermission(p, "item:edit");
+  await deleteTrendAnalysis(c.env, p, c.req.param("id"));
+  return c.json({ ok: true as const });
 });
 
 app.get("/api/newsletters", async (c) => {

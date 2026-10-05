@@ -196,13 +196,21 @@ function upsert(
   p: Principal,
   r: { level: TrendLevel; name: string; parent?: string; text: string; source: "manual" | "ai"; model: string | null; windowDays: number | null; entries: number | null },
 ) {
+  return upsertStatement(env, p, r).run();
+}
+
+/** The statement that stores a trend's summary (to run alone or in a batch). */
+export function upsertStatement(
+  env: Env,
+  p: Principal,
+  r: { level: TrendLevel; name: string; parent?: string | null; text: string; source: "manual" | "ai"; model: string | null; windowDays: number | null; entries: number | null },
+): D1PreparedStatement {
   return env.DB.prepare(
     `INSERT INTO trend_summaries (tenant_id, level, name, parent, text, source, model, window_days, entries, updated_by, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
      ON CONFLICT (tenant_id, level, name) DO UPDATE SET parent = excluded.parent, text = excluded.text, source = excluded.source, model = excluded.model,
        window_days = excluded.window_days, entries = excluded.entries, updated_by = excluded.updated_by, updated_at = excluded.updated_at`,
   )
-    .bind(p.tenantId, r.level, r.name, r.parent ?? null, r.text, r.source, r.model, r.windowDays, r.entries, p.userId, nowIso())
-    .run();
+    .bind(p.tenantId, r.level, r.name, r.parent ?? null, r.text, r.source, r.model, r.windowDays, r.entries, p.userId, nowIso());
 }
 
 /** A date `days` before `today` (YYYY-MM-DD). */

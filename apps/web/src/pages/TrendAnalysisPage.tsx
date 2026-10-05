@@ -177,7 +177,7 @@ export function TrendAnalysisPage({ me, kind }: { me: Me; kind: Kind }) {
   const q = kind === "macro" ? mq : cq;
   const noun = kind === "macro" ? "Macrotrend" : "competitor";
   const crossNoun = kind === "macro" ? "competitor" : "Macrotrend";
-  // Competitors: most High-impact signals first, then most Medium, then most Low (then most signals, then A–Z).
+  // Competitors (request 30): Tier 1 first, then Tier 2, 3 and 4; within a tier, most signals first (then A–Z). Each shows its signals by impact.
   const compImpacts = useMemo(() => {
     const by = new Map<string, Counts>();
     for (const e of compEntries) for (const n of e.competitors) add(by.get(n) ?? by.set(n, zero()).get(n)!, e.impact);
@@ -188,8 +188,9 @@ export function TrendAnalysisPage({ me, kind }: { me: Me; kind: Kind }) {
       ? macros.map((m) => ({ name: m.name, count: m.count, colour: palette.macro.get(m.name) ?? NEUTRAL, note: plural(m.subtrends.filter((s) => s.count > 0).length, "subtrend") }))
       : comps
           .filter((c) => !find.trim() || c.name.toLowerCase().includes(find.trim().toLowerCase()))
-          .map((c) => ({ name: c.name, count: c.count, colour: TIER_COLOUR[c.tier], note: `Tier ${c.tier}`, impacts: compImpacts.get(c.name) ?? zero() }))
-          .sort((a, b) => b.impacts.high - a.impacts.high || b.impacts.medium - a.impacts.medium || b.impacts.low - a.impacts.low || b.count - a.count || a.name.localeCompare(b.name));
+          .map((c) => ({ name: c.name, count: c.count, tier: c.tier, colour: TIER_COLOUR[c.tier], note: `Tier ${c.tier}`, impacts: compImpacts.get(c.name) ?? zero() }))
+          .sort((a, b) => a.tier - b.tier || b.count - a.count || a.name.localeCompare(b.name));
+  const maxCount = Math.max(1, ...items.map((it) => it.count));
   const selected = kind === "macro" ? selMacro : selComp;
   const pick = (name: string) => (kind === "macro" ? set({ m: selected === name ? null : name, s: null }) : set({ c: selected === name ? null : name }));
 
@@ -241,7 +242,10 @@ export function TrendAnalysisPage({ me, kind }: { me: Me; kind: Kind }) {
                     </span>
                   )}
                   <span className="ta-note">{it.note}</span>
-                  <span className="ct">{plural(it.count, "signal")}</span>
+                  <span className="ct" data-testid="ta-count">
+                    <span className="ta-bar" style={{ width: `${(it.count / maxCount) * 100}%` }} aria-hidden="true" />
+                    <b>{plural(it.count, "signal")}</b>
+                  </span>
                   <span className="ta-chev" aria-hidden="true">
                     {on ? "▾" : "▸"}
                   </span>

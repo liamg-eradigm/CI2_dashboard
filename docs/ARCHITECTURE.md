@@ -342,8 +342,10 @@ analyst-entered information distinguishable; in the prototype every value is
   Macrotrend (Competitors) in the same time frame, and the analysis of the
   trend: the knowledge graph's summary (`SummaryPanel`, editable by analysts).
   State is in the URL (`m`, `s` / `c`, `t`). Built from the Megatrends and
-  Competitors responses (no new endpoint). On Competitors, the list is ordered by High-impact
-  signals, then Medium, then Low (then total and name), each cell showing its
+  Competitors responses (no new endpoint). Each cell has a light bar behind
+  its signal count, scaled to the largest count in the list (request 29). On
+  Competitors (request 30) the list is ordered by tier (Tier 1 first, then 2, 3
+  and 4) and, within a tier, by signal count (then name); each cell shows its
   High / Medium / Low counts (all time).
   - Macrotrend spheres around a central core, sized by their number of
     entries (only those with 1 or more); selecting one reveals its Subtrends
@@ -379,9 +381,31 @@ analyst-entered information distinguishable; in the prototype every value is
     with `megatrends.model` (Administration → Workspace settings →
     Megatrends · AI summaries). Renaming a Macrotrend / Subtrend keeps its
     summary.
+- **Trend Analyses** (request 29, contract 1.18; `trend_analyses`, migration
+  0018; `packages/shared/src/trendAnalyses.ts`, `services/trendAnalyses.ts`):
+  Input → Input Trend Analysis (analysts and admins) writes the analysis of a
+  competitor, a Macrotrend or one of its Subtrends (`POST
+  /api/trend-analyses`), or imports several from a spreadsheet with the
+  columns "Macrotrend or Competitor", "Competitor, Macrotrend, or Subtrend",
+  "Name" and "Trend analysis" (`POST /api/trend-analyses/import`: a dry run of
+  up to 200 rows checks every row first, then 8 rows per request, all or none
+  per request; a later row for the same trend wins). Names match the
+  taxonomy and Competitors options in any case (or, exactly, a value Tracker
+  entries still carry); a Subtrend's Macrotrend is worked out. Each
+  submission is stored as the trend's summary (`trend_summaries`, source
+  "manual", so the Trend analysis subtab and the knowledge graph show it at
+  once) and kept as a row of `trend_analyses`. Trackers → Trend Analyses
+  (`/trend-analyses`, every role) lists them newest first; each is a Markdown
+  file (`GET /api/trend-analyses/:id/markdown`, `?download=1` for
+  `Trend_analysis_<Level>_<Name>_<date>.md`) whose front matter has one row
+  per spreadsheet column, the Subtrend's Macrotrend, the date of submission
+  and who submitted it, then the analysis under `## Trend analysis`. Removing
+  a row (`DELETE /api/trend-analyses/:id`, analysts and admins) leaves the
+  trend's current analysis as it is. Summaries and analyses can be up to
+  10,000 characters.
 - **Menu in groups** (request 28, contract 1.17; `packages/shared/src/menu.ts`):
   the menu is five groups, each a button that opens its tabs: Trackers
-  (Tracker, Dashboard, Phantoms), Megatrends and Competitors (Knowledge graph,
+  (Tracker, Dashboard, Phantoms, Trend Analyses), Megatrends and Competitors (Knowledge graph,
   Trend analysis), Inputs (Input, Eradigm Inbox, Client Inbox) and Admin
   (Deliverables, Administration). A group is open while one of its pages is
   open, unless closed; a closed group shows its tabs' badges. People only see
