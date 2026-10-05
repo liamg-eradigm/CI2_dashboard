@@ -119,7 +119,7 @@ test.describe("tab order", () => {
     await expect(card.getByTestId("menu-item-phantoms")).toContainText("was Phantoms");
     await expectAccessible(page, "Administration with the menu editor");
     expect(await menuOf(page)).toEqual([
-      "Trackers: Tracker, Phantom files, Dashboard",
+      "Trackers: Tracker, Phantom files, Dashboard, Trend Analyses",
       "Megatrends: Knowledge graph, Trend analysis",
       "Sources: Input, Eradigm Inbox, Client Inbox",
       "Competitors: Knowledge graph, Trend analysis",
@@ -132,7 +132,7 @@ test.describe("tab order", () => {
     const other = await ctx.newPage();
     await signInAs(other, "client");
     await other.goto("/dashboard");
-    expect(await menuOf(other)).toEqual(["Trackers: Tracker, Phantom files, Dashboard", "Megatrends: Knowledge graph, Trend analysis", "Sources: Client Inbox", "Competitors: Knowledge graph, Trend analysis"]);
+    expect(await menuOf(other)).toEqual(["Trackers: Tracker, Phantom files, Dashboard, Trend Analyses", "Megatrends: Knowledge graph, Trend analysis", "Sources: Client Inbox", "Competitors: Knowledge graph, Trend analysis"]);
     await ctx.close();
     // Restore.
     await page.goto("/admin");
