@@ -397,9 +397,12 @@ export function InputPage({ me }: { me: Me }) {
             <h2 className="card-title" id="log-title">
               Capture log
             </h2>
-            <span className="card-sub">Final resolved URL and retrieval outcome for every submission</span>
+            <span className="card-sub">
+              Final resolved URL and retrieval outcome for every submission{log.data?.length ? ` · ${log.data.length} most recent, scroll for more` : ""}
+            </span>
           </div>
-          <div className="table-wrap">
+          {/* A short scrollable table with its header kept in view, so the page stays short. */}
+          <div className="table-wrap capture-log" tabIndex={0} role="region" aria-label="Capture log (scrollable)" data-testid="capture-log">
             <table className="data" style={{ minWidth: 760, fontSize: 12.5 }}>
               <caption className="sr-only">Capture log</caption>
               <thead>

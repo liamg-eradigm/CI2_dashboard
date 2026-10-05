@@ -1,5 +1,26 @@
 import { useEffect, useState } from "react";
-import { DEFAULT_COMPETITOR_TIERS, NAV_LABEL, ROLES, ROLE_LABEL, SUMMARY_MODELS, canCreateUserWithRole, type Invite, type Me, type NavTab, type Role, type TenantSettings, type UserWithInvite } from "@eradigm/shared";
+import {
+  DEFAULT_COMPETITOR_TIERS,
+  DEFAULT_MENU,
+  MAX_MENU_LABEL,
+  MENU_GROUP_LABEL,
+  MENU_ITEM_LABEL,
+  ROLES,
+  ROLE_LABEL,
+  SUMMARY_MODELS,
+  canCreateUserWithRole,
+  groupLabel,
+  itemLabel,
+  normaliseMenu,
+  type Invite,
+  type Me,
+  type MenuGroupKey,
+  type MenuGroupSetting,
+  type MenuSetting,
+  type Role,
+  type TenantSettings,
+  type UserWithInvite,
+} from "@eradigm/shared";
 import { api } from "../api/client";
 import { useConfigStatus, useIncidents, useInvalidate, useNotifications, useQuality, useSchema, useSettings, useUsers } from "../api/hooks";
 import { Combobox } from "../components/Combobox";
@@ -36,7 +57,7 @@ export function AdminPage({ me }: { me: Me }) {
         </ErrorBoundary>
         {isAdmin && (
           <ErrorBoundary label="Tabs">
-            <TabOrder />
+            <MenuEditor />
           </ErrorBoundary>
         )}
         {isAdmin && (
@@ -326,15 +347,51 @@ function Quality({ manual }: { manual: boolean }) {
   );
 }
 
-/** The order of the tabs in the menu, for everyone in the workspace (saved straight away). */
-function TabOrder() {
+/** A menu name, saved when the field is left (empty: the default name). */
+function MenuLabel({ value, fallback, label, onCommit }: { value: string | undefined; fallback: string; label: string; onCommit: (v: string | undefined) => void }) {
+  const [v, setV] = useState(value ?? "");
+  useEffect(() => setV(value ?? ""), [value]);
+  const commit = () => {
+    const t = v.replace(/\s+/g, " ").trim();
+    // The usual name typed back in counts as no new name.
+    const next = t && t !== fallback ? t : undefined;
+    if (next !== (value || undefined)) onCommit(next);
+    else setV(value ?? "");
+  };
+  return (
+    <span className="menu-label">
+      <input
+        className="control"
+        value={v}
+        placeholder={fallback}
+        maxLength={MAX_MENU_LABEL}
+        aria-label={label}
+        onChange={(e) => setV(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+          if (e.key === "Escape") setV(value ?? "");
+        }}
+      />
+      {value && <span className="menu-default">was {fallback}</span>}
+    </span>
+  );
+}
+
+/**
+ * The menu, for everyone in the workspace (request 28; saved straight away):
+ * the groups in order, each group's subtabs in order (a subtab stays in its
+ * group), and their names.
+ */
+function MenuEditor() {
   const s = useSettings();
   const inv = useInvalidate();
   const toast = useToast();
   if (!s.data) return null;
-  const save = async (navOrder: string[], ok: string) => {
+  const menu = normaliseMenu(s.data.menu);
+  const save = async (next: MenuSetting, ok: string) => {
     try {
-      await api("/api/settings", { method: "PATCH", json: { navOrder } });
+      await api("/api/settings", { method: "PATCH", json: { menu: next } });
       await inv("settings");
       toast(ok);
       return true;
@@ -343,29 +400,79 @@ function TabOrder() {
       return false;
     }
   };
+  const withGroup = (key: MenuGroupKey, change: (g: MenuGroupSetting) => MenuGroupSetting): MenuSetting => ({ groups: menu.groups.map((g) => (g.key === key ? change(g) : g)) });
+  const byKey = (k: string) => menu.groups.find((g) => g.key === k)!;
   return (
     <section className="card" aria-labelledby="tabs-title" data-testid="tab-order">
-      <div>
-        <h2 className="card-title" id="tabs-title">
-          Tabs
-        </h2>
-        <span className="card-sub">The order of the tabs in the menu, for everyone in this workspace. People only see the tabs their role allows (clients never see Inbox, Input or Administration).</span>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <h2 className="card-title" id="tabs-title">
+            Menu
+          </h2>
+          <span className="card-sub">
+            The groups in the menu and the tabs in each, for everyone in this workspace: drag or use ↑ ↓ to reorder them, and type a new name to rename one (leave it empty for the usual name). People only see the tabs their role allows; a
+            group with none is hidden.
+          </span>
+        </div>
+        <button className="btn secondary small" onClick={() => void save(structuredClone(DEFAULT_MENU), "Menu set back to the usual groups, order and names")}>
+          Restore the usual menu
+        </button>
       </div>
-      <div className="table-cols-list" style={{ maxWidth: 460 }}>
+      <div className="table-cols-list menu-editor">
         <ReorderList
-          values={s.data.navOrder}
-          what="Tabs"
-          labelOf={(k) => NAV_LABEL[k as NavTab] ?? k}
-          itemNoun="tab"
+          values={menu.groups.map((g) => g.key)}
+          what="Menu groups"
+          labelOf={(k) => groupLabel(byKey(k))}
+          itemNoun="group"
           sortable={false}
-          hint="this is the order of the menu"
-          onSave={save}
-          renderRow={(k, cell) => (
-            <div className="tcol-row" data-testid={`tab-${k}`}>
-              {cell}
-              <span className="tcol-label">{NAV_LABEL[k as NavTab] ?? k}</span>
-            </div>
-          )}
+          hint="the order of the groups in the menu"
+          onSave={(keys, ok) => save({ groups: keys.map(byKey) }, ok)}
+          renderRow={(k, cell) => {
+            const g = byKey(k);
+            return (
+              <div className="menu-group-row" data-testid={`menu-group-${k}`}>
+                <div className="menu-row">
+                  {cell}
+                  <MenuLabel
+                    value={g.label}
+                    fallback={MENU_GROUP_LABEL[g.key]}
+                    label={`Name of the ${MENU_GROUP_LABEL[g.key]} group`}
+                    onCommit={(label) => void save(withGroup(g.key, (x) => ({ ...x, label })), label ? `Group renamed to “${label}”` : `Group named “${MENU_GROUP_LABEL[g.key]}” again`)}
+                  />
+                </div>
+                <div className="menu-items">
+                  <ReorderList
+                    values={g.items.map((it) => it.key)}
+                    what={`${groupLabel(g)} tabs`}
+                    labelOf={(ik) => `${groupLabel(g)}: ${itemLabel(g.items.find((x) => x.key === ik)!)}`}
+                    itemNoun="tab"
+                    sortable={false}
+                    hint={`the order in ${groupLabel(g)}`}
+                    onSave={(keys, ok) => save(withGroup(g.key, (x) => ({ ...x, items: keys.map((ik) => x.items.find((it) => it.key === ik)!) })), ok)}
+                    renderRow={(ik, cell2) => {
+                      const it = g.items.find((x) => x.key === ik)!;
+                      return (
+                        <div className="menu-row" data-testid={`menu-item-${ik}`}>
+                          {cell2}
+                          <MenuLabel
+                            value={it.label}
+                            fallback={MENU_ITEM_LABEL[it.key]}
+                            label={`Name of the ${MENU_GROUP_LABEL[g.key]} tab ${MENU_ITEM_LABEL[it.key]}`}
+                            onCommit={(label) =>
+                              void save(
+                                withGroup(g.key, (x) => ({ ...x, items: x.items.map((y) => (y.key === it.key ? { ...y, label } : y)) })),
+                                label ? `Tab renamed to “${label}”` : `Tab named “${MENU_ITEM_LABEL[it.key]}” again`,
+                              )
+                            }
+                          />
+                        </div>
+                      );
+                    }}
+                  />
+                </div>
+              </div>
+            );
+          }}
         />
       </div>
     </section>
@@ -448,7 +555,7 @@ function Settings() {
   const num = (v: string) => (Number.isFinite(Number(v)) ? Number(v) : 0);
   const save = async () => {
     try {
-      await api("/api/settings", { method: "PATCH", json: { ...draft, navOrder: undefined, competitorTiers: undefined, redaction: { ...draft.redaction, quarantineMarkers: markers.split("\n").map((m) => m.trim()).filter((m) => m.length >= 3) } } });
+      await api("/api/settings", { method: "PATCH", json: { ...draft, navOrder: undefined, menu: undefined, competitorTiers: undefined, redaction: { ...draft.redaction, quarantineMarkers: markers.split("\n").map((m) => m.trim()).filter((m) => m.length >= 3) } } });
       await inv("settings");
       toast("Settings saved");
     } catch (e) {

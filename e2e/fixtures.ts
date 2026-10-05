@@ -48,3 +48,31 @@ export async function chooseMany(combo: Locator, values: string[]) {
 
 export const test = base;
 export { expect };
+
+/** The main menu. */
+export const navOf = (page: Page) => page.getByRole("navigation", { name: "COMPETITIVE INTELLIGENCE" });
+
+/** A tab in the menu, by group and name (request 28: "Trackers" → "Phantoms"). */
+export const navLink = (page: Page, group: string, item: string) => navOf(page).getByRole("link", { name: `${group}: ${item}`, exact: true });
+
+/** Open a tab from the menu, opening its group first if it is closed. */
+export async function goTab(page: Page, group: string, item: string) {
+  const link = navLink(page, group, item);
+  if (!(await link.isVisible())) await navOf(page).getByRole("button", { name: new RegExp(`^${group}\\b`) }).click();
+  await link.click();
+}
+
+/** The whole menu as a person sees it: "Group: Tab, Tab" per group (every group opened). */
+export async function menuOf(page: Page): Promise<string[]> {
+  const nav = navOf(page);
+  await expect(nav.locator(".nav-group").first()).toBeVisible();
+  const out: string[] = [];
+  for (const g of await nav.locator(".nav-group").all()) {
+    const btn = g.locator(".nav-parent");
+    if ((await btn.getAttribute("aria-expanded")) !== "true") await btn.click();
+    const name = (await btn.locator("span").first().innerText()).trim();
+    const tabs = (await g.locator(".nav-sub a").allInnerTexts()).map((t) => t.replace(/\s*\d+$/, "").trim());
+    out.push(`${name}: ${tabs.join(", ")}`);
+  }
+  return out;
+}

@@ -24,6 +24,7 @@ import {
   VersionRequest,
   UpdateTrendSummaryRequest,
   normaliseNavOrder,
+  normaliseMenu,
   ClearDecidedRequest,
   SplitRequest,
   DeleteItemRequest,
@@ -962,6 +963,7 @@ app.patch("/api/settings", async (c) => {
     redaction: { ...current.redaction, ...b.redaction },
     phantoms: { ...current.phantoms, ...b.phantoms },
     navOrder: normaliseNavOrder(b.navOrder ?? current.navOrder),
+    menu: normaliseMenu(b.menu ?? current.menu),
     megatrends: { ...current.megatrends, ...b.megatrends },
   };
   await saveSettings(c.env, p.tenantId, next, p.userId);

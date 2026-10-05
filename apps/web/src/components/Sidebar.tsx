@@ -1,7 +1,20 @@
 import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { DEFAULT_NAV_ORDER, NAV_LABEL, NAV_PATH, ROLE_LABEL, can, canSeeTab, type Me, type NavTab } from "@eradigm/shared";
+import {
+  DEFAULT_MENU,
+  MENU_ITEM_PATH,
+  ROLE_LABEL,
+  can,
+  canSeeTab,
+  groupLabel,
+  itemLabel,
+  visibleMenu,
+  type Me,
+  type MenuGroupKey,
+  type MenuGroupSetting,
+  type MenuItemKey,
+} from "@eradigm/shared";
 import { useClientInboxCount, useInboxCounts, useSettings } from "../api/hooks";
 import { DEV_AUTH, devUserStore, signOut, tenantStore } from "../api/client";
 
@@ -12,28 +25,55 @@ const DEV_USERS = [
   ["analyst@northwind.example.com", "N. Analyst · other tenant"],
 ];
 
-/** Tabs with two subtabs in the menu: Knowledge graph and Trend analysis (request 27). */
-const GROUPED: NavTab[] = ["megatrends", "competitors"];
-
-/** A tab that opens a small list of its subtabs: Knowledge graph (`/megatrends`) and Trend analysis (`/megatrends/analysis`). */
-function NavGroup({ to, label, open, onToggle }: { to: string; label: string; open: boolean; onToggle: (open: boolean) => void }) {
+/**
+ * A menu group (Trackers, Megatrends, Competitors, Inputs, Admin; request 28): a
+ * button that opens its subtabs. Open while one of its pages is open, unless
+ * the user closed it. Names and order are an admin setting (Administration → Menu).
+ */
+function NavGroup({
+  group,
+  open,
+  onToggle,
+  linkTo,
+  badge,
+}: {
+  group: MenuGroupSetting;
+  open: boolean;
+  onToggle: (open: boolean) => void;
+  linkTo: (path: string) => string;
+  badge: (item: MenuItemKey) => { n: number; label: string } | null;
+}) {
   const loc = useLocation();
-  const within = loc.pathname === to || loc.pathname.startsWith(`${to}/`);
-  const id = `nav-sub-${to.slice(1)}`;
+  const within = group.items.some((it) => loc.pathname === MENU_ITEM_PATH[it.key]);
+  const id = `nav-sub-${group.key}`;
+  const label = groupLabel(group);
+  const total = group.items.reduce((sum, it) => sum + (badge(it.key)?.n ?? 0), 0);
   return (
-    <div className={`nav-group${within ? " within" : ""}`}>
+    <div className={`nav-group${within ? " within" : ""}`} data-testid={`nav-group-${group.key}`}>
       <button className="nav-parent" aria-expanded={open} aria-controls={id} onClick={() => onToggle(!open)}>
         <span>{label}</span>
+        {!open && total > 0 && (
+          <span className="badge" aria-label={`${total} waiting`}>
+            {total}
+          </span>
+        )}
         <span className="nav-chev" aria-hidden="true" />
       </button>
       {open && (
         <div className="nav-sub" id={id} role="group" aria-label={label}>
-          <NavLink to={to} end aria-label={`${label}: Knowledge graph`} className={({ isActive }) => (isActive ? "active" : "")}>
-            <span>Knowledge graph</span>
-          </NavLink>
-          <NavLink to={`${to}/analysis`} aria-label={`${label}: Trend analysis`} className={({ isActive }) => (isActive ? "active" : "")}>
-            <span>Trend analysis</span>
-          </NavLink>
+          {group.items.map((it) => {
+            const b = badge(it.key);
+            return (
+              <NavLink key={it.key} to={linkTo(MENU_ITEM_PATH[it.key])} end aria-label={`${label}: ${itemLabel(it)}`} className={({ isActive }) => (isActive ? "active" : "")}>
+                <span>{itemLabel(it)}</span>
+                {b && b.n > 0 && (
+                  <span className="badge" aria-label={b.label}>
+                    {b.n}
+                  </span>
+                )}
+              </NavLink>
+            );
+          })}
         </div>
       )}
     </div>
@@ -42,8 +82,8 @@ function NavGroup({ to, label, open, onToggle }: { to: string; label: string; op
 
 export function Sidebar({ me }: { me: Me }) {
   const [open, setOpen] = useState(true);
-  // Megatrends / Competitors subtab lists the user opened or closed (else open while on one of their pages).
-  const [expanded, setExpanded] = useState<Partial<Record<NavTab, boolean>>>({});
+  // Groups the user opened or closed (else open while on one of their pages).
+  const [expanded, setExpanded] = useState<Partial<Record<MenuGroupKey, boolean>>>({});
   const qc = useQueryClient();
   const staff = can(me.role, "inbox:read");
   const counts = useInboxCounts(staff);
@@ -72,8 +112,8 @@ export function Sidebar({ me }: { me: Me }) {
       </aside>
     );
   }
-  // The tabs, in the order an admin set (Administration → Tabs); each role sees only its own tabs.
-  const links: [string, string, boolean, NavTab][] = (settings.data?.navOrder ?? DEFAULT_NAV_ORDER).map((k: NavTab) => [NAV_PATH[k], NAV_LABEL[k], canSeeTab(me.role, k), k]);
+  // The groups and their subtabs, in the order and with the names an admin set (Administration → Menu); each role sees only its own.
+  const groups = visibleMenu(settings.data?.menu ?? DEFAULT_MENU, me.role);
   const waiting = clientCount.data?.count ?? 0;
   return (
     <aside className="sidebar" aria-label="Main menu">
@@ -93,27 +133,16 @@ export function Sidebar({ me }: { me: Me }) {
         COMPETITIVE INTELLIGENCE
       </div>
       <nav className="nav" aria-labelledby="nav-label">
-        {links
-          .filter(([, , show]) => show)
-          .map(([to, label, , k]) =>
-            GROUPED.includes(k) ? (
-              <NavGroup key={to} to={to} label={label} open={expanded[k] ?? loc.pathname.startsWith(to)} onToggle={(o) => setExpanded((e) => ({ ...e, [k]: o }))} />
-            ) : (
-              <NavLink key={to} to={withFilters(to)} className={({ isActive }) => (isActive ? "active" : "")}>
-                <span>{label}</span>
-                {to === "/inbox" && n > 0 && (
-                  <span className="badge" aria-label={`${n} unprocessed`}>
-                    {n}
-                  </span>
-                )}
-                {to === "/client-inbox" && waiting > 0 && (
-                  <span className="badge" aria-label={`${waiting} to check`}>
-                    {waiting}
-                  </span>
-                )}
-              </NavLink>
-            ),
-          )}
+        {groups.map((g) => (
+          <NavGroup
+            key={g.key}
+            group={g}
+            open={expanded[g.key] ?? g.items.some((it) => loc.pathname === MENU_ITEM_PATH[it.key])}
+            onToggle={(o) => setExpanded((e) => ({ ...e, [g.key]: o }))}
+            linkTo={withFilters}
+            badge={(k) => (k === "inbox" ? { n, label: `${n} unprocessed` } : k === "clientinbox" ? { n: waiting, label: `${waiting} to check` } : null)}
+          />
+        ))}
       </nav>
       <div className="side-foot">
         <div className="who">{me.user.name}</div>

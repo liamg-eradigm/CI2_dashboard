@@ -1,10 +1,7 @@
-import { expect, expectAccessible, signInAs, test } from "./fixtures";
+import { expect, expectAccessible, signInAs, test, goTab, menuOf } from "./fixtures";
 import type { Page } from "@playwright/test";
 
 const ANALYST = { "x-dev-user": "l.griffith@example.com" };
-/** The menu's tabs (Megatrends and Competitors are buttons that open their two subtabs, request 27). */
-const navLinks = (page: Page) => page.getByRole("navigation", { name: "COMPETITIVE INTELLIGENCE" }).locator(":scope > a, :scope > .nav-group > .nav-parent").allInnerTexts();
-const clean = (l: string[]) => l.map((t) => t.replace(/\s*\d+$/, "").trim());
 
 /** A Secondary entry awaiting review with every field filled in (through the API, as an analyst). */
 async function draftEntry(page: Page, title: string) {
@@ -38,7 +35,7 @@ test.describe("request 19", () => {
   test("each role sees only its tabs", async ({ page, browser }) => {
     await signInAs(page, "analyst");
     await page.goto("/dashboard");
-    await expect.poll(async () => clean(await navLinks(page))).toEqual(["Dashboard", "Tracker", "Phantoms", "Megatrends", "Competitors", "Eradigm Inbox"]);
+    expect(await menuOf(page)).toEqual(["Trackers: Tracker, Dashboard, Phantoms", "Megatrends: Knowledge graph, Trend analysis", "Competitors: Knowledge graph, Trend analysis", "Inputs: Eradigm Inbox"]);
     for (const path of ["/input", "/admin", "/deliverables", "/client-inbox"]) {
       await page.goto(path);
       await expect(page).toHaveURL(/\/dashboard/);
@@ -47,13 +44,19 @@ test.describe("request 19", () => {
     const client = await ctx.newPage();
     await signInAs(client, "client");
     await client.goto("/dashboard");
-    await expect.poll(async () => clean(await navLinks(client))).toEqual(["Dashboard", "Tracker", "Phantoms", "Megatrends", "Competitors", "Client Inbox"]);
+    expect(await menuOf(client)).toEqual(["Trackers: Tracker, Dashboard, Phantoms", "Megatrends: Knowledge graph, Trend analysis", "Competitors: Knowledge graph, Trend analysis", "Inputs: Client Inbox"]);
     await ctx.close();
     const actx = await browser.newContext();
     const admin = await actx.newPage();
     await signInAs(admin, "admin");
     await admin.goto("/dashboard");
-    await expect.poll(async () => clean(await navLinks(admin))).toEqual(["Dashboard", "Tracker", "Phantoms", "Deliverables", "Megatrends", "Competitors", "Eradigm Inbox", "Client Inbox", "Input", "Administration"]);
+    expect(await menuOf(admin)).toEqual([
+      "Trackers: Tracker, Dashboard, Phantoms",
+      "Megatrends: Knowledge graph, Trend analysis",
+      "Competitors: Knowledge graph, Trend analysis",
+      "Inputs: Input, Eradigm Inbox, Client Inbox",
+      "Admin: Deliverables, Administration",
+    ]);
     await actx.close();
   });
 
@@ -79,7 +82,7 @@ test.describe("request 19", () => {
     const client = await ctx.newPage();
     await signInAs(client, "client");
     await client.goto("/dashboard");
-    await client.getByRole("navigation", { name: "COMPETITIVE INTELLIGENCE" }).getByRole("link", { name: /Client Inbox/ }).click();
+    await goTab(client, "Inputs", "Client Inbox");
     const cc = client.getByTestId("client-card").filter({ hasText: title });
     await expect(cc).toBeVisible();
     const kd = cc.locator('.ct-text[data-field="key_details"]');
