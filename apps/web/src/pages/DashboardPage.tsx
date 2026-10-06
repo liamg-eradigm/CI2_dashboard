@@ -31,7 +31,7 @@ export function DashboardPage({ me }: { me: Me }) {
         {d && schema && filters ? (
           <>
             <SignalTimeline data={d} schema={schema} from={filters.from} to={filters.to} onOpen={rec.open} />
-            <ImpactMixes data={d} schema={schema} show={["macro", "comp"]} />
+            <ImpactMixes filters={filters} schema={schema} show={["macro", "comp"]} />
           </>
         ) : (
           !dash.isError && <div className="ad-skeleton" style={{ height: 520 }} role="status" aria-label="Loading the dashboard" />

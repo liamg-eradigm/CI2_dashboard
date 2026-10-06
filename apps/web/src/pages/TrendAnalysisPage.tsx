@@ -235,7 +235,7 @@ function TrendDetail({
         {d && schema && filters ? (
           <>
             <SignalTimeline data={d} schema={schema} from={filters.from} to={filters.to} onOpen={rec.open} id="ta-tl-title" />
-            <ImpactMixes data={d} schema={schema} show={kind === "macro" ? ["comp"] : ["macro"]} note={kind === "macro" ? undefined : "an entry counts for its Macrotrend"} />
+            <ImpactMixes filters={filters} schema={schema} show={kind === "macro" ? ["comp"] : ["macro"]} note={kind === "macro" ? undefined : "an entry counts for its Macrotrend"} />
           </>
         ) : (
           !dash.isError && <div className="ad-skeleton" style={{ height: 420 }} role="status" aria-label="Loading the signals" />

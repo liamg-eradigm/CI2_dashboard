@@ -348,6 +348,12 @@ analyst-entered information distinguishable; in the prototype every value is
   moves across them, Reset shows all dates; it keeps its look (date across,
   Growth Intensity up, impact shapes and colours). Built from `GET
   /api/dashboard` (no new endpoint; `components/analytics/Analytics.tsx`).
+  Request 32: the charts sit on lighter panels; the Megatrends and
+  Competitors buttons span the same width as the two impact mixes, in larger
+  type; each impact mix has its own time frame slider (first and last month,
+  oldest entry to today) that reloads that chart alone once the slider rests
+  (350 ms; its own `GET /api/dashboard` with those dates); and Impact Mix by
+  Competitor never shows "N/A" (or other placeholder) bars.
   - Trends Analysis (`/analytics/megatrends`, `/analytics/competitors`,
     `TrendAnalysisPage`; the old `/megatrends/analysis` and
     `/competitors/analysis` addresses redirect): the Macrotrends or the
