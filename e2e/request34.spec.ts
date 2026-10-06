@@ -19,7 +19,9 @@ async function push(page: Page, stream: "primary" | "secondary", rows: Record<st
           subtrend: "IRA Pricing/Tariffs",
           growth: "Stable",
           impact: "Medium",
-          source: stream === "primary" ? "Primary Source" : "Press Release",
+          ...(stream === "secondary" ? { record_id: `S-34-${Math.random().toString(36).slice(2, 9)}` } : {}),
+          date: "2026-09-12",
+          source: stream === "primary" ? "Primary Source" : "PR",
           competitors: ["Roche"],
           action: "Not Actioned",
           ...r,
@@ -226,7 +228,7 @@ test.describe("request 34", () => {
     await expect(panel.getByRole("heading", { name: "Archived Responses" })).toBeVisible();
     await expect(panel.locator("tbody tr")).toHaveCount(2);
     await expect(panel.locator("tbody tr").first()).toContainText(`Second answer ${tag}`);
-    const left = (await table.boundingBox())!;
+    const left = (await split.locator("> section").first().boundingBox())!;
     const right = (await panel.boundingBox())!;
     expect(left.x + left.width).toBeLessThanOrEqual(right.x);
     expect(right.x + right.width).toBeLessThanOrEqual((await split.boundingBox())!.x + (await split.boundingBox())!.width + 1);

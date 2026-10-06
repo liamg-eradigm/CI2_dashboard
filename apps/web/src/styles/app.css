@@ -842,8 +842,10 @@ th.arch-col, td.arch-col { width: 120px; text-align: center; white-space: nowrap
 .arch-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0; align-items: start; }
 .arch-split > section:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
 .arch-panel { border-left: 4px solid var(--teal); border-top-left-radius: 0; border-bottom-left-radius: 0; box-shadow: -8px 0 18px -10px rgba(7, 40, 56, 0.35); }
-.arch-panel .table-top { background: var(--tint); border-bottom: 1px solid var(--rule); }
-.arch-panel .table-top .card-title { color: var(--teal); }
+.arch-panel .table-top { background: var(--tint); border-bottom: 1px solid var(--rule); flex-wrap: nowrap; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.arch-panel .table-top > div { min-width: 0; }
+.arch-panel .table-top > .icon-btn { flex: none; }
+.arch-panel .table-top .card-title { color: var(--teal-press); }
 .table-wrap.arch-wrap { max-height: 70vh; overflow: auto; }
 .arch-row { cursor: pointer; }
 .arch-row:hover td { background: var(--tint); }

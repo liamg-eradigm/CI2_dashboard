@@ -38,7 +38,9 @@ test.describe("request 26: sources list on the right", () => {
     const rb = (await row.boundingBox())!;
     expect(dot.x).toBeLessThan(name.x);
     expect(dot.x - rb.x).toBeLessThan(20);
-    expect(name.width).toBeGreaterThan(rb.width * 0.75);
+    // (with its CI Perspective tag, request 34, when it has one)
+    const tag = await row.getByTestId("ci-tag").count() ? (await row.getByTestId("ci-tag").boundingBox())!.width + 11 : 0;
+    expect(name.width + tag).toBeGreaterThan(rb.width * 0.75);
     await expect(row.locator(".dot")).toHaveCSS("background-color", "rgb(229, 83, 75)");
     // Half the page wide (request 34), the full height; the list scrolls inside it.
     const box = (await sheet.boundingBox())!;
