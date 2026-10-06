@@ -122,7 +122,10 @@ test.describe("request 34", () => {
     const g = (await graph.boundingBox())!;
     expect(Math.abs(g.x - a.x)).toBeLessThan(2);
     expect(Math.abs(g.width - (b.x + b.width - a.x))).toBeLessThan(2);
-    expect(Math.abs(g.height - (c.y + c.height - a.y))).toBeLessThan(2);
+    // Taller than the four cells (request 36): from the top of the window to the bottom of the page.
+    expect(g.y).toBeLessThan(a.y);
+    expect(g.y + g.height).toBeGreaterThanOrEqual(c.y + c.height);
+    expect(g.y + g.height).toBeLessThanOrEqual(900);
 
     // And back up.
     await dash.getByTestId("md-up").click();

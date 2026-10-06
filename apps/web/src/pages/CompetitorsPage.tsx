@@ -192,7 +192,7 @@ export function CompetitorsPage(_props: { me?: Me }) {
           entry={openEntry?.entry ?? null}
           colour={openEntry?.colour ?? NEUTRAL}
           position={inList >= 0 ? { index: inList, total: sources.length } : openIndex >= 0 ? { index: openIndex, total: items.length } : null}
-          stepIn={inList >= 0 ? "in the sources list" : "on the timeline"}
+          stepIn={inList >= 0 ? "in the signals list" : "on the timeline"}
           onClose={closeSheet}
           onStep={step}
           sources={selected ? { title: selected, entries: sources, shown: sourcesList.shown, onShow: sourcesList.show, onHide: sourcesList.hide } : null}

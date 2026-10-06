@@ -38,7 +38,7 @@ export interface SourcesList {
  *
  * - Sources: selecting a Subtrend or a competitor lists its entries, High
  *   Impact first, each row an Impact dot and as much of the title as fits.
- *   ✕ (or Esc) hides it; "Sources" at the right edge brings it back.
+ *   ✕ (or Esc) hides it; "Signals" at the right edge brings it back.
  * - Entry: an opened entry's Tracker row (its Tracker columns, in the
  *   Tracker's order) with its saved page(s) in a popup window. ← (or Esc)
  *   goes back to the sources list, keeping its place; ✕ closes the drawer.
@@ -123,31 +123,31 @@ export function EntrySheet({
   return (
     <>
       {sources && !sources.shown && !entry && sources.entries.length > 0 && (
-        <button className="mg-sources-open" onClick={sources.onShow} data-testid="mg-sources-open" aria-label={`Show the sources of ${sources.title}`}>
-          ☰ Sources <span className="ct">{sources.entries.length}</span>
+        <button className="mg-sources-open" onClick={sources.onShow} data-testid="mg-sources-open" aria-label={`Show the signals of ${sources.title}`}>
+          ☰ Signals <span className="ct">{sources.entries.length}</span>
         </button>
       )}
-      <aside className={`mg-drawer${open ? " open" : ""}`} data-testid="mg-sheet" aria-hidden={!open} aria-label={listing ? "Sources" : "Tracker entry"} inert={!open}>
+      <aside className={`mg-drawer${open ? " open" : ""}`} data-testid="mg-sheet" aria-hidden={!open} aria-label={listing ? "Signals" : "Signal"} inert={!open}>
         {sources && (
           <div className="mg-sources" hidden={!listing} data-testid="mg-sources">
             <header className="mg-sheet-head">
               <div className="mg-sheet-meta">
-                <span className="mg-pages-label">Sources</span>
+                <span className="mg-pages-label">Signals</span>
                 <span>{sources.entries.length} · by Impact, high to low</span>
               </div>
               <h2 ref={listHead} tabIndex={-1}>
                 {sources.title}
               </h2>
               <div className="mg-sheet-ctl">
-                <button className="mg-icon" onClick={sources.onHide} aria-label="Close the sources list" title="Close (Esc)">
+                <button className="mg-icon" onClick={sources.onHide} aria-label="Close the signals list" title="Close (Esc)">
                   ✕
                 </button>
               </div>
             </header>
             {sources.entries.length === 0 ? (
-              <p className="mg-hint">No sources.</p>
+              <p className="mg-hint">No signals.</p>
             ) : (
-              <ul className="mg-source-list" ref={listBox} aria-label={`Sources of ${sources.title}`}>
+              <ul className="mg-source-list" ref={listBox} aria-label={`Signals of ${sources.title}`}>
                 {sources.entries.map((x) => (
                   <li key={x.id}>
                     <button
@@ -175,15 +175,20 @@ export function EntrySheet({
         )}
         {e && !listing && (
           <>
-            <header className="mg-sheet-head">
-              <div className="mg-sheet-meta">
+            {/* Request 36: the title beside the Impact dot (no ID); the stream, date and place below it. */}
+            <header className="mg-sheet-head entry">
+              <div className="mg-sheet-titlebar">
                 {canBack && (
-                  <button className="mg-icon sm mg-back" onClick={onBack} aria-label={`Back to the sources of ${sources!.title}`} title="Back to the sources (Esc)" data-testid="mg-back">
+                  <button className="mg-icon sm mg-back" onClick={onBack} aria-label={`Back to the signals of ${sources!.title}`} title="Back to the signals (Esc)" data-testid="mg-back">
                     ←
                   </button>
                 )}
                 <span className="dot" style={{ background: colour }} aria-hidden="true" />
-                <span className="mono">{e.recordId || e.code}</span>
+                <h2 ref={head} tabIndex={-1}>
+                  {e.title || e.code}
+                </h2>
+              </div>
+              <div className="mg-sheet-meta">
                 <span className={`mg-stream ${e.stream}`}>{e.stream === "primary" ? "Primary" : "Secondary"}</span>
                 <span>{formatDate(e.date)}</span>
                 {position && (
@@ -192,9 +197,6 @@ export function EntrySheet({
                   </span>
                 )}
               </div>
-              <h2 ref={head} tabIndex={-1}>
-                {e.title || e.code}
-              </h2>
               <div className="mg-sheet-ctl">
                 <button className="mg-icon" onClick={() => onStep(-1)} disabled={!position || position.index === 0} aria-label={`Previous entry ${stepIn}`} title="Previous entry">
                   ‹
@@ -207,55 +209,60 @@ export function EntrySheet({
                 </button>
               </div>
             </header>
-            {signal.data && (
-              <div className="mg-pages">
-                {!hasPage ? (
-                  <span className="mg-hint">No saved page attached.</span>
-                ) : many ? (
-                  <>
-                    <span className="mg-pages-label">Saved pages</span>
-                    {pages.data!.map((p, i) => (
-                      <button key={p.id} className="mg-btn ghost sm" onClick={() => openSourcePopup(e.id, p.first ? null : p.id)} title={`Open ${p.name} in a popup window`}>
-                        ⧉ {i + 1}. {p.name}
-                      </button>
-                    ))}
-                  </>
-                ) : (
-                  <button className="mg-btn sm" onClick={() => openSourcePopup(e.id)} data-testid="mg-open-page">
-                    ⧉ Open saved page
-                  </button>
-                )}
-              </div>
-            )}
-            <dl className="mg-fields">
-              {signal.isError && <p className="mg-err">Could not load this entry.</p>}
-              {!values &&
-                !signal.isError &&
-                Array.from({ length: 6 }, (_, i) => (
-                  <div key={i} className="mg-field skel">
-                    <dt>&nbsp;</dt>
-                    <dd>&nbsp;</dd>
-                  </div>
-                ))}
-              {values &&
-                cols.map((c) => {
-                  const text = displayValue(c, values[c.key]) || "—";
-                  return (
-                    <div key={c.key} className={`mg-field${c.type === "long" ? " long" : ""}`}>
-                      <dt>{c.label}</dt>
-                      <dd>{text}</dd>
+            {/* One scroll for the whole signal, so its CI Perspective never covers the fields. */}
+            <div className="mg-entry-body" tabIndex={0} aria-label="Signal details">
+              {signal.data && (
+                <div className="mg-pages">
+                  {!hasPage ? (
+                    <span className="mg-hint">No saved page attached.</span>
+                  ) : many ? (
+                    <>
+                      <span className="mg-pages-label">Saved pages</span>
+                      {pages.data!.map((p, i) => (
+                        <button key={p.id} className="mg-btn ghost sm" onClick={() => openSourcePopup(e.id, p.first ? null : p.id)} title={`Open ${p.name} in a popup window`}>
+                          ⧉ {i + 1}. {p.name}
+                        </button>
+                      ))}
+                    </>
+                  ) : (
+                    <button className="mg-btn sm" onClick={() => openSourcePopup(e.id)} data-testid="mg-open-page">
+                      ⧉ Open saved page
+                    </button>
+                  )}
+                </div>
+              )}
+              <dl className="mg-fields">
+                {signal.isError && <p className="mg-err">Could not load this entry.</p>}
+                {!values &&
+                  !signal.isError &&
+                  Array.from({ length: 6 }, (_, i) => (
+                    <div key={i} className="mg-field skel">
+                      <dt>&nbsp;</dt>
+                      <dd>&nbsp;</dd>
                     </div>
-                  );
-                })}
-            </dl>
-            {signal.data?.ciPerspective && (
-              <section className="mg-ci" aria-labelledby="mg-ci-title" data-testid="mg-ci">
-                <h3 id="mg-ci-title">
-                  <span className="mg-ci-orb" aria-hidden="true" /> CI Perspective
-                </h3>
-                <p>{signal.data.ciPerspective}</p>
-              </section>
-            )}
+                  ))}
+                {values &&
+                  cols.map((c) => {
+                    const text = displayValue(c, values[c.key]) || "—";
+                    return (
+                      <div key={c.key} className={`mg-field${c.type === "long" ? " long" : ""}`}>
+                        <dt>{c.label}</dt>
+                        <dd>{text}</dd>
+                      </div>
+                    );
+                  })}
+              </dl>
+              {signal.data?.ciPerspective && (
+                <section className="mg-ci" aria-labelledby="mg-ci-title" data-testid="mg-ci">
+                  <h3 id="mg-ci-title">
+                    <span className="mg-ci-orb" aria-hidden="true" /> CI Perspective
+                  </h3>
+                  <div className="mg-ci-text" tabIndex={0} aria-label="CI Perspective (scrolls)">
+                    <p>{signal.data.ciPerspective}</p>
+                  </div>
+                </section>
+              )}
+            </div>
           </>
         )}
       </aside>

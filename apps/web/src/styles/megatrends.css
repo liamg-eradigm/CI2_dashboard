@@ -589,11 +589,21 @@ button.mix-lbl:hover, button.mix-lbl:focus-visible { color: #fff; text-decoratio
 .md-dots button { width: 10px; height: 10px; padding: 0; border-radius: 50%; border: 1px solid var(--cyan-2); background: transparent; cursor: pointer; }
 .md-dots button[aria-current="true"] { background: var(--cyan-2); box-shadow: 0 0 8px rgba(127, 211, 216, 0.8); }
 .md-body { position: relative; z-index: 1; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; padding: 0 28px 8px; }
-.md-arrow-bar { flex: none; height: 68px; display: flex; justify-content: center; align-items: center; }
-.md-window { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; }
-.md-track { position: absolute; left: 0; right: 0; top: 0; display: flex; flex-direction: column; gap: var(--gap); transition: transform 0.65s cubic-bezier(0.65, 0, 0.35, 1); will-change: transform; }
+/*
+ * Request 36: the arrow bars lie over the window (--bar high, top and bottom), which shows only the two rows
+ * between them; on row 5 the window is shown whole and its up arrow is in the header.
+ */
+.md-arrow-bar { position: absolute; z-index: 2; left: 0; right: 0; height: var(--bar, 68px); display: flex; justify-content: center; align-items: center; pointer-events: none; }
+.md-arrow-bar.up { top: 0; }
+.md-arrow-bar.down { bottom: 8px; }
+.md-arrow-bar .md-arrow { pointer-events: auto; }
+.md-head { position: relative; }
+.md-head-up { position: absolute; left: 50%; top: 6px; transform: translateX(-50%); }
+.md-window { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; clip-path: inset(var(--bar, 68px) 0 var(--bar, 68px) 0); transition: clip-path 0.65s cubic-bezier(0.65, 0, 0.35, 1); }
+.md-body.last .md-window { clip-path: inset(0); }
+.md-track { position: absolute; left: 0; right: 0; top: 0; padding-top: var(--bar, 68px); display: flex; flex-direction: column; gap: var(--gap); transition: transform 0.65s cubic-bezier(0.65, 0, 0.35, 1); will-change: transform; }
 @media (prefers-reduced-motion: reduce) {
-  .md-track { transition: none; }
+  .md-track, .md-window { transition: none; }
 }
 .md-row { flex: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--gap); min-height: 0; }
 .md-row5 { grid-template-columns: minmax(0, 1fr); }
@@ -658,7 +668,6 @@ button.mix-lbl:hover, button.mix-lbl:focus-visible { color: #fff; text-decoratio
 }
 @media (max-height: 760px) {
   .tl-y.tl-y-name span { font-size: 9px; letter-spacing: 0.04em; }
-  .md-arrow-bar { height: 58px; }
   .md-arrow-label { font-size: 16px; }
   .md-chev { height: 20px; }
 }
@@ -671,3 +680,24 @@ button.mix-lbl:hover, button.mix-lbl:focus-visible { color: #fff; text-decoratio
 /* The selected competitor's tier, beside its name in the crumbs (request 34: there is no summary panel). */
 .mg-tier-tag { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--mg-ink-2); border: 1px solid var(--tier, var(--mg-line)); border-radius: 999px; padding: 2px 9px; }
 .mg-tier-tag::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--tier, var(--mg-ink-3)); }
+
+/*
+ * Request 36: a more compact signal: the title beside its Impact dot (no ID), slightly smaller, the stream,
+ * date and place below it; the fields, saved pages and CI Perspective scroll together, and a long CI
+ * Perspective scrolls in its own box. On the Macrotrend dashboard the drawer is as tall as the graph allows.
+ */
+.mg-sheet-head.entry { grid-template-areas: "title ctl" "meta ctl"; gap: 4px 12px; padding: 12px 18px 10px; }
+.mg-sheet-titlebar { grid-area: title; display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
+.mg-sheet-titlebar .mg-back { margin-top: -2px; }
+.mg-sheet-titlebar .dot { margin-top: 5px; }
+.mg-sheet-titlebar h2 { flex: 1 1 auto; min-width: 0; font: 800 15px/1.3 var(--sans); color: #fff; outline: none; overflow-wrap: anywhere; }
+.mg-sheet-head.entry .mg-sheet-meta { gap: 8px; font-size: 11.5px; padding-left: 20px; }
+.mg-entry-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; }
+.mg-entry-body:focus-visible { outline: 2px solid var(--cyan-2); outline-offset: -2px; }
+.mg-entry-body .mg-pages { padding: 10px 18px 0; }
+.mg-entry-body .mg-fields { flex: none; overflow: visible; gap: 10px 18px; padding: 10px 18px 14px; }
+.mg-entry-body .mg-field dd { margin-top: 2px; font-size: 13px; line-height: 1.45; }
+.mg-entry-body .mg-ci { flex: none; margin: 0 18px 16px; padding: 12px 14px; }
+.mg-ci-text { max-height: 30vh; overflow-y: auto; overscroll-behavior: contain; }
+.mg-ci-text:focus-visible { outline: 2px solid var(--cyan-2); outline-offset: 2px; border-radius: 6px; }
+.mg-embedded .mg-drawer { top: 8px; bottom: 8px; right: 8px; }
