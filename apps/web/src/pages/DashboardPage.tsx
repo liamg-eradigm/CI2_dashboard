@@ -19,7 +19,7 @@ export function DashboardPage({ me }: { me: Me }) {
       <header className="mg-head ad-head">
         <div>
           <span className="eyebrow">Analytics</span>
-          <h1>Analytics Dashboard</h1>
+          <h1>Megatrends Dashboard</h1>
         </div>
       </header>
       <div className="ad-body">

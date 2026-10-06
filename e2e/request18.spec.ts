@@ -71,19 +71,12 @@ test.describe("request 18", () => {
     await expect(page.getByRole("menu").getByRole("menuitem")).toHaveCount(3);
   });
 
-  test("Megatrends: the summary sits at the top in large type; the timeline zooms, pans, resizes and minimises", async ({ page }) => {
+  test("Megatrends: the timeline zooms, pans, resizes and minimises", async ({ page }) => {
     await page.goto(`/megatrends?m=${encodeURIComponent("AI Investment in R&D")}`);
     // Start from the default timeline size.
     await page.evaluate(() => localStorage.removeItem("eradigm.megatrends.timeline"));
     await page.reload();
-    const panel = page.getByTestId("mg-panel");
-    await expect(panel.getByTestId("mg-summary")).toContainText("Competitors are investing in R&D compute");
-    const pb = (await panel.boundingBox())!;
-    const stage = (await page.getByRole("region", { name: "Megatrends knowledge graph" }).boundingBox())!;
-    // In the column over the graph's left edge (request 23), in large type.
-    expect(pb.x - stage.x).toBeLessThan(40);
-    expect(pb.y - stage.y).toBeLessThan(80);
-    expect(Number.parseFloat(await panel.getByTestId("mg-summary").evaluate((el) => getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(20);
+    await expect(page.getByRole("region", { name: "Megatrends knowledge graph" })).toBeVisible();
 
     const tl = page.getByTestId("mg-timeline");
     const balls = tl.getByTestId("mg-ball");

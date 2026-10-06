@@ -26,7 +26,7 @@ describe("request 28: the menu in groups", () => {
     // A client sees no Admin group and only the Client Inbox in Inputs.
     expect(visibleMenu(DEFAULT_MENU, "client").map((g) => `${g.key}:${g.items.map((i) => i.key).join(",")}`)).toEqual([
       "inputs:clientinbox",
-      "analytics:dashboard,knowledge-graph",
+      "analytics:dashboard,knowledge-graph,primary-tracker",
       "trackers:tracker,phantoms,trend-analyses",
     ]);
   });
@@ -44,7 +44,7 @@ describe("request 28: the menu in groups", () => {
     expect(m).toEqual({
       groups: [
         { key: "inputs", items: [{ key: "input" }, { key: "inbox" }, { key: "clientinbox" }] },
-        { key: "analytics", items: [{ key: "dashboard", label: "Overview" }, { key: "knowledge-graph" }] },
+        { key: "analytics", items: [{ key: "dashboard", label: "Overview" }, { key: "knowledge-graph" }, { key: "primary-tracker" }] },
         { key: "trackers", items: [{ key: "tracker" }, { key: "phantoms", label: "Phantom files" }, { key: "trend-analyses" }] },
         { key: "admin", label: "Back office", items: [{ key: "deliverables", label: "Reports" }, { key: "admin" }] },
       ],

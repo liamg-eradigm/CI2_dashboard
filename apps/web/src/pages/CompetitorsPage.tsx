@@ -9,15 +9,14 @@
  *
  * State lives in the URL (c = competitor, e = open entry).
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { DEFAULT_COMPETITOR_TIERS, can, competitorRadius, isPlaceholderCompetitor, tierOf, type CompetitorEntry, type Me } from "@eradigm/shared";
+import { DEFAULT_COMPETITOR_TIERS, competitorRadius, isPlaceholderCompetitor, tierOf, type CompetitorEntry, type Me } from "@eradigm/shared";
 import { useCompetitors, useSettings } from "../api/hooks";
 import { EntrySheet, useSourcesList } from "../components/megatrends/EntrySheet";
 import { GraphShell } from "../components/megatrends/GraphShell";
 import type { GraphSpec } from "../components/megatrends/Graph3D";
 import { TIER_COLOUR, bySourceOrder, colourMap, impactColour, impactOrder, NEUTRAL, plural } from "../components/megatrends/model";
-import { SummaryPanel, type PanelNode } from "../components/megatrends/SummaryPanel";
 import { Timeline, type LegendItem } from "../components/megatrends/Timeline";
 import { GraphToggle } from "../components/megatrends/GraphToggle";
 import "../styles/megatrends.css";
@@ -35,7 +34,7 @@ const hubId = (name: string) => `c:${name}`;
 const R_MIN = 1.4;
 const R_TOP = 26;
 
-export function CompetitorsPage({ me }: { me: Me }) {
+export function CompetitorsPage(_props: { me?: Me }) {
   const [params, setParams] = useSearchParams();
   const q = useCompetitors();
   const data = q.data;
@@ -43,7 +42,6 @@ export function CompetitorsPage({ me }: { me: Me }) {
   const openId = params.get("e");
   const [colourBy, setColourBy] = useState<"impact" | "macro">("impact");
   const [only, setOnly] = useState<string | null>(null);
-  const [find, setFind] = useState("");
 
   const set = useCallback(
     (patch: Record<string, string | null>, push = true) =>
@@ -60,22 +58,13 @@ export function CompetitorsPage({ me }: { me: Me }) {
       ),
     [setParams],
   );
-  // Ignore zoom focus while the camera flies to a new selection.
-  const [focus, setFocus] = useState<string | null>(null);
-  const flying = useRef(0);
   const select = useCallback(
     (name: string | null) => {
-      flying.current = Date.now();
-      setFocus(null);
       setOnly(null);
       set({ c: name });
     },
     [set],
   );
-  const onFocusHub = useCallback((id: string | null) => {
-    if (Date.now() - flying.current < 1700) return;
-    setFocus(id ? id.slice(2) : null);
-  }, []);
 
   // Tiers from the admin setting (computed here too, so an API from before tiers still colours them).
   const settings = useSettings();
@@ -133,14 +122,6 @@ export function CompetitorsPage({ me }: { me: Me }) {
     [comps, max, ofComp, data, selected, total],
   );
 
-  // Panel: what the view zoomed in on, else the selection.
-  const panelName = focus && focus !== selected ? focus : selected;
-  const panelComp = panelName ? byName.get(panelName) : undefined;
-  const panel: PanelNode | null = panelComp
-    ? { level: "competitor", name: panelComp.name, parent: null, count: panelComp.count, colour: TIER_COLOUR[tierOfC(panelComp)], summary: panelComp.summary, children: 0, note: `Tier ${tierOfC(panelComp)}` }
-    : null;
-  const panelFocused = !!panel && panel.name !== selected;
-
   // Timeline: the selected competitor's entries (or every entry naming one), by Impact or by Macrotrend.
   const shownEntries = useMemo(() => (selected ? entries.filter((e) => named(e, selected)) : entries), [entries, selected, named]);
   const macroColour = useMemo(() => {
@@ -178,13 +159,6 @@ export function CompetitorsPage({ me }: { me: Me }) {
     if (next) set({ e: next }, false);
   };
 
-  const list = useMemo(() => {
-    const t = find.trim().toLowerCase();
-    return t ? comps.filter((c) => c.name.toLowerCase().includes(t)) : comps;
-  }, [comps, find]);
-  // The list by tier (most-named first within each).
-  const byTier = useMemo(() => ([1, 2, 3, 4] as Tier[]).map((tier) => ({ tier, items: list.filter((c) => tierOfC(c) === tier) })).filter((g) => g.items.length), [list]);
-
   const crumbs = (
     <nav className="mg-crumbs" aria-label="Graph level">
       <GraphToggle current="competitors" onAll={() => select(null)} />
@@ -194,6 +168,11 @@ export function CompetitorsPage({ me }: { me: Me }) {
           <span className="here" aria-current="page">
             {selected}
           </span>
+          {byName.has(selected) && (
+            <span className="mg-tier-tag" data-testid="mg-tier" style={{ ["--tier" as string]: TIER_COLOUR[tierOfC(byName.get(selected)!)] }}>
+              Tier {tierOfC(byName.get(selected)!)}
+            </span>
+          )}
         </>
       )}
     </nav>
@@ -204,68 +183,9 @@ export function CompetitorsPage({ me }: { me: Me }) {
       storageKey="competitors"
       stageLabel="Competitors knowledge graph"
       spec={spec}
-      graph={{ onHub: (id) => select(id.slice(2) === selected ? null : id.slice(2)), onCore: () => select(null), onFocus: onFocusHub, onEntry: (id) => set({ e: id }, false) }}
+      graph={{ onHub: (id) => select(id.slice(2) === selected ? null : id.slice(2)), onCore: () => select(null), onFocus: () => undefined, onEntry: (id) => set({ e: id }, false) }}
       crumbs={crumbs}
-      panel={
-        <SummaryPanel
-          node={panel}
-          intro={{
-            title: "Competitors",
-            count: `${plural(total, "Tracker entry", "Tracker entries")} · ${plural(comps.length, "competitor")}`,
-            text: "Each sphere is a competitor, growing with the number of Tracker entries that name it, with those entries inside coloured by Impact. Its colour is its tier: Tier 1 red, Tier 2 orange-yellow, Tier 3 green, everyone else grey. Select one to read what it is doing and why it matters.",
-          }}
-          canEdit={can(me.role, "item:edit")}
-          aiConnected={!!data?.aiConnected}
-          focused={panelFocused}
-          exploreLabel={panel ? `Show ${panel.name}’s entries` : null}
-          onExplore={() => panel && select(panel.name)}
-          invalidate="competitors"
-        />
-      }
-      railTitle="Competitors"
-      railNoun="competitor list"
-      rail={
-        <>
-          <label className="sr-only" htmlFor="mg-find">
-            Find a competitor
-          </label>
-          <input id="mg-find" className="mg-find" type="search" placeholder="Find a competitor…" value={find} onChange={(e) => setFind(e.target.value)} />
-          {q.isLoading && <p className="mg-hint">Loading…</p>}
-          {q.isError && (
-            <p className="mg-err" role="alert">
-              Could not load the Competitors.
-            </p>
-          )}
-          {data && !comps.length && <p className="mg-hint">No Tracker entries name a competitor yet.</p>}
-          {data && comps.length > 0 && !list.length && <p className="mg-hint">No competitor matches “{find}”.</p>}
-          <div data-testid="mg-competitors">
-            {byTier.map((g) => (
-              <div key={g.tier} className="mg-tier">
-                <h3 className="mg-tier-h" id={`tier-${g.tier}`}>
-                  <span className="dot" style={{ background: TIER_COLOUR[g.tier] }} aria-hidden="true" />
-                  Tier {g.tier}
-                  {g.tier === 4 ? " · all others" : ""}
-                  <span className="ct">{g.items.length}</span>
-                </h3>
-                <ul aria-labelledby={`tier-${g.tier}`}>
-                  {g.items.map((c) => {
-                    const on = selected === c.name;
-                    return (
-                      <li key={c.name}>
-                        <button className={on ? "on" : undefined} aria-pressed={on} onClick={() => select(on ? null : c.name)}>
-                          <span className="dot" style={{ background: TIER_COLOUR[g.tier], transform: `scale(${0.55 + (0.45 * competitorRadius(c.count, max, R_MIN, R_TOP)) / R_TOP})` }} aria-hidden="true" />
-                          <span className="nm">{c.name}</span>
-                          <span className="ct">{c.count}</span>
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            ))}
-          </div>
-        </>
-      }
+      keyNav={{ label: "Competitors", items: comps.filter((c) => c.count > 0).map((c) => ({ name: c.name, count: c.count, current: selected === c.name, onSelect: () => select(c.name) })) }}
       drawerOpen={!!openEntry || (sourcesList.shown && !!sources.length)}
       drawer={
         <EntrySheet

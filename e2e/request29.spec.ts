@@ -1,7 +1,6 @@
 import { expect, expectAccessible, goTab, navLink, signInAs, test } from "./fixtures";
 
 const WORKFORCE = "Workforce AI Upskilling";
-const CULTURE = "Digital & AI Cultural Adoption";
 
 test.describe("requests 29 and 30", () => {
   test("each Trend analysis list row has a bar for its signal count (the largest full width)", async ({ page }) => {
@@ -38,69 +37,77 @@ test.describe("requests 29 and 30", () => {
     ]);
   });
 
-  test("Input Trend Analysis: a Subtrend's analysis updates its Trend analysis and is kept in Trackers → Trend Analyses as Markdown", async ({ page }) => {
+  test("Input Trend Analysis: a Macrotrend's sections fill its dashboard and are kept in Databases → CI analyses as Markdown", async ({ page }) => {
     await signInAs(page, "admin");
     await page.goto("/input");
     const card = page.getByTestId("trend-analysis-input");
     await expect(card.getByRole("heading", { name: "Input Trend Analysis" })).toBeVisible();
     await expect(card.getByTestId("tai-macrotrend")).toHaveAttribute("aria-pressed", "true");
     await card.getByTestId("tai-macro").selectOption(WORKFORCE);
-    await card.getByLabel("A Subtrend within it").check();
-    await card.getByTestId("tai-sub").selectOption(CULTURE);
     const text = `Culture first: adoption is led by champions (${Date.now()}).`;
-    await card.getByTestId("tai-text").fill(text);
+    await card.getByTestId("tai-section-current").fill(text);
     await expectAccessible(page, "Input Trend Analysis");
     await card.getByTestId("tai-submit").click();
-    await expect(card.getByTestId("tai-saved")).toContainText(`Saved as the analysis of the Subtrend ${CULTURE}`);
-    await card.getByRole("link", { name: "Open its trend analysis →" }).click();
+    await expect(card.getByTestId("tai-saved")).toContainText(`Saved 1 section of the Macrotrend ${WORKFORCE}`);
+    await card.getByRole("link", { name: "Open its dashboard →" }).click();
     await expect(page).toHaveURL(/\/analytics\/megatrends\?/);
-    await expect(page.getByTestId("ta-summary-text")).toHaveText(text);
-    // The knowledge graph shows the same analysis.
-    await page.goto(`/megatrends?m=${encodeURIComponent(WORKFORCE)}&s=${encodeURIComponent(CULTURE)}`);
-    await expect(page.getByTestId("mg-panel").getByTestId("mg-summary")).toHaveText(text);
+    await expect(page.getByTestId("md-section-current")).toContainText(text);
 
-    await goTab(page, "Trackers", "Trend Analyses");
+    await goTab(page, "Databases", "CI analyses");
     await expect(page).toHaveURL(/\/trend-analyses$/);
     const row = page.getByTestId("trend-analyses-table").getByRole("row").filter({ hasText: text });
-    await expect(row).toContainText("Subtrend");
-    await expect(row).toContainText(CULTURE);
-    await expectAccessible(page, "Trend Analyses");
-    await row.getByRole("button", { name: `Open the Markdown of the trend analysis of ${CULTURE}` }).click();
+    await expect(row).toContainText(WORKFORCE);
+    await expectAccessible(page, "CI analyses");
+    await row.getByRole("button", { name: `Open the Markdown of the trend analysis of ${WORKFORCE}` }).click();
     const pane = page.getByTestId("trend-analysis-md");
     await expect(pane.locator(".md-raw")).toContainText("Macrotrend_or_Competitor: Macrotrend");
-    await expect(pane.locator(".md-raw")).toContainText(`Name: ${CULTURE}`);
+    await expect(pane.locator(".md-raw")).toContainText(`Name: ${WORKFORCE}`);
     await expect(pane.locator(".md-raw")).toContainText(`Date_of_submission: ${new Date().toISOString().slice(0, 10)}`);
-    await expect(pane.locator(".md-raw")).toContainText(text);
+    await expect(pane.locator(".md-raw")).toContainText(`## Current Landscape\n${text}`);
     const dl = page.waitForEvent("download");
     await pane.getByRole("button", { name: "Download Markdown" }).click();
-    expect((await dl).suggestedFilename()).toMatch(/^Trend_analysis_Subtrend_Digital_AI_Cultural_Adoption_\d{4}-\d{2}-\d{2}\.md$/);
+    expect((await dl).suggestedFilename()).toMatch(/^Trend_analysis_Macrotrend_Workforce_AI_Upskilling_\d{4}-\d{2}-\d{2}\.md$/);
   });
 
   test("Input Trend Analysis imports a spreadsheet after checking every row", async ({ page }) => {
     await signInAs(page, "admin");
     await page.goto("/input");
+    const card = page.getByTestId("trend-analysis-input");
+    // Competitors: the four columns.
+    await card.getByTestId("tai-competitor").click();
     const imp = page.getByTestId("tai-import");
     const tag = `Imported ${Date.now()}`;
     const header = '"Macrotrend or Competitor","Competitor, Macrotrend, or Subtrend","Name","Trend analysis"';
-    const upload = (lines: string[]) =>
-      imp.getByLabel("Spreadsheet of trend analyses to import").setInputFiles({ name: "analyses.csv", mimeType: "text/csv", buffer: Buffer.from([header, ...lines].join("\n")) });
-    await upload([`Competitor,Competitor,AstraZeneca,"${tag}: AZ"`, `Macrotrend,Subtrend,Not a subtrend,"${tag}: nope"`]);
+    const upload = (lines: string[], head = header) =>
+      imp.getByLabel("Spreadsheet of trend analyses to import").setInputFiles({ name: "analyses.csv", mimeType: "text/csv", buffer: Buffer.from([head, ...lines].join("\n")) });
+    await upload([`Competitor,Competitor,AstraZeneca,"${tag}: AZ"`, `Competitor,Competitor,Not a company at all,"${tag}: nope"`]);
     await imp.getByTestId("tai-import-run").click();
     await expect(imp.getByRole("alert")).toContainText("Nothing was imported: 1 problem");
-    await expect(imp.getByRole("alert")).toContainText("There is no Subtrend named “Not a subtrend”.");
-    await upload([`Competitor,Competitor,AstraZeneca,"${tag}: AZ"`, `Macrotrend,Macrotrend,${WORKFORCE},"${tag}: workforce"`]);
+    await upload([`Competitor,Competitor,AstraZeneca,"${tag}: AZ"`]);
     await imp.getByTestId("tai-import-run").click();
-    await expect(imp.getByTestId("tai-import-done")).toContainText("Imported 2 trend analyses");
+    await expect(imp.getByTestId("tai-import-done")).toContainText("Imported 1 trend analysis");
+
+    // Macrotrends: a column per section, empty cells left as they are.
+    await card.getByTestId("tai-macrotrend").click();
+    const head2 = '"Macrotrend","Macrotrend overview","Why does it matter?","Current Landscape","Long-Term Landscape","What\'s Next?","Impact on AbbVie"';
+    await upload([`Not a macrotrend,"${tag}: nope",,,,,`], head2);
+    await imp.getByTestId("tai-import-run").click();
+    await expect(imp.getByRole("alert")).toContainText("Nothing was imported: 1 problem");
+    await upload([`${WORKFORCE},"${tag}: overview",,,,,"${tag}: AbbVie"`], head2);
+    await imp.getByTestId("tai-import-run").click();
+    await expect(imp.getByTestId("tai-import-done")).toContainText("Imported 1 Macrotrend analysis");
     await page.goto("/trend-analyses");
     const rows = page.getByTestId("trend-analyses-table").getByRole("row").filter({ hasText: tag });
     await expect(rows).toHaveCount(2);
     await expect(rows.first()).toContainText("Imported · analyses.csv");
+    await page.goto(`/analytics/megatrends?${new URLSearchParams({ m: WORKFORCE })}`);
+    await expect(page.getByTestId("md-section-overview")).toContainText(`${tag}: overview`);
   });
 
-  test("clients see Trend Analyses under Trackers but cannot input or remove them", async ({ page }) => {
+  test("clients see CI analyses under Databases but cannot input or remove them", async ({ page }) => {
     await signInAs(page, "client");
     await page.goto("/trend-analyses");
-    await expect(navLink(page, "Trackers", "Trend Analyses")).toHaveAttribute("aria-current", "page");
+    await expect(navLink(page, "Databases", "CI analyses")).toHaveAttribute("aria-current", "page");
     await expect(page.getByTestId("trend-analyses-table")).toBeVisible();
     await expect(page.getByRole("link", { name: "+ Input a trend analysis" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: /^Remove the trend analysis/ })).toHaveCount(0);

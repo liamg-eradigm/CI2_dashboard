@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tansta
 import {
   IN_PROGRESS_STATUSES,
   filtersToParams,
+  type ArchivedResponses,
+  type MacroSection,
   type AuditEvent,
   type CaptureLogEntry,
   type DashboardData,
@@ -104,6 +106,9 @@ export const usePrimarySources = (enabled: boolean) =>
 /** Trend Analyses (contract 1.18): every analysis submitted, newest first. */
 export const useTrendAnalyses = () => useQuery({ queryKey: ["trend-analyses"], queryFn: () => api<TrendAnalysis[]>("/api/trend-analyses") });
 
+/** Every Macrotrend's analysis sections (request 34). */
+export const useMacroSections = () => useQuery({ queryKey: ["macro-sections"], queryFn: () => api<MacroSection[]>("/api/macrotrends/sections") });
+
 /** A submitted trend analysis as Markdown (text). */
 export const useTrendAnalysisMarkdown = (id: string | null) =>
   useQuery({
@@ -114,6 +119,9 @@ export const useTrendAnalysisMarkdown = (id: string | null) =>
     },
     enabled: !!id,
   });
+
+/** Archived Responses (request 34): earlier Primary entries from the same source. */
+export const useArchived = (id: string | null) => useQuery({ queryKey: ["signal", id, "archived"], queryFn: () => api<ArchivedResponses>(`/api/signals/${id}/archived`), enabled: !!id });
 
 export const useSignal = (id: string | null) =>
   useQuery({ queryKey: ["signal", id], queryFn: () => api<SignalDetail>(`/api/signals/${id}`), enabled: !!id });
@@ -155,7 +163,7 @@ export const useConfigStatus = (enabled: boolean) =>
 /** Invalidate everything derived from published signals or the schema. */
 export function useInvalidate() {
   const qc = useQueryClient();
-  return (...keys: string[]) => Promise.all((keys.length ? keys : ["dashboard", "tracker", "items", "item", "signal", "schema", "counts", "megatrends", "competitors", "bounds", "client-inbox", "comments", "primary-sources", "trend-analyses"]).map((k) => qc.invalidateQueries({ queryKey: [k] })));
+  return (...keys: string[]) => Promise.all((keys.length ? keys : ["dashboard", "tracker", "items", "item", "signal", "schema", "counts", "megatrends", "competitors", "bounds", "client-inbox", "comments", "primary-sources", "trend-analyses", "macro-sections"]).map((k) => qc.invalidateQueries({ queryKey: [k] })));
 }
 
 export function useApiMutation<TVars, TRes>(fn: (v: TVars) => Promise<TRes>, invalidate: string[] = []) {

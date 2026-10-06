@@ -4,18 +4,22 @@ import {
   CORE,
   IMPORT_CHUNK_ROWS,
   MAX_SUMMARY_LENGTH,
+  MACRO_SECTIONS,
+  MACRO_SECTIONS_COLUMNS,
+  MACRO_SECTIONS_MACRO_COLUMN,
   TREND_ANALYSIS_COLUMNS,
   TREND_LEVEL_LABEL,
   isPlaceholderCompetitor,
   parseSpreadsheet,
   toXlsxSheets,
   type Grid,
+  type MacroSectionKey,
   type TrendAnalysis,
   type TrendAnalysisCategory,
   type TrendLevel,
 } from "@eradigm/shared";
 import { api, type ApiError } from "../api/client";
-import { useCompetitors, useInvalidate, useMegatrends, useSchema } from "../api/hooks";
+import { useCompetitors, useInvalidate, useMacroSections, useMegatrends, useSchema } from "../api/hooks";
 import { Combobox } from "./Combobox";
 
 interface RowError {
@@ -30,18 +34,52 @@ const norm = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
 const hasFiles = (e: DragEvent) => e.dataTransfer.types.includes("Files");
 const DRY_RUN_ROWS = 200;
 
-/** The sheet's rows keyed by the four column names, and any header problems. */
-function prepare(grid: Grid): {
+/** The two spreadsheet layouts: one analysis per row (competitors, Subtrends), or a Macrotrend's sections (request 34). */
+interface ImportKind {
+  columns: readonly string[];
+  /** Columns that must be there (the others may be left out). */
+  required: readonly string[];
+  endpoint: string;
+  title: string;
+  noun: [string, string];
+  template: string[][];
+  templateName: string;
+}
+const TREND_IMPORT: ImportKind = {
+  columns: COLUMNS,
+  required: COLUMNS,
+  endpoint: "/api/trend-analyses/import",
+  title: "Import trend analyses from a spreadsheet",
+  noun: ["trend analysis", "trend analyses"],
+  template: [COLUMNS, ["Competitor", "Competitor", "Roche", "Write the analysis here."], ["Macrotrend", "Subtrend", "Agentic AI Platforms", "Write the analysis here."]],
+  templateName: "eradigm-trend-analyses-template.xlsx",
+};
+const SECTIONS_IMPORT: ImportKind = {
+  columns: MACRO_SECTIONS_COLUMNS,
+  required: [MACRO_SECTIONS_MACRO_COLUMN],
+  endpoint: "/api/trend-analyses/macrotrend/import",
+  title: "Import Macrotrend analyses from a spreadsheet",
+  noun: ["Macrotrend analysis", "Macrotrend analyses"],
+  template: [MACRO_SECTIONS_COLUMNS, ["AI Investment in R&D", ...MACRO_SECTIONS.map((x, i) => (i < 2 ? `Write the ${x.label.toLowerCase().replace(/\?$/, "")} here.` : ""))]],
+  templateName: "eradigm-macrotrend-analyses-template.xlsx",
+};
+
+/** The sheet's rows keyed by the column names, and any header problems. */
+function prepare(
+  grid: Grid,
+  kind: ImportKind,
+): {
   rows: { row: number; values: Record<string, string> }[];
   problems: string[];
 } {
+  const COLUMNS = kind.columns;
   const header = (grid[0] ?? []).map((h) => h.trim());
   const labels = new Map(COLUMNS.map((c) => [norm(c), c]));
   const problems: string[] = [];
   if (!header.some(Boolean)) problems.push("The first row must hold the column names.");
   const unknown = header.filter((h) => h && !labels.has(norm(h)));
   if (unknown.length) problems.push(`Unknown column${unknown.length === 1 ? "" : "s"}: ${unknown.map((u) => `“${u}”`).join(", ")}. The columns are ${COLUMNS.map((c) => `“${c}”`).join(", ")}.`);
-  const missing = COLUMNS.filter((c) => !header.some((h) => norm(h) === norm(c)));
+  const missing = kind.required.filter((c) => !header.some((h) => norm(h) === norm(c)));
   if (missing.length && header.some(Boolean)) problems.push(`Missing column${missing.length === 1 ? "" : "s"}: ${missing.map((m) => `“${m}”`).join(", ")}.`);
   const rows: { row: number; values: Record<string, string> }[] = [];
   grid.slice(1).forEach((cells, i) => {
@@ -58,10 +96,10 @@ function prepare(grid: Grid): {
 }
 
 /**
- * Input → Input Trend Analysis (request 29): write the analysis of a
- * Macrotrend, Subtrend or competitor, or import several from a spreadsheet.
- * Each becomes the analysis shown on the Trend analysis subtab and in the
- * knowledge graph, and is kept in Trackers → Trend Analyses as a Markdown file.
+ * Input → Input Trend Analysis (request 29; Macrotrend sections in request 34):
+ * a competitor's analysis, or a Macrotrend's analysis section by section (only
+ * the sections filled in change), one at a time or from a spreadsheet. Each
+ * submission is kept in Databases → CI analyses as a Markdown file.
  */
 export function TrendAnalysisInput() {
   const mq = useMegatrends("all", null, null);
@@ -70,9 +108,6 @@ export function TrendAnalysisInput() {
   const ss = useSchema("secondary");
   const inv = useInvalidate();
   const [category, setCategory] = useState<TrendAnalysisCategory>("macrotrend");
-  const [macro, setMacro] = useState("");
-  const [scope, setScope] = useState<"macro" | "sub">("macro");
-  const [sub, setSub] = useState("");
   const [comp, setComp] = useState("");
   const [text, setText] = useState("");
   const [saving, setSaving] = useState(false);
@@ -80,7 +115,6 @@ export function TrendAnalysisInput() {
   const [saved, setSaved] = useState<TrendAnalysis | null>(null);
 
   const macros = mq.data?.macrotrends ?? [];
-  const subs = macros.find((m) => m.name === macro)?.subtrends ?? [];
   const comps = useMemo(() => {
     const names = new Set<string>();
     for (const c of cq.data?.competitors ?? []) names.add(c.name);
@@ -88,26 +122,8 @@ export function TrendAnalysisInput() {
     return [...names].sort((a, b) => a.localeCompare(b));
   }, [cq.data, sp.data, ss.data]);
 
-  const target: { level: TrendLevel; name: string; parent?: string } | null =
-    category === "competitor"
-      ? comp
-        ? { level: "competitor", name: comp }
-        : null
-      : !macro
-        ? null
-        : scope === "macro"
-          ? { level: "macro", name: macro }
-          : sub
-            ? { level: "sub", name: sub, parent: macro }
-            : null;
-  const current =
-    target?.level === "competitor"
-      ? cq.data?.competitors.find((c) => c.name === target.name)?.summary
-      : target?.level === "macro"
-        ? macros.find((m) => m.name === target.name)?.summary
-        : target
-          ? subs.find((s) => s.name === target.name)?.summary
-          : null;
+  const target: { level: TrendLevel; name: string } | null = category === "competitor" && comp ? { level: "competitor", name: comp } : null;
+  const current = target ? cq.data?.competitors.find((c) => c.name === target.name)?.summary : null;
 
   const submit = async () => {
     if (!target || !text.trim()) return;
@@ -121,7 +137,7 @@ export function TrendAnalysisInput() {
       });
       setSaved(a);
       setText("");
-      await inv("megatrends", "competitors", "trend-analyses");
+      await inv("competitors", "trend-analyses");
     } catch (e) {
       setErr((e as ApiError).message);
     } finally {
@@ -141,7 +157,11 @@ export function TrendAnalysisInput() {
           <h2 className="card-title" id="tai-title">
             Input Trend Analysis
           </h2>
-          <span className="card-sub">Becomes the analysis shown on the Trend analysis subtab and in the knowledge graph, and is kept in Trackers → Trend Analyses as a Markdown file</span>
+          <span className="card-sub">
+            {category === "macrotrend"
+              ? "Fills the text of the Macrotrend's dashboard (Analytics → Megatrends Dashboard → Megatrends), section by section; kept in Databases → CI analyses as a Markdown file"
+              : "Becomes the competitor's analysis on its Trends Analysis page, and is kept in Databases → CI analyses as a Markdown file"}
+          </span>
         </div>
         <div className="seg" role="group" aria-label="Trend analysis of a">
           {(["competitor", "macrotrend"] as const).map((k) => (
@@ -161,113 +181,73 @@ export function TrendAnalysisInput() {
         </div>
       </div>
 
-      <div className="tai-pick">
-        {category === "macrotrend" ? (
-          <>
+      {category === "macrotrend" ? (
+        <MacroSectionsForm macros={macros.map((m) => m.name)} onSaved={() => void inv("macro-sections", "trend-analyses")} />
+      ) : (
+        <>
+          <div className="tai-pick">
             <label className="field">
-              <span>Macrotrend</span>
-              <select
-                className="control"
-                value={macro}
-                onChange={(e) => {
-                  setMacro(e.target.value);
-                  setSub("");
-                }}
-                data-testid="tai-macro"
-              >
-                <option value="">Choose a Macrotrend…</option>
-                {macros.map((m) => (
-                  <option key={m.name} value={m.name}>
-                    {m.name}
-                  </option>
-                ))}
-              </select>
+              <span>Competitor</span>
+              <Combobox options={comps} value={comp} onChange={setComp} placeholder="Find a competitor…" label="Competitor" testId="tai-competitor" />
             </label>
-            <fieldset className="tai-scope" disabled={!macro}>
-              <legend>The analysis is for</legend>
-              <label>
-                <input type="radio" name="tai-scope" checked={scope === "macro"} onChange={() => setScope("macro")} /> The Macrotrend itself
-              </label>
-              <label>
-                <input type="radio" name="tai-scope" checked={scope === "sub"} onChange={() => setScope("sub")} /> A Subtrend within it
-              </label>
-            </fieldset>
-            {scope === "sub" && (
-              <label className="field">
-                <span>Subtrend</span>
-                <select className="control" value={sub} onChange={(e) => setSub(e.target.value)} disabled={!macro} data-testid="tai-sub">
-                  <option value="">{macro ? "Choose a Subtrend…" : "Choose a Macrotrend first"}</option>
-                  {subs.map((s) => (
-                    <option key={s.name} value={s.name}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-          </>
-        ) : (
+          </div>
+
+          {current && current.source !== "default" && current.text && (
+            <details className="tai-current">
+              <summary>Current analysis of {target?.name}</summary>
+              <p>{current.text}</p>
+            </details>
+          )}
+
           <label className="field">
-            <span>Competitor</span>
-            <Combobox options={comps} value={comp} onChange={setComp} placeholder="Find a competitor…" label="Competitor" testId="tai-competitor" />
+            <span>
+              Trend analysis
+              {target ? ` · ${TREND_LEVEL_LABEL[target.level]} ${target.name}` : ""}
+            </span>
+            <textarea
+              className="control tai-text"
+              value={text}
+              maxLength={MAX_SUMMARY_LENGTH}
+              rows={8}
+              onChange={(e) => setText(e.target.value)}
+              placeholder={target ? `Write the analysis of ${target.name}…` : "Choose the competitor, then write its analysis here…"}
+              aria-describedby="tai-count"
+              data-testid="tai-text"
+            />
           </label>
-        )}
-      </div>
-
-      {current && current.source !== "default" && current.text && (
-        <details className="tai-current">
-          <summary>Current analysis of {target?.name}</summary>
-          <p>{current.text}</p>
-        </details>
+          <div className="tai-foot">
+            <span id="tai-count" className="card-sub">
+              {text.length.toLocaleString("en-GB")} / {MAX_SUMMARY_LENGTH.toLocaleString("en-GB")} characters
+            </span>
+            <button className="btn" onClick={() => void submit()} disabled={!target || !text.trim() || saving} data-testid="tai-submit">
+              {saving ? "Submitting…" : "Submit trend analysis"}
+            </button>
+          </div>
+          {err && (
+            <div className="err-msg" role="alert">
+              <b>✕</b> {err}
+            </div>
+          )}
+          {saved && (
+            <div className="import-done" role="status" data-testid="tai-saved">
+              <b>
+                ✓ Saved as the analysis of the {TREND_LEVEL_LABEL[saved.level]} {saved.name}
+              </b>
+              <span>
+                <Link to={analysisLink(saved)}>Open its trend analysis →</Link> · <Link to="/trend-analyses">CI analyses →</Link>
+              </span>
+            </div>
+          )}
+        </>
       )}
 
-      <label className="field">
-        <span>
-          Trend analysis
-          {target ? ` · ${TREND_LEVEL_LABEL[target.level]} ${target.name}` : ""}
-        </span>
-        <textarea
-          className="control tai-text"
-          value={text}
-          maxLength={MAX_SUMMARY_LENGTH}
-          rows={8}
-          onChange={(e) => setText(e.target.value)}
-          placeholder={target ? `Write the analysis of ${target.name}…` : "Choose what the analysis is for, then write it here…"}
-          aria-describedby="tai-count"
-          data-testid="tai-text"
-        />
-      </label>
-      <div className="tai-foot">
-        <span id="tai-count" className="card-sub">
-          {text.length.toLocaleString("en-GB")} / {MAX_SUMMARY_LENGTH.toLocaleString("en-GB")} characters
-        </span>
-        <button className="btn" onClick={() => void submit()} disabled={!target || !text.trim() || saving} data-testid="tai-submit">
-          {saving ? "Submitting…" : "Submit trend analysis"}
-        </button>
-      </div>
-      {err && (
-        <div className="err-msg" role="alert">
-          <b>✕</b> {err}
-        </div>
-      )}
-      {saved && (
-        <div className="import-done" role="status" data-testid="tai-saved">
-          <b>
-            ✓ Saved as the analysis of the {TREND_LEVEL_LABEL[saved.level]} {saved.name}
-          </b>
-          <span>
-            <Link to={analysisLink(saved)}>Open its trend analysis →</Link> · <Link to="/trend-analyses">Trend Analyses →</Link>
-          </span>
-        </div>
-      )}
-
-      <TrendAnalysisImport onDone={() => void inv("megatrends", "competitors", "trend-analyses")} />
+      <TrendAnalysisImport key={category} kind={category === "macrotrend" ? SECTIONS_IMPORT : TREND_IMPORT} onDone={() => void inv("macro-sections", "megatrends", "competitors", "trend-analyses")} />
     </section>
   );
 }
 
 /** Several trend analyses from a spreadsheet: checked in full first, then saved in small batches. */
-function TrendAnalysisImport({ onDone }: { onDone: () => void }) {
+function TrendAnalysisImport({ onDone, kind = TREND_IMPORT }: { onDone: () => void; kind?: ImportKind }) {
   const [file, setFile] = useState<File | null>(null);
   const [grid, setGrid] = useState<Grid | null>(null);
   const [readError, setReadError] = useState<string | null>(null);
@@ -278,7 +258,7 @@ function TrendAnalysisImport({ onDone }: { onDone: () => void }) {
   const [dragging, setDragging] = useState(false);
   const depth = useRef(0);
   const inputRef = useRef<HTMLInputElement>(null);
-  const prepared = useMemo(() => (grid ? prepare(grid) : null), [grid]);
+  const prepared = useMemo(() => (grid ? prepare(grid, kind) : null), [grid, kind]);
   const rows = prepared?.rows ?? null;
   const headerErrors = readError ? [readError] : (prepared?.problems ?? []);
 
@@ -307,7 +287,7 @@ function TrendAnalysisImport({ onDone }: { onDone: () => void }) {
       setStatus("Checking every row…");
       const found: RowError[] = [];
       for (let i = 0; i < rows.length; i += DRY_RUN_ROWS) {
-        const r = await api<ImportResult>("/api/trend-analyses/import", {
+        const r = await api<ImportResult>(kind.endpoint, {
           method: "POST",
           json: {
             fileName: file.name,
@@ -323,10 +303,10 @@ function TrendAnalysisImport({ onDone }: { onDone: () => void }) {
         return;
       }
       setProgress({ at: 0, of: rows.length });
-      setStatus("Saving the trend analyses…");
+      setStatus(`Saving the ${kind.noun[1]}…`);
       let n = 0;
       for (let i = 0; i < rows.length; i += IMPORT_CHUNK_ROWS) {
-        const r = await api<ImportResult>("/api/trend-analyses/import", {
+        const r = await api<ImportResult>(kind.endpoint, {
           method: "POST",
           json: {
             fileName: file.name,
@@ -357,12 +337,7 @@ function TrendAnalysisImport({ onDone }: { onDone: () => void }) {
   };
 
   const template = () => {
-    const bytes = toXlsxSheets([
-      {
-        name: "Trend analyses",
-        table: [COLUMNS, ["Macrotrend", "Subtrend", "Agentic AI Platforms", "Write the analysis here."], ["Competitor", "Competitor", "Roche", "Write the analysis here."]],
-      },
-    ]);
+    const bytes = toXlsxSheets([{ name: "Trend analyses", table: kind.template }]);
     const url = URL.createObjectURL(
       new Blob([bytes as unknown as ArrayBuffer], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -370,7 +345,7 @@ function TrendAnalysisImport({ onDone }: { onDone: () => void }) {
     );
     const a = document.createElement("a");
     a.href = url;
-    a.download = "eradigm-trend-analyses-template.xlsx";
+    a.download = kind.templateName;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -409,17 +384,19 @@ function TrendAnalysisImport({ onDone }: { onDone: () => void }) {
         void read(e.dataTransfer.files[0] ?? null);
       }}
     >
-      <h3 className="tai-sub-title">Import trend analyses from a spreadsheet</h3>
+      <h3 className="tai-sub-title">{kind.title}</h3>
       <p className="import-help">
         The first row must hold the columns{" "}
-        {COLUMNS.map((c, i) => (
+        {kind.columns.map((c, i) => (
           <span key={c}>
-            {i ? (i === COLUMNS.length - 1 ? " and " : ", ") : ""}
+            {i ? (i === kind.columns.length - 1 ? " and " : ", ") : ""}
             <b>{c}</b>
           </span>
         ))}
-        . The first three say which trend each row updates (e.g. Macrotrend · Subtrend · Agentic AI Platforms, or Competitor · Competitor · Roche); the last is the analysis. A later row for the same
-        trend replaces an earlier one.
+        .{" "}
+        {kind === SECTIONS_IMPORT
+          ? "Each row is one Macrotrend: only Macrotrend is required, and an empty cell leaves that section as it is. A later row for the same Macrotrend wins."
+          : "The first three say which trend each row updates (e.g. Competitor · Competitor · Roche, or Macrotrend · Subtrend · Agentic AI Platforms); the last is the analysis. A later row for the same trend replaces an earlier one."}
         <button className="link-btn" onClick={template}>
           Download the template (.xlsx)
         </button>
@@ -519,10 +496,98 @@ function TrendAnalysisImport({ onDone }: { onDone: () => void }) {
       {done != null && (
         <div className="import-done" role="status" data-testid="tai-import-done">
           <b>
-            ✓ Imported {done} trend analys{done === 1 ? "is" : "es"}
+            ✓ Imported {done} {done === 1 ? kind.noun[0] : kind.noun[1]}
           </b>
           <span>
             Each is now the analysis of its trend. <Link to="/trend-analyses">Open Trend Analyses →</Link>
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * A Macrotrend's analysis by section (request 34): every box is optional, and
+ * only the boxes with text change on its dashboard. Each box shows the text in
+ * place now.
+ */
+function MacroSectionsForm({ macros, onSaved }: { macros: string[]; onSaved: () => void }) {
+  const sections = useMacroSections();
+  const [macro, setMacro] = useState("");
+  const [draft, setDraft] = useState<Partial<Record<MacroSectionKey, string>>>({});
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [saved, setSaved] = useState<TrendAnalysis | null>(null);
+  const now = (k: MacroSectionKey) => sections.data?.find((x) => x.macrotrend === macro && x.section === k)?.text ?? "";
+  const filled = MACRO_SECTIONS.filter((x) => draft[x.key]?.trim());
+  const submit = async () => {
+    if (!macro || !filled.length) return;
+    setSaving(true);
+    setErr(null);
+    setSaved(null);
+    try {
+      const a = await api<TrendAnalysis>("/api/trend-analyses/macrotrend", { method: "POST", json: { macrotrend: macro, sections: draft } });
+      setSaved(a);
+      setDraft({});
+      onSaved();
+    } catch (e) {
+      setErr((e as ApiError).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <div className="tai-sections" data-testid="tai-sections">
+      <div className="tai-pick">
+        <label className="field">
+          <span>Macrotrend</span>
+          <select className="control" value={macro} onChange={(e) => setMacro(e.target.value)} data-testid="tai-macro">
+            <option value="">Choose a Macrotrend…</option>
+            {macros.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <p className="card-sub tai-sections-note">Every box is optional: only the boxes you fill in change, so one section can be updated on its own.</p>
+      <div className="tai-sections-grid">
+        {MACRO_SECTIONS.map((x) => (
+          <label className="field tai-section" key={x.key}>
+            <span>{x.label}</span>
+            <textarea
+              className="control tai-text"
+              value={draft[x.key] ?? ""}
+              maxLength={MAX_SUMMARY_LENGTH}
+              rows={6}
+              onChange={(e) => setDraft((d) => ({ ...d, [x.key]: e.target.value }))}
+              placeholder={macro ? (now(x.key) ? `Now: ${now(x.key).slice(0, 160)}${now(x.key).length > 160 ? "…" : ""}` : "Empty for now · leave blank to keep it so") : "Choose a Macrotrend first"}
+              disabled={!macro}
+              data-testid={`tai-section-${x.key}`}
+            />
+          </label>
+        ))}
+      </div>
+      <div className="tai-foot">
+        <span className="card-sub">{filled.length ? `${filled.length} section${filled.length === 1 ? "" : "s"} to update: ${filled.map((x) => x.label).join(", ")}` : "Nothing to update yet"}</span>
+        <button className="btn" onClick={() => void submit()} disabled={!macro || !filled.length || saving} data-testid="tai-submit">
+          {saving ? "Submitting…" : "Submit Macrotrend analysis"}
+        </button>
+      </div>
+      {err && (
+        <div className="err-msg" role="alert">
+          <b>✕</b> {err}
+        </div>
+      )}
+      {saved && (
+        <div className="import-done" role="status" data-testid="tai-saved">
+          <b>
+            ✓ Saved {Object.keys(saved.sections ?? {}).length} section{Object.keys(saved.sections ?? {}).length === 1 ? "" : "s"} of the Macrotrend {saved.name}
+          </b>
+          <span>
+            <Link to={`/analytics/megatrends?${new URLSearchParams({ m: saved.name })}`}>Open its dashboard →</Link> · <Link to="/trend-analyses">CI analyses →</Link>
           </span>
         </div>
       )}

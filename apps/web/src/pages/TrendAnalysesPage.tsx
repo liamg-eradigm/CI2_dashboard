@@ -54,7 +54,7 @@ export function TrendAnalysesPage({ me }: { me: Me | undefined }) {
   const opened = q.data?.find((a) => a.id === openId) ?? null;
 
   const remove = async (a: TrendAnalysis) => {
-    if (!window.confirm(`Remove this trend analysis of ${a.name} (${localDateTime(a.submittedAt)}) from Trend Analyses?\n\nThe ${TREND_LEVEL_LABEL[a.level]} keeps the analysis it shows now.`)) return;
+    if (!window.confirm(`Remove this trend analysis of ${a.name} (${localDateTime(a.submittedAt)}) from CI analyses?\n\nThe ${TREND_LEVEL_LABEL[a.level]} keeps the analysis it shows now.`)) return;
     try {
       await api(`/api/trend-analyses/${a.id}`, { method: "DELETE" });
       if (openId === a.id) setMd(null);
@@ -70,8 +70,8 @@ export function TrendAnalysesPage({ me }: { me: Me | undefined }) {
       <section className="band" aria-labelledby="page-title">
         <div className="band-row">
           <div>
-            <span className="eyebrow">Trackers</span>
-            <h1 id="page-title">Trend Analyses</h1>
+            <span className="eyebrow">Databases</span>
+            <h1 id="page-title">CI analyses</h1>
           </div>
           <div className="band-copy">
             Every trend analysis submitted on the Input page, newest first. Each is a Markdown file with the columns {TREND_ANALYSIS_COLUMNS.category}, {TREND_ANALYSIS_COLUMNS.level},{" "}
@@ -85,7 +85,7 @@ export function TrendAnalysesPage({ me }: { me: Me | undefined }) {
           <div className="table-top">
             <div>
               <h2 className="card-title" id="ta-list-title">
-                Trend Analyses
+                CI analyses
               </h2>
               <span className="card-sub">{q.data ? `${list.length} of ${q.data.length} submitted · open the Markdown from the MD icon` : "Loading…"}</span>
             </div>
@@ -110,9 +110,9 @@ export function TrendAnalysesPage({ me }: { me: Me | undefined }) {
               Could not load the trend analyses · {(q.error as Error).message}
             </div>
           )}
-          <div className="table-wrap tas-wrap" tabIndex={0} role="region" aria-label="Trend Analyses (scrollable)">
+          <div className="table-wrap tas-wrap" tabIndex={0} role="region" aria-label="CI analyses (scrollable)">
             <table className="data tas-table" data-testid="trend-analyses-table">
-              <caption className="sr-only">Trend Analyses</caption>
+              <caption className="sr-only">CI analyses</caption>
               <thead>
                 <tr>
                   <th scope="col" className="md-col">
@@ -171,7 +171,7 @@ export function TrendAnalysesPage({ me }: { me: Me | undefined }) {
                           className="icon-btn"
                           onClick={() => void remove(a)}
                           aria-label={`Remove the trend analysis of ${a.name} from ${localDateTime(a.submittedAt)}`}
-                          title="Remove from Trend Analyses"
+                          title="Remove from CI analyses"
                         >
                           ✕
                         </button>

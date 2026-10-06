@@ -58,6 +58,8 @@ export interface GraphSpec {
   selected: string | null;
   /** Entries in orbit around a hub. */
   orbit: { hub: string; entries: GraphEntry[] } | null;
+  /** A selected level-1 hub is framed with its Subtrends (the Macrotrend dashboard's graph). */
+  frame?: boolean;
 }
 
 interface GNode {
@@ -320,10 +322,13 @@ export function Graph3D({
           const a = el.getBoundingClientRect();
           const b = side.getBoundingClientRect();
           // Left column: shift the view right (negative offset); right column: left.
-          const covered = b.left - a.left < a.right - b.right ? -(b.right - a.left) : a.right - b.left;
-          // The drawer (fixed, 16px in from the window's right edge), measured as it will sit when open.
-          const drawer = el.closest(".mg-page")?.querySelector<HTMLElement>(".mg-drawer");
-          const right = live.current.rightPanel && drawer ? Math.max(0, a.right - (window.innerWidth - 16 - drawer.offsetWidth)) : 0;
+          // Only the crumbs (no summary or list column): nothing to leave room for on the left.
+          const covered = side.classList.contains("bare") ? 0 : b.left - a.left < a.right - b.right ? -(b.right - a.left) : a.right - b.left;
+          // The drawer (16px in from the page's right edge), measured as it will sit when open.
+          const pageEl = el.closest<HTMLElement>(".mg-page");
+          const drawer = pageEl?.querySelector<HTMLElement>(".mg-drawer");
+          const edge = pageEl ? pageEl.getBoundingClientRect().right : window.innerWidth;
+          const right = live.current.rightPanel && drawer ? Math.max(0, a.right - (edge - 16 - drawer.offsetWidth)) : 0;
           const base = Math.abs(covered) < w * 0.6 ? covered : 0;
           target = Math.abs(base) + right < w * 0.8 ? (base + right) / 2 : base / 2;
         }
@@ -493,11 +498,14 @@ export function Graph3D({
     if (target && target.x == null) setTimeout(fly, 900);
     else fly();
     // Entries spread out in orbit around the selected hub: then frame them all.
-    if (target && spec.orbit?.hub === target.id) {
+    // So is a framed Macrotrend with its Subtrends.
+    const framed = !!target && !!spec.frame && target.level === 1 && spec.orbit?.hub !== target.id;
+    if (target && (spec.orbit?.hub === target.id || framed)) {
       const id = target.id;
       setTimeout(() => {
         if (graph.current !== g || lastSel.current !== key) return;
-        const group = [...nodes.current.values()].filter((n) => (n.id === id || (n.kind === "entry" && n.root === id)) && n.x != null);
+        const member = (n: GNode) => n.id === id || (framed ? n.kind === "hub" && n.level === 2 && n.root === id : n.kind === "entry" && n.root === id);
+        const group = [...nodes.current.values()].filter((n) => member(n) && n.x != null);
         if (group.length < 2) return;
         const c = { x: 0, y: 0, z: 0 };
         for (const n of group) {

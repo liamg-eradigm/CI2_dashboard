@@ -15,6 +15,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { CORE, DEFAULT_COMPETITOR_TIERS, TREND_LEVEL_LABEL, can, isPlaceholderCompetitor, tierOf, type Me, type TrendLevel, type TrendSummary } from "@eradigm/shared";
 import { useCompetitors, useMegatrends, useSettings } from "../api/hooks";
 import { ImpactMixes, RecordFromTimeline, SignalTimeline, useAnalytics, useRecordParam } from "../components/analytics/Analytics";
+import { MacroDashboard } from "../components/analytics/MacroDashboard";
 import { NEUTRAL, TIER_COLOUR, impactColour, paletteOf, plural } from "../components/megatrends/model";
 import { localDateTime } from "../lib/format";
 import "../styles/megatrends.css";
@@ -74,6 +75,9 @@ export function TrendAnalysisPage({ me, kind }: { me: Me; kind: Kind }) {
   const noun = kind === "macro" ? "Macrotrend" : "competitor";
   const title = kind === "macro" ? "Megatrends" : "Competitors";
 
+  // Request 34: a Macrotrend opens its own five-row dashboard.
+  if (kind === "macro" && selMacro) return <MacroDashboard me={me} macro={selMacro} onBack={() => set({ m: null, s: null, e: null, v: null, signal: null }, true)} />;
+
   if (selected) {
     const macro = selMacro ? (mq.data?.macrotrends ?? []).find((m) => m.name === selMacro) : undefined;
     const sub = macro && selSub ? macro.subtrends.find((s) => s.name === selSub) : undefined;
@@ -129,7 +133,7 @@ export function TrendAnalysisPage({ me, kind }: { me: Me; kind: Kind }) {
       <header className="mg-head ta-head">
         <div>
           <Link className="ad-back" to="/dashboard">
-            ← Analytics Dashboard
+            ← Megatrends Dashboard
           </Link>
           <span className="eyebrow">Trends Analysis</span>
           <h1>{title}</h1>

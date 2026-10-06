@@ -99,7 +99,23 @@ const lastDay = (ym: string) => new Date(Date.UTC(Number(ym.slice(0, 4)), Number
  * One impact mix with its own time frame (request 32): a slider under the bars
  * picks the first and last month; the bars update once the slider rests.
  */
-function ImpactMix({ kind, filters, schema, note }: { kind: "macro" | "comp"; filters: FilterState; schema: TrackerSchema; note?: string }) {
+export function ImpactMix({
+  kind,
+  filters,
+  schema,
+  note,
+  fit = false,
+  headExtra,
+}: {
+  kind: "macro" | "comp" | "sub";
+  filters: FilterState;
+  schema: TrackerSchema;
+  note?: string;
+  /** Request 34: as many rows as fit the box (no Show all), e.g. in a dashboard cell. */
+  fit?: boolean;
+  /** Shown left of the key (e.g. a Subtrend / Competitor toggle). */
+  headExtra?: ReactNode;
+}) {
   const [open, setOpen] = useState(false);
   const months = useMemo(() => monthsBetween(filters.from, filters.to), [filters.from, filters.to]);
   const last = Math.max(0, months.length - 1);
@@ -123,9 +139,9 @@ function ImpactMix({ kind, filters, schema, note }: { kind: "macro" | "comp"; fi
   const d = dash.data;
   const opts = getColumn(schema, CORE.impact)?.options ?? [];
   const mixNote = `Counts shown ${[...opts].reverse().join(" / ")}${note ? ` · ${note}` : ""}`;
-  const title = kind === "macro" ? "Impact Mix by Macrotrend" : "Impact Mix by Competitor";
+  const title = kind === "macro" ? "Impact Mix by Macrotrend" : kind === "sub" ? "Impact Mix by Subtrend" : "Impact Mix by Competitor";
   // Competitors: "N/A" and the like are not competitors (request 32), so no bar for them.
-  const bars: Bar[] = (kind === "macro" ? d?.macroBars : d?.compBars)?.filter((x) => x.n > 0 && (kind === "macro" || !isPlaceholderCompetitor(x.label))) ?? [];
+  const bars: Bar[] = (kind === "macro" ? d?.macroBars : kind === "sub" ? d?.subBars : d?.compBars)?.filter((x) => x.n > 0 && (kind !== "comp" || !isPlaceholderCompetitor(x.label))) ?? [];
   const label = (r: [number, number]) => (months.length ? (r[0] === r[1] ? monthName(months[r[0]]!) : `${monthName(months[r[0]]!)} – ${monthName(months[r[1]]!)}`) : "");
   const slider = (
     <div className={`mix-range${dash.isFetching ? " busy" : ""}`} data-testid={`mix-range-${kind}`}>
@@ -170,16 +186,18 @@ function ImpactMix({ kind, filters, schema, note }: { kind: "macro" | "comp"; fi
       </div>
     </div>
   );
-  if (!d) return <div className="ad-skeleton mix-card" role="status" aria-label={`Loading ${title}`} />;
+  if (!d) return <div className={`ad-skeleton mix-card${fit ? " fit" : ""}`} role="status" aria-label={`Loading ${title}`} />;
   return (
     <MixChart
       id={`mix-${kind}`}
+      fit={fit}
+      headExtra={headExtra}
       title={title}
       sub={mixNote}
       subTitle={kind === "comp" ? "An entry naming several competitors counts for each" : undefined}
       bars={bars}
       schema={schema}
-      limit={kind === "comp" ? MIX_ROWS : undefined}
+      limit={kind === "comp" && !fit ? MIX_ROWS : undefined}
       expanded={open}
       onToggle={() => setOpen((o) => !o)}
       below={slider}
@@ -237,7 +255,11 @@ function MixChart({
   expanded,
   onToggle,
   below,
+  fit = false,
+  headExtra,
 }: {
+  fit?: boolean;
+  headExtra?: ReactNode;
   id: string;
   title: string;
   sub: string;
@@ -253,21 +275,40 @@ function MixChart({
   const opts = getColumn(schema, CORE.impact)?.options ?? ["Low", "Medium", "High"];
   const hi = opts[opts.length - 1] ?? "High";
   const lo = opts[0] ?? "Low";
+  // Fit: as many whole rows as the list's height holds.
+  const list = useRef<HTMLUListElement>(null);
+  const [room, setRoom] = useState(MIX_ROWS);
+  useLayoutEffect(() => {
+    const el = list.current;
+    if (!fit || !el) return;
+    const measure = () => {
+      const row = el.querySelector<HTMLElement>(".bar-row")?.getBoundingClientRect().height || 22;
+      setRoom(Math.max(1, Math.floor((el.clientHeight + 0.5) / row)));
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [fit, bars.length]);
   const capped = !!limit && bars.length > limit;
-  const shown = capped && !expanded ? bars.slice(0, limit) : bars;
+  const shown = fit ? bars.slice(0, room) : capped && !expanded ? bars.slice(0, limit) : bars;
   return (
-    <section className="card mix-card" aria-labelledby={id} data-testid={id}>
+    <section className={`card mix-card${fit ? " fit" : ""}`} aria-labelledby={id} data-testid={id}>
       <div className="mix-head">
         <div>
           <h2 className="card-title" id={id}>
             {title}
           </h2>
           <span className="card-sub" title={subTitle}>
-            {sub}
+            {fit && bars.length > shown.length ? `${sub} · top ${shown.length} of ${bars.length}` : sub}
           </span>
         </div>
         <div className="mix-head-r">
-          <MixLegend schema={schema} />
+          <div className="mix-key-row">
+            {headExtra}
+            <MixLegend schema={schema} />
+          </div>
           {limit != null && (
             <button className="link-btn mix-more" aria-expanded={expanded} aria-controls={`${id}-bars`} onClick={onToggle} disabled={!capped && !expanded}>
               {expanded ? `Show top ${limit}` : capped ? `Show all ${bars.length}` : `All ${bars.length} shown`}
@@ -275,7 +316,7 @@ function MixChart({
           )}
         </div>
       </div>
-      <ul className={`bars mix-list${expanded ? " open" : ""}`} id={`${id}-bars`} aria-label={`${title}: count per category`} tabIndex={expanded ? 0 : undefined}>
+      <ul ref={list} className={`bars mix-list${expanded ? " open" : ""}`} id={`${id}-bars`} aria-label={`${title}: count per category`} tabIndex={expanded ? 0 : undefined}>
         {shown.map((b) => (
           <li key={b.label} className="bar-row mix" aria-label={`${b.label}: ${b.high} ${hi}, ${b.medium} medium, ${b.low} ${lo}`}>
             <div className="lbl">
@@ -290,6 +331,7 @@ function MixChart({
           </li>
         ))}
         {!bars.length && <li className="empty mix-empty">No signals in this time frame.</li>}
+
       </ul>
       <div className="mix-foot">{below}</div>
     </section>

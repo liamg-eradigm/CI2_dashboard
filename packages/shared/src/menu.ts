@@ -10,18 +10,20 @@ import type { Role } from "./permissions.js";
 export const MENU_GROUPS = ["inputs", "analytics", "trackers", "admin"] as const;
 export type MenuGroupKey = (typeof MENU_GROUPS)[number];
 
-export const MENU_ITEMS = ["input", "inbox", "clientinbox", "dashboard", "knowledge-graph", "tracker", "phantoms", "trend-analyses", "deliverables", "admin"] as const;
+export const MENU_ITEMS = ["input", "inbox", "clientinbox", "dashboard", "knowledge-graph", "primary-tracker", "tracker", "phantoms", "trend-analyses", "deliverables", "admin"] as const;
 export type MenuItemKey = (typeof MENU_ITEMS)[number];
 
 /**
  * Each group's subtabs, in their default order (a subtab stays in its group).
  * Request 31: Inputs, Analytics (the Analytics Dashboard, with Trends Analysis,
  * and the Knowledge Graph, Megatrends and Competitors behind one toggle),
- * Trackers and Admin.
+ * Trackers and Admin. Request 34: Trackers is named Databases (Signals
+ * Database, Phantoms Database, CI analyses), Dashboard is the Megatrends
+ * Dashboard, and Analytics gains the Primary Tracker (Archived Responses).
  */
 export const MENU_GROUP_ITEMS: Record<MenuGroupKey, readonly MenuItemKey[]> = {
   inputs: ["input", "inbox", "clientinbox"],
-  analytics: ["dashboard", "knowledge-graph"],
+  analytics: ["dashboard", "knowledge-graph", "primary-tracker"],
   trackers: ["tracker", "phantoms", "trend-analyses"],
   admin: ["deliverables", "admin"],
 };
@@ -29,7 +31,7 @@ export const MENU_GROUP_ITEMS: Record<MenuGroupKey, readonly MenuItemKey[]> = {
 export const MENU_GROUP_LABEL: Record<MenuGroupKey, string> = {
   inputs: "Inputs",
   analytics: "Analytics",
-  trackers: "Trackers",
+  trackers: "Databases",
   admin: "Admin",
 };
 
@@ -37,11 +39,12 @@ export const MENU_ITEM_LABEL: Record<MenuItemKey, string> = {
   input: "Input",
   inbox: "Eradigm Inbox",
   clientinbox: "Client Inbox",
-  dashboard: "Dashboard",
+  dashboard: "Megatrends Dashboard",
   "knowledge-graph": "Knowledge Graph",
-  tracker: "Tracker",
-  phantoms: "Phantoms",
-  "trend-analyses": "Trend Analyses",
+  "primary-tracker": "Primary Tracker",
+  tracker: "Signals Database",
+  phantoms: "Phantoms Database",
+  "trend-analyses": "CI analyses",
   deliverables: "Deliverables",
   admin: "Administration",
 };
@@ -52,6 +55,7 @@ export const MENU_ITEM_PATH: Record<MenuItemKey, string> = {
   clientinbox: "/client-inbox",
   dashboard: "/dashboard",
   "knowledge-graph": "/megatrends",
+  "primary-tracker": "/analytics/primary",
   tracker: "/tracker",
   phantoms: "/phantoms",
   "trend-analyses": "/trend-analyses",
@@ -75,6 +79,7 @@ export const MENU_ITEM_TAB: Record<MenuItemKey, NavTab> = {
   clientinbox: "clientinbox",
   dashboard: "dashboard",
   "knowledge-graph": "megatrends",
+  "primary-tracker": "tracker",
   tracker: "tracker",
   phantoms: "phantoms",
   "trend-analyses": "tracker",

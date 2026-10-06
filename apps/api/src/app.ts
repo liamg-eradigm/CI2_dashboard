@@ -25,6 +25,8 @@ import {
   UpdateTrendSummaryRequest,
   CreateTrendAnalysisRequest,
   ImportTrendAnalysesRequest,
+  SubmitMacroSectionsRequest,
+  UpdateMacroSectionRequest,
   normaliseNavOrder,
   normaliseMenu,
   ClearDecidedRequest,
@@ -82,7 +84,7 @@ import { readSnapshot, snapshotBackend } from "./pipeline/snapshots.js";
 import { audit, listAudit, verifyChain } from "./services/audit.js";
 import { clientInboxCount, getDetail, getItemRow, inboxCounts, listItems } from "./services/items.js";
 import { qualityMetrics } from "./services/metrics.js";
-import { dashboard, dateBounds, exportRows, trackerPage, trendTest, type Scope } from "./services/query.js";
+import { archivedResponses, dashboard, dateBounds, exportRows, trackerPage, trendTest, type Scope } from "./services/query.js";
 import { approve, clearDecided, deleteFromTable, reject, splitItem, reprocess, revise, saveDraft, softDelete } from "./services/review.js";
 import {
   addColumn,
@@ -103,7 +105,17 @@ import { primarySources, signalDetail, signalMarkdown } from "./services/signals
 import { attachSnapshot, importRows } from "./services/imports.js";
 import { submitFile, submitManual, submitUrl } from "./services/submissions.js";
 import { competitors, generateSummary, megatrends, writeSummary } from "./services/megatrends.js";
-import { createTrendAnalysis, deleteTrendAnalysis, importTrendAnalyses, listTrendAnalyses, trendAnalysisFile } from "./services/trendAnalyses.js";
+import {
+  createTrendAnalysis,
+  deleteTrendAnalysis,
+  importMacroSections,
+  importTrendAnalyses,
+  listMacroSections,
+  listTrendAnalyses,
+  submitMacroSections,
+  trendAnalysisFile,
+  updateMacroSection,
+} from "./services/trendAnalyses.js";
 import { listPages, pageSnapshotId } from "./services/pages.js";
 import { addComment, backToEradigm, clientPush, listComments, sendToClient, updateComment } from "./services/clientInbox.js";
 import { createNewsletter, ensureAlerts, listNewsletters, readDeliverable } from "./services/deliverables.js";
@@ -559,6 +571,34 @@ app.post("/api/trend-analyses/import", async (c) => {
   return c.json(await importTrendAnalyses(c.env, p, await schemasFor(c), b));
 });
 
+// A Macrotrend's analysis by section (request 34): the Macrotrend dashboards' text cells.
+app.post("/api/trend-analyses/macrotrend", async (c) => {
+  const p = P(c);
+  requirePermission(p, "item:edit");
+  const b = await body(c, SubmitMacroSectionsRequest);
+  return c.json(await submitMacroSections(c.env, p, await schemasFor(c), b), 201);
+});
+
+app.post("/api/trend-analyses/macrotrend/import", async (c) => {
+  const p = P(c);
+  requirePermission(p, "item:edit");
+  const b = await body(c, ImportTrendAnalysesRequest);
+  return c.json(await importMacroSections(c.env, p, await schemasFor(c), b));
+});
+
+app.get("/api/macrotrends/sections", async (c) => {
+  requirePermission(P(c), "tracker:read");
+  return cachedJson(c, () => listMacroSections(c.env, P(c).tenantId));
+});
+
+app.put("/api/macrotrends/sections", async (c) => {
+  const p = P(c);
+  // Edited in place by admins only (analysts submit on the Input page).
+  requirePermission(p, "settings:edit");
+  const b = await body(c, UpdateMacroSectionRequest);
+  return c.json(await updateMacroSection(c.env, p, await schemasFor(c), b));
+});
+
 app.get("/api/trend-analyses/:id/markdown", async (c) => {
   const p = P(c);
   requirePermission(p, "tracker:read");
@@ -646,6 +686,13 @@ app.get("/api/tracker/export", async (c) => {
       "Cache-Control": "no-store",
     },
   });
+});
+
+// Archived Responses (request 34): earlier Primary entries from the same source as this one.
+app.get("/api/signals/:id/archived", async (c) => {
+  requirePermission(P(c), "tracker:read");
+  const schema = await schemaFor(c, "primary");
+  return cachedJson(c, () => archivedResponses(c.env, schema, P(c).tenantId, c.req.param("id")));
 });
 
 app.get("/api/signals/:id", async (c) => {

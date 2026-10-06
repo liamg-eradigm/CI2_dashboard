@@ -161,6 +161,11 @@ export function EntrySheet({
                       <span className="dot" style={{ background: impactColour(x.impact) }} aria-hidden="true" />
                       <span className="sr-only">{x.impact ? `${x.impact} impact: ` : "No impact: "}</span>
                       <span className="nm">{x.title || x.code}</span>
+                      {x.ci && (
+                        <span className="mg-ci-tag" data-testid="ci-tag" title="This signal's Phantom has a CI Perspective">
+                          CI Perspective
+                        </span>
+                      )}
                     </button>
                   </li>
                 ))}
@@ -243,6 +248,14 @@ export function EntrySheet({
                   );
                 })}
             </dl>
+            {signal.data?.ciPerspective && (
+              <section className="mg-ci" aria-labelledby="mg-ci-title" data-testid="mg-ci">
+                <h3 id="mg-ci-title">
+                  <span className="mg-ci-orb" aria-hidden="true" /> CI Perspective
+                </h3>
+                <p>{signal.data.ciPerspective}</p>
+              </section>
+            )}
           </>
         )}
       </aside>

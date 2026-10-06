@@ -86,6 +86,9 @@ const fallback = (level: TrendLevel, name: string): TrendSummary | null => {
   return text ? { text, source: "default", updatedAt: null, updatedBy: null, model: null, windowDays: null, entries: null } : null;
 };
 
+/** Request 34: whether an entry's Phantom (else the entry) has a CI Perspective (its Phantom is read by key). */
+const CI_EXPR = `(length(trim(COALESCE((SELECT json_extract(ps.extra_json, '$."ci_perspective"') FROM phantom_snapshots ps WHERE ps.item_id = i.id), json_extract(i.extra_json, '$."ci_perspective"'), ''))) > 0)`;
+
 const SUMMARY_SELECT =
   "SELECT s.level, s.name, s.text, s.source, s.model, s.window_days, s.entries, s.updated_at, (SELECT u.name FROM users u WHERE u.id = s.updated_by) AS updated_by FROM trend_summaries s WHERE s.tenant_id = ?1";
 
@@ -96,7 +99,7 @@ export async function megatrends(env: Env, tenantId: string, q: MegatrendsQuery,
   const [counts, rows, sums] = await env.DB.batch([
     env.DB.prepare(`SELECT i.macrotrend AS macro, i.subtrend AS sub, COUNT(*) AS n FROM intelligence_items i WHERE ${w.sql} GROUP BY i.macrotrend, i.subtrend`).bind(tenantId, ...w.binds),
     env.DB.prepare(
-      `SELECT i.id, i.signal_code, i.record_id, i.stream, i.pub_date, i.title, i.macrotrend, i.subtrend, i.impact FROM intelligence_items i WHERE ${w.sql}
+      `SELECT i.id, i.signal_code, i.record_id, i.stream, i.pub_date, i.title, i.macrotrend, i.subtrend, i.impact, ${CI_EXPR} AS ci FROM intelligence_items i WHERE ${w.sql}
         ORDER BY i.pub_date DESC, i.signal_code DESC LIMIT ${MEGATRENDS_MAX_ENTRIES + 1}`,
     ).bind(tenantId, ...w.binds),
     env.DB.prepare(SUMMARY_SELECT).bind(tenantId),
@@ -140,6 +143,7 @@ export async function megatrends(env: Env, tenantId: string, q: MegatrendsQuery,
     macrotrend: string;
     subtrend: string | null;
     impact: string | null;
+    ci: number | null;
   }[];
   const truncated = list.length > MEGATRENDS_MAX_ENTRIES;
   const entries: MegatrendEntry[] = list
@@ -155,6 +159,7 @@ export async function megatrends(env: Env, tenantId: string, q: MegatrendsQuery,
       macrotrend: r.macrotrend,
       subtrend: r.subtrend || null,
       impact: r.impact,
+      ci: !!r.ci,
     }));
 
   return {
@@ -241,7 +246,7 @@ export async function competitors(env: Env, tenantId: string, stream: Stream | "
          JOIN intelligence_items i ON i.id = a.item_id WHERE ${TRACKER}${sw} GROUP BY a.competitor, b.competitor`,
     ).bind(...binds),
     env.DB.prepare(
-      `SELECT i.id, i.signal_code, i.record_id, i.stream, i.pub_date, i.title, i.macrotrend, i.subtrend, i.impact,
+      `SELECT i.id, i.signal_code, i.record_id, i.stream, i.pub_date, i.title, i.macrotrend, i.subtrend, i.impact, ${CI_EXPR} AS ci,
               (SELECT group_concat(c.competitor, '') FROM item_competitors c WHERE c.item_id = i.id) AS comps
          FROM intelligence_items i WHERE ${TRACKER}${sw} AND EXISTS (SELECT 1 FROM item_competitors c WHERE c.item_id = i.id)
         ORDER BY i.pub_date DESC, i.signal_code DESC LIMIT ${MEGATRENDS_MAX_ENTRIES + 1}`,
@@ -259,6 +264,7 @@ export async function competitors(env: Env, tenantId: string, stream: Stream | "
     macrotrend: string | null;
     subtrend: string | null;
     impact: string | null;
+    ci: number | null;
     comps: string | null;
   }[];
   const truncated = list.length > MEGATRENDS_MAX_ENTRIES;
@@ -277,6 +283,7 @@ export async function competitors(env: Env, tenantId: string, stream: Stream | "
       macrotrend: r.macrotrend ?? "",
       subtrend: r.subtrend || null,
       impact: r.impact,
+      ci: !!r.ci,
       competitors: real(r.comps ? r.comps.split("").sort() : []),
     }))
     .filter((e) => e.competitors.length > 0);

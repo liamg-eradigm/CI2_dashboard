@@ -21,7 +21,7 @@ const MegatrendsPage = lazy(() => import("./pages/MegatrendsPage").then((m) => (
 const CompetitorsPage = lazy(() => import("./pages/CompetitorsPage").then((m) => ({ default: m.CompetitorsPage })));
 const TrendAnalysisPage = lazy(() => import("./pages/TrendAnalysisPage").then((m) => ({ default: m.TrendAnalysisPage })));
 
-const TITLES: Record<string, string> = { "/dashboard": "Analytics Dashboard", "/tracker": "Tracker", "/phantoms": "Phantoms", "/trend-analyses": "Trend Analyses", "/deliverables": "Deliverables", "/megatrends": "Knowledge Graph · Megatrends", "/competitors": "Knowledge Graph · Competitors", "/analytics/megatrends": "Trends Analysis · Megatrends", "/analytics/competitors": "Trends Analysis · Competitors", "/inbox": "Eradigm Inbox", "/client-inbox": "Client Inbox", "/input": "Input", "/admin": "Administration" };
+const TITLES: Record<string, string> = { "/dashboard": "Megatrends Dashboard", "/tracker": "Signals Database", "/phantoms": "Phantoms Database", "/trend-analyses": "CI analyses", "/analytics/primary": "Primary Tracker", "/deliverables": "Deliverables", "/megatrends": "Knowledge Graph · Megatrends", "/competitors": "Knowledge Graph · Competitors", "/analytics/megatrends": "Trends Analysis · Megatrends", "/analytics/competitors": "Trends Analysis · Competitors", "/inbox": "Eradigm Inbox", "/client-inbox": "Client Inbox", "/input": "Input", "/admin": "Administration" };
 
 export function App() {
   const loc = useLocation();
@@ -81,6 +81,7 @@ function SignedIn() {
             <Route path="/dashboard" element={<DashboardPage me={me.data} />} />
             <Route path="/tracker" element={<TrackerPage me={me.data} view="tracker" />} />
             <Route path="/phantoms" element={<TrackerPage key="phantoms" me={me.data} view="phantoms" />} />
+            <Route path="/analytics/primary" element={<TrackerPage key="primary-tracker" me={me.data} view="tracker" title="Primary Tracker" primaryOnly />} />
             <Route path="/trend-analyses" element={<TrendAnalysesPage me={me.data} />} />
             <Route path="/deliverables" element={only("deliverables", <DeliverablesPage me={me.data} />)} />
             <Route

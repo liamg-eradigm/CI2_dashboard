@@ -56,12 +56,35 @@ export function parseTrendLevel(v: string): TrendLevel | null {
   return null;
 }
 
+/**
+ * A Macrotrend's analysis in sections (request 34): one per text cell of its
+ * dashboard. Each is optional; a submission changes only the sections it
+ * fills in. `cell` is the dashboard heading ({name} = the Macrotrend).
+ */
+export const MACRO_SECTIONS = [
+  { key: "overview", label: "Macrotrend overview", cell: "What is {name}?" },
+  { key: "why", label: "Why does it matter?", cell: "Why does it matter?" },
+  { key: "current", label: "Current Landscape", cell: "Current Landscape" },
+  { key: "longterm", label: "Long-Term Landscape", cell: "Long-Term Landscape" },
+  { key: "next", label: "What's Next?", cell: "What's Next?" },
+  { key: "abbvie", label: "Impact on AbbVie", cell: "Impact on AbbVie" },
+] as const;
+export const MACRO_SECTION_KEYS = ["overview", "why", "current", "longterm", "next", "abbvie"] as const;
+export type MacroSectionKey = (typeof MACRO_SECTION_KEYS)[number];
+export const macroSectionLabel = (k: MacroSectionKey) => MACRO_SECTIONS.find((x) => x.key === k)!.label;
+export const macroSectionCell = (k: MacroSectionKey, name: string) => MACRO_SECTIONS.find((x) => x.key === k)!.cell.replace("{name}", name);
+/** The Macrotrend sections spreadsheet: "Macrotrend", then one column per section. */
+export const MACRO_SECTIONS_MACRO_COLUMN = "Macrotrend";
+export const MACRO_SECTIONS_COLUMNS = [MACRO_SECTIONS_MACRO_COLUMN, ...MACRO_SECTIONS.map((x) => x.label)];
+
 export interface TrendAnalysisDoc {
   level: TrendLevel;
   name: string;
   /** A Subtrend's Macrotrend. */
   parent: string | null;
   text: string;
+  /** A Macrotrend's sections submission (request 34): only the sections filled in. */
+  sections?: Partial<Record<MacroSectionKey, string>> | null;
   submittedAt: string;
   submittedBy: string;
 }
@@ -86,8 +109,9 @@ export function trendAnalysisMarkdown(a: TrendAnalysisDoc): string {
     row("Date_of_submission", a.submittedAt.slice(0, 10)),
     row("Submitted_by", a.submittedBy),
     "---",
-    "## Trend analysis",
-    a.text.trim(),
+    ...(a.sections
+      ? MACRO_SECTIONS.filter((x) => a.sections?.[x.key]?.trim()).flatMap((x, i) => [...(i ? [""] : []), `## ${x.label}`, a.sections![x.key]!.trim()])
+      : ["## Trend analysis", a.text.trim()]),
     "",
   ].join("\n");
 }

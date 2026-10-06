@@ -438,3 +438,21 @@ export async function trendTest(env: Env, schema: TrackerSchema, tenantId: strin
 }
 
 export { sortedColumns };
+
+/**
+ * Archived Responses (request 34): the earlier Primary entries from the same
+ * source (Source Role + Source Company, `source_key`) as entry `id`, newest
+ * first, as Tracker rows. Only that source's entries are read (by index).
+ */
+export async function archivedResponses(env: Env, schema: TrackerSchema, tenantId: string, id: string): Promise<{ rows: Signal[] }> {
+  const r = await env.DB.prepare(
+    `SELECT ${signalColumns()} FROM intelligence_items i
+      WHERE i.id IN (SELECT p.id FROM intelligence_items me JOIN intelligence_items p INDEXED BY ix_item_source_key ON p.tenant_id = me.tenant_id AND p.source_key = me.source_key AND p.id <> me.id
+                      WHERE me.tenant_id = ?1 AND me.id = ?2 AND me.source_key IS NOT NULL AND p.status = 'approved' AND p.deleted_at IS NULL AND p.tracker_hidden_at IS NULL
+                        AND (COALESCE(p.pub_date, ''), COALESCE(p.approved_at, ''), p.id) < (COALESCE(me.pub_date, ''), COALESCE(me.approved_at, ''), me.id))
+      ORDER BY COALESCE(i.pub_date, '') DESC, COALESCE(i.approved_at, '') DESC, i.id DESC LIMIT 200`,
+  )
+    .bind(tenantId, id)
+    .all<SignalRow>();
+  return { rows: (r.results ?? []).map((x) => toSignal(schema, x)) };
+}

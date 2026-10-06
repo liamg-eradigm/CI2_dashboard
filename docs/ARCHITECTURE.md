@@ -442,11 +442,68 @@ analyst-entered information distinguishable; in the prototype every value is
   a row (`DELETE /api/trend-analyses/:id`, analysts and admins) leaves the
   trend's current analysis as it is. Summaries and analyses can be up to
   10,000 characters.
+- **Request 34** (contract 1.20, migration 0020):
+  - Renames: Trackers → Databases; Tracker → Signals Database; Phantoms →
+    Phantoms Database; Trend Analyses → CI analyses; Analytics → Dashboard →
+    Megatrends Dashboard (page headings follow). A new tab, Analytics →
+    Primary Tracker, follows Databases → Signals Database.
+  - A Macrotrend's dashboard (`/analytics/megatrends?m=…`,
+    `components/analytics/MacroDashboard.tsx`) is five rows. Rows 1–4 are two
+    equal cells each, two rows on screen at a time (cells sized from the
+    window, 12px apart): 1 What is <Macrotrend>? | Why does it matter?; 2
+    Current Landscape | Impact Mix by Subtrend (a toggle left of the key
+    switches to Impact Mix by Competitor; both show only the rows that fit);
+    3 Long-Term Landscape | its Signal Timeline (zoom, drag, scroll); 4
+    What's Next? | Impact on AbbVie; 5 the whole frame: the knowledge graph
+    of this Macrotrend only (`MegatrendsPage focusMacro`, loaded when first
+    reached). The arrow at the bottom (with the name of the row it brings
+    into view above it) moves 1&2 → 2&3 → 3&4 → 5; from 2&3 on an arrow at
+    the top (its name below it) moves back. The mouse wheel (outside the
+    graph and timeline on row 5, and outside cells that scroll), Page Up /
+    Page Down and the dots at the top right do the same; the view slides
+    (the URL keeps it in `v`; `s` is the Subtrend selected in the graph,
+    so the Subtrend dropdown is gone). The competitor dashboards are
+    unchanged.
+  - The six text cells are `macrotrend_sections` (keyed by tenant,
+    Macrotrend, section: overview, why, current, longterm, next, abbvie;
+    `GET /api/macrotrends/sections`). Input → Input Trend Analysis with
+    Macrotrend selected has a Macrotrend dropdown and a box per section
+    (Macrotrend overview, Why does it matter?, Current Landscape, Long-Term
+    Landscape, What's Next?, Impact on AbbVie), all optional: a submission
+    (`POST /api/trend-analyses/macrotrend`) changes only the sections with
+    text and is kept in CI analyses (`trend_analyses.sections_json`, a
+    Markdown section per filled box). Import spreadsheet takes the columns
+    "Macrotrend" and one per section (`POST
+    /api/trend-analyses/macrotrend/import`, dry run then 8 rows per request;
+    empty cells leave a section as it is). Admins edit a cell in place on the
+    dashboard (`PUT /api/macrotrends/sections`; empty text clears it). The
+    Macrotrend's older summary (`trend_summaries`) is not changed by these.
+    The Competitor toggle of Input Trend Analysis is as before; Subtrend
+    analyses are no longer entered there.
+  - Both knowledge graphs have no left-hand list or summary panel (only the
+    breadcrumb / toggle at the top left), and the graph is centred in the
+    space left. Selecting a Subtrend (or competitor) opens its signals in a
+    drawer half the page wide, the graph re-centred in the other half. A
+    signal whose Phantom (else its Tracker row) has a CI Perspective is
+    tagged "CI Perspective" (glowing like the core orb) at the end of its
+    row (`ci` on `GET /api/megatrends` / `/api/competitors` entries), and
+    its CI Perspective ends the signal's page (`ciPerspective` on `GET
+    /api/signals/:id`).
+  - Analytics → Primary Tracker (`/analytics/primary`): the Primary Tracker
+    (no stream switch) whose link column is "Archived Responses": a dash, or
+    a boxed link button for an entry with earlier answers from the same
+    source. The button opens a popup of the answer (Source Role, Company and
+    Date small at the top; Key Details and Key Metrics below) and splits the
+    screen: the Archived Responses table on the right, past a clear divider,
+    lists the earlier entries from that source newest first (`GET
+    /api/signals/:id/archived`, at most 200); selecting one opens the same
+    popup. State is in the URL (`arch`, `ap`).
 - **Menu in groups** (request 28, contract 1.17; regrouped in request 31,
-  contract 1.19; `packages/shared/src/menu.ts`): the menu is four groups, each
-  a button that opens its tabs: Inputs (Input, Eradigm Inbox, Client Inbox),
-  Analytics (Dashboard, Knowledge Graph), Trackers (Tracker, Phantoms, Trend
-  Analyses) and Admin (Deliverables, Administration). Dashboard is also the
+  contract 1.19; renamed in request 34; `packages/shared/src/menu.ts`): the
+  menu is four groups, each a button that opens its tabs: Inputs (Input,
+  Eradigm Inbox, Client Inbox), Analytics (Megatrends Dashboard, Knowledge
+  Graph, Primary Tracker), Databases (Signals Database, Phantoms Database,
+  CI analyses) and Admin (Deliverables, Administration). Dashboard is also the
   current tab on the Trends Analysis pages, and Knowledge Graph on both
   graphs (`MENU_ITEM_ALSO`). A menu saved before request 31 (with Megatrends
   and Competitors groups) takes the new layout and keeps the names given to
