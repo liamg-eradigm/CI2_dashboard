@@ -106,6 +106,7 @@ export function ImpactMix({
   note,
   fit = false,
   headExtra,
+  noSub = false,
 }: {
   kind: "macro" | "comp" | "sub";
   filters: FilterState;
@@ -115,6 +116,8 @@ export function ImpactMix({
   fit?: boolean;
   /** Shown left of the key (e.g. a Subtrend / Competitor toggle). */
   headExtra?: ReactNode;
+  /** Request 35: no line under the title. */
+  noSub?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const months = useMemo(() => monthsBetween(filters.from, filters.to), [filters.from, filters.to]);
@@ -193,7 +196,7 @@ export function ImpactMix({
       fit={fit}
       headExtra={headExtra}
       title={title}
-      sub={mixNote}
+      sub={noSub ? "" : mixNote}
       subTitle={kind === "comp" ? "An entry naming several competitors counts for each" : undefined}
       bars={bars}
       schema={schema}
@@ -300,9 +303,11 @@ function MixChart({
           <h2 className="card-title" id={id}>
             {title}
           </h2>
-          <span className="card-sub" title={subTitle}>
-            {fit && bars.length > shown.length ? `${sub} · top ${shown.length} of ${bars.length}` : sub}
-          </span>
+          {sub && (
+            <span className="card-sub" title={subTitle}>
+              {fit && bars.length > shown.length ? `${sub} · top ${shown.length} of ${bars.length}` : sub}
+            </span>
+          )}
         </div>
         <div className="mix-head-r">
           <div className="mix-key-row">

@@ -89,7 +89,8 @@ export function GraphShell({
   /** "Macrotrend list", "competitor list" (for the minimise buttons). */
   railNoun?: string;
   rail?: ReactNode;
-  timeline: ReactNode;
+  /** Below the graph (request 35: none on the Macrotrend dashboard's graph). */
+  timeline?: ReactNode;
   drawer: ReactNode;
   drawerOpen: boolean;
   /** Inside another page (a Macrotrend dashboard's Explore Signals) rather than the whole window. */
@@ -154,7 +155,7 @@ export function GraphShell({
   };
 
   return (
-    <div className={`mg-page${drawerOpen ? " drawer-open" : ""}${embedded ? " mg-embedded" : ""}`} data-testid={storageKey} style={{ ["--side-w" as string]: `${w}px` }}>
+    <div className={`mg-page${drawerOpen ? " drawer-open" : ""}${embedded ? " mg-embedded" : ""}${timeline ? "" : " no-timeline"}`} data-testid={storageKey} style={{ ["--side-w" as string]: `${w}px` }}>
       <section className="mg-stage" aria-label={stageLabel} ref={stage}>
         {!noGl && (
           <Suspense fallback={<div className="mg-loading">Loading the knowledge graph…</div>}>

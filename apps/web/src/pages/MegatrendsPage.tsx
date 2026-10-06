@@ -106,7 +106,11 @@ export function MegatrendsPage({ focusMacro }: { me?: Me; focusMacro?: string })
     () =>
       colourBy === "trend"
         ? trendLegend
-        : impacts.map((name) => ({ name, colour: impactColour(name === "No Impact" ? null : name), count: trendItems.filter((i) => (i.entry.impact ?? "No Impact") === name).length })),
+        : impacts.map((name) => ({
+            name,
+            colour: impactColour(name === "No Impact" ? null : name),
+            count: trendItems.filter((i) => (i.entry.impact ?? "No Impact") === name).length,
+          })),
     [colourBy, trendLegend, impacts, trendItems],
   );
 
@@ -133,7 +137,16 @@ export function MegatrendsPage({ focusMacro }: { me?: Me; focusMacro?: string })
     for (const m of macros) {
       if (m.count < 1 || (focusMacro && m.name !== focusMacro)) continue;
       const own = entries.filter((e) => e.macrotrend === m.name);
-      hubs.push({ id: macroId(m.name), level: 1, name: m.name, count: m.count, r: macroR(m.count), colour: palette.macro.get(m.name) ?? NEUTRAL, dots: dotsOf(own), labelScale: 0.9 });
+      hubs.push({
+        id: macroId(m.name),
+        level: 1,
+        name: m.name,
+        count: m.count,
+        r: macroR(m.count),
+        colour: palette.macro.get(m.name) ?? NEUTRAL,
+        dots: dotsOf(own),
+        labelScale: 0.9,
+      });
       if (sel.macro !== m.name) continue;
       for (const s of m.subtrends) {
         if (s.count < 1) continue;
@@ -166,6 +179,7 @@ export function MegatrendsPage({ focusMacro }: { me?: Me; focusMacro?: string })
       selected: sel.macro ? (sel.sub ? subId(sel.macro, sel.sub) : macroId(sel.macro)) : null,
       orbit,
       frame: !!focusMacro,
+      noCore: !!focusMacro,
     };
   }, [macros, entries, palette, sel, total, focusMacro]);
   const onHub = useCallback(
@@ -215,9 +229,14 @@ export function MegatrendsPage({ focusMacro }: { me?: Me; focusMacro?: string })
         macro && sel.macro
           ? {
               label: `Subtrends of ${sel.macro}`,
-              items: macro.subtrends.filter((s) => s.count > 0).map((s) => ({ name: s.name, count: s.count, current: sel.sub === s.name, onSelect: () => select({ macro: sel.macro, sub: s.name }) })),
+              items: macro.subtrends
+                .filter((s) => s.count > 0)
+                .map((s) => ({ name: s.name, count: s.count, current: sel.sub === s.name, onSelect: () => select({ macro: sel.macro, sub: s.name }) })),
             }
-          : { label: "Macrotrends", items: visible.map((m) => ({ name: m.name, count: m.count, current: false, onSelect: () => select({ macro: m.name, sub: null }) })) }
+          : {
+              label: "Macrotrends",
+              items: visible.map((m) => ({ name: m.name, count: m.count, current: false, onSelect: () => select({ macro: m.name, sub: null }) })),
+            }
       }
       drawerOpen={!!openItem || (sourcesList.shown && !!sources.length)}
       drawer={
@@ -237,42 +256,44 @@ export function MegatrendsPage({ focusMacro }: { me?: Me; focusMacro?: string })
         />
       }
       timeline={
-        <Timeline
-          items={items}
-          legend={legend}
-          title="Timeline"
-          subtitle={`${plural(items.length, "entry", "entries")}${sel.sub ? ` in ${sel.sub}` : sel.macro ? ` in ${sel.macro}` : ""} · coloured by ${colourBy === "impact" ? "Impact" : sel.macro ? "Subtrend" : "Macrotrend"}${impactOnly && colourBy === "impact" ? ` · ${impactOnly} only` : ""}${data?.truncated ? " · most recent shown" : ""}`}
-          tools={
-            <div className="mg-seg sm" role="group" aria-label="Colour the timeline by">
-              {(["trend", "impact"] as const).map((k) => (
-                <button
-                  key={k}
-                  aria-pressed={colourBy === k}
-                  onClick={() => {
-                    setColourBy(k);
-                    setImpactOnly(null);
-                  }}
-                >
-                  {k === "trend" ? (sel.macro ? "Subtrend" : "Macrotrend") : "Impact"}
-                </button>
-              ))}
-            </div>
-          }
-          from={from}
-          to={to}
-          openId={openItem ? openId : null}
-          activeLegend={colourBy === "impact" ? impactOnly : sel.macro ? sel.sub : null}
-          onOpen={(id) => set({ e: openId === id ? null : id }, false)}
-          onLegend={(name) =>
-            colourBy === "impact"
-              ? setImpactOnly((cur) => (cur === name ? null : name))
-              : sel.macro
-                ? name === "No Subtrend"
-                  ? undefined
-                  : select({ macro: sel.macro, sub: sel.sub === name ? null : name })
-                : select({ macro: name, sub: null })
-          }
-        />
+        focusMacro ? undefined : (
+          <Timeline
+            items={items}
+            legend={legend}
+            title="Timeline"
+            subtitle={`${plural(items.length, "entry", "entries")}${sel.sub ? ` in ${sel.sub}` : sel.macro ? ` in ${sel.macro}` : ""} · coloured by ${colourBy === "impact" ? "Impact" : sel.macro ? "Subtrend" : "Macrotrend"}${impactOnly && colourBy === "impact" ? ` · ${impactOnly} only` : ""}${data?.truncated ? " · most recent shown" : ""}`}
+            tools={
+              <div className="mg-seg sm" role="group" aria-label="Colour the timeline by">
+                {(["trend", "impact"] as const).map((k) => (
+                  <button
+                    key={k}
+                    aria-pressed={colourBy === k}
+                    onClick={() => {
+                      setColourBy(k);
+                      setImpactOnly(null);
+                    }}
+                  >
+                    {k === "trend" ? (sel.macro ? "Subtrend" : "Macrotrend") : "Impact"}
+                  </button>
+                ))}
+              </div>
+            }
+            from={from}
+            to={to}
+            openId={openItem ? openId : null}
+            activeLegend={colourBy === "impact" ? impactOnly : sel.macro ? sel.sub : null}
+            onOpen={(id) => set({ e: openId === id ? null : id }, false)}
+            onLegend={(name) =>
+              colourBy === "impact"
+                ? setImpactOnly((cur) => (cur === name ? null : name))
+                : sel.macro
+                  ? name === "No Subtrend"
+                    ? undefined
+                    : select({ macro: sel.macro, sub: sel.sub === name ? null : name })
+                  : select({ macro: name, sub: null })
+            }
+          />
+        )
       }
     />
   );

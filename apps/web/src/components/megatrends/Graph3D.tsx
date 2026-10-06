@@ -60,6 +60,8 @@ export interface GraphSpec {
   orbit: { hub: string; entries: GraphEntry[] } | null;
   /** A selected level-1 hub is framed with its Subtrends (the Macrotrend dashboard's graph). */
   frame?: boolean;
+  /** No "All Tracker entries" core (request 35): the level-1 hubs are held at the centre instead. */
+  noCore?: boolean;
 }
 
 interface GNode {
@@ -412,17 +414,25 @@ export function Graph3D({
       nodes.current.set(n.id, fresh);
       return fresh;
     };
-    const core = node({ id: "core", kind: "core", level: 0, root: "core", name: "Tracker", count: spec.total, colour: "#7fd3d8", r: 4.5, dots: [], labelScale: 0 });
+    const core = spec.noCore ? undefined : node({ id: "core", kind: "core", level: 0, root: "core", name: "Tracker", count: spec.total, colour: "#7fd3d8", r: 4.5, dots: [], labelScale: 0 });
     // Pinned at the centre at first; a dragged core stays where it is dropped.
-    if (core.fx == null) core.fx = core.fy = core.fz = 0;
-    want.push(core);
+    if (core) {
+      if (core.fx == null) core.fx = core.fy = core.fz = 0;
+      want.push(core);
+    }
     const byId = new Map(spec.hubs.map((h) => [h.id, h]));
     for (const h of spec.hubs) {
       const root = h.level === 2 && h.parent ? h.parent : h.id;
       want.push(
         node({ id: h.id, kind: "hub", level: h.level, root, name: h.name, count: h.count, colour: h.colour, r: h.r, dots: h.dots.slice(0, DOTS_MAX), labelScale: h.labelScale }),
       );
-      links.push(h.level === 2 && h.parent && byId.has(h.parent) ? { source: h.parent, target: h.id, kind: "sub", weight: 1 } : { source: "core", target: h.id, kind: "core", weight: 1 });
+      if (h.level === 2 && h.parent && byId.has(h.parent)) links.push({ source: h.parent, target: h.id, kind: "sub", weight: 1 });
+      else if (core) links.push({ source: "core", target: h.id, kind: "core", weight: 1 });
+      else if (born.has(h.id)) {
+        // Without the core, a level-1 hub starts at the centre (and is held there below).
+        const n = nodes.current.get(h.id)!;
+        n.x = n.y = n.z = 0;
+      }
     }
     // Competitors: an even place on the orbit each, the biggest ones far apart.
     const slotted = spec.layout === "competitors" ? want.filter((n) => n.kind === "hub" && n.level === 1) : [];
@@ -432,9 +442,9 @@ export function Graph3D({
       // A new competitor starts at its place rather than drifting there from the core.
       if (born.has(n.id)) {
         const d = orbitOf(n);
-        n.x = (core.x ?? 0) + n.slot![0] * d;
-        n.y = (core.y ?? 0) + n.slot![1] * d;
-        n.z = (core.z ?? 0) + n.slot![2] * d;
+        n.x = (core?.x ?? 0) + n.slot![0] * d;
+        n.y = (core?.y ?? 0) + n.slot![1] * d;
+        n.z = (core?.z ?? 0) + n.slot![2] * d;
       }
     });
     for (const t of spec.ties) if (byId.has(t.a) && byId.has(t.b)) links.push({ source: t.a, target: t.b, kind: "tie", weight: t.weight });
@@ -446,7 +456,7 @@ export function Graph3D({
       }
     }
     for (const n of want) {
-      const hold = n.kind === "hub" && n.id === spec.selected;
+      const hold = n.kind === "hub" && (n.id === spec.selected || (!core && n.level === 1));
       if (hold && !n.pinned && n.x != null) {
         n.fx = n.x;
         n.fy = n.y;
@@ -461,6 +471,11 @@ export function Graph3D({
     for (const id of [...nodes.current.keys()]) if (!keep.has(id)) nodes.current.delete(id);
     for (const id of [...parts.current.keys()]) if (!keep.has(id)) parts.current.delete(id);
     g.graphData({ nodes: want, links });
+    // What the graph holds, for tests and tools: its hubs, and whether the core is drawn.
+    if (host.current) {
+      host.current.dataset.hubs = String(want.filter((n) => n.kind === "hub").length);
+      host.current.dataset.core = core ? "shown" : "none";
+    }
 
     // Emphasis: the open branch is bright, the rest recedes (nodes drawn later get it in buildNode).
     const lit = litSet(spec);
@@ -490,9 +505,9 @@ export function Graph3D({
       const dx = x - (parent?.x ?? 0);
       const dy = y - (parent?.y ?? 0);
       const dz = z - (parent?.z ?? 0);
-      const len = Math.hypot(dx, dy, dz) || 1;
+      const [ux, uy, uz] = away(dx, dy, dz);
       const back = (target.level === 2 ? 85 : spec.layout === "competitors" ? 170 : 140) + target.r * 3;
-      g.cameraPosition({ x: x + (dx / len) * back, y: y + (dy / len) * back + 14, z: z + (dz / len) * back }, { x, y, z }, 1400);
+      g.cameraPosition({ x: x + ux * back, y: y + uy * back + 14, z: z + uz * back }, { x, y, z }, 1400);
     };
     // A node just added has no settled position yet: wait for the layout.
     if (target && target.x == null) setTimeout(fly, 900);
@@ -520,8 +535,8 @@ export function Graph3D({
         const dx = c.x - (parent?.x ?? 0);
         const dy = c.y - (parent?.y ?? 0);
         const dz = c.z - (parent?.z ?? 0);
-        const len = Math.hypot(dx, dy, dz) || 1;
-        g.cameraPosition({ x: c.x + (dx / len) * dist, y: c.y + (dy / len) * dist, z: c.z + (dz / len) * dist }, c, 1100);
+        const [ux, uy, uz] = away(dx, dy, dz);
+        g.cameraPosition({ x: c.x + ux * dist, y: c.y + uy * dist, z: c.z + uz * dist }, c, 1100);
       }, 2200);
     }
   }, [spec, ready]);
@@ -766,6 +781,13 @@ function starfield(T: Three) {
   ctx.fillRect(0, 0, 32, 32);
   const mat = new T.PointsMaterial({ size: 5, sizeAttenuation: true, vertexColors: true, map: new T.CanvasTexture(c), transparent: true, opacity: 0.8, depthWrite: false, blending: T.AdditiveBlending });
   return new T.Points(geo, mat);
+}
+
+/** The unit direction to look from; straight on (slightly from above) for a node at its parent's place, e.g. a Macrotrend at the centre. */
+function away(dx: number, dy: number, dz: number): [number, number, number] {
+  const len = Math.hypot(dx, dy, dz);
+  if (len < 1) return [0, 0.15, 0.99];
+  return [dx / len, dy / len, dz / len];
 }
 
 /** How far a level-1 hub sits from the core: the same orbit for Macrotrends and competitors. */
