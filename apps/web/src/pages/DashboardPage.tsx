@@ -15,7 +15,7 @@ export function DashboardPage({ me }: { me: Me }) {
   const rec = useRecordParam();
   const d = dash.data;
   return (
-    <div className="mg-page ad-page" data-testid="analytics-dashboard">
+    <div className="mg-page ad-page ad-fit" data-testid="analytics-dashboard">
       <header className="mg-head ad-head">
         <div>
           <span className="eyebrow">Analytics</span>

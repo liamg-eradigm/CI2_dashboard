@@ -19,7 +19,7 @@ test.describe("request 32", () => {
     expect(Math.abs(bc.width - c.width)).toBeLessThanOrEqual(1);
     const size = (l: ReturnType<typeof page.locator>) => l.evaluate((el) => Number.parseFloat(getComputedStyle(el).fontSize));
     expect(await size(page.getByRole("heading", { name: "Trends Analysis" }))).toBeGreaterThanOrEqual(28);
-    expect(await size(page.getByTestId("ad-megatrends").locator("b"))).toBeGreaterThanOrEqual(36);
+    expect(await size(page.getByTestId("ad-megatrends").locator("b"))).toBe(35);
     await expectAccessible(page, "Analytics Dashboard with time frame sliders");
   });
 

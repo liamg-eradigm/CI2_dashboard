@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { CORE, defaultDateRange, getColumn, isPlaceholderCompetitor, todayIso, type Bar, type FilterState, type Me, type TrackerSchema } from "@eradigm/shared";
 import { useDashboard, useDateBounds, useSchema, useSettings } from "../../api/hooks";
-import { BarChart, SignalTimeline } from "../Charts";
+import { MixLegend, SignalTimeline } from "../Charts";
 import { RecordDrawer } from "../RecordDrawer";
 
-/** Rows shown in a long impact mix (competitors) until it is expanded. */
-const MIX_ROWS = 10;
+/** Rows in an impact mix (the number of Macrotrends): the competitors' top nine until expanded. */
+const MIX_ROWS = 9;
 
 /**
  * The Analytics pages' data (request 31): the Dashboard's figures for every
@@ -170,22 +170,129 @@ function ImpactMix({ kind, filters, schema, note }: { kind: "macro" | "comp"; fi
       </div>
     </div>
   );
-  if (!d) return <div className="ad-skeleton" style={{ height: 320 }} role="status" aria-label={`Loading ${title}`} />;
-  return kind === "macro" ? (
-    <BarChart title={title} sub={mixNote} bars={bars} schema={schema} mix below={slider} />
-  ) : (
-    <BarChart
+  if (!d) return <div className="ad-skeleton mix-card" role="status" aria-label={`Loading ${title}`} />;
+  return (
+    <MixChart
+      id={`mix-${kind}`}
       title={title}
-      sub={`${mixNote} · an entry naming several competitors counts for each`}
+      sub={mixNote}
+      subTitle={kind === "comp" ? "An entry naming several competitors counts for each" : undefined}
       bars={bars}
       schema={schema}
-      variant="comp"
-      mix
-      limit={MIX_ROWS}
+      limit={kind === "comp" ? MIX_ROWS : undefined}
       expanded={open}
       onToggle={() => setOpen((o) => !o)}
       below={slider}
     />
+  );
+}
+
+/** A label on one line; cut off with … when too long, and opened in full by selecting it. */
+function CutLabel({ text }: { text: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [cut, setCut] = useState(false);
+  const [full, setFull] = useState(false);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    // Measured on the element on screen (a detached one reads 0 wide).
+    const check = () => el.isConnected && setCut(el.scrollWidth > el.clientWidth + 1);
+    check();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [text, full, cut]);
+  if (full)
+    return (
+      <button className="mix-lbl full" onClick={() => setFull(false)} aria-expanded="true" title="Show on one line">
+        {text}
+      </button>
+    );
+  return cut ? (
+    <button className="mix-lbl" onClick={() => setFull(true)} aria-expanded="false" title={text}>
+      <span ref={ref}>{text}</span>
+    </button>
+  ) : (
+    <span className="mix-lbl" ref={ref}>
+      {text}
+    </span>
+  );
+}
+
+/**
+ * An impact mix on the Analytics pages (request 33): nine rows high whatever
+ * it shows (the competitors' top nine, all of them scrolling inside the same
+ * box once expanded), one line per row, so two mixes side by side are the
+ * same size with their rows level.
+ */
+function MixChart({
+  id,
+  title,
+  sub,
+  subTitle,
+  bars,
+  schema,
+  limit,
+  expanded,
+  onToggle,
+  below,
+}: {
+  id: string;
+  title: string;
+  sub: string;
+  subTitle?: string;
+  bars: Bar[];
+  schema: TrackerSchema;
+  limit?: number;
+  expanded: boolean;
+  onToggle: () => void;
+  below: ReactNode;
+}) {
+  const max = Math.max(1, ...bars.map((b) => b.n));
+  const opts = getColumn(schema, CORE.impact)?.options ?? ["Low", "Medium", "High"];
+  const hi = opts[opts.length - 1] ?? "High";
+  const lo = opts[0] ?? "Low";
+  const capped = !!limit && bars.length > limit;
+  const shown = capped && !expanded ? bars.slice(0, limit) : bars;
+  return (
+    <section className="card mix-card" aria-labelledby={id} data-testid={id}>
+      <div className="mix-head">
+        <div>
+          <h2 className="card-title" id={id}>
+            {title}
+          </h2>
+          <span className="card-sub" title={subTitle}>
+            {sub}
+          </span>
+        </div>
+        <div className="mix-head-r">
+          <MixLegend schema={schema} />
+          {limit != null && (
+            <button className="link-btn mix-more" aria-expanded={expanded} aria-controls={`${id}-bars`} onClick={onToggle} disabled={!capped && !expanded}>
+              {expanded ? `Show top ${limit}` : capped ? `Show all ${bars.length}` : `All ${bars.length} shown`}
+            </button>
+          )}
+        </div>
+      </div>
+      <ul className={`bars mix-list${expanded ? " open" : ""}`} id={`${id}-bars`} aria-label={`${title}: count per category`} tabIndex={expanded ? 0 : undefined}>
+        {shown.map((b) => (
+          <li key={b.label} className="bar-row mix" aria-label={`${b.label}: ${b.high} ${hi}, ${b.medium} medium, ${b.low} ${lo}`}>
+            <div className="lbl">
+              <CutLabel text={b.label} />
+            </div>
+            <div className="track" aria-hidden="true">
+              <div className="fill h" style={{ width: `${(b.high / max) * 100}%` }} />
+              <div className="fill m" style={{ width: `${(b.medium / max) * 100}%` }} />
+              <div className="fill l" style={{ width: `${(b.low / max) * 100}%` }} />
+            </div>
+            <div className="n" aria-hidden="true">{`${b.high} / ${b.medium} / ${b.low}`}</div>
+          </li>
+        ))}
+        {!bars.length && <li className="empty mix-empty">No signals in this time frame.</li>}
+      </ul>
+      <div className="mix-foot">{below}</div>
+    </section>
   );
 }
 

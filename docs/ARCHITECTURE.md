@@ -354,6 +354,15 @@ analyst-entered information distinguishable; in the prototype every value is
   oldest entry to today) that reloads that chart alone once the slider rests
   (350 ms; its own `GET /api/dashboard` with those dates); and Impact Mix by
   Competitor never shows "N/A" (or other placeholder) bars.
+  Request 33: the dashboard fits the window without scrolling (the timeline
+  takes the height left over; on windows under ~820px tall the rows and
+  slider are slimmer and the two buttons drop their descriptions). Each
+  impact mix is nine one-line rows high whatever it shows, so the two side
+  by side are the same size with their rows and bars level: Competitors
+  shows its top nine, and Show all lists the rest in the same box (it
+  scrolls). A label too long for its line is cut off with … and opens in
+  full over its bar when selected. The timeline's plot is very light again,
+  as on the original dashboard; Megatrends / Competitors are 35px.
   - Trends Analysis (`/analytics/megatrends`, `/analytics/competitors`,
     `TrendAnalysisPage`; the old `/megatrends/analysis` and
     `/competitors/analysis` addresses redirect): the Macrotrends or the
