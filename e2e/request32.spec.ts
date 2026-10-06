@@ -66,7 +66,9 @@ test.describe("request 32", () => {
     await expect(comp.locator(".bar-row").first()).toBeVisible();
     await expect(comp.locator(".bar-row .lbl", { hasText: /^N\/A$/ })).toHaveCount(0);
     await page.goto(`/analytics/megatrends?m=${encodeURIComponent("AI Investment in R&D")}`);
-    await expect(comp.locator(".bar-row").first()).toBeVisible();
-    await expect(comp.locator(".bar-row .lbl", { hasText: /^N\/A$/ })).toHaveCount(0);
+    await page.getByTestId("md-mix-comp").click();
+    const mix = page.getByTestId("md-mix");
+    await expect(mix.locator(".bar-row").first()).toBeVisible();
+    await expect(mix.locator(".bar-row .lbl", { hasText: /^N\/A$/ })).toHaveCount(0);
   });
 });
