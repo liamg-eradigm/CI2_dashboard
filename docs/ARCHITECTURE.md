@@ -362,7 +362,9 @@ analyst-entered information distinguishable; in the prototype every value is
   shows its top nine, and Show all lists the rest in the same box (it
   scrolls). A label too long for its line is cut off with … and opens in
   full over its bar when selected. The timeline's plot is very light again,
-  as on the original dashboard; Megatrends / Competitors are 35px.
+  as on the original dashboard; Megatrends / Competitors are 35px. Request 34: the
+  plot is light blue, and the timeline is sized from the window height
+  (shorter), leaving room below the Trends Analysis buttons.
   - Trends Analysis (`/analytics/megatrends`, `/analytics/competitors`,
     `TrendAnalysisPage`; the old `/megatrends/analysis` and
     `/competitors/analysis` addresses redirect): the Macrotrends or the
