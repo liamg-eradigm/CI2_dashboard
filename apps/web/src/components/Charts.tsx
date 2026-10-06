@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { CORE, bucket, getColumn, levelOf, type Bar, type DashboardData, type TrackerSchema } from "@eradigm/shared";
 import { IMPACT_CLASS, IMPACT_SHAPE, formatDate } from "../lib/format";
 
@@ -326,6 +326,7 @@ export function BarChart({
   schema,
   onSelect,
   footer,
+  below,
   full,
   limit,
   expanded = false,
@@ -339,6 +340,8 @@ export function BarChart({
   schema: TrackerSchema;
   onSelect?: (label: string) => void;
   footer?: string;
+  /** Shown under the bars (e.g. the Analytics Dashboard's time frame slider). */
+  below?: ReactNode;
   full?: boolean;
   /** Show only the first `limit` rows until expanded (the rows are ranked, so these are the largest). */
   limit?: number;
@@ -409,6 +412,7 @@ export function BarChart({
         )}
         {!bars.length && <div className="empty">No signals yet.</div>}
         {footer && <div className="foot-note">{footer}</div>}
+        {below}
       </div>
     </section>
   );
