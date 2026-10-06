@@ -78,11 +78,11 @@ test.describe("request 33: Analytics Dashboard layout", () => {
     await expect(macro.locator("button.mix-lbl[aria-expanded='true']")).toHaveCount(0);
   });
 
-  test("the timeline's plot is light blue (request 34), and Megatrends / Competitors are 5px smaller", async ({ page }) => {
+  test("the timeline's plot is the impact mixes' blue (request 35), and Megatrends / Competitors are 5px smaller", async ({ page }) => {
     await signInAs(page, "client");
     await page.goto("/dashboard");
     await expect(page.getByTestId("signal-timeline")).toBeVisible();
-    expect(await page.getByTestId("signal-timeline").evaluate((el) => getComputedStyle(el).backgroundColor)).toBe("rgb(228, 241, 248)");
+    expect(await page.getByTestId("signal-timeline").evaluate((el) => getComputedStyle(el).backgroundColor)).toBe("rgba(255, 255, 255, 0.1)");
     expect(await page.getByTestId("ad-megatrends").locator("b").evaluate((el) => getComputedStyle(el).fontSize)).toBe("35px");
   });
 });

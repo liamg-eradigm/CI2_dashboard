@@ -533,7 +533,8 @@ button.mix-lbl:hover, button.mix-lbl:focus-visible { color: #fff; text-decoratio
  * sized from the window height so the page ends with room below the Trends
  * Analysis buttons (less on short windows, where it must still fit).
  */
-.ad-page .tl-plot { background: #e4f1f8; }
+/* Request 35: the same blue as the impact mix plots (their bar tracks, on the same panel). */
+.ad-page .tl-plot { background: rgba(255, 255, 255, 0.1); }
 .ad-fit .ad-body { padding-bottom: 56px; }
 .ad-fit .tl-card { flex: none; min-height: 0; }
 .ad-fit .tl-card .timeline { flex: none; grid-template-rows: auto 24px; }
