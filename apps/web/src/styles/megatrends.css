@@ -527,3 +527,18 @@ button.mix-lbl:hover, button.mix-lbl:focus-visible { color: #fff; text-decoratio
   .ad-fit .ad-trend-links a span { display: none; }
   .ad-skeleton.mix-card { height: 300px; }
 }
+
+/*
+ * Request 34: the timeline's plot in a light blue, and a shorter timeline,
+ * sized from the window height so the page ends with room below the Trends
+ * Analysis buttons (less on short windows, where it must still fit).
+ */
+.ad-page .tl-plot { background: #e4f1f8; }
+.ad-fit .ad-body { padding-bottom: 56px; }
+.ad-fit .tl-card { flex: none; min-height: 0; }
+.ad-fit .tl-card .timeline { flex: none; grid-template-rows: auto 24px; }
+.ad-fit .tl-card .tl-y, .ad-fit .tl-card .tl-plot { height: clamp(96px, calc(100vh - 792px), 300px); min-height: 0; }
+@media (max-height: 820px) and (min-width: 901px) {
+  .ad-fit .ad-body { padding-bottom: 24px; }
+  .ad-fit .tl-card .tl-y, .ad-fit .tl-card .tl-plot { height: clamp(72px, calc(100vh - 664px), 140px); }
+}
