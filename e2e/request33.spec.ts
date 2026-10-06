@@ -78,11 +78,17 @@ test.describe("request 33: Analytics Dashboard layout", () => {
     await expect(macro.locator("button.mix-lbl[aria-expanded='true']")).toHaveCount(0);
   });
 
-  test("the timeline's plot is the impact mixes' blue (request 35), and Megatrends / Competitors are 5px smaller", async ({ page }) => {
+  test("the timeline's plot has the box's colour with lines in the axis labels' colour (request 36), and Megatrends / Competitors are 5px smaller", async ({ page }) => {
     await signInAs(page, "client");
     await page.goto("/dashboard");
     await expect(page.getByTestId("signal-timeline")).toBeVisible();
-    expect(await page.getByTestId("signal-timeline").evaluate((el) => getComputedStyle(el).backgroundColor)).toBe("rgba(255, 255, 255, 0.1)");
+    // Request 36: no fill of its own (the box's colour); dashed lines and axes in the axis labels' colour.
+    const plot = page.getByTestId("signal-timeline");
+    expect(await plot.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe("rgba(0, 0, 0, 0)");
+    const label = await page.locator(".tl-x span").first().evaluate((el) => getComputedStyle(el).color);
+    expect(await plot.evaluate((el) => getComputedStyle(el).borderLeftColor)).toBe(label);
+    expect(await plot.evaluate((el) => getComputedStyle(el).borderBottomColor)).toBe(label);
+    expect(await plot.locator(".tl-grid").first().evaluate((el) => getComputedStyle(el).borderTopColor)).toBe(label);
     expect(await page.getByTestId("ad-megatrends").locator("b").evaluate((el) => getComputedStyle(el).fontSize)).toBe("35px");
   });
 });

@@ -362,8 +362,9 @@ analyst-entered information distinguishable; in the prototype every value is
   shows its top nine, and Show all lists the rest in the same box (it
   scrolls). A label too long for its line is cut off with … and opens in
   full over its bar when selected. The timeline's plot is very light again,
-  as on the original dashboard; Megatrends / Competitors are 35px. Request 34 / 35: the
-  plot is the same blue as the impact mixes' bar tracks, and the timeline is sized from the window height
+  as on the original dashboard; Megatrends / Competitors are 35px. Request 34 / 36: the
+  plot has no fill of its own (the box's colour, as the impact mix boxes),
+  its dashed lines and axes in the axis labels' colour, and the timeline is sized from the window height
   (shorter), leaving room below the Trends Analysis buttons.
   - Trends Analysis (`/analytics/megatrends`, `/analytics/competitors`,
     `TrendAnalysisPage`; the old `/megatrends/analysis` and

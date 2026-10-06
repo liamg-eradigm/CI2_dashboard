@@ -533,8 +533,13 @@ button.mix-lbl:hover, button.mix-lbl:focus-visible { color: #fff; text-decoratio
  * sized from the window height so the page ends with room below the Trends
  * Analysis buttons (less on short windows, where it must still fit).
  */
-/* Request 35: the same blue as the impact mix plots (their bar tracks, on the same panel). */
-.ad-page .tl-plot { background: rgba(255, 255, 255, 0.1); }
+/*
+ * Request 36: no fill of its own: the plot shows the box's colour, the same as
+ * the impact mix boxes; its dashed lines and axes are the colour of the axis
+ * labels.
+ */
+.ad-page .tl-plot { background: transparent; border-left-color: var(--mg-ink-3); border-bottom-color: var(--mg-ink-3); }
+.ad-page .tl-grid { border-top-color: var(--mg-ink-3); }
 .ad-fit .ad-body { padding-bottom: 56px; }
 .ad-fit .tl-card { flex: none; min-height: 0; }
 .ad-fit .tl-card .timeline { flex: none; grid-template-rows: auto 24px; }
