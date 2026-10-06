@@ -16,11 +16,12 @@ export async function signalDetail(env: Env, schemas: Schemas, tenantId: string,
   const r = await env.DB.prepare(
     `SELECT i.*, (SELECT group_concat(c.competitor, '${SEP}') FROM item_competitors c WHERE c.item_id = i.id) AS competitors,
             (SELECT u.name FROM users u WHERE u.id = i.approved_by) AS approved_by_name,
-            ${linkedExpr("earlier")} AS linked_earlier, ${linkedExpr("later")} AS linked_later
+            ${linkedExpr("earlier")} AS linked_earlier, ${linkedExpr("later")} AS linked_later,
+            COALESCE((SELECT json_extract(ps.extra_json, '$."ci_perspective"') FROM phantom_snapshots ps WHERE ps.item_id = i.id), json_extract(i.extra_json, '$."ci_perspective"')) AS ci_perspective
        FROM intelligence_items i WHERE i.tenant_id = ?1 AND i.id = ?2 AND i.status = 'approved' AND i.deleted_at IS NULL`,
   )
     .bind(tenantId, id)
-    .first<Record<string, unknown> & { id: string; signal_code: string; stream: Stream; record_id: string | null; code: string; competitors: string | null; extra_json: string; pub_date: string; title: string | null; macrotrend: string | null; subtrend: string | null; growth: string | null; impact: string | null; body_text: string | null; final_url: string | null; submitted_url: string | null; published_rev: number; approved_at: string; approved_by_name: string | null; received_at: string; current_snapshot_id: string | null; provenance_json: string; extraction_json: string | null; linked_earlier: string | null; linked_later: string | null }>();
+    .first<Record<string, unknown> & { id: string; signal_code: string; stream: Stream; record_id: string | null; code: string; competitors: string | null; extra_json: string; pub_date: string; title: string | null; macrotrend: string | null; subtrend: string | null; growth: string | null; impact: string | null; body_text: string | null; final_url: string | null; submitted_url: string | null; published_rev: number; approved_at: string; approved_by_name: string | null; received_at: string; current_snapshot_id: string | null; provenance_json: string; extraction_json: string | null; linked_earlier: string | null; linked_later: string | null; ci_perspective: string | null }>();
   if (!r) throw notFound("Signal");
   const values = rowValues(schemas[r.stream] ?? schemas.primary, r);
   const attempt = await env.DB.prepare(
@@ -52,6 +53,7 @@ export async function signalDetail(env: Env, schemas: Schemas, tenantId: string,
     pages: r.current_snapshot_id ? (await listPages(env, tenantId, id)).length : 0,
     linkedEarlier: r.linked_earlier ?? null,
     linkedLater: r.linked_later ?? null,
+    ciPerspective: typeof r.ci_perspective === "string" && r.ci_perspective.trim() ? r.ci_perspective : null,
     inboxCode: r.code,
     receivedAt: r.received_at,
     submittedUrl: r.submitted_url,

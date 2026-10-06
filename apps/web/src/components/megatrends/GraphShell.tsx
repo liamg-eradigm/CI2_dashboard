@@ -1,7 +1,8 @@
 /**
  * The frame of the Megatrends and Competitors tabs: the knowledge graph, with
- * a column over its left edge holding the breadcrumbs, the summary in view and
- * the list (a bar between them drags to share the column's height), the
+ * the breadcrumbs over its top left corner (request 34: no summary or list
+ * column; a page may still pass one: a column over the left edge holding the
+ * summary and the list, a bar between them dragging to share its height), the
  * timeline below, and the drawer that opens from the right (a selected
  * Subtrend's or competitor's sources, or an entry); the graph moves left to
  * stay clear of it.
@@ -68,6 +69,8 @@ export function GraphShell({
   timeline,
   drawer,
   drawerOpen,
+  embedded = false,
+  keyNav,
 }: {
   /** "megatrends" / "competitors": the browser remembers the list and the split per tab. */
   storageKey: string;
@@ -75,14 +78,22 @@ export function GraphShell({
   spec: GraphSpec;
   graph: { onHub: (id: string) => void; onCore: () => void; onFocus: (id: string | null) => void; onEntry: (id: string) => void };
   crumbs: ReactNode;
-  panel: ReactNode;
-  railTitle: string;
+  /**
+   * Without a list: the graph's nodes as buttons for the keyboard and screen
+   * readers, out of sight until one has focus.
+   */
+  keyNav?: { label: string; items: { name: string; count: number; current: boolean; onSelect: () => void }[] };
+  /** The summary and the list on the left (request 34: none on the knowledge graphs). */
+  panel?: ReactNode;
+  railTitle?: string;
   /** "Macrotrend list", "competitor list" (for the minimise buttons). */
-  railNoun: string;
-  rail: ReactNode;
+  railNoun?: string;
+  rail?: ReactNode;
   timeline: ReactNode;
   drawer: ReactNode;
   drawerOpen: boolean;
+  /** Inside another page (a Macrotrend dashboard's Explore Signals) rather than the whole window. */
+  embedded?: boolean;
 }) {
   const reducedMotion = useReducedMotion();
   const [noGl, setNoGl] = useState(false);
@@ -143,79 +154,105 @@ export function GraphShell({
   };
 
   return (
-    <div className={`mg-page${drawerOpen ? " drawer-open" : ""}`} data-testid={storageKey} style={{ ["--side-w" as string]: `${w}px` }}>
+    <div className={`mg-page${drawerOpen ? " drawer-open" : ""}${embedded ? " mg-embedded" : ""}`} data-testid={storageKey} style={{ ["--side-w" as string]: `${w}px` }}>
       <section className="mg-stage" aria-label={stageLabel} ref={stage}>
         {!noGl && (
           <Suspense fallback={<div className="mg-loading">Loading the knowledge graph…</div>}>
             <Graph3D spec={spec} reducedMotion={reducedMotion} {...graph} onUnavailable={() => setNoGl(true)} rightPanel={drawerOpen} />
           </Suspense>
         )}
-        {noGl && <p className="mg-nogl">The 3D view needs WebGL, which is switched off in this browser. The list, summaries and timeline still work.</p>}
-        <div className="mg-side" ref={side}>
-          <div
-            className="mg-side-grip"
-            role="separator"
-            aria-orientation="vertical"
-            aria-label={`Resize the width of the summary and the ${railNoun}`}
-            aria-valuemin={WIDTH_MIN}
-            aria-valuemax={widthMax()}
-            aria-valuenow={w}
-            tabIndex={0}
-            title="Drag to make the summary column wider or narrower"
-            onPointerDown={onWDown}
-            onPointerMove={onWMove}
-            onPointerUp={onWUp}
-            onPointerCancel={onWUp}
-            onKeyDown={onWKey}
-            data-testid="mg-width-grip"
-          >
-            <span />
+        {noGl && <p className="mg-nogl">The 3D view needs WebGL, which is switched off in this browser. The timeline and the sources still work.</p>}
+        {panel == null && rail == null ? (
+          <div className="mg-side bare" ref={side}>
+            {crumbs}
+            {keyNav && keyNav.items.length > 0 && (
+              <nav className="mg-keynav" aria-label={keyNav.label}>
+                <ul>
+                  {keyNav.items.map((n) => (
+                    <li key={n.name}>
+                      <button onClick={n.onSelect} aria-current={n.current ? "true" : undefined}>
+                        <span className="nm">{n.name}</span> <span className="ct">{n.count}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+            )}
           </div>
-          {crumbs}
-          <div className="mg-split" ref={box}>
-            <div className="mg-split-a" style={{ flex: railOpen ? `${ratio} 1 0` : "1 1 0" }}>
-              {panel}
+        ) : (
+          <div className="mg-side" ref={side}>
+            <div
+              className="mg-side-grip"
+              role="separator"
+              aria-orientation="vertical"
+              aria-label={`Resize the width of the summary and the ${railNoun}`}
+              aria-valuemin={WIDTH_MIN}
+              aria-valuemax={widthMax()}
+              aria-valuenow={w}
+              tabIndex={0}
+              title="Drag to make the summary column wider or narrower"
+              onPointerDown={onWDown}
+              onPointerMove={onWMove}
+              onPointerUp={onWUp}
+              onPointerCancel={onWUp}
+              onKeyDown={onWKey}
+              data-testid="mg-width-grip"
+            >
+              <span />
             </div>
-            {railOpen && (
-              <div
-                className="mg-splitter"
-                role="separator"
-                aria-orientation="horizontal"
-                aria-label={`Resize the summary and the ${railNoun}`}
-                aria-valuemin={Math.round(SPLIT_MIN * 100)}
-                aria-valuemax={Math.round(SPLIT_MAX * 100)}
-                aria-valuenow={Math.round(ratio * 100)}
-                tabIndex={0}
-                title="Drag to share the space between the summary and the list"
-                onPointerDown={onDown}
-                onPointerMove={onMove}
-                onPointerUp={onUp}
-                onPointerCancel={onUp}
-                onKeyDown={onKey}
-                data-testid="mg-splitter"
-              >
-                <span />
+            {crumbs}
+            <div className="mg-split" ref={box}>
+              <div className="mg-split-a" style={{ flex: railOpen ? `${ratio} 1 0` : "1 1 0" }}>
+                {panel}
               </div>
-            )}
-            {railOpen ? (
-              <div className="mg-rail" id={`${storageKey}-rail`} style={{ flex: `${1 - ratio} 1 0` }}>
-                <div className="mg-rail-head">
-                  <h2 className="mg-rail-title" id={`${storageKey}-rail-title`}>
-                    {railTitle}
-                  </h2>
-                  <button className="mg-icon sm" onClick={() => setRailOpen(false)} aria-label={`Minimise the ${railNoun}`} aria-expanded={true} aria-controls={`${storageKey}-rail`} title="Minimise">
-                    ‹
-                  </button>
+              {railOpen && (
+                <div
+                  className="mg-splitter"
+                  role="separator"
+                  aria-orientation="horizontal"
+                  aria-label={`Resize the summary and the ${railNoun}`}
+                  aria-valuemin={Math.round(SPLIT_MIN * 100)}
+                  aria-valuemax={Math.round(SPLIT_MAX * 100)}
+                  aria-valuenow={Math.round(ratio * 100)}
+                  tabIndex={0}
+                  title="Drag to share the space between the summary and the list"
+                  onPointerDown={onDown}
+                  onPointerMove={onMove}
+                  onPointerUp={onUp}
+                  onPointerCancel={onUp}
+                  onKeyDown={onKey}
+                  data-testid="mg-splitter"
+                >
+                  <span />
                 </div>
-                {rail}
-              </div>
-            ) : (
-              <button className="mg-rail-open" onClick={() => setRailOpen(true)} aria-expanded={false} aria-controls={`${storageKey}-rail`} data-testid="mg-rail-open">
-                ☰ {railTitle}
-              </button>
-            )}
+              )}
+              {railOpen ? (
+                <div className="mg-rail" id={`${storageKey}-rail`} style={{ flex: `${1 - ratio} 1 0` }}>
+                  <div className="mg-rail-head">
+                    <h2 className="mg-rail-title" id={`${storageKey}-rail-title`}>
+                      {railTitle}
+                    </h2>
+                    <button
+                      className="mg-icon sm"
+                      onClick={() => setRailOpen(false)}
+                      aria-label={`Minimise the ${railNoun}`}
+                      aria-expanded={true}
+                      aria-controls={`${storageKey}-rail`}
+                      title="Minimise"
+                    >
+                      ‹
+                    </button>
+                  </div>
+                  {rail}
+                </div>
+              ) : (
+                <button className="mg-rail-open" onClick={() => setRailOpen(true)} aria-expanded={false} aria-controls={`${storageKey}-rail`} data-testid="mg-rail-open">
+                  ☰ {railTitle}
+                </button>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </section>
       {timeline}
       {drawer}

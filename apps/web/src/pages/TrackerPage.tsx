@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { CORE, FIELDS, STREAM_LABEL, TABLE_ALL_MAX, can, displayValue, getColumn, phantomColumns, trackerColumns, type Me, type Signal, type TrackerColumn } from "@eradigm/shared";
+import { CORE, FIELDS, STREAM_LABEL, TABLE_ALL_MAX, can, displayValue, getColumn, phantomColumns, trackerColumns, type Me, type Signal, type TrackerColumn, type TrackerSchema } from "@eradigm/shared";
 import { request } from "../api/client";
-import { exportUrl, useNewsletters, useSchema, useSettings, useTracker, type TableView } from "../api/hooks";
+import { exportUrl, useArchived, useNewsletters, useSchema, useSettings, useSignal, useTracker, type TableView } from "../api/hooks";
 import { FilterHeader } from "../components/FilterHeader";
 import { MarkdownPanel } from "../components/MarkdownPanel";
 import { DeleteEntries } from "../components/DeleteEntries";
 import { DatesHint } from "../components/DatesHint";
-import { RecordDrawer } from "../components/RecordDrawer";
+import { RecordDrawer, useFocusTrap } from "../components/RecordDrawer";
 import { DocxButton, DocxPane, NewsletterCreate, canCreateNewsletter } from "../components/Deliverables";
 import { SourceDrawer } from "../components/SnapshotFrame";
 import { SavedPagesButton, useAttachPage } from "../components/SavedPages";
@@ -115,11 +115,13 @@ const NOUN: Record<TableView, string> = { tracker: "Tracker", phantoms: "Phantom
  * Phantoms-based tables add the Markdown; Alerts add the .docx alert; the
  * Newsletter table's tick boxes build a newsletter.
  */
-export function TrackerPage({ me, view = "tracker", title, above }: { me: Me; view?: TableView; title?: string; above?: ReactNode }) {
+export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = false }: { me: Me; view?: TableView; title?: string; above?: ReactNode; primaryOnly?: boolean }) {
   // Phantoms and the Deliverables tables share the Phantoms columns, Markdown and rules.
   const phantoms = view !== "tracker";
   const newsletter = view === "newsletter";
-  const [stream, setStream] = useStreamParam();
+  const [streamParam, setStream] = useStreamParam();
+  // Analytics → Primary Tracker (request 34): the Primary Tracker only, with Archived Responses.
+  const stream = primaryOnly ? "primary" : streamParam;
   // Primary Tracker and Phantoms: 🔗 marks entries linked to others from the same source (request 27).
   const linkCol = stream === "primary" && (view === "tracker" || view === "phantoms");
   const schema = useSchema(stream);
@@ -138,6 +140,8 @@ export function TrackerPage({ me, view = "tracker", title, above }: { me: Me; vi
   const exportRef = useRef<HTMLDivElement>(null);
   const selected = f.params.get("signal");
   const mdOpen = f.params.get("md");
+  const archId = primaryOnly ? f.params.get("arch") : null;
+  const archPopup = primaryOnly ? f.params.get("ap") : null;
   const savedOpen = f.params.get("saved");
   const docxOpen = f.params.get("docx");
   const newsletters = useNewsletters(newsletter);
@@ -258,13 +262,15 @@ export function TrackerPage({ me, view = "tracker", title, above }: { me: Me; vi
 
   return (
     <>
-      <FilterHeader title={title ?? (phantoms ? "Phantoms" : "Tracker")} schema={s} f={f} viewKind="tracker" />
+      <FilterHeader title={title ?? (phantoms ? "Phantoms Database" : "Signals Database")} schema={s} f={f} viewKind="tracker" />
       <div className="content">
         {above}
         <div className="stream-bar">
-          <StreamSwitch noun={NOUN[view]} value={stream} onChange={setStream} label={`${NOUN[view]} to show`} />
+          {!primaryOnly && <StreamSwitch noun={NOUN[view]} value={stream} onChange={setStream} label={`${NOUN[view]} to show`} />}
           <span className="stream-note">
-            {view === "alerts"
+            {primaryOnly
+              ? "Approved entries from the Primary Inbox · Archived Responses opens the earlier answers from the same source (Source Role and Source Company)"
+              : view === "alerts"
               ? `${STREAM_LABEL[stream]} Phantoms with High Impact · each gets a .docx alert automatically`
               : newsletter
                 ? `${STREAM_LABEL[stream]} Phantoms with High or Medium Impact · tick entries from either stream, then Create Newsletter`
@@ -275,6 +281,7 @@ export function TrackerPage({ me, view = "tracker", title, above }: { me: Me; vi
                   : `Approved entries from the ${STREAM_LABEL[stream]} Inbox`}
           </span>
         </div>
+        <div className={archId ? "arch-split" : undefined} data-testid={archId ? "arch-split" : undefined}>
         <section className="card flush pop-host" aria-label="Approved signals table">
           <div className="table-top">
             <span className="info" aria-live="polite">
@@ -381,12 +388,17 @@ export function TrackerPage({ me, view = "tracker", title, above }: { me: Me; vi
                   <th scope="col" className="src-col">
                     <span>Source</span>
                   </th>
-                  {linkCol && (
-                    <th scope="col" className="link-col" title="Linked to other entries from the same source (Source Role and Source Company)">
-                      <span aria-hidden="true">🔗</span>
-                      <span className="sr-only">Linked</span>
-                    </th>
-                  )}
+                  {linkCol &&
+                    (primaryOnly ? (
+                      <th scope="col" className="arch-col" title="Earlier answers from the same source (Source Role and Source Company)">
+                        <span>Archived Responses</span>
+                      </th>
+                    ) : (
+                      <th scope="col" className="link-col" title="Linked to other entries from the same source (Source Role and Source Company)">
+                        <span aria-hidden="true">🔗</span>
+                        <span className="sr-only">Linked</span>
+                      </th>
+                    ))}
                   {canEdit && (
                     <th scope="col" className="src-col">
                       <span>Edit</span>
@@ -427,7 +439,29 @@ export function TrackerPage({ me, view = "tracker", title, above }: { me: Me; vi
                       </td>
                     )}
                     <SourceCell s={r} canAttach={canAttach} onOpen={(pageId) => setParam({ saved: r.id, savedPage: pageId }, true)} />
-                    {linkCol && (
+                    {linkCol && primaryOnly && (
+                      <td className="arch-col">
+                        {r.linkedEarlier ? (
+                          <button
+                            className={`src-btn open arch-btn${archId === r.id ? " on" : ""}`}
+                            data-testid="archived-cell"
+                            onClick={() => setParam({ arch: r.id, ap: r.id }, true)}
+                            aria-label={`Archived Responses: earlier answers from the same source as ${titleOf(r)}`}
+                            title="Archived Responses · earlier answers from the same source"
+                          >
+                            <svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true">
+                              <path d="M8.2 11.8a3.2 3.2 0 0 0 4.5 0l2.6-2.6a3.2 3.2 0 0 0-4.5-4.5l-1 1" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                              <path d="M11.8 8.2a3.2 3.2 0 0 0-4.5 0l-2.6 2.6a3.2 3.2 0 0 0 4.5 4.5l1-1" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                            </svg>
+                          </button>
+                        ) : (
+                          <span className="src-none" aria-label="No archived responses">
+                            —
+                          </span>
+                        )}
+                      </td>
+                    )}
+                    {linkCol && !primaryOnly && (
                       <td className="link-col">
                         {r.linkedEarlier || r.linkedLater ? (
                           <button
@@ -497,7 +531,10 @@ export function TrackerPage({ me, view = "tracker", title, above }: { me: Me; vi
             )}
           </div>
         </section>
+        {archId && <ArchivedPanel id={archId} schema={s} cols={cols} onOpen={(id) => setParam({ ap: id }, true)} onClose={() => setParam({ arch: null, ap: null })} />}
+        </div>
       </div>
+      {archPopup && <ArchivedPopup id={archPopup} onClose={() => setParam({ ap: null })} />}
       {savedOpen && !selected && !mdOpen && (
         <SourceDrawer
           itemId={savedOpen}
@@ -561,6 +598,124 @@ export function TrackerPage({ me, view = "tracker", title, above }: { me: Me; vi
           onOpen={(id) => setParam({ signal: id, edit: null }, true)}
         />
       )}
+    </>
+  );
+}
+
+/**
+ * Archived Responses (request 34): the earlier entries from the same source,
+ * in a table like the Primary Tracker's, on the right of a split screen.
+ */
+function ArchivedPanel({ id, schema, cols, onOpen, onClose }: { id: string; schema: TrackerSchema; cols: TrackerColumn[]; onOpen: (id: string) => void; onClose: () => void }) {
+  const q = useArchived(id);
+  const cur = useSignal(id);
+  const impactCol = getColumn(schema, CORE.impact);
+  const growthCol = getColumn(schema, CORE.growth);
+  const actionCol = getColumn(schema, "action");
+  const rows = q.data?.rows ?? [];
+  const role = String(cur.data?.values[FIELDS.sourceRole] ?? "");
+  const company = String(cur.data?.values[FIELDS.sourceCompany] ?? "");
+  return (
+    <section className="card flush arch-panel" aria-labelledby="arch-title" data-testid="archived-panel">
+      <div className="table-top">
+        <div>
+          <h2 className="card-title" id="arch-title">
+            Archived Responses
+          </h2>
+          <span className="card-sub">{role || company ? `${[role, company].filter(Boolean).join(" · ")} · ` : ""}{q.data ? `${rows.length} earlier ${rows.length === 1 ? "answer" : "answers"} from the same source` : "Loading…"}</span>
+        </div>
+        <button className="icon-btn" onClick={onClose} aria-label="Close Archived Responses" title="Close">
+          ✕
+        </button>
+      </div>
+      <div className="table-wrap arch-wrap" tabIndex={0} role="region" aria-label="Archived Responses (scrollable)">
+        <table className="data" style={{ minWidth: Math.max(700, cols.length * 125) }}>
+          <caption className="sr-only">Archived Responses: earlier entries from the same source</caption>
+          <thead>
+            <tr>
+              {cols.map((c) => (
+                <th key={c.key} scope="col">
+                  <span>{c.label}</span>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id} className="arch-row" onClick={() => onOpen(r.id)}>
+                {cols.map((c) =>
+                  c.key === CORE.title ? (
+                    <td key={c.key} className="title">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpen(r.id);
+                        }}
+                        aria-label={`Open archived response: ${String(r.values[c.key] ?? r.code)}`}
+                      >
+                        {String(r.values[c.key] ?? "")}
+                      </button>
+                    </td>
+                  ) : (
+                    <Cell key={c.key} col={c} s={r} impactCol={impactCol} growthCol={growthCol} actionCol={actionCol} />
+                  ),
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {q.data && !rows.length && <div className="empty">No earlier answers from this source.</div>}
+    </section>
+  );
+}
+
+/** A Primary answer at a glance: Source Role, Company and Date small at the top; Key Details and Key Metrics filling the rest. */
+function ArchivedPopup({ id, onClose }: { id: string; onClose: () => void }) {
+  const q = useSignal(id);
+  const ref = useFocusTrap(true, onClose);
+  const v = q.data?.values ?? {};
+  const text = (k: string) => {
+    const x = v[k];
+    return Array.isArray(x) ? x.join(", ") : (x ?? "");
+  };
+  return (
+    <>
+      <div className="scrim" onClick={onClose} aria-hidden="true" />
+      <div className="modal arch-popup" role="dialog" aria-modal="true" aria-labelledby="arch-pop-title" ref={ref} data-testid="archived-popup">
+        <div className="arch-pop-head">
+          <dl className="arch-pop-meta">
+            <div>
+              <dt>Source Role</dt>
+              <dd>{text(FIELDS.sourceRole) || "—"}</dd>
+            </div>
+            <div>
+              <dt>Company</dt>
+              <dd>{text(FIELDS.sourceCompany) || "—"}</dd>
+            </div>
+            <div>
+              <dt>Date</dt>
+              <dd>{text(CORE.date) || "—"}</dd>
+            </div>
+          </dl>
+          <button className="icon-btn" onClick={onClose} aria-label="Close" data-autofocus>
+            ✕
+          </button>
+        </div>
+        <h2 id="arch-pop-title" className="arch-pop-title">
+          {text(CORE.title) || q.data?.code || "Loading…"}
+        </h2>
+        <div className="arch-pop-body">
+          <section>
+            <h3>Key Details</h3>
+            <p>{text(FIELDS.keyDetails) || "—"}</p>
+          </section>
+          <section>
+            <h3>Key Metrics</h3>
+            <p>{text(FIELDS.keyMetrics) || "—"}</p>
+          </section>
+        </div>
+      </div>
     </>
   );
 }

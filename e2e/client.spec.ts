@@ -5,15 +5,15 @@ test.describe("client role", () => {
 
   test("sees only published data and no analyst tools", async ({ page }) => {
     await page.goto("/dashboard");
-    await expect(page.getByRole("heading", { name: "Analytics Dashboard" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Megatrends Dashboard" })).toBeVisible();
     // Requests 28 and 31: tabs in groups; a client's Inputs group has only the Client Inbox, and there is no Admin group.
-    expect(await menuOf(page)).toEqual(["Inputs: Client Inbox", "Analytics: Dashboard, Knowledge Graph", "Trackers: Tracker, Phantoms, Trend Analyses"]);
+    expect(await menuOf(page)).toEqual(["Inputs: Client Inbox", "Analytics: Megatrends Dashboard, Knowledge Graph, Primary Tracker", "Databases: Signals Database, Phantoms Database, CI analyses"]);
     const nav = navOf(page);
     // The Inbox and Input pages do not exist for clients: direct links go to the dashboard.
     for (const path of ["/input", "/inbox", "/admin"]) {
       await page.goto(path);
       await expect(page).toHaveURL(/\/dashboard/);
-      await expect(page.getByRole("heading", { name: "Analytics Dashboard" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Megatrends Dashboard" })).toBeVisible();
     }
     await expect(nav.getByRole("link", { name: /Eradigm Inbox/ })).toHaveCount(0);
     await expect(nav.getByRole("link", { name: /: Input$/ })).toHaveCount(0);
@@ -30,7 +30,7 @@ test.describe("client role", () => {
 
   test("can view Phantoms and download Markdown, but not delete entries", async ({ page }) => {
     await page.goto("/phantoms?stream=primary");
-    await expect(page.getByRole("heading", { name: "Phantoms" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Phantoms Database" })).toBeVisible();
     await expect(page.getByTestId("stream-primary")).toHaveText("Primary Phantoms");
     const row = page.locator("table tbody tr").first();
     // The MD icon opens the Markdown file as a side pane, with Download at the top right.

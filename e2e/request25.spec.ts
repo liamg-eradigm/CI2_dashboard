@@ -33,17 +33,14 @@ test.describe("request 25", () => {
       await route.fulfill({ response: res, json: body });
     });
     await page.goto("/competitors");
-    const list = page.getByTestId("mg-competitors");
-    await expect(list.getByRole("button", { name: /^Pfizer/ })).toBeVisible();
+    const list = page.getByRole("navigation", { name: "Competitors" });
+    await expect(list.getByRole("button", { name: /^Pfizer/ })).toBeAttached();
     await expect(list.getByRole("button", { name: /N\/A/i })).toHaveCount(0);
-    await page.getByLabel("Find a competitor").fill("n/a");
-    await expect(list.getByRole("button")).toHaveCount(0);
-    await page.getByLabel("Find a competitor").fill("");
+    await expect(page.getByTestId("mg-timeline")).not.toContainText("N/A");
     // Pfizer is Tier 1 (red) from the settings.
-    const t1 = list.locator(".mg-tier", { has: page.getByRole("heading", { name: /^Tier 1/ }) });
-    await expect(t1.getByRole("button", { name: /^Pfizer/ })).toBeVisible();
-    await expect(t1.locator(".mg-tier-h .dot")).toHaveCSS("background-color", "rgb(229, 83, 75)");
-    await expect(page.getByTestId("mg-panel")).not.toContainText("N/A");
+    await page.goto("/competitors?c=Pfizer");
+    await expect(page.getByTestId("mg-tier")).toHaveText("Tier 1");
+    await expect(page.getByTestId("mg-tier")).toHaveCSS("border-color", "rgb(229, 83, 75)");
   });
 
   test("a page that fails shows a message instead of blanking the dashboard", async ({ page }) => {

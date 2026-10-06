@@ -465,7 +465,7 @@ test.describe("Eradigm staff (admin)", () => {
     await expect(page.locator(".toast")).toContainText(`Deleted ${code} from the Tracker · still in Phantoms`);
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(page.locator("table tbody td.title", { hasText: title })).toHaveCount(0);
-    await goTab(page, "Trackers", "Phantoms");
+    await goTab(page, "Databases", "Phantoms Database");
     await page.getByRole("searchbox").fill(title);
     await expect(page.locator("table tbody td.title", { hasText: title })).toBeVisible();
   });
@@ -520,7 +520,7 @@ test.describe("Eradigm staff (admin)", () => {
     await expect(page.locator(".toast")).toContainText("Deleted 2 entries globally");
     await expect(page.getByRole("alertdialog")).toHaveCount(0);
     for (const t of titles) await expect(page.locator("table tbody td.title", { hasText: t })).toHaveCount(0);
-    await goTab(page, "Trackers", "Tracker");
+    await goTab(page, "Databases", "Signals Database");
     const search = page.getByRole("searchbox");
     await search.fill(titles[0]!);
     await expect(page.locator("table tbody td.title", { hasText: titles[0]! })).toHaveCount(0);
@@ -613,7 +613,7 @@ test.describe("Eradigm staff (admin)", () => {
     await expect(page.locator("td.title", { hasText: `${title}: Paris` })).toBeVisible();
     await page.getByTestId("stream-primary").click();
     await expect(page.locator("td.title", { hasText: `${title}: Paris` })).toHaveCount(0);
-    await goTab(page, "Trackers", "Phantoms");
+    await goTab(page, "Databases", "Phantoms Database");
     await page.getByTestId("stream-secondary").click();
     const row = page.locator("table tbody tr", { hasText: `${title}: Paris` });
     await expect(row).toBeVisible();
@@ -772,7 +772,7 @@ test.describe("Eradigm staff (admin)", () => {
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog")).toHaveCount(0);
     // It is in Primary Phantoms with the Primary Markdown.
-    await goTab(page, "Trackers", "Phantoms");
+    await goTab(page, "Databases", "Phantoms Database");
     await expect(page).toHaveURL(/\/phantoms\?stream=primary&q=/);
     const ph = page.locator("table tbody tr", { hasText: title });
     await ph.locator("td.title button").click();

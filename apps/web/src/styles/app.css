@@ -836,3 +836,35 @@ a.link-btn { text-decoration: none; }
 /* Input (request 31): a source's capture status right under the Add a source card; nothing when empty. */
 .source-result { display: flex; flex-direction: column; gap: 16px; margin-top: -4px; }
 .source-result:empty { display: none; }
+/* Analytics → Primary Tracker (request 34): Archived Responses beside the Primary Tracker, clearly divided. */
+th.arch-col, td.arch-col { width: 120px; text-align: center; white-space: nowrap; }
+.arch-btn.on { background: var(--tint); border-color: var(--focus); box-shadow: 0 0 0 2px var(--focus); }
+.arch-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0; align-items: start; }
+.arch-split > section:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.arch-panel { border-left: 4px solid var(--teal); border-top-left-radius: 0; border-bottom-left-radius: 0; box-shadow: -8px 0 18px -10px rgba(7, 40, 56, 0.35); }
+.arch-panel .table-top { background: var(--tint); border-bottom: 1px solid var(--rule); }
+.arch-panel .table-top .card-title { color: var(--teal); }
+.table-wrap.arch-wrap { max-height: 70vh; overflow: auto; }
+.arch-row { cursor: pointer; }
+.arch-row:hover td { background: var(--tint); }
+.arch-popup { background: #fff; border-radius: 12px; border: 1px solid var(--border); width: min(760px, calc(100vw - 32px)); max-height: min(86vh, 900px); display: flex; flex-direction: column; gap: 10px; padding: 18px 22px 20px; }
+.arch-pop-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.arch-pop-meta { display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 0; font-size: 12px; color: var(--muted); }
+.arch-pop-meta dt { font: 600 10px var(--sans); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.arch-pop-meta dd { margin: 2px 0 0; color: var(--ink-2); font-size: 12.5px; }
+.arch-pop-title { margin: 0; font: 700 15px/1.35 var(--sans); color: var(--ink); }
+.arch-pop-body { flex: 1 1 auto; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 14px; }
+.arch-pop-body h3 { margin: 0 0 6px; font: 700 12px var(--sans); letter-spacing: 0.08em; text-transform: uppercase; color: var(--teal); }
+.arch-pop-body p { margin: 0; font-size: 15px; line-height: 1.6; color: var(--ink); white-space: pre-wrap; }
+@media (max-width: 1100px) {
+  .arch-split { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .arch-panel { border-left-width: 1px; border-top: 4px solid var(--teal); }
+}
+/* Input Trend Analysis → Macrotrend (request 34): one optional box per dashboard section. */
+.tai-sections { display: flex; flex-direction: column; gap: 12px; }
+.tai-sections-note { margin: 0; }
+.tai-sections-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; }
+.tai-section .tai-text { min-height: 130px; }
+@media (max-width: 900px) {
+  .tai-sections-grid { grid-template-columns: minmax(0, 1fr); }
+}

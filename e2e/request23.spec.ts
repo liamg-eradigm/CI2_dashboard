@@ -75,46 +75,7 @@ test.describe("request 23", () => {
     await expectAccessible(page, "Input after removing files");
   });
 
-  test("Megatrends: the summary and list are on the left, and the bar between them drags", async ({ page }) => {
-    await signInAs(page, "analyst");
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto("/megatrends");
-    await page.evaluate(() => localStorage.removeItem("eradigm.megatrends.split"));
-    await page.reload();
-    const panel = page.getByTestId("mg-panel");
-    await expect(panel).toBeVisible();
-    // No "Knowledge graph" heading on the page (the menu's subtab has that name, request 27).
-    await expect(page.locator("main").getByText("Knowledge graph", { exact: true })).toHaveCount(0);
-    const stage = (await page.locator(".mg-stage").boundingBox())!;
-    const rail = page.locator("#megatrends-rail");
-    let p = (await panel.boundingBox())!;
-    let r = (await rail.boundingBox())!;
-    expect(p.x - stage.x).toBeLessThan(40);
-    expect(p.x + p.width).toBeLessThan(stage.x + stage.width / 2);
-    expect(r.y).toBeGreaterThan(p.y + p.height);
-    const share = () => p.height / (p.height + r.height);
-    expect(share()).toBeGreaterThan(0.6);
-
-    // Drag the bar up: the list gets more room.
-    const bar = page.getByTestId("mg-splitter");
-    const b = (await bar.boundingBox())!;
-    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(b.x + b.width / 2, b.y - 180, { steps: 8 });
-    await page.mouse.up();
-    p = (await panel.boundingBox())!;
-    r = (await rail.boundingBox())!;
-    expect(share()).toBeLessThan(0.55);
-    // The keyboard works too, and the browser remembers it.
-    await bar.focus();
-    for (let i = 0; i < 3; i++) await page.keyboard.press("ArrowDown");
-    const now = Number(await bar.getAttribute("aria-valuenow"));
-    await page.reload();
-    await expect(page.getByTestId("mg-splitter")).toHaveAttribute("aria-valuenow", String(now));
-    await expectAccessible(page, "Megatrends with the column on the left");
-  });
-
-  test("Competitors: a graph of competitors with summaries, entries in orbit and the entry drawer from the right, with its saved page in a popup", async ({ page }) => {
+  test("Competitors: a graph of competitors, entries in orbit and the entry drawer from the right, with its saved page in a popup", async ({ page }) => {
     await signInAs(page, "admin");
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/dashboard");
@@ -127,21 +88,17 @@ test.describe("request 23", () => {
     await goTab(page, "Analytics", "Knowledge Graph");
     await page.getByTestId("kg-competitors").click();
     await expect(page).toHaveURL(/\/competitors$/);
-    await expect(page.getByTestId("mg-panel")).toContainText("Each sphere is a competitor");
-    const list = page.getByTestId("mg-competitors");
-    await expect(list.getByRole("button", { name: /^Eli Lilly\s*\d+$/ })).toBeVisible();
+    await expect(page.locator(".mg-panel, .mg-rail")).toHaveCount(0);
     await expect(page.getByTestId("mg-canvas")).toBeVisible();
     await expectAccessible(page, "Competitors");
 
-    // Find, then select: its summary (the default provided), its entries on the timeline.
-    await page.getByLabel("Find a competitor").fill("lil");
-    await expect(list.getByRole("button")).toHaveCount(1);
-    await list.getByRole("button", { name: /^Eli Lilly/ }).click();
+    // Select (with the keyboard, from the graph's hidden list of competitors): its entries on the timeline.
+    const keys = page.getByRole("navigation", { name: "Competitors" });
+    await keys.getByRole("button", { name: /^Eli Lilly\s*\d+$/ }).focus();
+    await expect(keys).toBeVisible();
+    await page.keyboard.press("Enter");
     await expect(page).toHaveURL(/c=Eli\+Lilly/);
-    const panel = page.getByTestId("mg-panel");
-    await expect(panel.getByRole("heading", { name: "Eli Lilly" })).toBeVisible();
-    await expect(panel.getByTestId("mg-summary")).toContainText("LillyDirect");
-    await expect(panel).toContainText("Summary provided with the dashboard");
+    await expect(page.getByRole("navigation", { name: "Graph level" })).toContainText("Eli Lilly");
     const tl = page.getByTestId("mg-timeline");
     await expect(tl).toContainText("naming Eli Lilly · coloured by Impact");
     await expect(page.getByRole("list", { name: "Legend" }).getByRole("button", { name: /^High/ })).toBeVisible();
@@ -165,28 +122,5 @@ test.describe("request 23", () => {
     // Back to all competitors.
     await page.getByRole("navigation", { name: "Graph level" }).getByRole("button", { name: "Competitors", exact: true }).click();
     await expect(page).not.toHaveURL(/c=/);
-  });
-
-  test("Competitors: analysts write a summary by hand; clients read it", async ({ page, browser }) => {
-    await signInAs(page, "analyst");
-    await page.goto("/competitors?c=Pfizer");
-    const panel = page.getByTestId("mg-panel");
-    await expect(panel.getByRole("heading", { name: "Pfizer" })).toBeVisible();
-    await expect(panel.getByTestId("mg-summary")).toContainText("PfizerForAll");
-    await panel.getByRole("button", { name: "Edit summary" }).click();
-    await panel.getByLabel("Summary of Pfizer").fill("Pfizer is betting on obesity.");
-    await panel.getByRole("button", { name: "Save" }).click();
-    await expect(panel.getByTestId("mg-summary")).toHaveText("Pfizer is betting on obesity.");
-    const ctx = await browser.newContext();
-    const client = await ctx.newPage();
-    await signInAs(client, "client");
-    await client.goto("/competitors?c=Pfizer");
-    await expect(client.getByTestId("mg-panel").getByTestId("mg-summary")).toHaveText("Pfizer is betting on obesity.");
-    await expect(client.getByTestId("mg-panel").getByRole("button", { name: "Edit summary" })).toHaveCount(0);
-    await ctx.close();
-    // Back to the default.
-    await panel.getByRole("button", { name: "Edit summary" }).click();
-    await panel.getByRole("button", { name: "Reset" }).click();
-    await expect(panel.getByTestId("mg-summary")).toContainText("PfizerForAll");
   });
 });

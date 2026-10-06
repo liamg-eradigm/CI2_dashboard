@@ -16,10 +16,10 @@ test.describe("request 26: sources list on the right", () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/competitors");
     const sheet = page.getByTestId("mg-sheet");
-    await expect(page.getByTestId("mg-competitors")).toBeVisible();
+    await expect(page.getByTestId("mg-timeline")).toBeVisible();
     await expect(sheet).not.toHaveClass(/open/);
 
-    await page.getByTestId("mg-competitors").getByRole("button", { name: /^Pfizer/ }).click();
+    await page.goto("/competitors?c=Pfizer");
     await expect(sheet).toHaveClass(/open/);
     const list = sheet.getByRole("list", { name: "Sources of Pfizer" });
     await expect(list).toBeVisible();
@@ -40,9 +40,10 @@ test.describe("request 26: sources list on the right", () => {
     expect(dot.x - rb.x).toBeLessThan(20);
     expect(name.width).toBeGreaterThan(rb.width * 0.75);
     await expect(row.locator(".dot")).toHaveCSS("background-color", "rgb(229, 83, 75)");
-    // 400px wide, the full height; the list scrolls inside it.
+    // Half the page wide (request 34), the full height; the list scrolls inside it.
     const box = (await sheet.boundingBox())!;
-    expect(Math.round(box.width)).toBe(400);
+    const half = (await page.locator(".mg-page").boundingBox())!.width / 2 - 24;
+    expect(Math.abs(box.width - half)).toBeLessThan(2);
     expect(box.height).toBeGreaterThan(900 * 0.9);
     expect(await list.evaluate((el) => getComputedStyle(el).overflowY)).toBe("auto");
     await expectAccessible(page, "Competitors with the sources list");
@@ -55,7 +56,7 @@ test.describe("request 26: sources list on the right", () => {
     await expect(list).toBeHidden();
     await expect(sheet.getByText(`1 of ${n}`)).toBeVisible();
     const box2 = (await sheet.boundingBox())!;
-    expect(Math.round(box2.width)).toBe(400);
+    expect(Math.abs(box2.width - box.width)).toBeLessThan(2);
     expect(Math.abs(box2.height - box.height)).toBeLessThan(2);
     // › steps through the list.
     await sheet.getByRole("button", { name: "Next entry in the sources list" }).click();
@@ -88,11 +89,11 @@ test.describe("request 26: sources list on the right", () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(`/megatrends?m=${encodeURIComponent(R_AND_D)}`);
     const sheet = page.getByTestId("mg-sheet");
-    await expect(page.getByTestId("mg-panel").getByRole("heading", { name: R_AND_D })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Graph level" }).getByRole("button", { name: R_AND_D })).toBeVisible();
     await expect(sheet).not.toHaveClass(/open/);
     await expect(page.getByTestId("mg-sources-open")).toHaveCount(0);
 
-    await page.getByRole("list", { name: `Subtrends of ${R_AND_D}` }).getByRole("button", { name: /Computational Infrastructure/ }).click();
+    await page.getByRole("list", { name: "Legend" }).getByRole("button", { name: /Computational Infrastructure/ }).click();
     await expect(sheet).toHaveClass(/open/);
     const list = sheet.getByRole("list", { name: "Sources of Computational Infrastructure" });
     await expect(list).toBeVisible();

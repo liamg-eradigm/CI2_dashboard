@@ -11,7 +11,7 @@ import { ITEM_STATUSES } from "./status.js";
 import { COLUMN_TYPES, CREATABLE_COLUMN_TYPES, MAX_LABEL_LENGTH, MAX_OPTION_LENGTH, STREAMS } from "./schema.js";
 import { EXPORT_FORMATS } from "./export.js";
 import { DEFAULT_NAV_ORDER, MAX_SUMMARY_LENGTH, NAV_TABS, SUMMARY_MODELS, SUMMARY_SOURCES, TREND_LEVELS } from "./megatrends.js";
-import { TREND_ANALYSIS_CATEGORIES, TREND_ANALYSIS_SOURCES } from "./trendAnalyses.js";
+import { MACRO_SECTION_KEYS, TREND_ANALYSIS_CATEGORIES, TREND_ANALYSIS_SOURCES, type MacroSectionKey } from "./trendAnalyses.js";
 import { DEFAULT_COMPETITOR_TIERS } from "./competitors.js";
 import { KiqTopicsSchema } from "./kiq.js";
 import { DEFAULT_MENU, MAX_MENU_LABEL, MENU_GROUPS, MENU_ITEMS } from "./menu.js";
@@ -352,6 +352,8 @@ export const MegatrendEntrySchema = z.object({
   macrotrend: z.string(),
   subtrend: z.string().nullable(),
   impact: z.string().nullable(),
+  /** Request 34 (contract 1.20): its Phantom has a CI Perspective. */
+  ci: z.boolean().optional(),
 });
 export const MegatrendsSchema = z.object({
   /** "all" = both trackers. */
@@ -395,7 +397,29 @@ export const TrendAnalysisSchema = z.object({
   source: z.enum(TREND_ANALYSIS_SOURCES),
   /** The spreadsheet it was imported from. */
   fileName: z.string().nullable(),
+  /** A Macrotrend's sections submission (contract 1.20): the sections it filled in. */
+  sections: z.record(z.string(), z.string()).nullable().optional(),
 });
+const sectionsShape = Object.fromEntries(MACRO_SECTION_KEYS.map((k) => [k, z.string().trim().max(MAX_SUMMARY_LENGTH).optional()])) as Record<MacroSectionKey, z.ZodOptional<z.ZodString>>;
+/** Input → Input Trend Analysis → Macrotrend (contract 1.20): only the sections with text change. */
+export const SubmitMacroSectionsRequest = z.object({
+  macrotrend: z.string().trim().min(1).max(MAX_OPTION_LENGTH),
+  sections: z.object(sectionsShape),
+});
+/** An admin edits one section in place (empty text clears it). */
+export const UpdateMacroSectionRequest = z.object({
+  macrotrend: z.string().trim().min(1).max(MAX_OPTION_LENGTH),
+  section: z.enum(MACRO_SECTION_KEYS),
+  text: z.string().trim().max(MAX_SUMMARY_LENGTH),
+});
+export const MacroSectionSchema = z.object({
+  macrotrend: z.string(),
+  section: z.enum(MACRO_SECTION_KEYS),
+  text: z.string(),
+  updatedAt: isoDateTime,
+  updatedBy: z.string(),
+});
+export type MacroSection = z.infer<typeof MacroSectionSchema>;
 export const CreateTrendAnalysisRequest = z.object({
   level: z.enum(TREND_LEVELS),
   name: z.string().trim().min(1).max(MAX_OPTION_LENGTH),
@@ -497,8 +521,13 @@ export const PrimarySourceSchema = z.object({
   date: z.string().nullable(),
 });
 export type PrimarySource = z.infer<typeof PrimarySourceSchema>;
+/** Archived Responses (contract 1.20): earlier Primary entries from the same source, newest first. */
+export const ArchivedResponsesSchema = z.object({ rows: z.array(SignalSchema) });
+export type ArchivedResponses = z.infer<typeof ArchivedResponsesSchema>;
 
 export const SignalDetailSchema = SignalSchema.extend({
+  /** Request 34 (contract 1.20): the CI Perspective of its Phantom (else of the entry), for the knowledge graphs. */
+  ciPerspective: z.string().nullable().optional(),
   inboxCode: z.string(),
   receivedAt: isoDateTime,
   submittedUrl: z.string().nullable(),
@@ -854,9 +883,14 @@ export const ENDPOINTS: EndpointDef[] = [
   { method: "post", path: "/api/megatrends/summaries/generate", summary: "Write a Macrotrend, Subtrend or competitor summary with the AI writer from its entries (competitors: high-impact and recent first; 409 while the AI is not connected)", roles: STAFF, request: GenerateTrendSummaryRequest, response: TrendSummarySchema },
   { method: "get", path: "/api/trend-analyses", summary: "Trend Analyses: every trend analysis submitted, newest first", roles: ALL_ROLES, response: z.array(TrendAnalysisSchema) },
   { method: "post", path: "/api/trend-analyses", summary: "Submit a trend analysis: it becomes the analysis of that Macrotrend, Subtrend or competitor (Trend analysis subtab and knowledge graph) and is kept in Trend Analyses", roles: STAFF, request: CreateTrendAnalysisRequest, response: TrendAnalysisSchema },
+  { method: "post", path: "/api/trend-analyses/macrotrend", summary: "Submit a Macrotrend's analysis by section (overview, why it matters, current and long-term landscape, what's next, impact on AbbVie): only the sections with text change; kept in CI analyses", roles: STAFF, request: SubmitMacroSectionsRequest, response: TrendAnalysisSchema },
+  { method: "post", path: "/api/trend-analyses/macrotrend/import", summary: "Import Macrotrend analyses by section from a spreadsheet (columns: Macrotrend, then one per section). At most 200 rows for a dry run, 8 otherwise", roles: STAFF, request: ImportTrendAnalysesRequest, response: ImportTrendAnalysesResponse },
+  { method: "get", path: "/api/macrotrends/sections", summary: "Every Macrotrend's analysis sections (the Macrotrend dashboards)", roles: ALL_ROLES, response: z.array(MacroSectionSchema) },
+  { method: "put", path: "/api/macrotrends/sections", summary: "Admins edit one section of a Macrotrend's analysis in place (empty text clears it)", roles: ADMIN, request: UpdateMacroSectionRequest, response: z.array(MacroSectionSchema) },
   { method: "post", path: "/api/trend-analyses/import", summary: "Import trend analyses from a spreadsheet (columns: Macrotrend or Competitor; Competitor, Macrotrend, or Subtrend; Name; Trend analysis). At most 200 rows for a dry run, 8 otherwise", roles: STAFF, request: ImportTrendAnalysesRequest, response: ImportTrendAnalysesResponse },
   { method: "get", path: "/api/trend-analyses/{id}/markdown", summary: "A submitted trend analysis as Markdown (inline, or ?download=1 as a file)", roles: ALL_ROLES, raw: "text/markdown" },
   { method: "delete", path: "/api/trend-analyses/{id}", summary: "Remove a submission from Trend Analyses (the trend keeps its current analysis)", roles: STAFF, response: z.object({ ok: z.literal(true) }) },
+  { method: "get", path: "/api/signals/{id}/archived", summary: "Archived Responses: the earlier Primary entries from the same source (Source Role and Source Company) as this entry, newest first", roles: ALL_ROLES, response: ArchivedResponsesSchema },
   { method: "get", path: "/api/signals/{id}/markdown", summary: "Markdown for a tracker entry (text/markdown; ?download=1 for an attachment)", roles: ALL_ROLES, raw: "text/markdown" },
   { method: "put", path: "/api/schema/columns/order", summary: "Change the column order of the Inbox, Tracker or Phantoms table", roles: STAFF, request: ReorderColumnsRequest, response: TrackerSchemaSchema },
   { method: "post", path: "/api/schema/columns/{key}/options", summary: "Add a dropdown option", roles: STAFF, request: AddOptionRequest, response: TrackerSchemaSchema },

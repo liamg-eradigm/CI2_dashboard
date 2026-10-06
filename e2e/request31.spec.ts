@@ -3,13 +3,13 @@ import { expect, expectAccessible, goTab, menuOf, navLink, navOf, signInAs, test
 const R_AND_D = "AI Investment in R&D";
 
 test.describe("request 31", () => {
-  test("the menu is Inputs, Analytics (Dashboard, Knowledge Graph), Trackers (Tracker, Phantoms, Trend Analyses) and Admin", async ({ page }) => {
+  test("the menu is Inputs, Analytics, Databases and Admin (renamed in request 34)", async ({ page }) => {
     await signInAs(page, "admin");
     await page.goto("/dashboard");
     expect(await menuOf(page)).toEqual([
       "Inputs: Input, Eradigm Inbox, Client Inbox",
-      "Analytics: Dashboard, Knowledge Graph",
-      "Trackers: Tracker, Phantoms, Trend Analyses",
+      "Analytics: Megatrends Dashboard, Knowledge Graph, Primary Tracker",
+      "Databases: Signals Database, Phantoms Database, CI analyses",
       "Admin: Deliverables, Administration",
     ]);
     await expect(navOf(page).getByRole("link", { name: /Trend analysis$/ })).toHaveCount(0);
@@ -22,13 +22,12 @@ test.describe("request 31", () => {
     await expect(page).toHaveURL(/\/megatrends$/);
     const toggle = page.getByRole("group", { name: "Knowledge graph of" });
     await expect(toggle.getByRole("button", { name: "Megatrends" })).toHaveAttribute("aria-pressed", "true");
-    // Top left: where "All macrotrends" was, above the summary.
-    const [t, panel] = [(await toggle.boundingBox())!, (await page.getByTestId("mg-panel").boundingBox())!];
-    expect(t.y).toBeLessThan(panel.y);
-    expect(Math.abs(t.x - panel.x)).toBeLessThan(40);
+    // Top left of the graph.
+    const [t, stage] = [(await toggle.boundingBox())!, (await page.locator(".mg-stage").boundingBox())!];
+    expect(t.y - stage.y).toBeLessThan(60);
+    expect(t.x - stage.x).toBeLessThan(60);
     await toggle.getByRole("button", { name: "Competitors" }).click();
     await expect(page).toHaveURL(/\/competitors$/);
-    await expect(page.getByTestId("mg-panel")).toContainText("Each sphere is a competitor");
     await expect(toggle.getByRole("button", { name: "Competitors" })).toHaveAttribute("aria-pressed", "true");
     // Still the Knowledge Graph tab.
     await expect(navLink(page, "Analytics", "Knowledge Graph")).toHaveAttribute("aria-current", "page");
@@ -42,7 +41,7 @@ test.describe("request 31", () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/dashboard");
     const dash = page.getByTestId("analytics-dashboard");
-    await expect(dash.getByRole("heading", { name: "Analytics Dashboard", level: 1 })).toBeVisible();
+    await expect(dash.getByRole("heading", { name: "Megatrends Dashboard", level: 1 })).toBeVisible();
     // No figures band, no filter bar.
     await expect(page.locator(".kpi")).toHaveCount(0);
     await expect(page.getByRole("region", { name: "Filters", exact: true })).toHaveCount(0);
@@ -80,10 +79,10 @@ test.describe("request 31", () => {
     await expectAccessible(page, "Analytics Dashboard");
     await page.getByTestId("ad-megatrends").click();
     await expect(page).toHaveURL(/\/analytics\/megatrends$/);
-    await expect(navLink(page, "Analytics", "Dashboard")).toHaveAttribute("aria-current", "page");
+    await expect(navLink(page, "Analytics", "Megatrends Dashboard")).toHaveAttribute("aria-current", "page");
   });
 
-  test("Trends Analysis: a Macrotrend opens its own timeline, impact mix by competitor and its analysis; a Subtrend narrows it", async ({ page }) => {
+  test("Trends Analysis: a Macrotrend opens its own dashboard (request 34)", async ({ page }) => {
     await signInAs(page, "analyst");
     await page.setViewportSize({ width: 1440, height: 900 });
     // The old address still works.
@@ -93,23 +92,7 @@ test.describe("request 31", () => {
     await list.getByRole("button", { name: new RegExp(`^${R_AND_D.replace(/[&]/g, "\\$&")}`) }).click();
     await expect(page).toHaveURL(/m=AI\+Investment/);
     await expect(page.getByTestId("ta-name")).toHaveText(R_AND_D);
-    const sub = page.getByTestId("ta-subtrend");
-    await expect(sub).toHaveValue("");
-    const card = (name: string) => page.locator("section.card", { has: page.getByRole("heading", { name, exact: true }) });
-    await expect(card("Signal Timeline").locator(".tl-pt").first()).toBeVisible();
-    await expect(card("Impact Mix by Competitor").locator(".bar-row").first()).toBeVisible();
-    await expect(card("Impact Mix by Macrotrend")).toHaveCount(0);
-    const summary = page.getByTestId("ta-summary");
-    await expect(summary).toContainText("Competitors are investing in R&D compute and data partnerships");
-    // Large and easy to read, below the charts.
-    expect(Number.parseFloat(await page.getByTestId("ta-summary-text").evaluate((el) => getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(18);
-    expect((await summary.boundingBox())!.y).toBeGreaterThan((await card("Impact Mix by Competitor").boundingBox())!.y);
-    await expectAccessible(page, "Trends Analysis of a Macrotrend");
-    const all = await card("Signal Timeline").locator(".tl-pt").count();
-    await sub.selectOption("Computational Infrastructure");
-    await expect(page).toHaveURL(/s=Computational\+Infrastructure/);
-    await expect(summary).toContainText("Subtrend Computational Infrastructure");
-    await expect.poll(() => card("Signal Timeline").locator(".tl-pt").count()).toBeLessThan(all);
+    await expect(page.getByTestId("md-mix").locator(".bar-row").first()).toBeVisible();
     // Back to the list.
     await page.getByRole("button", { name: "← All megatrends" }).click();
     await expect(list).toBeVisible();

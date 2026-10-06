@@ -35,7 +35,7 @@ test.describe("request 19", () => {
   test("each role sees only its tabs", async ({ page, browser }) => {
     await signInAs(page, "analyst");
     await page.goto("/dashboard");
-    expect(await menuOf(page)).toEqual(["Inputs: Eradigm Inbox", "Analytics: Dashboard, Knowledge Graph", "Trackers: Tracker, Phantoms, Trend Analyses"]);
+    expect(await menuOf(page)).toEqual(["Inputs: Eradigm Inbox", "Analytics: Megatrends Dashboard, Knowledge Graph, Primary Tracker", "Databases: Signals Database, Phantoms Database, CI analyses"]);
     for (const path of ["/input", "/admin", "/deliverables", "/client-inbox"]) {
       await page.goto(path);
       await expect(page).toHaveURL(/\/dashboard/);
@@ -44,7 +44,7 @@ test.describe("request 19", () => {
     const client = await ctx.newPage();
     await signInAs(client, "client");
     await client.goto("/dashboard");
-    expect(await menuOf(client)).toEqual(["Inputs: Client Inbox", "Analytics: Dashboard, Knowledge Graph", "Trackers: Tracker, Phantoms, Trend Analyses"]);
+    expect(await menuOf(client)).toEqual(["Inputs: Client Inbox", "Analytics: Megatrends Dashboard, Knowledge Graph, Primary Tracker", "Databases: Signals Database, Phantoms Database, CI analyses"]);
     await ctx.close();
     const actx = await browser.newContext();
     const admin = await actx.newPage();
@@ -52,8 +52,8 @@ test.describe("request 19", () => {
     await admin.goto("/dashboard");
     expect(await menuOf(admin)).toEqual([
       "Inputs: Input, Eradigm Inbox, Client Inbox",
-      "Analytics: Dashboard, Knowledge Graph",
-      "Trackers: Tracker, Phantoms, Trend Analyses",
+      "Analytics: Megatrends Dashboard, Knowledge Graph, Primary Tracker",
+      "Databases: Signals Database, Phantoms Database, CI analyses",
       "Admin: Deliverables, Administration",
     ]);
     await actx.close();
@@ -172,17 +172,13 @@ test.describe("request 19", () => {
     await expect(page.getByRole("button", { name: /^Edit / })).toHaveCount(0);
   });
 
-  test("Megatrends: no filter bar, a minimisable Macrotrend list, and the timeline coloured by Impact", async ({ page }) => {
+  test("Megatrends: no filter bar, and the timeline coloured by Impact", async ({ page }) => {
     await signInAs(page, "client");
     await page.goto("/megatrends");
-    await expect(page.getByTestId("mg-panel")).toBeVisible();
+    await expect(page.getByTestId("mg-timeline")).toBeVisible();
     await expect(page.getByRole("group", { name: "Tracker" })).toHaveCount(0);
     await expect(page.getByRole("group", { name: "Event Date period" })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Megatrends", level: 1 })).toHaveCount(0);
-    await page.getByRole("button", { name: "Minimise the Macrotrend list" }).click();
-    await expect(page.getByTestId("mg-macros")).toBeHidden();
-    await page.getByTestId("mg-rail-open").click();
-    await expect(page.getByTestId("mg-macros")).toBeVisible();
     const tl = page.getByTestId("mg-timeline");
     await tl.getByRole("group", { name: "Colour the timeline by" }).getByRole("button", { name: "Impact" }).click();
     await expect(tl).toContainText("coloured by Impact");

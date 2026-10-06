@@ -96,15 +96,10 @@ test.describe("request 24", () => {
     await expect(card.getByTestId("kiq-editor")).toHaveCount(0);
   });
 
-  test("Competitors: tiers colour and order the list; admins change them", async ({ page }) => {
+  test("Competitors: tiers colour the graph and show beside the selected one; admins change them", async ({ page }) => {
     await signInAs(page, "admin");
-    await page.goto("/competitors");
-    const list = page.getByTestId("mg-competitors");
-    await expect(list.getByRole("heading", { name: /^Tier 1/ })).toBeVisible();
-    const tier1 = list.locator(".mg-tier", { has: page.getByRole("heading", { name: /^Tier 1/ }) });
-    await expect(tier1.getByRole("button", { name: /^Pfizer/ })).toBeVisible();
-    await list.getByRole("button", { name: /^Pfizer/ }).click();
-    await expect(page.getByTestId("mg-panel")).toContainText("Competitor · Tier 1");
+    await page.goto("/competitors?c=Pfizer");
+    await expect(page.getByTestId("mg-tier")).toHaveText("Tier 1");
     await expectAccessible(page, "Competitors by tier");
 
     // Administration: move Roche to Tier 3.
@@ -119,36 +114,12 @@ test.describe("request 24", () => {
     await card.getByRole("button", { name: "Save tiers" }).click();
     await expect(page.getByRole("status").filter({ hasText: "Competitor tiers saved" })).toBeAttached();
     await page.goto("/competitors?c=Roche");
-    await expect(page.getByTestId("mg-panel")).toContainText("Competitor · Tier 3");
+    await expect(page.getByTestId("mg-tier")).toHaveText("Tier 3");
     // Restore.
     await page.goto("/admin");
     await card.getByLabel("Tier 1 competitors, one per line").fill(was1);
     await card.getByLabel("Tier 3 competitors, one per line").fill(was3);
     await card.getByRole("button", { name: "Save tiers" }).click();
     await expect(page.getByRole("status").filter({ hasText: "Competitor tiers saved" })).toBeAttached();
-  });
-
-  test("Megatrends: the summary column drags wider and narrower, and the browser remembers it", async ({ page }) => {
-    await signInAs(page, "analyst");
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto("/megatrends");
-    await page.evaluate(() => localStorage.removeItem("eradigm.megatrends.width"));
-    await page.reload();
-    const panel = page.getByTestId("mg-panel");
-    await expect(panel).toBeVisible();
-    const before = (await panel.boundingBox())!.width;
-    const grip = page.getByTestId("mg-width-grip");
-    const g = (await grip.boundingBox())!;
-    await page.mouse.move(g.x + g.width / 2, g.y + g.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(g.x + g.width / 2 + 160, g.y + g.height / 2, { steps: 8 });
-    await page.mouse.up();
-    await expect.poll(async () => (await panel.boundingBox())!.width).toBeGreaterThan(before + 120);
-    await grip.focus();
-    for (let i = 0; i < 3; i++) await page.keyboard.press("ArrowLeft");
-    const now = Number(await grip.getAttribute("aria-valuenow"));
-    await page.reload();
-    await expect(page.getByTestId("mg-width-grip")).toHaveAttribute("aria-valuenow", String(now));
-    await expectAccessible(page, "Megatrends with a wider column");
   });
 });

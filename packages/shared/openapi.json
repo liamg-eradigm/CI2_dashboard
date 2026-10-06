@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Eradigm Competitive Intelligence API",
-    "version": "1.19.0",
+    "version": "1.20.0",
     "description": "Generated from packages/shared/src/api.ts. Every request is checked for both role and tenant server-side. Send X-Tenant-Id to select a tenant when the user belongs to more than one."
   },
   "components": {
@@ -8068,6 +8068,9 @@
                           "impact": {
                             "nullable": true,
                             "type": "string"
+                          },
+                          "ci": {
+                            "type": "boolean"
                           }
                         },
                         "required": [
@@ -8345,6 +8348,9 @@
                           "impact": {
                             "nullable": true,
                             "type": "string"
+                          },
+                          "ci": {
+                            "type": "boolean"
                           },
                           "competitors": {
                             "type": "array",
@@ -8864,6 +8870,13 @@
                       "fileName": {
                         "nullable": true,
                         "type": "string"
+                      },
+                      "sections": {
+                        "nullable": true,
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string"
+                        }
                       }
                     },
                     "required": [
@@ -9013,6 +9026,13 @@
                     "fileName": {
                       "nullable": true,
                       "type": "string"
+                    },
+                    "sections": {
+                      "nullable": true,
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
                     }
                   },
                   "required": [
@@ -9132,6 +9152,686 @@
                 "required": [
                   "level",
                   "name",
+                  "text"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/trend-analyses/macrotrend": {
+      "post": {
+        "summary": "Submit a Macrotrend's analysis by section (overview, why it matters, current and long-term landscape, what's next, impact on AbbVie): only the sections with text change; kept in CI analyses",
+        "description": "Roles: admin, analyst",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "category": {
+                      "type": "string",
+                      "enum": [
+                        "macrotrend",
+                        "competitor"
+                      ]
+                    },
+                    "level": {
+                      "type": "string",
+                      "enum": [
+                        "macro",
+                        "sub",
+                        "competitor"
+                      ]
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "parent": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "text": {
+                      "type": "string"
+                    },
+                    "submittedAt": {
+                      "type": "string"
+                    },
+                    "submittedBy": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "form",
+                        "import"
+                      ]
+                    },
+                    "fileName": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "sections": {
+                      "nullable": true,
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "category",
+                    "level",
+                    "name",
+                    "parent",
+                    "text",
+                    "submittedAt",
+                    "submittedBy",
+                    "source",
+                    "fileName"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "macrotrend": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "sections": {
+                    "type": "object",
+                    "properties": {
+                      "overview": {
+                        "type": "string",
+                        "maxLength": 10000
+                      },
+                      "why": {
+                        "type": "string",
+                        "maxLength": 10000
+                      },
+                      "current": {
+                        "type": "string",
+                        "maxLength": 10000
+                      },
+                      "longterm": {
+                        "type": "string",
+                        "maxLength": 10000
+                      },
+                      "next": {
+                        "type": "string",
+                        "maxLength": 10000
+                      },
+                      "abbvie": {
+                        "type": "string",
+                        "maxLength": 10000
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "macrotrend",
+                  "sections"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/trend-analyses/macrotrend/import": {
+      "post": {
+        "summary": "Import Macrotrend analyses by section from a spreadsheet (columns: Macrotrend, then one per section). At most 200 rows for a dry run, 8 otherwise",
+        "description": "Roles: admin, analyst",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "imported": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "row": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "column": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "row",
+                          "column",
+                          "message"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "imported",
+                    "errors"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "fileName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
+                  "rows": {
+                    "minItems": 1,
+                    "maxItems": 200,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "row": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 9007199254740991
+                        },
+                        "values": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": [
+                        "row",
+                        "values"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "dryRun": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "fileName",
+                  "rows"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/macrotrends/sections": {
+      "get": {
+        "summary": "Every Macrotrend's analysis sections (the Macrotrend dashboards)",
+        "description": "Roles: admin, analyst, client",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "macrotrend": {
+                        "type": "string"
+                      },
+                      "section": {
+                        "type": "string",
+                        "enum": [
+                          "overview",
+                          "why",
+                          "current",
+                          "longterm",
+                          "next",
+                          "abbvie"
+                        ]
+                      },
+                      "text": {
+                        "type": "string"
+                      },
+                      "updatedAt": {
+                        "type": "string"
+                      },
+                      "updatedBy": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "macrotrend",
+                      "section",
+                      "text",
+                      "updatedAt",
+                      "updatedBy"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      },
+      "put": {
+        "summary": "Admins edit one section of a Macrotrend's analysis in place (empty text clears it)",
+        "description": "Roles: admin",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "macrotrend": {
+                        "type": "string"
+                      },
+                      "section": {
+                        "type": "string",
+                        "enum": [
+                          "overview",
+                          "why",
+                          "current",
+                          "longterm",
+                          "next",
+                          "abbvie"
+                        ]
+                      },
+                      "text": {
+                        "type": "string"
+                      },
+                      "updatedAt": {
+                        "type": "string"
+                      },
+                      "updatedBy": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "macrotrend",
+                      "section",
+                      "text",
+                      "updatedAt",
+                      "updatedBy"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "macrotrend": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "section": {
+                    "type": "string",
+                    "enum": [
+                      "overview",
+                      "why",
+                      "current",
+                      "longterm",
+                      "next",
+                      "abbvie"
+                    ]
+                  },
+                  "text": {
+                    "type": "string",
+                    "maxLength": 10000
+                  }
+                },
+                "required": [
+                  "macrotrend",
+                  "section",
                   "text"
                 ],
                 "additionalProperties": false
@@ -9452,6 +10152,210 @@
                   },
                   "required": [
                     "ok"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/signals/{id}/archived": {
+      "get": {
+        "summary": "Archived Responses: the earlier Primary entries from the same source (Source Role and Source Company) as this entry, newest first",
+        "description": "Roles: admin, analyst, client",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rows": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "stream": {
+                            "default": "primary",
+                            "type": "string",
+                            "enum": [
+                              "primary",
+                              "secondary"
+                            ]
+                          },
+                          "values": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                {
+                                  "type": "string",
+                                  "nullable": true,
+                                  "enum": [
+                                    null
+                                  ]
+                                }
+                              ]
+                            }
+                          },
+                          "text": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "rev": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "approvedAt": {
+                            "type": "string"
+                          },
+                          "approvedBy": {
+                            "type": "string"
+                          },
+                          "hasSnapshot": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "pages": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "alertId": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "linkedEarlier": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "linkedLater": {
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "code",
+                          "stream",
+                          "values",
+                          "text",
+                          "url",
+                          "rev",
+                          "approvedAt",
+                          "approvedBy",
+                          "hasSnapshot",
+                          "pages"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "rows"
                   ],
                   "additionalProperties": false
                 }
@@ -11483,6 +12387,10 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "ciPerspective": {
+                      "nullable": true,
+                      "type": "string"
+                    },
                     "inboxCode": {
                       "type": "string"
                     },
@@ -11954,6 +12862,10 @@
                       "type": "string"
                     },
                     "linkedLater": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "ciPerspective": {
                       "nullable": true,
                       "type": "string"
                     },
@@ -19662,6 +20574,9 @@
                               },
                               {
                                 "key": "knowledge-graph"
+                              },
+                              {
+                                "key": "primary-tracker"
                               }
                             ]
                           },
@@ -19714,7 +20629,7 @@
                                 "maxLength": 80
                               },
                               "items": {
-                                "maxItems": 10,
+                                "maxItems": 11,
                                 "type": "array",
                                 "items": {
                                   "type": "object",
@@ -19727,6 +20642,7 @@
                                         "clientinbox",
                                         "dashboard",
                                         "knowledge-graph",
+                                        "primary-tracker",
                                         "tracker",
                                         "phantoms",
                                         "trend-analyses",
@@ -20132,6 +21048,9 @@
                               },
                               {
                                 "key": "knowledge-graph"
+                              },
+                              {
+                                "key": "primary-tracker"
                               }
                             ]
                           },
@@ -20184,7 +21103,7 @@
                                 "maxLength": 80
                               },
                               "items": {
-                                "maxItems": 10,
+                                "maxItems": 11,
                                 "type": "array",
                                 "items": {
                                   "type": "object",
@@ -20197,6 +21116,7 @@
                                         "clientinbox",
                                         "dashboard",
                                         "knowledge-graph",
+                                        "primary-tracker",
                                         "tracker",
                                         "phantoms",
                                         "trend-analyses",
@@ -20577,7 +21497,7 @@
                               "maxLength": 80
                             },
                             "items": {
-                              "maxItems": 10,
+                              "maxItems": 11,
                               "type": "array",
                               "items": {
                                 "type": "object",
@@ -20590,6 +21510,7 @@
                                       "clientinbox",
                                       "dashboard",
                                       "knowledge-graph",
+                                      "primary-tracker",
                                       "tracker",
                                       "phantoms",
                                       "trend-analyses",

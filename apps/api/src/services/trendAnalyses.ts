@@ -22,6 +22,11 @@ import {
   type TrendAnalysis,
   type TrendAnalysisSource,
   type TrendLevel,
+  MACRO_SECTIONS,
+  MACRO_SECTIONS_MACRO_COLUMN,
+  MACRO_SECTION_KEYS,
+  type MacroSection,
+  type MacroSectionKey,
 } from "@eradigm/shared";
 import type { Principal } from "../auth/context.js";
 import type { Env } from "../env.js";
@@ -41,9 +46,10 @@ interface Row {
   file_name: string | null;
   submitted_at: string;
   submitted_by: string | null;
+  sections_json: string | null;
 }
 
-const SELECT = `SELECT a.id, a.level, a.name, a.parent, a.text, a.source, a.file_name, a.submitted_at,
+const SELECT = `SELECT a.id, a.level, a.name, a.parent, a.text, a.source, a.file_name, a.submitted_at, a.sections_json,
   (SELECT u.name FROM users u WHERE u.id = a.submitted_by) AS submitted_by FROM trend_analyses a WHERE a.tenant_id = ?1`;
 
 const toAnalysis = (r: Row): TrendAnalysis => ({
@@ -57,6 +63,7 @@ const toAnalysis = (r: Row): TrendAnalysis => ({
   submittedBy: r.submitted_by ?? "—",
   source: r.source,
   fileName: r.file_name,
+  sections: r.sections_json ? (JSON.parse(r.sections_json) as Record<string, string>) : null,
 });
 
 /** Every submission, newest first. */
@@ -342,4 +349,117 @@ export async function deleteTrendAnalysis(env: Env, p: Principal, id: string): P
     targetId: `${a.level}:${a.name}`,
     details: { id },
   });
+}
+
+// ---------------------------------------------------------------------------
+// A Macrotrend's analysis by section (request 34)
+// ---------------------------------------------------------------------------
+
+/** Every Macrotrend's sections (the Macrotrend dashboards). */
+export async function listMacroSections(env: Env, tenantId: string): Promise<MacroSection[]> {
+  const { results } = await env.DB.prepare(
+    `SELECT s.macrotrend, s.section, s.text, s.updated_at, (SELECT u.name FROM users u WHERE u.id = s.updated_by) AS updated_by
+       FROM macrotrend_sections s WHERE s.tenant_id = ?1 ORDER BY s.macrotrend, s.section`,
+  )
+    .bind(tenantId)
+    .all<{ macrotrend: string; section: MacroSectionKey; text: string; updated_at: string; updated_by: string | null }>();
+  return (results ?? []).map((r) => ({ macrotrend: r.macrotrend, section: r.section, text: r.text, updatedAt: r.updated_at, updatedBy: r.updated_by ?? "—" }));
+}
+
+const sectionUpsert = (env: Env, p: Principal, macrotrend: string, section: MacroSectionKey, text: string, at: string) =>
+  env.DB.prepare(
+    `INSERT INTO macrotrend_sections (tenant_id, macrotrend, section, text, updated_by, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+     ON CONFLICT (tenant_id, macrotrend, section) DO UPDATE SET text = excluded.text, updated_by = excluded.updated_by, updated_at = excluded.updated_at`,
+  ).bind(p.tenantId, macrotrend, section, text, p.userId, at);
+
+/** Only the sections with text. */
+function filled(sections: Partial<Record<MacroSectionKey, string | undefined>>): Partial<Record<MacroSectionKey, string>> {
+  const out: Partial<Record<MacroSectionKey, string>> = {};
+  for (const k of MACRO_SECTION_KEYS) {
+    const t = sections[k]?.trim();
+    if (t) out[k] = t;
+  }
+  return out;
+}
+
+/** The sections as one text (the CI analyses table and its search). */
+const joined = (sections: Partial<Record<MacroSectionKey, string>>) =>
+  MACRO_SECTIONS.filter((x) => sections[x.key])
+    .map((x) => `${x.label}: ${sections[x.key]}`)
+    .join("\n\n");
+
+/** Stores Macrotrend sections submissions (each kept in CI analyses) and applies their sections in order (later ones win). */
+async function storeSections(env: Env, p: Principal, list: { macrotrend: string; sections: Partial<Record<MacroSectionKey, string>> }[], source: TrendAnalysisSource, fileName: string | null): Promise<TrendAnalysis[]> {
+  const at = nowIso();
+  const made: TrendAnalysis[] = list.map((x) => ({
+    id: newId("ta"),
+    category: "macrotrend",
+    level: "macro",
+    name: x.macrotrend,
+    parent: null,
+    text: joined(x.sections),
+    submittedAt: at,
+    submittedBy: p.name,
+    source,
+    fileName,
+    sections: x.sections as Record<string, string>,
+  }));
+  await env.DB.batch(
+    made.flatMap((a, i) => [
+      env.DB.prepare(
+        "INSERT INTO trend_analyses (id, tenant_id, level, name, parent, text, source, file_name, submitted_by, submitted_at, sections_json) VALUES (?1, ?2, 'macro', ?3, NULL, ?4, ?5, ?6, ?7, ?8, ?9)",
+      ).bind(a.id, p.tenantId, a.name, a.text, source, fileName, p.userId, at, JSON.stringify(list[i]!.sections)),
+      ...Object.entries(list[i]!.sections).map(([k, t]) => sectionUpsert(env, p, a.name, k as MacroSectionKey, t, at)),
+    ]),
+  );
+  return made;
+}
+
+/** Input → Input Trend Analysis → Macrotrend: only the sections with text change. */
+export async function submitMacroSections(env: Env, p: Principal, schemas: Schemas, b: { macrotrend: string; sections: Partial<Record<MacroSectionKey, string | undefined>> }): Promise<TrendAnalysis> {
+  const r = await resolve(env, p.tenantId, knownNames(schemas), "macro", b.macrotrend);
+  if (!r.ok) throw badRequest(r.message);
+  const sections = filled(b.sections);
+  if (!Object.keys(sections).length) throw badRequest("Write at least one section.");
+  const [made] = await storeSections(env, p, [{ macrotrend: r.name, sections }], "form", null);
+  await audit(env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "trend_analysis.submitted", targetType: "trend", targetId: `macro:${r.name}`, details: { id: made!.id, sections: Object.keys(sections) } });
+  return made!;
+}
+
+/** Macrotrend sections from a spreadsheet: "Macrotrend", then one column per section (empty cells change nothing). */
+export async function importMacroSections(
+  env: Env,
+  p: Principal,
+  schemas: Schemas,
+  b: { fileName: string; rows: { row: number; values: Record<string, string> }[]; dryRun?: boolean },
+): Promise<{ ok: boolean; imported: number; errors: ImportError[] }> {
+  if (!b.dryRun && b.rows.length > IMPORT_CHUNK_ROWS) throw badRequest(`Send at most ${IMPORT_CHUNK_ROWS} rows at a time (or a dry run of up to 200).`);
+  const known = knownNames(schemas);
+  const errors: ImportError[] = [];
+  const ok: { macrotrend: string; sections: Partial<Record<MacroSectionKey, string>> }[] = [];
+  for (const { row, values } of b.rows) {
+    const before = errors.length;
+    const sections = filled(Object.fromEntries(MACRO_SECTIONS.map((x) => [x.key, values[x.label] ?? ""])) as Partial<Record<MacroSectionKey, string>>);
+    for (const [k, t] of Object.entries(sections))
+      if (t.length > 10_000) errors.push({ row, column: MACRO_SECTIONS.find((x) => x.key === k)!.label, message: `${t.length.toLocaleString("en-GB")} characters; the most is 10,000.` });
+    if (!Object.keys(sections).length) errors.push({ row, column: null, message: "Every section is empty: fill in at least one." });
+    const r = await resolve(env, p.tenantId, known, "macro", values[MACRO_SECTIONS_MACRO_COLUMN] ?? "");
+    if (!r.ok) errors.push({ row, column: MACRO_SECTIONS_MACRO_COLUMN, message: r.message });
+    if (errors.length === before && r.ok) ok.push({ macrotrend: r.name, sections });
+  }
+  if (errors.length || b.dryRun) return { ok: !errors.length, imported: 0, errors };
+  await storeSections(env, p, ok, "import", b.fileName);
+  await audit(env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "trend_analysis.imported", targetType: "trend", targetId: b.fileName, details: { rows: ok.length, macrotrends: ok.map((x) => x.macrotrend) } });
+  return { ok: true, imported: ok.length, errors: [] };
+}
+
+/** An admin edits one section in place (empty text clears it). */
+export async function updateMacroSection(env: Env, p: Principal, schemas: Schemas, b: { macrotrend: string; section: MacroSectionKey; text: string }): Promise<MacroSection[]> {
+  const r = await resolve(env, p.tenantId, knownNames(schemas), "macro", b.macrotrend);
+  if (!r.ok) throw badRequest(r.message);
+  const text = b.text.trim();
+  if (text) await sectionUpsert(env, p, r.name, b.section, text, nowIso()).run();
+  else await env.DB.prepare("DELETE FROM macrotrend_sections WHERE tenant_id = ?1 AND macrotrend = ?2 AND section = ?3").bind(p.tenantId, r.name, b.section).run();
+  await audit(env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "summary.changed", targetType: "trend", targetId: `macro:${r.name}`, details: { section: b.section, cleared: !text } });
+  return listMacroSections(env, p.tenantId);
 }
