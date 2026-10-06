@@ -576,12 +576,14 @@ test.describe("Eradigm staff (admin)", () => {
     await filter.getByRole("button", { name: "Secondary" }).click();
     await expect(sec).toBeVisible();
     await expect(pri).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Columns · Secondary" })).toBeVisible();
     await filter.getByRole("button", { name: "Primary" }).click();
     await expect(pri).toBeVisible();
     await expect(sec).toHaveCount(0);
+    // The column editor follows the Primary / Secondary view (request 31).
+    await expect(page.getByRole("heading", { name: "Columns · Primary" })).toBeVisible();
     await filter.getByRole("button", { name: "All" }).click();
     await expect(sec).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Columns · Secondary" })).toBeVisible();
     await expectAccessible(page, "/inbox");
   });
 
