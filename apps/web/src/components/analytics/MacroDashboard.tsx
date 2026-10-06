@@ -180,6 +180,7 @@ export function MacroDashboard({ me, macro, onBack }: { me: Me; macro: string; o
                     filters={filters}
                     schema={schema}
                     fit
+                    noSub
                     headExtra={
                       <div className="seg md-mix-toggle" role="group" aria-label="Impact mix by">
                         {(["sub", "comp"] as const).map((k) => (
@@ -199,7 +200,7 @@ export function MacroDashboard({ me, macro, onBack }: { me: Me; macro: string; o
               <SectionCell me={me} macro={macro} k="longterm" s={sectionOf("longterm")} />
               <div className="md-cell md-chart md-tl" data-testid="md-timeline">
                 {dash.data && schema && filters ? (
-                  <SignalTimeline data={dash.data} schema={schema} from={filters.from} to={filters.to} onOpen={rec.open} id="md-tl-title" />
+                  <SignalTimeline data={dash.data} schema={schema} from={filters.from} to={filters.to} onOpen={rec.open} id="md-tl-title" compact />
                 ) : (
                   <div className="ad-skeleton md-fill" />
                 )}

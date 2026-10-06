@@ -498,6 +498,14 @@ analyst-entered information distinguishable; in the prototype every value is
     lists the earlier entries from that source newest first (`GET
     /api/signals/:id/archived`, at most 200); selecting one opens the same
     popup. State is in the URL (`arch`, `ap`).
+- **Request 35** (no API change): on a Macrotrend's dashboard the row 5
+  knowledge graph has no timeline and no "All Tracker entries" core (the
+  Macrotrend is held at the centre, its Subtrends around it; `noCore` in the
+  graph spec); the arrows' row names are large (19px, 16px on short windows)
+  and bright. The Signal Timeline there (`compact`) has no subtitle, no + / −
+  or date range (scroll still zooms; Reset shows once zoomed in) and, instead
+  of its levels, "Change Magnitude" running up the axis, so the plot is wider
+  and taller; the impact mix has no line under its title.
 - **Menu in groups** (request 28, contract 1.17; regrouped in request 31,
   contract 1.19; renamed in request 34; `packages/shared/src/menu.ts`): the
   menu is four groups, each a button that opens its tabs: Inputs (Input,

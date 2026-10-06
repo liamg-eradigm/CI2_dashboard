@@ -43,6 +43,7 @@ export function SignalTimeline({
   onOpen,
   title = "Signal Timeline",
   id = "tl-title",
+  compact = false,
 }: {
   data: DashboardData;
   schema: TrackerSchema;
@@ -51,6 +52,12 @@ export function SignalTimeline({
   onOpen: (id: string) => void;
   title?: string;
   id?: string;
+  /**
+   * Request 35 (a Macrotrend's dashboard): no subtitle, no + / − or date
+   * range (Reset shows once zoomed in), and one "Change Magnitude" name up
+   * the axis instead of its levels; the plot takes the room.
+   */
+  compact?: boolean;
 }) {
   const [hover, setHover] = useState<string | null>(null);
   const gCol = getColumn(schema, CORE.growth);
@@ -191,40 +198,54 @@ export function SignalTimeline({
   const iLabel = iCol?.label ?? "Impact";
 
   return (
-    <section className="card tl-card" aria-labelledby={id}>
+    <section className={`card tl-card${compact ? " compact" : ""}`} aria-labelledby={id}>
       <div className="card-head">
         <div>
           <h2 className="card-title" id={id}>
             {title}
           </h2>
-          <span className="card-sub">{gLabel} by publication date · scroll to zoom, drag to move · select a point to open its record</span>
+          {!compact && <span className="card-sub">{gLabel} by publication date · scroll to zoom, drag to move · select a point to open its record</span>}
         </div>
         <div className="tl-tools">
           <ImpactLegend schema={schema} label={iLabel} />
-          <div className="tl-zoom" role="group" aria-label="Timeline zoom">
-            <span className="tl-range" aria-live="polite" data-testid="tl-range">
-              {view ? `${formatDate(isoOfDay(Math.ceil(view.lo)))} – ${formatDate(isoOfDay(Math.floor(view.hi)))}` : "All dates"}
-            </span>
-            <button className="icon-btn sm" onClick={() => zoomAt(1 / 1.6)} aria-label="Zoom in on the timeline" title="Zoom in (or scroll)">
-              +
-            </button>
-            <button className="icon-btn sm" onClick={() => zoomAt(1.6)} disabled={!view} aria-label="Zoom out on the timeline" title="Zoom out (or scroll)">
-              −
-            </button>
-            <button className="btn secondary small" onClick={() => setView(null)} disabled={!view} title="Show all dates">
-              Reset
-            </button>
-          </div>
+          {compact ? (
+            view && (
+              <button className="btn secondary small" onClick={() => setView(null)} title="Show all dates">
+                Reset
+              </button>
+            )
+          ) : (
+            <div className="tl-zoom" role="group" aria-label="Timeline zoom">
+              <span className="tl-range" aria-live="polite" data-testid="tl-range">
+                {view ? `${formatDate(isoOfDay(Math.ceil(view.lo)))} – ${formatDate(isoOfDay(Math.floor(view.hi)))}` : "All dates"}
+              </span>
+              <button className="icon-btn sm" onClick={() => zoomAt(1 / 1.6)} aria-label="Zoom in on the timeline" title="Zoom in (or scroll)">
+                +
+              </button>
+              <button className="icon-btn sm" onClick={() => zoomAt(1.6)} disabled={!view} aria-label="Zoom out on the timeline" title="Zoom out (or scroll)">
+                −
+              </button>
+              <button className="btn secondary small" onClick={() => setView(null)} disabled={!view} title="Show all dates">
+                Reset
+              </button>
+            </div>
+          )}
         </div>
       </div>
-      <div className="timeline">
-        <div className="tl-y" aria-hidden="true">
-          {levels.map((l, i) => (
-            <span key={l} style={{ top: `${yOf(i)}%` }}>
-              {l} <b>{i}</b>
-            </span>
-          ))}
-        </div>
+      <div className={`timeline${compact ? " compact" : ""}`}>
+        {compact ? (
+          <div className="tl-y tl-y-name" aria-hidden="true">
+            <span>Change Magnitude</span>
+          </div>
+        ) : (
+          <div className="tl-y" aria-hidden="true">
+            {levels.map((l, i) => (
+              <span key={l} style={{ top: `${yOf(i)}%` }}>
+                {l} <b>{i}</b>
+              </span>
+            ))}
+          </div>
+        )}
         <div
           ref={plot}
           className={`tl-plot${view ? " zoomed" : ""}${panning ? " panning" : ""}`}
@@ -371,14 +392,15 @@ export function BarChart({
       <div className="chart-body">
         <ul className={`bars ${variant ?? ""}`} id={`${id}-bars`} aria-label={`${title}: count per category`}>
           {shown.map((b) => (
-            <li
-              key={b.label}
-              className={`bar-row ${mix ? "mix" : ""}`}
-              aria-label={mix ? `${b.label}: ${b.high} ${hi}, ${b.medium} medium, ${b.low} ${lo}` : `${b.label}: ${b.n}`}
-            >
+            <li key={b.label} className={`bar-row ${mix ? "mix" : ""}`} aria-label={mix ? `${b.label}: ${b.high} ${hi}, ${b.medium} medium, ${b.low} ${lo}` : `${b.label}: ${b.n}`}>
               <div className="lbl">
                 {onSelect ? (
-                  <button className="link-btn" style={{ padding: 0, fontWeight: 400, color: "inherit", textAlign: "left", fontSize: "inherit" }} onClick={() => onSelect(b.label)} title={`Filter by ${b.label}`}>
+                  <button
+                    className="link-btn"
+                    style={{ padding: 0, fontWeight: 400, color: "inherit", textAlign: "left", fontSize: "inherit" }}
+                    onClick={() => onSelect(b.label)}
+                    title={`Filter by ${b.label}`}
+                  >
                     {b.label}
                   </button>
                 ) : (
