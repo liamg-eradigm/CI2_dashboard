@@ -302,7 +302,7 @@ export function SignalTimeline({
   );
 }
 
-function MixLegend({ schema }: { schema: TrackerSchema }) {
+export function MixLegend({ schema }: { schema: TrackerSchema }) {
   const opts = getColumn(schema, CORE.impact)?.options ?? [];
   const byBucket = [2, 1, 0].map((b) => ({ b, label: opts.filter((_, i) => bucket(i, opts.length) === b).join(" / ") })).filter((x) => x.label);
   return (

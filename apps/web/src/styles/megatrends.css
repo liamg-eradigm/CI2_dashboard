@@ -458,3 +458,72 @@
   .ad-trend-links a b { font-size: 28px; }
 }
 .mix-range-track input[type="range"]:focus { outline: none; }
+
+/*
+ * Request 33. The Signal Timeline's plot is very light again, as on the
+ * original dashboard (its dashed lines and axes too); nothing else changes
+ * colour.
+ */
+.ad-page .tl-plot { background: var(--plot); border-color: var(--axis); }
+.ad-page .tl-grid { border-top-color: var(--border); }
+/* Megatrends and Competitors: 5px smaller than before. */
+.ad-trend-links a b { font-size: 35px; }
+/* An impact mix: nine one-line rows whatever it shows, so two side by side are the same size with their rows level. */
+.mix-card { gap: 8px; padding: 12px 16px; }
+.mix-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; height: 46px; }
+.mix-head > div:first-child { min-width: 0; }
+.mix-head .card-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mix-head-r { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: none; }
+.mix-more { font-size: 12px; }
+.ad-page .mix-more { color: var(--cyan-2); }
+.ad-page .mix-more:disabled { color: var(--mg-ink-3); opacity: 0.7; }
+.mix-list { height: calc(9 * 22px); overflow: hidden; }
+.mix-list.open { overflow-y: auto; }
+.mix-list .bar-row, .mix-list .bar-row.mix { height: 22px; padding: 0; grid-template-columns: minmax(110px, 190px) minmax(0, 1fr) 76px; }
+.mix-list .lbl { position: relative; min-width: 0; }
+.mix-lbl { display: block; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font: inherit; color: inherit; background: none; border: 0; padding: 0; text-align: left; line-height: 1.4; }
+button.mix-lbl { cursor: pointer; width: 100%; }
+button.mix-lbl > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+button.mix-lbl:hover, button.mix-lbl:focus-visible { color: #fff; text-decoration: underline dotted; }
+/* Opened in full over the bar, without moving any row. */
+.mix-lbl.full { position: absolute; left: -6px; top: 50%; transform: translateY(-50%); z-index: 3; width: max-content; max-width: none; padding: 2px 6px; border-radius: 6px; background: #0b3147; color: #fff; box-shadow: 0 6px 18px rgba(0, 6, 12, 0.45); }
+.mix-empty { padding: 60px 0; }
+.ad-skeleton.mix-card { height: 330px; }
+
+/* The Analytics Dashboard fits the window: the timeline takes the height left over. */
+.mg-page.ad-page.ad-fit { height: 100vh; min-height: 0; overflow-y: auto; }
+.ad-fit .ad-head { padding: 12px 28px 2px; }
+.ad-fit .ad-head h1 { font-size: 22px; margin-top: 2px; }
+.ad-fit .ad-body { flex: 1 1 auto; min-height: 0; padding: 6px 28px 14px; gap: 12px; }
+.ad-fit .tl-card { flex: 1 1 0; min-height: 220px; padding: 12px 16px; gap: 6px; }
+.ad-fit .tl-card .card-sub { margin-top: 2px; }
+.ad-fit .tl-card .timeline { flex: 1 1 auto; min-height: 0; grid-template-rows: minmax(0, 1fr) 24px; }
+.ad-fit .tl-card .tl-y, .ad-fit .tl-card .tl-plot { height: auto; min-height: 110px; }
+.ad-fit .ad-mix, .ad-fit .ad-trends { flex: none; }
+.ad-fit .ad-trends { margin-top: 0; }
+.ad-fit .ad-trends h2 { margin-bottom: 10px; }
+.ad-fit .ad-trend-links a { padding: 12px 24px; gap: 2px; }
+.ad-fit .ad-trend-links a span { font-size: 13.5px; }
+@media (max-width: 900px), (max-height: 620px) {
+  .mg-page.ad-page.ad-fit { height: auto; min-height: 100vh; }
+  .ad-fit .tl-card { flex: none; }
+  .ad-fit .tl-card .tl-y, .ad-fit .tl-card .tl-plot { height: 200px; }
+}
+@media (max-width: 900px) {
+  .ad-trend-links a b { font-size: 23px; }
+}
+/* Shorter windows (e.g. 768px tall laptops): slimmer rows and slider so it still fits. */
+@media (max-height: 820px) and (min-width: 901px) {
+  .mix-list { height: calc(9 * 20px); }
+  .mix-list .bar-row, .mix-list .bar-row.mix { height: 20px; }
+  .mix-head { height: 40px; }
+  .ad-fit .mix-range { margin-top: 2px; padding-top: 6px; }
+  .ad-fit .mix-range-track { height: 22px; }
+  .ad-fit .mix-range-track::before, .ad-fit .mix-range-track::after { top: 9px; }
+  .ad-fit .mix-range-track input[type="range"] { height: 22px; }
+  .ad-fit .tl-card { min-height: 180px; }
+  .ad-fit .ad-trends h2 { margin-bottom: 6px; }
+  .ad-fit .ad-trend-links a { padding: 8px 24px; }
+  .ad-fit .ad-trend-links a span { display: none; }
+  .ad-skeleton.mix-card { height: 300px; }
+}
