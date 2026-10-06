@@ -3,7 +3,6 @@ import type { Page } from "@playwright/test";
 
 const ADMIN = { "x-dev-user": "admin@example.com" };
 const uid = () => Math.random().toString(36).slice(2, 8);
-const R_AND_D = "AI Investment in R&D";
 
 /** Primary entries pushed to the Tracker through the API (as the admin), from the given source. */
 async function pushPrimary(page: Page, rows: { title: string; date: string; role: string; company: string }[]) {
@@ -128,93 +127,5 @@ test.describe("request 27", () => {
     // Secondary tables have no link column.
     await page.goto("/tracker?stream=secondary");
     await expect(page.locator("table.data").getByRole("columnheader", { name: "Linked" })).toHaveCount(0);
-  });
-
-  test("Megatrends and Competitors each open two subtabs in the menu: Knowledge graph and Trend analysis", async ({ page }) => {
-    await signInAs(page, "analyst");
-    await page.goto("/dashboard");
-    const nav = page.getByRole("navigation", { name: "COMPETITIVE INTELLIGENCE" });
-    const mega = nav.getByRole("button", { name: "Megatrends" });
-    await expect(mega).toHaveAttribute("aria-expanded", "false");
-    await expect(nav.getByRole("link", { name: "Megatrends: Knowledge graph" })).toHaveCount(0);
-    await mega.click();
-    await expect(mega).toHaveAttribute("aria-expanded", "true");
-    await nav.getByRole("link", { name: "Megatrends: Trend analysis" }).click();
-    await expect(page).toHaveURL(/\/megatrends\/analysis$/);
-    await expect(nav.getByRole("link", { name: "Megatrends: Trend analysis" })).toHaveAttribute("aria-current", "page");
-    await nav.getByRole("link", { name: "Megatrends: Knowledge graph" }).click();
-    await expect(page).toHaveURL(/\/megatrends$/);
-    await expect(page.getByTestId("mg-canvas")).toBeVisible();
-    await nav.getByRole("button", { name: "Competitors" }).click();
-    await nav.getByRole("link", { name: "Competitors: Trend analysis" }).click();
-    await expect(page).toHaveURL(/\/competitors\/analysis$/);
-    // On a subtab's page its list is open; closing it keeps the page.
-    await nav.getByRole("button", { name: "Competitors" }).click();
-    await expect(nav.getByRole("link", { name: "Competitors: Trend analysis" })).toHaveCount(0);
-    await expect(page.getByTestId("trend-analysis-competitor")).toBeVisible();
-  });
-
-  test("Trend analysis: a Macrotrend's signals over time (3 months by default), by competitor, and its analysis; a Subtrend narrows it", async ({ page }) => {
-    await signInAs(page, "client");
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto("/megatrends/analysis");
-    const list = page.getByRole("list", { name: "Macrotrends" });
-    const cell = list.getByRole("button", { name: new RegExp(`^${R_AND_D.replace(/[&]/g, "\\$&")}`) });
-    await expect(cell).toHaveAttribute("aria-expanded", "false");
-    await expect(page.getByTestId("ta-time-table")).toHaveCount(0);
-    // Wide cells.
-    expect((await cell.boundingBox())!.width).toBeGreaterThan(900);
-    await cell.click();
-    await expect(cell).toHaveAttribute("aria-expanded", "true");
-    await expect(page).toHaveURL(/m=AI\+Investment/);
-    // The Subtrend dropdown starts closed, on all subtrends.
-    const sub = page.getByTestId("ta-subtrend");
-    await expect(sub).toHaveValue("");
-    // In order: signals over time, by competitor, the analysis.
-    const frame = page.getByTestId("ta-frame");
-    await expect(frame).toHaveValue("3");
-    await expect(page.getByTestId("ta-total")).toContainText("in the last 3 months");
-    const months = page.getByTestId("ta-time-table").locator("tbody tr");
-    expect(await months.count()).toBeGreaterThanOrEqual(3);
-    await frame.selectOption("0");
-    await expect(page.getByTestId("ta-total")).toContainText("signals in all");
-    const all = Number(/(\d+) signal/.exec((await page.getByTestId("ta-total").textContent()) ?? "")?.[1]);
-    expect(all).toBeGreaterThan(0);
-    await expect(page.getByTestId("ta-cross-table").getByRole("columnheader", { name: "Competitor" })).toBeVisible();
-    expect(await page.getByTestId("ta-cross-table").locator("tbody tr").count()).toBeGreaterThan(0);
-    const analysis = page.getByRole("region", { name: "Analysis of the trend" });
-    await expect(analysis.getByTestId("mg-summary")).toContainText("Competitors are investing in R&D compute and data partnerships");
-    const tops = await Promise.all([page.getByTestId("ta-time-table"), page.getByTestId("ta-cross-table"), analysis].map(async (l) => (await l.boundingBox())!.y));
-    expect(tops).toEqual([...tops].sort((a, b) => a - b));
-    await expectAccessible(page, "Trend analysis for a Macrotrend");
-    // A Subtrend narrows the tables and the analysis.
-    await sub.selectOption("Computational Infrastructure");
-    await expect(page).toHaveURL(/s=Computational\+Infrastructure/);
-    await expect(analysis.getByRole("heading", { name: "Computational Infrastructure" })).toBeVisible();
-    const narrowed = Number(/(\d+) signal/.exec((await page.getByTestId("ta-total").textContent()) ?? "")?.[1]);
-    expect(narrowed).toBeLessThanOrEqual(all);
-    // Collapse.
-    await cell.click();
-    await expect(page.getByTestId("ta-time-table")).toHaveCount(0);
-  });
-
-  test("Trend analysis: a competitor's signals over time and by Macrotrend, and its analysis (no dropdown)", async ({ page }) => {
-    await signInAs(page, "analyst");
-    await page.goto("/competitors/analysis");
-    const list = page.getByRole("list", { name: "Competitors" });
-    await page.getByLabel("Find a competitor").fill("pfiz");
-    await list.getByRole("button", { name: /^Pfizer/ }).click();
-    await expect(page).toHaveURL(/c=Pfizer/);
-    await expect(page.getByTestId("ta-subtrend")).toHaveCount(0);
-    await page.getByTestId("ta-frame").selectOption("0");
-    await expect(page.getByTestId("ta-cross-table").getByRole("columnheader", { name: "Macrotrend" })).toBeVisible();
-    expect(await page.getByTestId("ta-cross-table").locator("tbody tr").count()).toBeGreaterThan(0);
-    const analysis = page.getByRole("region", { name: "Analysis of the trend" });
-    await expect(analysis.getByTestId("mg-summary")).toContainText("PfizerForAll");
-    await expect(analysis.getByRole("button", { name: "Edit summary" })).toBeVisible();
-    await expectAccessible(page, "Trend analysis for a competitor");
-    // Into the knowledge graph.
-    await analysis.getByRole("button", { name: "Open in the knowledge graph" }).click();
-    await expect(page).toHaveURL(/\/competitors\?c=Pfizer/);
   });
 });

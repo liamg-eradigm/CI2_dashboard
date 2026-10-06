@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Eradigm Competitive Intelligence API",
-    "version": "1.18.0",
+    "version": "1.19.0",
     "description": "Generated from packages/shared/src/api.ts. Every request is checked for both role and tenant server-side. Send X-Tenant-Id to select a tenant when the user belongs to more than one."
   },
   "components": {
@@ -19641,45 +19641,6 @@
                       "default": {
                         "groups": [
                           {
-                            "key": "trackers",
-                            "items": [
-                              {
-                                "key": "tracker"
-                              },
-                              {
-                                "key": "dashboard"
-                              },
-                              {
-                                "key": "phantoms"
-                              },
-                              {
-                                "key": "trend-analyses"
-                              }
-                            ]
-                          },
-                          {
-                            "key": "megatrends",
-                            "items": [
-                              {
-                                "key": "megatrends"
-                              },
-                              {
-                                "key": "megatrends-analysis"
-                              }
-                            ]
-                          },
-                          {
-                            "key": "competitors",
-                            "items": [
-                              {
-                                "key": "competitors"
-                              },
-                              {
-                                "key": "competitors-analysis"
-                              }
-                            ]
-                          },
-                          {
                             "key": "inputs",
                             "items": [
                               {
@@ -19690,6 +19651,31 @@
                               },
                               {
                                 "key": "clientinbox"
+                              }
+                            ]
+                          },
+                          {
+                            "key": "analytics",
+                            "items": [
+                              {
+                                "key": "dashboard"
+                              },
+                              {
+                                "key": "knowledge-graph"
+                              }
+                            ]
+                          },
+                          {
+                            "key": "trackers",
+                            "items": [
+                              {
+                                "key": "tracker"
+                              },
+                              {
+                                "key": "phantoms"
+                              },
+                              {
+                                "key": "trend-analyses"
                               }
                             ]
                           },
@@ -19709,7 +19695,7 @@
                       "type": "object",
                       "properties": {
                         "groups": {
-                          "maxItems": 5,
+                          "maxItems": 4,
                           "type": "array",
                           "items": {
                             "type": "object",
@@ -19717,10 +19703,9 @@
                               "key": {
                                 "type": "string",
                                 "enum": [
-                                  "trackers",
-                                  "megatrends",
-                                  "competitors",
                                   "inputs",
+                                  "analytics",
+                                  "trackers",
                                   "admin"
                                 ]
                               },
@@ -19729,7 +19714,7 @@
                                 "maxLength": 80
                               },
                               "items": {
-                                "maxItems": 13,
+                                "maxItems": 10,
                                 "type": "array",
                                 "items": {
                                   "type": "object",
@@ -19737,17 +19722,14 @@
                                     "key": {
                                       "type": "string",
                                       "enum": [
-                                        "tracker",
-                                        "dashboard",
-                                        "phantoms",
-                                        "trend-analyses",
-                                        "megatrends",
-                                        "megatrends-analysis",
-                                        "competitors",
-                                        "competitors-analysis",
                                         "input",
                                         "inbox",
                                         "clientinbox",
+                                        "dashboard",
+                                        "knowledge-graph",
+                                        "tracker",
+                                        "phantoms",
+                                        "trend-analyses",
                                         "deliverables",
                                         "admin"
                                       ]
@@ -20129,45 +20111,6 @@
                       "default": {
                         "groups": [
                           {
-                            "key": "trackers",
-                            "items": [
-                              {
-                                "key": "tracker"
-                              },
-                              {
-                                "key": "dashboard"
-                              },
-                              {
-                                "key": "phantoms"
-                              },
-                              {
-                                "key": "trend-analyses"
-                              }
-                            ]
-                          },
-                          {
-                            "key": "megatrends",
-                            "items": [
-                              {
-                                "key": "megatrends"
-                              },
-                              {
-                                "key": "megatrends-analysis"
-                              }
-                            ]
-                          },
-                          {
-                            "key": "competitors",
-                            "items": [
-                              {
-                                "key": "competitors"
-                              },
-                              {
-                                "key": "competitors-analysis"
-                              }
-                            ]
-                          },
-                          {
                             "key": "inputs",
                             "items": [
                               {
@@ -20178,6 +20121,31 @@
                               },
                               {
                                 "key": "clientinbox"
+                              }
+                            ]
+                          },
+                          {
+                            "key": "analytics",
+                            "items": [
+                              {
+                                "key": "dashboard"
+                              },
+                              {
+                                "key": "knowledge-graph"
+                              }
+                            ]
+                          },
+                          {
+                            "key": "trackers",
+                            "items": [
+                              {
+                                "key": "tracker"
+                              },
+                              {
+                                "key": "phantoms"
+                              },
+                              {
+                                "key": "trend-analyses"
                               }
                             ]
                           },
@@ -20197,7 +20165,7 @@
                       "type": "object",
                       "properties": {
                         "groups": {
-                          "maxItems": 5,
+                          "maxItems": 4,
                           "type": "array",
                           "items": {
                             "type": "object",
@@ -20205,10 +20173,9 @@
                               "key": {
                                 "type": "string",
                                 "enum": [
-                                  "trackers",
-                                  "megatrends",
-                                  "competitors",
                                   "inputs",
+                                  "analytics",
+                                  "trackers",
                                   "admin"
                                 ]
                               },
@@ -20217,7 +20184,7 @@
                                 "maxLength": 80
                               },
                               "items": {
-                                "maxItems": 13,
+                                "maxItems": 10,
                                 "type": "array",
                                 "items": {
                                   "type": "object",
@@ -20225,17 +20192,14 @@
                                     "key": {
                                       "type": "string",
                                       "enum": [
-                                        "tracker",
-                                        "dashboard",
-                                        "phantoms",
-                                        "trend-analyses",
-                                        "megatrends",
-                                        "megatrends-analysis",
-                                        "competitors",
-                                        "competitors-analysis",
                                         "input",
                                         "inbox",
                                         "clientinbox",
+                                        "dashboard",
+                                        "knowledge-graph",
+                                        "tracker",
+                                        "phantoms",
+                                        "trend-analyses",
                                         "deliverables",
                                         "admin"
                                       ]
@@ -20594,7 +20558,7 @@
                     "type": "object",
                     "properties": {
                       "groups": {
-                        "maxItems": 5,
+                        "maxItems": 4,
                         "type": "array",
                         "items": {
                           "type": "object",
@@ -20602,10 +20566,9 @@
                             "key": {
                               "type": "string",
                               "enum": [
-                                "trackers",
-                                "megatrends",
-                                "competitors",
                                 "inputs",
+                                "analytics",
+                                "trackers",
                                 "admin"
                               ]
                             },
@@ -20614,7 +20577,7 @@
                               "maxLength": 80
                             },
                             "items": {
-                              "maxItems": 13,
+                              "maxItems": 10,
                               "type": "array",
                               "items": {
                                 "type": "object",
@@ -20622,17 +20585,14 @@
                                   "key": {
                                     "type": "string",
                                     "enum": [
-                                      "tracker",
-                                      "dashboard",
-                                      "phantoms",
-                                      "trend-analyses",
-                                      "megatrends",
-                                      "megatrends-analysis",
-                                      "competitors",
-                                      "competitors-analysis",
                                       "input",
                                       "inbox",
                                       "clientinbox",
+                                      "dashboard",
+                                      "knowledge-graph",
+                                      "tracker",
+                                      "phantoms",
+                                      "trend-analyses",
                                       "deliverables",
                                       "admin"
                                     ]

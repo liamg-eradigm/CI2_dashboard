@@ -300,100 +300,102 @@ export function InputPage({ me }: { me: Me }) {
       <div className="content">
         <div className="source-stack">
           <SourceCard busy={busy} onSubmit={submit} onManual={createManual} />
+          {/* Request 31: what happened to the source just added sits right under its card. */}
+          <div className="source-result" data-testid="source-result">
+            {pageErr && (
+              <div className="err-msg" role="alert">
+                <b>✕</b> {pageErr}
+              </div>
+            )}
+
+            {d?.duplicateOf && d.status !== "approved" && (
+              <div className="banner warn dup-banner" role="alert">
+                <b>⚠ Possible duplicate: this source is already in the tracker as {d.duplicateOf}</b>
+                <span>
+                  {DUP_BASIS[d.duplicateBasis ?? "url"]}. It has still been sent to the Eradigm Inbox as {d.code}. When it is approved, the reviewer will be asked to confirm before a second tracker entry is created.
+                </span>
+              </div>
+            )}
+
+            {run && !run.typedIn && (
+              <section className="card" aria-labelledby="pipe-title">
+                <div className="card-head" style={{ alignItems: "baseline" }}>
+                  <h2 className="card-title" id="pipe-title">
+                    {manual ? "Capture" : "Capture and extraction"} · {STREAM_LABEL[run.stream]} Source{" "}
+                    {d ? <span className="mono" style={{ fontSize: 12, color: "var(--muted)" }}>· {d.code}</span> : null}
+                  </h2>
+                  <span style={{ fontSize: 12.5, fontWeight: 700, color: runColor }} role="status">
+                    {runStatus}
+                  </span>
+                </div>
+                <ol className="steps">
+                  {labels.map((l, i) => {
+                    const s = stepState(i);
+                    return (
+                      <li key={l} className={`step ${s.st === "skip" ? "skip" : ""} ${s.st === "fail" ? "failed" : ""}`}>
+                        <span className={`dot ${s.st === "done" ? "done" : s.st === "fail" ? "fail" : s.st === "now" ? "now" : ""}`} aria-hidden="true">
+                          {s.st === "done" ? "✓" : s.st === "fail" ? "✕" : s.st === "now" ? "…" : i + 1}
+                        </span>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+                          <b>
+                            {l}
+                            <span className="sr-only"> — {s.st === "done" ? "done" : s.st === "fail" ? "failed" : s.st === "now" ? "in progress" : s.st === "skip" ? "not run" : "waiting"}</span>
+                          </b>
+                          <span className="d">{s.detail}</span>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ol>
+              </section>
+            )}
+
+            {d && !d.extraction && schema.data && (d.status === "needs_review" || d.status === "approved") && (
+              <section className="card" aria-labelledby="sent-title">
+                <div className="card-head" style={{ alignItems: "center" }}>
+                  <div>
+                    <h2 className="card-title" id="sent-title">
+                      {run?.typedIn ? "Blank entry sent" : "Sent"} to the {sentTo}
+                    </h2>
+                    <span className="card-sub">
+                      {d.code} · {run?.typedIn ? "blank manual entry, no source file" : "saved page stored"} · {schema.data.columns.filter((c) => c.key !== "source_tier").length} tracker fields left empty for the analyst · nothing sent to any external service
+                    </span>
+                  </div>
+                  <button className="btn" onClick={() => nav(inboxLink)}>
+                    Complete in {inboxName} →
+                  </button>
+                </div>
+              </section>
+            )}
+
+            {d && d.extraction && schema.data && (d.status === "needs_review" || d.status === "approved") && (
+              <section className="card flush" aria-labelledby="mo-title">
+                <div className="card-head" style={{ padding: "16px 20px 12px" }}>
+                  <div>
+                    <h2 className="card-title" id="mo-title">
+                      Model output
+                    </h2>
+                    <span className="card-sub">
+                      {schema.data.columns.length} fields · {Object.values(d.extraction).filter((x) => x.value == null).length} null · {d.warningsCount} with validation warnings · taxonomy enforced · {d.attemptsDetail[0]?.model ?? ""}
+                    </span>
+                  </div>
+                  <span className="tag warn" style={{ height: 26, lineHeight: "26px", fontSize: 12, padding: "0 11px" }}>
+                    {d.status === "approved" ? "Approved" : "Needs review"}
+                  </span>
+                </div>
+                <ModelOutputTable schema={schema.data} extraction={d.extraction} caption="Model output with evidence and validation" />
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "12px 20px", borderTop: "1px solid var(--rule)", background: "var(--subtle)", flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 13, color: "var(--ink-2)" }}>The draft is in the Eradigm Inbox as Needs review. Nothing is published until it is pushed to the Tracker.</span>
+                  <button className="btn" onClick={() => nav(inboxLink)}>
+                    Review in {inboxName} →
+                  </button>
+                </div>
+              </section>
+            )}
+          </div>
           <ImportCard />
           <TrendAnalysisInput />
         </div>
-        {pageErr && (
-          <div className="err-msg" role="alert">
-            <b>✕</b> {pageErr}
-          </div>
-        )}
-
-        {d?.duplicateOf && d.status !== "approved" && (
-          <div className="banner warn dup-banner" role="alert">
-            <b>⚠ Possible duplicate: this source is already in the tracker as {d.duplicateOf}</b>
-            <span>
-              {DUP_BASIS[d.duplicateBasis ?? "url"]}. It has still been sent to the Eradigm Inbox as {d.code}. When it is approved, the reviewer will be asked to confirm before a second tracker entry is created.
-            </span>
-          </div>
-        )}
-
-        {run && !run.typedIn && (
-          <section className="card" aria-labelledby="pipe-title">
-            <div className="card-head" style={{ alignItems: "baseline" }}>
-              <h2 className="card-title" id="pipe-title">
-                {manual ? "Capture" : "Capture and extraction"} · {STREAM_LABEL[run.stream]} Source{" "}
-                {d ? <span className="mono" style={{ fontSize: 12, color: "var(--muted)" }}>· {d.code}</span> : null}
-              </h2>
-              <span style={{ fontSize: 12.5, fontWeight: 700, color: runColor }} role="status">
-                {runStatus}
-              </span>
-            </div>
-            <ol className="steps">
-              {labels.map((l, i) => {
-                const s = stepState(i);
-                return (
-                  <li key={l} className={`step ${s.st === "skip" ? "skip" : ""} ${s.st === "fail" ? "failed" : ""}`}>
-                    <span className={`dot ${s.st === "done" ? "done" : s.st === "fail" ? "fail" : s.st === "now" ? "now" : ""}`} aria-hidden="true">
-                      {s.st === "done" ? "✓" : s.st === "fail" ? "✕" : s.st === "now" ? "…" : i + 1}
-                    </span>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-                      <b>
-                        {l}
-                        <span className="sr-only"> — {s.st === "done" ? "done" : s.st === "fail" ? "failed" : s.st === "now" ? "in progress" : s.st === "skip" ? "not run" : "waiting"}</span>
-                      </b>
-                      <span className="d">{s.detail}</span>
-                    </div>
-                  </li>
-                );
-              })}
-            </ol>
-          </section>
-        )}
-
-        {d && !d.extraction && schema.data && (d.status === "needs_review" || d.status === "approved") && (
-          <section className="card" aria-labelledby="sent-title">
-            <div className="card-head" style={{ alignItems: "center" }}>
-              <div>
-                <h2 className="card-title" id="sent-title">
-                  {run?.typedIn ? "Blank entry sent" : "Sent"} to the {sentTo}
-                </h2>
-                <span className="card-sub">
-                  {d.code} · {run?.typedIn ? "blank manual entry, no source file" : "saved page stored"} · {schema.data.columns.filter((c) => c.key !== "source_tier").length} tracker fields left empty for the analyst · nothing sent to any external service
-                </span>
-              </div>
-              <button className="btn" onClick={() => nav(inboxLink)}>
-                Complete in {inboxName} →
-              </button>
-            </div>
-          </section>
-        )}
-
-        {d && d.extraction && schema.data && (d.status === "needs_review" || d.status === "approved") && (
-          <section className="card flush" aria-labelledby="mo-title">
-            <div className="card-head" style={{ padding: "16px 20px 12px" }}>
-              <div>
-                <h2 className="card-title" id="mo-title">
-                  Model output
-                </h2>
-                <span className="card-sub">
-                  {schema.data.columns.length} fields · {Object.values(d.extraction).filter((x) => x.value == null).length} null · {d.warningsCount} with validation warnings · taxonomy enforced · {d.attemptsDetail[0]?.model ?? ""}
-                </span>
-              </div>
-              <span className="tag warn" style={{ height: 26, lineHeight: "26px", fontSize: 12, padding: "0 11px" }}>
-                {d.status === "approved" ? "Approved" : "Needs review"}
-              </span>
-            </div>
-            <ModelOutputTable schema={schema.data} extraction={d.extraction} caption="Model output with evidence and validation" />
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "12px 20px", borderTop: "1px solid var(--rule)", background: "var(--subtle)", flexWrap: "wrap" }}>
-              <span style={{ fontSize: 13, color: "var(--ink-2)" }}>The draft is in the Eradigm Inbox as Needs review. Nothing is published until it is pushed to the Tracker.</span>
-              <button className="btn" onClick={() => nav(inboxLink)}>
-                Review in {inboxName} →
-              </button>
-            </div>
-          </section>
-        )}
-
         <section className="card flush" aria-labelledby="log-title">
           <div style={{ padding: "16px 20px 12px" }}>
             <h2 className="card-title" id="log-title">

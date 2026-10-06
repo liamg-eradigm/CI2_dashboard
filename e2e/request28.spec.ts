@@ -6,7 +6,7 @@ test.describe("request 28", () => {
     await page.goto("/dashboard");
     const nav = navOf(page);
     // Only the group of the page in view is open.
-    await expect(nav.getByRole("button", { name: /^Trackers\b/ })).toHaveAttribute("aria-expanded", "true");
+    await expect(nav.getByRole("button", { name: /^Analytics\b/ })).toHaveAttribute("aria-expanded", "true");
     await expect(nav.getByRole("button", { name: /^Inputs\b/ })).toHaveAttribute("aria-expanded", "false");
     await expect(nav.getByRole("button", { name: /^Inputs\b/ }).locator(".badge")).toBeVisible();
     await goTab(page, "Inputs", "Input");
@@ -14,7 +14,7 @@ test.describe("request 28", () => {
     await expect(nav.getByRole("button", { name: /^Inputs\b/ })).toHaveAttribute("aria-expanded", "true");
     await goTab(page, "Admin", "Administration");
     await expect(page).toHaveURL(/\/admin$/);
-    expect(await menuOf(page)).toHaveLength(5);
+    expect(await menuOf(page)).toHaveLength(4);
     await expectAccessible(page, "Menu with every group open");
   });
 

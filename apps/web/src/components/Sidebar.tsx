@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { Link, NavLink, useLocation } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   DEFAULT_MENU,
@@ -8,6 +8,7 @@ import {
   can,
   canSeeTab,
   groupLabel,
+  isMenuItemAt,
   itemLabel,
   visibleMenu,
   type Me,
@@ -26,7 +27,7 @@ const DEV_USERS = [
 ];
 
 /**
- * A menu group (Trackers, Megatrends, Competitors, Inputs, Admin; request 28): a
+ * A menu group (Inputs, Analytics, Trackers, Admin; requests 28 and 31): a
  * button that opens its subtabs. Open while one of its pages is open, unless
  * the user closed it. Names and order are an admin setting (Administration → Menu).
  */
@@ -44,7 +45,7 @@ function NavGroup({
   badge: (item: MenuItemKey) => { n: number; label: string } | null;
 }) {
   const loc = useLocation();
-  const within = group.items.some((it) => loc.pathname === MENU_ITEM_PATH[it.key]);
+  const within = group.items.some((it) => isMenuItemAt(it.key, loc.pathname));
   const id = `nav-sub-${group.key}`;
   const label = groupLabel(group);
   const total = group.items.reduce((sum, it) => sum + (badge(it.key)?.n ?? 0), 0);
@@ -64,14 +65,20 @@ function NavGroup({
           {group.items.map((it) => {
             const b = badge(it.key);
             return (
-              <NavLink key={it.key} to={linkTo(MENU_ITEM_PATH[it.key])} end aria-label={`${label}: ${itemLabel(it)}`} className={({ isActive }) => (isActive ? "active" : "")}>
+              <Link
+                key={it.key}
+                to={linkTo(MENU_ITEM_PATH[it.key])}
+                aria-label={`${label}: ${itemLabel(it)}`}
+                aria-current={isMenuItemAt(it.key, loc.pathname) ? "page" : undefined}
+                className={isMenuItemAt(it.key, loc.pathname) ? "active" : ""}
+              >
                 <span>{itemLabel(it)}</span>
                 {b && b.n > 0 && (
                   <span className="badge" aria-label={b.label}>
                     {b.n}
                   </span>
                 )}
-              </NavLink>
+              </Link>
             );
           })}
         </div>
@@ -91,14 +98,14 @@ export function Sidebar({ me }: { me: Me }) {
   const settings = useSettings();
   const n = (counts.data?.primary ?? 0) + (counts.data?.secondary ?? 0);
   const loc = useLocation();
-  // Dashboard, Tracker, Phantoms and Deliverables share one filter state (and the tables the Primary/Secondary switch): carry it across.
+  // Tracker, Phantoms and Deliverables share one filter state (and the Primary/Secondary switch): carry it across.
   const cur = [...new URLSearchParams(loc.search)];
   const filterPairs = cur.filter(([k]) => k === "q" || k === "from" || k === "to" || k.startsWith("f."));
   const TABLES = ["/tracker", "/phantoms", "/deliverables"];
   const tables = TABLES.includes(loc.pathname);
   const withFilters = (to: string) => {
-    if (to !== "/dashboard" && !TABLES.includes(to)) return to;
-    const pairs = to === "/dashboard" ? filterPairs : tables ? cur.filter(([k]) => k === "stream" || filterPairs.some(([f]) => f === k)) : filterPairs;
+    if (!TABLES.includes(to)) return to;
+    const pairs = tables ? cur.filter(([k]) => k === "stream" || filterPairs.some(([f]) => f === k)) : filterPairs;
     const q = new URLSearchParams(pairs).toString();
     return q ? `${to}?${q}` : to;
   };
@@ -137,7 +144,7 @@ export function Sidebar({ me }: { me: Me }) {
           <NavGroup
             key={g.key}
             group={g}
-            open={expanded[g.key] ?? g.items.some((it) => loc.pathname === MENU_ITEM_PATH[it.key])}
+            open={expanded[g.key] ?? g.items.some((it) => isMenuItemAt(it.key, loc.pathname))}
             onToggle={(o) => setExpanded((e) => ({ ...e, [g.key]: o }))}
             linkTo={withFilters}
             badge={(k) => (k === "inbox" ? { n, label: `${n} unprocessed` } : k === "clientinbox" ? { n: waiting, label: `${waiting} to check` } : null)}

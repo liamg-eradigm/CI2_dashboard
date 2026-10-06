@@ -23,8 +23,6 @@ import {
   type TenantSettings,
   type TrackerPage,
   type TrackerSchema,
-  type TrendConfig,
-  type TrendResult,
   type TrendAnalysis,
   type User,
 } from "@eradigm/shared";
@@ -153,7 +151,6 @@ export const useConfigStatus = (enabled: boolean) =>
     enabled,
   });
 
-export const runTrend = (cfg: TrendConfig) => api<TrendResult & { counts: { current: number; baseline: number } }>("/api/trend-test", { method: "POST", json: cfg });
 
 /** Invalidate everything derived from published signals or the schema. */
 export function useInvalidate() {

@@ -18,7 +18,7 @@
  * Never run against production.
  */
 import { writeFileSync } from "node:fs";
-import { DEFAULT_KEYS, SOURCE_TIER, STREAMS, defaultSchema, type Stream } from "@eradigm/shared";
+import { DEFAULT_KEYS, DEFAULT_WORKSTREAMS, SOURCE_TIER, STREAMS, defaultSchema, type Stream } from "@eradigm/shared";
 import { canonicalJson } from "../src/lib/crypto.js";
 import { createHash, createHmac } from "node:crypto";
 
@@ -201,7 +201,7 @@ function gen(tenant: string, count: number, seed: number, codeStart: number, rev
     // The Phantoms fields (seeded so the Markdown is realistic; all non-confidential and invented).
     const ROLES = ["Medical Science Liaison", "Oncology KOL", "Regional Sales Director", "Market Access Lead", "Hospital Pharmacist"];
     const LOCATIONS = ["London, UK", "Basel, CH", "Boston, US", "Paris, FR", "Munich, DE"];
-    const WORKSTREAMS = ["Launch readiness", "Market access", "Field force effectiveness", "Digital engagement"];
+    const WORKSTREAMS = DEFAULT_WORKSTREAMS;
     const primaryFields: Record<string, string> = {
       record_id: recordId,
       source_role: pick(ROLES),

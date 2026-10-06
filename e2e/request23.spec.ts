@@ -124,7 +124,8 @@ test.describe("request 23", () => {
       { title: `Lilly and Novo cut prices ${tag}`, competitors: ["Eli Lilly", "Novo Nordisk"], impact: "Medium" },
       { title: `Metsera bidding war ${tag}`, competitors: ["Pfizer", "Metsera", "Novo Nordisk"], impact: "High" },
     ]);
-    await goTab(page, "Competitors", "Knowledge graph");
+    await goTab(page, "Analytics", "Knowledge Graph");
+    await page.getByTestId("kg-competitors").click();
     await expect(page).toHaveURL(/\/competitors$/);
     await expect(page.getByTestId("mg-panel")).toContainText("Each sphere is a competitor");
     const list = page.getByTestId("mg-competitors");
@@ -162,7 +163,7 @@ test.describe("request 23", () => {
     await expect(drawer).not.toHaveClass(/open/);
 
     // Back to all competitors.
-    await page.getByRole("navigation", { name: "Graph level" }).getByRole("button", { name: "All competitors" }).click();
+    await page.getByRole("navigation", { name: "Graph level" }).getByRole("button", { name: "Competitors", exact: true }).click();
     await expect(page).not.toHaveURL(/c=/);
   });
 

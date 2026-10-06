@@ -430,10 +430,9 @@ test.describe("Eradigm staff (admin)", () => {
     await expect(page.locator("table tbody td.title", { hasText: title })).toBeVisible();
     await expect(page.getByTestId("dates-hint")).toHaveCount(0);
     await expect(page).not.toHaveURL(/from=/);
-    // The Dashboard counts it too, with no "outside these dates" banner.
+    // The Analytics Dashboard plots it too (all dates, no filters).
     await page.goto("/dashboard");
-    await expect(page.getByRole("region", { name: "Filters", exact: true }).getByLabel("Date from")).toHaveValue("2024-03-12");
-    await expect(page.locator(".dates-banner")).toHaveCount(0);
+    await expect(page.getByTestId("signal-timeline").getByRole("button", { name: new RegExp(`^${title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\.`) })).toHaveCount(1);
     // From the Inbox: View in Tracker opens the entry.
     await page.goto("/inbox?stream=secondary");
     await page.getByRole("button", { name: /^Pushed & Rejected/ }).click();

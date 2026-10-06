@@ -6,8 +6,8 @@ test.describe("Megatrends", () => {
   test("client: explores Macrotrends and Subtrends with their summaries, filters the timeline and opens an entry's row", async ({ page }) => {
     await signInAs(page, "client");
     await page.goto("/dashboard");
-    // Megatrends opens its two subtabs in the menu (request 27); the knowledge graph is the first.
-    await goTab(page, "Megatrends", "Knowledge graph");
+    // Analytics → Knowledge Graph (request 31) opens on Megatrends.
+    await goTab(page, "Analytics", "Knowledge Graph");
     await expect(page.getByTestId("mg-panel")).toBeVisible();
     const rail = page.getByTestId("mg-macros");
     // Only Macrotrends with entries are listed, with their counts.
@@ -72,7 +72,7 @@ test.describe("Megatrends", () => {
     await expect(sheet).not.toHaveClass(/open/);
 
     // Back to all Macrotrends.
-    await page.getByRole("navigation", { name: "Graph level" }).getByRole("button", { name: "All macrotrends" }).click();
+    await page.getByRole("navigation", { name: "Graph level" }).getByRole("button", { name: "Megatrends", exact: true }).click();
     await expect(page.getByTestId("mg-ball")).toHaveCount(total);
     // No tracker or period filters: the page shows both trackers and every date.
     await expect(page.getByRole("group", { name: "Tracker" })).toHaveCount(0);
@@ -103,10 +103,10 @@ test.describe("tab order", () => {
     const card = page.getByTestId("tab-order");
     await expect(card.getByRole("heading", { name: "Menu" })).toBeVisible();
     const groups = () => navOf(page).locator(".nav-group > .nav-parent > span:first-child").allInnerTexts();
-    await expect.poll(groups).toEqual(["Trackers", "Megatrends", "Competitors", "Inputs", "Admin"]);
+    await expect.poll(groups).toEqual(["Inputs", "Analytics", "Trackers", "Admin"]);
     // Groups move; tabs move within their group.
-    await card.getByRole("button", { name: "Move group Inputs up" }).click();
-    await expect.poll(groups).toEqual(["Trackers", "Megatrends", "Inputs", "Competitors", "Admin"]);
+    await card.getByRole("button", { name: "Move group Trackers up" }).click();
+    await expect.poll(groups).toEqual(["Inputs", "Trackers", "Analytics", "Admin"]);
     await card.getByTestId("menu-group-trackers").getByRole("button", { name: "Move tab Trackers: Phantoms up" }).click();
     await expect(page.locator(".toast").last()).toContainText("Moved");
     // Renamed: a group and a tab.
@@ -119,10 +119,9 @@ test.describe("tab order", () => {
     await expect(card.getByTestId("menu-item-phantoms")).toContainText("was Phantoms");
     await expectAccessible(page, "Administration with the menu editor");
     expect(await menuOf(page)).toEqual([
-      "Trackers: Tracker, Phantom files, Dashboard, Trend Analyses",
-      "Megatrends: Knowledge graph, Trend analysis",
       "Sources: Input, Eradigm Inbox, Client Inbox",
-      "Competitors: Knowledge graph, Trend analysis",
+      "Trackers: Phantom files, Tracker, Trend Analyses",
+      "Analytics: Dashboard, Knowledge Graph",
       "Admin: Deliverables, Administration",
     ]);
     await goTab(page, "Trackers", "Phantom files");
@@ -132,12 +131,12 @@ test.describe("tab order", () => {
     const other = await ctx.newPage();
     await signInAs(other, "client");
     await other.goto("/dashboard");
-    expect(await menuOf(other)).toEqual(["Trackers: Tracker, Phantom files, Dashboard, Trend Analyses", "Megatrends: Knowledge graph, Trend analysis", "Sources: Client Inbox", "Competitors: Knowledge graph, Trend analysis"]);
+    expect(await menuOf(other)).toEqual(["Sources: Client Inbox", "Trackers: Phantom files, Tracker, Trend Analyses", "Analytics: Dashboard, Knowledge Graph"]);
     await ctx.close();
     // Restore.
     await page.goto("/admin");
     await card.getByRole("button", { name: "Restore the usual menu" }).click();
-    await expect.poll(groups).toEqual(["Trackers", "Megatrends", "Competitors", "Inputs", "Admin"]);
+    await expect.poll(groups).toEqual(["Inputs", "Analytics", "Trackers", "Admin"]);
     await expect(card.getByLabel("Name of the Trackers tab Phantoms")).toHaveValue("");
   });
 
