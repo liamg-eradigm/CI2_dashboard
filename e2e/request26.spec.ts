@@ -78,7 +78,7 @@ test.describe("request 26: sources list on the right", () => {
     await expect(sheet).not.toHaveClass(/open/);
 
     // All competitors: no list.
-    await page.getByRole("navigation", { name: "Graph level" }).getByRole("button", { name: "All competitors" }).click();
+    await page.getByRole("navigation", { name: "Graph level" }).getByRole("button", { name: "Competitors", exact: true }).click();
     await expect(page.getByTestId("mg-sources-open")).toHaveCount(0);
     await expect(sheet).not.toHaveClass(/open/);
   });

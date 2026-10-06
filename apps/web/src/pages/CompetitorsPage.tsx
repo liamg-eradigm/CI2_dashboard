@@ -19,6 +19,7 @@ import type { GraphSpec } from "../components/megatrends/Graph3D";
 import { TIER_COLOUR, bySourceOrder, colourMap, impactColour, impactOrder, NEUTRAL, plural } from "../components/megatrends/model";
 import { SummaryPanel, type PanelNode } from "../components/megatrends/SummaryPanel";
 import { Timeline, type LegendItem } from "../components/megatrends/Timeline";
+import { GraphToggle } from "../components/megatrends/GraphToggle";
 import "../styles/megatrends.css";
 
 /**
@@ -186,9 +187,7 @@ export function CompetitorsPage({ me }: { me: Me }) {
 
   const crumbs = (
     <nav className="mg-crumbs" aria-label="Graph level">
-      <button onClick={() => select(null)} aria-current={!selected ? "page" : undefined}>
-        All competitors
-      </button>
+      <GraphToggle current="competitors" onAll={() => select(null)} />
       {selected && (
         <>
           <span aria-hidden="true">›</span>

@@ -35,7 +35,7 @@ test.describe("request 19", () => {
   test("each role sees only its tabs", async ({ page, browser }) => {
     await signInAs(page, "analyst");
     await page.goto("/dashboard");
-    expect(await menuOf(page)).toEqual(["Trackers: Tracker, Dashboard, Phantoms, Trend Analyses", "Megatrends: Knowledge graph, Trend analysis", "Competitors: Knowledge graph, Trend analysis", "Inputs: Eradigm Inbox"]);
+    expect(await menuOf(page)).toEqual(["Inputs: Eradigm Inbox", "Analytics: Dashboard, Knowledge Graph", "Trackers: Tracker, Phantoms, Trend Analyses"]);
     for (const path of ["/input", "/admin", "/deliverables", "/client-inbox"]) {
       await page.goto(path);
       await expect(page).toHaveURL(/\/dashboard/);
@@ -44,17 +44,16 @@ test.describe("request 19", () => {
     const client = await ctx.newPage();
     await signInAs(client, "client");
     await client.goto("/dashboard");
-    expect(await menuOf(client)).toEqual(["Trackers: Tracker, Dashboard, Phantoms, Trend Analyses", "Megatrends: Knowledge graph, Trend analysis", "Competitors: Knowledge graph, Trend analysis", "Inputs: Client Inbox"]);
+    expect(await menuOf(client)).toEqual(["Inputs: Client Inbox", "Analytics: Dashboard, Knowledge Graph", "Trackers: Tracker, Phantoms, Trend Analyses"]);
     await ctx.close();
     const actx = await browser.newContext();
     const admin = await actx.newPage();
     await signInAs(admin, "admin");
     await admin.goto("/dashboard");
     expect(await menuOf(admin)).toEqual([
-      "Trackers: Tracker, Dashboard, Phantoms, Trend Analyses",
-      "Megatrends: Knowledge graph, Trend analysis",
-      "Competitors: Knowledge graph, Trend analysis",
       "Inputs: Input, Eradigm Inbox, Client Inbox",
+      "Analytics: Dashboard, Knowledge Graph",
+      "Trackers: Tracker, Phantoms, Trend Analyses",
       "Admin: Deliverables, Administration",
     ]);
     await actx.close();

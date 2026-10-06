@@ -137,6 +137,19 @@ export const DEFAULT_IMPACT = ["Low", "Medium", "High"];
 export const DEFAULT_SOURCES = ["LinkedIn", "PR", "Publication", "Primary Source", "Client Signals"];
 export const DEFAULT_ACTIONS = ["Actioned", "Not Actioned"];
 
+/** Primary Workstream dropdown (request 31). */
+export const DEFAULT_WORKSTREAMS = [
+  "Digital and Data Platforms",
+  "Salesforce Tools Effectiveness",
+  "DTP and Hub-adjacent tech",
+  "AI Upskilling",
+  "Omni-channel and Engagement Platforms",
+  "Commercial Excellence",
+  "Digital and GenAI training",
+  "Digital and GenAI Platforms, Agents, and Implementation",
+  "EHR Integrations",
+];
+
 export const DEFAULT_TAXONOMY: MacrotrendGroup[] = [
   {
     name: "AI Investment in R&D",
@@ -278,7 +291,7 @@ export function defaultColumns(stream: Stream = "secondary"): TrackerColumn[] {
           T.source,
           T.competitors,
           T.action,
-          { key: FIELDS.workstream, label: "Workstream", type: "text", required: false },
+          { key: FIELDS.workstream, label: "Workstream", type: "select", required: false, options: [...DEFAULT_WORKSTREAMS] },
           { key: FIELDS.sourceTherapeuticArea, label: "Source Therapeutic Area", type: "text", required: false },
           { key: FIELDS.sourceBrandAsset, label: "Source Brand or Asset", type: "text", required: false },
           { key: FIELDS.insightTopic, label: "Insight Topic", type: "text", required: false },

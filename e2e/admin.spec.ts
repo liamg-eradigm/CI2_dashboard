@@ -62,8 +62,8 @@ test.describe("other tenant", () => {
     await signInAs(page, "otherTenant");
     await page.goto("/dashboard");
     await expect(page.getByText("Northwind Pharma (demo)").first()).toBeVisible();
-    await expect(page.locator(".kpi .v").first()).not.toHaveText("–");
-    const n = Number(await page.locator(".kpi").nth(0).locator(".n").innerText().then((t) => t.replace(/\D/g, "")));
-    expect(n).toBeLessThanOrEqual(12);
+    // Its Analytics Dashboard plots only its own few entries.
+    await expect(page.getByTestId("signal-timeline")).toBeVisible();
+    await expect.poll(() => page.locator(".tl-pt").count()).toBeLessThanOrEqual(12);
   });
 });

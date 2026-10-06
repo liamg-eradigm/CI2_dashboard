@@ -131,8 +131,8 @@ export function TrendAnalysisInput() {
 
   const analysisLink = (a: { level: TrendLevel; name: string; parent: string | null }) =>
     a.level === "competitor"
-      ? `/competitors/analysis?${new URLSearchParams({ c: a.name })}`
-      : `/megatrends/analysis?${new URLSearchParams(a.level === "sub" ? { m: a.parent ?? "", s: a.name } : { m: a.name })}`;
+      ? `/analytics/competitors?${new URLSearchParams({ c: a.name })}`
+      : `/analytics/megatrends?${new URLSearchParams(a.level === "sub" ? { m: a.parent ?? "", s: a.name } : { m: a.name })}`;
 
   return (
     <section className="card source-card ta-input" aria-labelledby="tai-title" data-testid="trend-analysis-input">

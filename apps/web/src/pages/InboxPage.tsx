@@ -82,8 +82,11 @@ export function InboxPage({ me }: { me: Me }) {
   const [tab, setTab] = useState("review");
   const [show, setShow] = useState<Stream | "all">("all");
   const [schemaOpen, setSchemaOpen] = useState(false);
-  // The column editor works on one tracker at a time (Secondary first).
+  // The column editor works on one tracker at a time (Secondary first; it follows the Primary / Secondary view).
   const [colStream, setColStream] = useState<Stream>("secondary");
+  useEffect(() => {
+    if (show !== "all") setColStream(show);
+  }, [show]);
   const all = useItems(ALL_STATUSES, true, true);
   const items = (all.data ?? []).filter((i) => show === "all" || i.stream === show);
   const counts = Object.fromEntries(TABS.map((t) => [t.key, items.filter((i) => inTab(t, i)).length]));
@@ -137,7 +140,7 @@ export function InboxPage({ me }: { me: Me }) {
                 </span>
               </div>
               <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                {schemaOpen && <StreamSwitch noun="columns" value={colStream} onChange={setColStream} label="Columns of" />}
+                <StreamSwitch noun="columns" value={colStream} onChange={setColStream} label="Columns of" />
                 <button className="btn secondary" aria-expanded={schemaOpen} onClick={() => setSchemaOpen((o) => !o)} style={schemaOpen ? { background: "var(--tint)" } : undefined}>
                   {schemaOpen ? "Done" : "Edit columns"}
                 </button>

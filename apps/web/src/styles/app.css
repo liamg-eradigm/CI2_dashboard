@@ -312,6 +312,9 @@ td.long .clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient
 .fill.h { background: var(--high); border-radius: 0; }
 .fill.m { background: var(--medium); border-radius: 0; }
 .fill.l { background: var(--low); border-radius: 0; }
+.bars.comp .fill.h { background: var(--high); }
+.bars.comp .fill.m { background: var(--medium); }
+.bars.comp .fill.l { background: var(--low); }
 .bar-row .n { font: 500 12px var(--mono); text-align: right; }
 .expand-btn { display: flex; flex-direction: column; align-items: center; gap: 0; margin: 8px auto 0; padding: 4px 18px 2px; border: 1px solid var(--border); border-radius: 999px; background: #fff; color: var(--navy-700); cursor: pointer; line-height: 1; }
 .expand-btn:hover { background: var(--tint); border-color: var(--focus); }
@@ -830,3 +833,6 @@ a.link-btn { text-decoration: none; }
 @media (max-width: 640px) {
   .tas-md .md-fm > div { grid-template-columns: minmax(0, 1fr); gap: 0; }
 }
+/* Input (request 31): a source's capture status right under the Add a source card; nothing when empty. */
+.source-result { display: flex; flex-direction: column; gap: 16px; margin-top: -4px; }
+.source-result:empty { display: none; }

@@ -107,7 +107,9 @@ analyst-entered information distinguishable; in the prototype every value is
   `(tenant, stream, …)`; each stream edits its own. Locked ("core") columns are
   the ones the Dashboard charts and the Markdown depend on: they can be
   renamed, not deleted.
-- **Three tables per stream** (Inbox → Edit columns): the **Inbox columns**
+- **Three tables per stream** (Inbox → Edit columns; the Primary / Secondary
+  switch is shown before the editor opens and follows the Inbox's Primary /
+  Secondary view, request 31): the **Inbox columns**
   (every field; `position` is the Inbox order), and the **Tracker** and
   **Phantoms** tables, each an ordered choice of Inbox columns
   (`in_tracker` + `tracker_position`, `in_phantoms` + `phantoms_position`,
@@ -309,7 +311,11 @@ analyst-entered information distinguishable; in the prototype every value is
   (`eradigm.<tab>.width`).
 - **Input**: a chosen HTML file (Add a source) or spreadsheet (Import) has a
   ✕ Remove button, to take it off before it is sent. The capture log is a
-  scrollable table about eight rows high, its header kept in view.
+  scrollable table about eight rows high, its header kept in view. What
+  happened to a source just added (its capture steps, "Sent to the Eradigm
+  Inbox" with the link, a possible duplicate) shows right under the Add a
+  source card (request 31); Import spreadsheet and Input Trend Analysis show
+  theirs inside their own cards.
 - **Primary sources** (request 27, contract 1.16, migration 0016): two Primary
   entries come from the same source when their Source Role and Source Company
   match, ignoring case and spacing (`primarySourceKey`,
@@ -330,23 +336,38 @@ analyst-entered information distinguishable; in the prototype every value is
     scrolling on its own, labelled Earlier / Later entry with its Event Date
     and which one was opened; ‹ Earlier / Later › walk along the source's
     entries.
-- **Knowledge graph and Trend analysis** (request 27): Megatrends and
-  Competitors each open a small list in the menu with their two subtabs:
-  Knowledge graph (`/megatrends`, `/competitors`, as before) and Trend
-  analysis (`/megatrends/analysis`, `/competitors/analysis`,
-  `TrendAnalysisPage`). Trend analysis lists the Macrotrends or competitors in
-  wide cells; selecting one (a Macrotrend also has a Subtrend dropdown,
-  closed by default, on "All subtrends") shows, in order: signals per month in
-  a time frame (last 1, 3 (default), 6 or 12 months, or all time; by Impact,
-  against the period before), signals by competitor (Megatrends) or by
-  Macrotrend (Competitors) in the same time frame, and the analysis of the
-  trend: the knowledge graph's summary (`SummaryPanel`, editable by analysts).
-  State is in the URL (`m`, `s` / `c`, `t`). Built from the Megatrends and
-  Competitors responses (no new endpoint). Each cell has a light bar behind
-  its signal count, scaled to the largest count in the list (request 29). On
-  Competitors (request 30) the list is ordered by tier (Tier 1 first, then 2, 3
-  and 4) and, within a tier, by signal count (then name); each cell shows its
-  High / Medium / Low counts (all time).
+- **Analytics** (request 31; first built as the Megatrends / Competitors
+  "Trend analysis" subtabs in request 27). Analytics → Dashboard
+  (`/dashboard`, `DashboardPage`) is the Analytics Dashboard, in the
+  knowledge graph's night sky, with no figures band and no filter bar (the
+  Tracker and Phantoms keep theirs): the Signal Timeline of every Tracker
+  entry over all dates (oldest entry to today) at the top, then the impact
+  mixes by Macrotrend and by Competitor side by side, then Trends Analysis
+  with Megatrends and Competitors. The timeline zooms like the knowledge
+  graph's: scroll (or + / −) zooms in on the dates under the pointer, drag
+  moves across them, Reset shows all dates; it keeps its look (date across,
+  Growth Intensity up, impact shapes and colours). Built from `GET
+  /api/dashboard` (no new endpoint; `components/analytics/Analytics.tsx`).
+  - Trends Analysis (`/analytics/megatrends`, `/analytics/competitors`,
+    `TrendAnalysisPage`; the old `/megatrends/analysis` and
+    `/competitors/analysis` addresses redirect): the Macrotrends or the
+    competitors in wide cells, each with a light bar behind its signal count
+    (request 29); competitors by tier, then signal count (request 30), with
+    their High / Medium / Low counts. Selecting one opens its own dashboard:
+    its Signal Timeline, its impact mix by Competitor (a Macrotrend) or by
+    Macrotrend (a competitor), and its trend analysis (the summary written on
+    Input → Input Trend Analysis, or the default) in a large box. A
+    Macrotrend opens on the whole Macrotrend; a dropdown narrows it to one of
+    its Subtrends. The figures are `GET /api/dashboard` filtered to the
+    Macrotrend (and Subtrend) or competitor. State is in the URL (`m`, `s` /
+    `c`).
+  - Analytics → Knowledge Graph: one tab for both graphs (`/megatrends`,
+    `/competitors`, as before), with a Megatrends / Competitors toggle at the
+    top left where "All macrotrends" / "All competitors" was; the current
+    graph's button goes back to its top level.
+  - The Trend Test panel and the other old Dashboard charts (Signals by
+    Macrotrend / Subtrend, Competitor Composition) are gone; `POST
+    /api/trend-test` is kept for API users.
   - Macrotrend spheres around a central core, sized by their number of
     entries (only those with 1 or more); selecting one reveals its Subtrends
     (also 1 or more), selecting a Subtrend its entries. Zooming in on a node
@@ -403,11 +424,15 @@ analyst-entered information distinguishable; in the prototype every value is
   a row (`DELETE /api/trend-analyses/:id`, analysts and admins) leaves the
   trend's current analysis as it is. Summaries and analyses can be up to
   10,000 characters.
-- **Menu in groups** (request 28, contract 1.17; `packages/shared/src/menu.ts`):
-  the menu is five groups, each a button that opens its tabs: Trackers
-  (Tracker, Dashboard, Phantoms, Trend Analyses), Megatrends and Competitors (Knowledge graph,
-  Trend analysis), Inputs (Input, Eradigm Inbox, Client Inbox) and Admin
-  (Deliverables, Administration). A group is open while one of its pages is
+- **Menu in groups** (request 28, contract 1.17; regrouped in request 31,
+  contract 1.19; `packages/shared/src/menu.ts`): the menu is four groups, each
+  a button that opens its tabs: Inputs (Input, Eradigm Inbox, Client Inbox),
+  Analytics (Dashboard, Knowledge Graph), Trackers (Tracker, Phantoms, Trend
+  Analyses) and Admin (Deliverables, Administration). Dashboard is also the
+  current tab on the Trends Analysis pages, and Knowledge Graph on both
+  graphs (`MENU_ITEM_ALSO`). A menu saved before request 31 (with Megatrends
+  and Competitors groups) takes the new layout and keeps the names given to
+  the groups and tabs that remain. A group is open while one of its pages is
   open, unless closed; a closed group shows its tabs' badges. People only see
   the tabs their role allows (`canSeeTab`); a group with none is hidden. Each
   link's accessible name is "Group: Tab".
@@ -416,7 +441,7 @@ analyst-entered information distinguishable; in the prototype every value is
     in its group); type a new name for a group or tab (empty, or the usual
     name, means the usual name); Restore the usual menu. `normaliseMenu` makes
     any stored menu whole (unknown or repeated entries dropped, missing ones
-    back after the tab they follow by default). `navOrder` (the old flat order)
+    back after the tab, or group, they follow by default). `navOrder` (the old flat order)
     is kept for older dashboards but no longer used.
 - **Markdown** (`GET /api/signals/:id/markdown`, `?download=1` for a file named
   `<ID>.md`) is generated from the published field values only. The front
@@ -439,7 +464,14 @@ analyst-entered information distinguishable; in the prototype every value is
   Impact, Source Type, Competitors, Action, Workstream, Source Therapeutic
   Area, Source Brand or Asset, Insight Topic, Key Intelligence Question, Key
   Details, Key Metrics. Both streams share the nine Tracker/Dashboard columns
-  (same keys and options).
+  (same keys and options). Workstream (request 31, migration 0019) is a
+  dropdown: Digital and Data Platforms, Salesforce Tools Effectiveness, DTP
+  and Hub-adjacent tech, AI Upskilling, Omni-channel and Engagement
+  Platforms, Commercial Excellence, Digital and GenAI training, Digital and
+  GenAI Platforms, Agents, and Implementation, EHR Integrations. The
+  migration respells values that match an option in another case and keeps
+  any other value already in use as an extra option, so no entry loses its
+  Workstream.
 - **Spreadsheet import** (Input → Import spreadsheet): the browser reads the
   first sheet of an .xlsx, or a .csv/.tsv (`packages/shared/src/sheet.ts`),
   matches the header row to the chosen tracker's column labels and sends the

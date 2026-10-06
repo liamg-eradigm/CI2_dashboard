@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { CORE, bucket, daysBetween, getColumn, levelOf, monthLabel, type Bar, type DashboardData, type TrackerSchema } from "@eradigm/shared";
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { CORE, bucket, getColumn, levelOf, type Bar, type DashboardData, type TrackerSchema } from "@eradigm/shared";
 import { IMPACT_CLASS, IMPACT_SHAPE, formatDate } from "../lib/format";
 
 /** Impact legend: shape + colour + text, so the chart reads without colour. */
@@ -22,64 +22,200 @@ function ImpactLegend({ schema, label }: { schema: TrackerSchema; label: string 
   );
 }
 
-export function SignalTimeline({ data, schema, from, to, onOpen }: { data: DashboardData; schema: TrackerSchema; from: string; to: string; onOpen: (id: string) => void }) {
+const DAY = 86_400_000;
+const dayOf = (iso: string) => Math.round(Date.parse(`${iso}T00:00:00Z`) / DAY);
+const isoOfDay = (d: number) => new Date(d * DAY).toISOString().slice(0, 10);
+const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+/** The shortest span the timeline zooms in to (days). */
+const MIN_SPAN = 7;
+
+/**
+ * Signal Timeline: each signal by publication date and growth intensity,
+ * shaped and coloured by impact. Request 31: zooms like the knowledge graph's
+ * timeline: scroll (or + / −) zooms in on the dates under the pointer, drag
+ * moves across them, Reset shows all dates.
+ */
+export function SignalTimeline({
+  data,
+  schema,
+  from,
+  to,
+  onOpen,
+  title = "Signal Timeline",
+  id = "tl-title",
+}: {
+  data: DashboardData;
+  schema: TrackerSchema;
+  from: string;
+  to: string;
+  onOpen: (id: string) => void;
+  title?: string;
+  id?: string;
+}) {
   const [hover, setHover] = useState<string | null>(null);
   const gCol = getColumn(schema, CORE.growth);
   const iCol = getColumn(schema, CORE.impact);
   const levels = gCol?.options ?? [];
   const gn = levels.length;
   const yOf = (i: number) => (gn > 1 ? 86 - Math.max(0, i) * (72 / (gn - 1)) : 50);
-  const span = Math.max(1, daysBetween(from, to));
 
+  // The full date range, and the part in view (null = all of it).
+  const extent = useMemo(() => ({ lo: dayOf(from), hi: Math.max(dayOf(from) + 1, dayOf(to)) }), [from, to]);
+  const [view, setView] = useState<{ lo: number; hi: number } | null>(null);
+  useEffect(() => setView(null), [extent.lo, extent.hi]);
+  const win = view ?? extent;
+  const span = Math.max(1, win.hi - win.lo);
+  const plot = useRef<HTMLDivElement>(null);
+  const [plotW, setPlotW] = useState(800);
+  useEffect(() => {
+    const el = plot.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => setPlotW(el.clientWidth || 800));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const clampView = useCallback(
+    (lo: number, hi: number) => {
+      const full = extent.hi - extent.lo;
+      const len = Math.min(full, Math.max(MIN_SPAN, hi - lo));
+      if (len >= full) return null;
+      let a = lo;
+      if (a < extent.lo) a = extent.lo;
+      if (a + len > extent.hi) a = extent.hi - len;
+      return { lo: a, hi: a + len };
+    },
+    [extent],
+  );
+  /** Zoom by `factor` (< 1 = in) keeping the date at `t` (0–1 across the plot) in place. */
+  const zoomAt = useCallback(
+    (factor: number, t = 0.5) => {
+      const at = win.lo + t * span;
+      const next = span * factor;
+      setView(clampView(at - t * next, at - t * next + next));
+    },
+    [win.lo, span, clampView],
+  );
+  // Scroll to zoom (a native listener: React's wheel events cannot stop the page from scrolling).
+  const zoomRef = useRef(zoomAt);
+  zoomRef.current = zoomAt;
+  useEffect(() => {
+    const el = plot.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+      e.preventDefault();
+      const r = el.getBoundingClientRect();
+      zoomRef.current(Math.exp(e.deltaY * 0.0016), Math.min(1, Math.max(0, (e.clientX - r.left) / Math.max(1, r.width))));
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
+  // Drag to move across the dates (a drag is not a click on a signal).
+  const drag = useRef<{ x: number; view: { lo: number; hi: number }; moved: boolean } | null>(null);
+  const dragged = useRef(false);
+  const [panning, setPanning] = useState(false);
+  const onPointerDown = (e: ReactPointerEvent) => {
+    if (e.button !== 0 || !view) return;
+    drag.current = { x: e.clientX, view: win, moved: false };
+    dragged.current = false;
+  };
+  const onPointerMove = (e: ReactPointerEvent) => {
+    const d = drag.current;
+    if (!d) return;
+    const dx = e.clientX - d.x;
+    if (!d.moved && Math.abs(dx) < 4) return;
+    if (!d.moved) {
+      d.moved = true;
+      setPanning(true);
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    }
+    const days = (dx / Math.max(1, plotW)) * (d.view.hi - d.view.lo);
+    setView(clampView(d.view.lo - days, d.view.hi - days) ?? d.view);
+  };
+  const onPointerUp = () => {
+    if (drag.current?.moved) dragged.current = true;
+    drag.current = null;
+    setPanning(false);
+  };
+
+  const all = useMemo(
+    () =>
+      data.timeline.map((s) => {
+        const n = Number.parseInt(s.code.replace(/\D/g, ""), 10) || 0;
+        const gi = levelOf(gCol, s.growth);
+        const ii = levelOf(iCol, s.impact);
+        const cls = ii < 0 ? "none" : IMPACT_CLASS[bucket(ii, iCol?.options?.length ?? 3)];
+        const yn = yOf(gi) + (((n * 37) % 17) - 8) * 0.9; // deterministic jitter
+        return { ...s, gi, cls, day: dayOf(s.date), yn, size: ii };
+      }),
+    [data.timeline], // eslint-disable-line react-hooks/exhaustive-deps
+  );
   const points = useMemo(
     () =>
-      data.timeline
-        .map((s) => {
-          const n = Number.parseInt(s.code.replace(/\D/g, ""), 10) || 0;
-          const gi = levelOf(gCol, s.growth);
-          const ii = levelOf(iCol, s.impact);
-          const cls = ii < 0 ? "none" : IMPACT_CLASS[bucket(ii, iCol?.options?.length ?? 3)];
-          const xn = Math.max(1, Math.min(99, (daysBetween(from, s.date) / span) * 100));
-          const yn = yOf(gi) + (((n * 37) % 17) - 8) * 0.9; // deterministic jitter
-          return { ...s, gi, cls, xn, yn, size: ii };
-        })
+      all
+        .filter((p) => p.day >= win.lo && p.day <= win.hi)
+        .map((p) => ({ ...p, xn: Math.max(0.6, Math.min(99.4, ((p.day - win.lo) / span) * 100)) }))
         .sort((a, b) => a.size - b.size),
-    [data.timeline, from, span], // eslint-disable-line react-hooks/exhaustive-deps
+    [all, win.lo, win.hi, span],
   );
 
+  // Axis ticks: months (with the year on January and the first), or days for short spans; at least ~80 px apart.
   const ticks = useMemo(() => {
     const out: { x: number; label: string }[] = [];
-    const a = new Date(`${from}T00:00:00Z`);
-    let y = a.getUTCFullYear();
-    let m = a.getUTCMonth();
-    if (a.getUTCDate() > 1) m++;
-    for (let i = 0; i < 60; i++) {
-      if (m > 11) {
-        m = 0;
-        y++;
+    const room = Math.max(1, Math.floor(plotW / 80));
+    if (span > 75) {
+      const start = new Date(win.lo * DAY);
+      const months: Date[] = [];
+      for (let y = start.getUTCFullYear(), m = start.getUTCMonth() + (start.getUTCDate() > 1 ? 1 : 0); ; m++) {
+        const t = new Date(Date.UTC(y, m, 1));
+        if (t.getTime() / DAY > win.hi) break;
+        months.push(t);
       }
-      const iso = `${y}-${String(m + 1).padStart(2, "0")}-01`;
-      if (iso > to) break;
-      out.push({ x: (daysBetween(from, iso) / span) * 100, label: monthLabel(m) + (m === 0 ? ` ${String(y).slice(2)}` : "") });
-      m++;
+      const every = Math.max(1, Math.ceil(months.length / room));
+      months.forEach((t, i) => {
+        if (i % every) return;
+        out.push({ x: ((t.getTime() / DAY - win.lo) / span) * 100, label: `${MON[t.getUTCMonth()]}${t.getUTCMonth() === 0 || i === 0 ? ` ${String(t.getUTCFullYear()).slice(2)}` : ""}` });
+      });
+    } else {
+      const every = Math.max(1, Math.ceil(span / room));
+      for (let d = Math.ceil(win.lo); d <= win.hi; d += every) {
+        const t = new Date(d * DAY);
+        out.push({ x: ((d - win.lo) / span) * 100, label: `${t.getUTCDate()} ${MON[t.getUTCMonth()]}` });
+      }
     }
-    return out.length > 14 ? out.filter((_, i) => i % 2 === 0) : out;
-  }, [from, to, span]);
+    return out;
+  }, [win.lo, win.hi, span, plotW]);
 
   const hp = points.find((p) => p.id === hover);
   const gLabel = gCol?.label ?? "Growth intensity";
   const iLabel = iCol?.label ?? "Impact";
 
   return (
-    <section className="card" aria-labelledby="tl-title">
+    <section className="card tl-card" aria-labelledby={id}>
       <div className="card-head">
         <div>
-          <h2 className="card-title" id="tl-title">
-            Signal Timeline
+          <h2 className="card-title" id={id}>
+            {title}
           </h2>
-          <span className="card-sub">{gLabel} by publication date · select a point to open its record</span>
+          <span className="card-sub">{gLabel} by publication date · scroll to zoom, drag to move · select a point to open its record</span>
         </div>
-        <ImpactLegend schema={schema} label={iLabel} />
+        <div className="tl-tools">
+          <ImpactLegend schema={schema} label={iLabel} />
+          <div className="tl-zoom" role="group" aria-label="Timeline zoom">
+            <span className="tl-range" aria-live="polite" data-testid="tl-range">
+              {view ? `${formatDate(isoOfDay(Math.ceil(view.lo)))} – ${formatDate(isoOfDay(Math.floor(view.hi)))}` : "All dates"}
+            </span>
+            <button className="icon-btn sm" onClick={() => zoomAt(1 / 1.6)} aria-label="Zoom in on the timeline" title="Zoom in (or scroll)">
+              +
+            </button>
+            <button className="icon-btn sm" onClick={() => zoomAt(1.6)} disabled={!view} aria-label="Zoom out on the timeline" title="Zoom out (or scroll)">
+              −
+            </button>
+            <button className="btn secondary small" onClick={() => setView(null)} disabled={!view} title="Show all dates">
+              Reset
+            </button>
+          </div>
+        </div>
       </div>
       <div className="timeline">
         <div className="tl-y" aria-hidden="true">
@@ -89,7 +225,17 @@ export function SignalTimeline({ data, schema, from, to, onOpen }: { data: Dashb
             </span>
           ))}
         </div>
-        <div className="tl-plot" role="group" aria-label={`${points.length} signals plotted by date and ${gLabel.toLowerCase()}. Use Tab to move between points and Enter to open one.`}>
+        <div
+          ref={plot}
+          className={`tl-plot${view ? " zoomed" : ""}${panning ? " panning" : ""}`}
+          role="group"
+          aria-label={`${points.length} signals plotted by date and ${gLabel.toLowerCase()}. Use Tab to move between points and Enter to open one.`}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+          data-testid="signal-timeline"
+        >
           {levels.map((l, i) => (
             <div key={l} className="tl-grid" style={{ top: `${yOf(i)}%` }} />
           ))}
@@ -102,7 +248,13 @@ export function SignalTimeline({ data, schema, from, to, onOpen }: { data: Dashb
               onMouseLeave={() => setHover(null)}
               onFocus={() => setHover(p.id)}
               onBlur={() => setHover(null)}
-              onClick={() => onOpen(p.id)}
+              onClick={() => {
+                if (dragged.current) {
+                  dragged.current = false;
+                  return;
+                }
+                onOpen(p.id);
+              }}
               aria-label={`${p.title}. ${formatDate(p.date)}. ${iLabel}: ${p.impact ?? "none"}. ${gLabel}: ${p.growth ?? "none"}. Competitors: ${p.competitors.join(", ")}`}
             />
           ))}
@@ -134,7 +286,7 @@ export function SignalTimeline({ data, schema, from, to, onOpen }: { data: Dashb
               </dl>
             </div>
           )}
-          {!points.length && <div className="empty" style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center" }}>No approved signals match these filters.</div>}
+          {!points.length && <div className="empty tl-empty">{all.length ? "No signals in these dates. Zoom out or Reset." : "No approved signals yet."}</div>}
         </div>
         <div />
         <div className="tl-x" aria-hidden="true">
@@ -145,7 +297,7 @@ export function SignalTimeline({ data, schema, from, to, onOpen }: { data: Dashb
           ))}
         </div>
       </div>
-      {data.timelineTruncated && <div className="foot-note">Showing the most recent {data.timeline.length} signals. Narrow the filters to see all points.</div>}
+      {data.timelineTruncated && <div className="foot-note">Showing the most recent {data.timeline.length} signals.</div>}
     </section>
   );
 }
@@ -255,7 +407,7 @@ export function BarChart({
             <span className="expand-txt">{expanded ? `Show top ${limit}` : `Show all ${bars.length}`}</span>
           </button>
         )}
-        {!bars.length && <div className="empty">No categories configured.</div>}
+        {!bars.length && <div className="empty">No signals yet.</div>}
         {footer && <div className="foot-note">{footer}</div>}
       </div>
     </section>

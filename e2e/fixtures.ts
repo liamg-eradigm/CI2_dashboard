@@ -58,7 +58,10 @@ export const navLink = (page: Page, group: string, item: string) => navOf(page).
 /** Open a tab from the menu, opening its group first if it is closed. */
 export async function goTab(page: Page, group: string, item: string) {
   const link = navLink(page, group, item);
-  if (!(await link.isVisible())) await navOf(page).getByRole("button", { name: new RegExp(`^${group}\\b`) }).click();
+  // Open the group only if it is closed (the menu may still be loading: wait for the group first).
+  const button = navOf(page).getByRole("button", { name: new RegExp(`^${group}\\b`) });
+  await expect(button).toBeVisible();
+  if ((await button.getAttribute("aria-expanded")) !== "true") await button.click();
   await link.click();
 }
 

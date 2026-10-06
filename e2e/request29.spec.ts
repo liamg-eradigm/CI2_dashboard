@@ -6,7 +6,7 @@ const CULTURE = "Digital & AI Cultural Adoption";
 test.describe("requests 29 and 30", () => {
   test("each Trend analysis list row has a bar for its signal count (the largest full width)", async ({ page }) => {
     await signInAs(page, "analyst");
-    for (const path of ["/megatrends/analysis", "/competitors/analysis"]) {
+    for (const path of ["/analytics/megatrends", "/analytics/competitors"]) {
       await page.goto(path);
       const bars = page.locator(".ta-list [data-testid=ta-count] .ta-bar");
       await expect(bars.first()).toBeVisible();
@@ -24,7 +24,7 @@ test.describe("requests 29 and 30", () => {
       const c = (name: string, count: number) => ({ name, count, tier: 4, summary: null });
       await route.fulfill({ json: { ...real, competitors: [c("Zeta Bio", 99), c("NVIDIA", 50), c("Amgen", 9), c("Pfizer", 5), c("Roche", 7), c("GSK", 60)], pairs: [], entries: [] } });
     });
-    await page.goto("/competitors/analysis");
+    await page.goto("/analytics/competitors");
     const cells = page.getByRole("list", { name: "Competitors" }).locator(".ta-cell");
     await expect(cells).toHaveCount(6);
     const rows = await cells.evaluateAll((els) => els.map((el) => `${el.querySelector(".nm")?.textContent} · ${el.querySelector(".ta-note")?.textContent} · ${el.querySelector("[data-testid=ta-count]")?.textContent}`));
@@ -53,8 +53,8 @@ test.describe("requests 29 and 30", () => {
     await card.getByTestId("tai-submit").click();
     await expect(card.getByTestId("tai-saved")).toContainText(`Saved as the analysis of the Subtrend ${CULTURE}`);
     await card.getByRole("link", { name: "Open its trend analysis →" }).click();
-    await expect(page).toHaveURL(/\/megatrends\/analysis\?/);
-    await expect(page.getByRole("region", { name: "Analysis of the trend" }).getByTestId("mg-summary")).toHaveText(text);
+    await expect(page).toHaveURL(/\/analytics\/megatrends\?/);
+    await expect(page.getByTestId("ta-summary-text")).toHaveText(text);
     // The knowledge graph shows the same analysis.
     await page.goto(`/megatrends?m=${encodeURIComponent(WORKFORCE)}&s=${encodeURIComponent(CULTURE)}`);
     await expect(page.getByTestId("mg-panel").getByTestId("mg-summary")).toHaveText(text);

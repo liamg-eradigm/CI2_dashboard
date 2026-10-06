@@ -18,6 +18,7 @@ import type { GraphSpec } from "../components/megatrends/Graph3D";
 import { bySourceOrder, impactColour, impactOrder, paletteOf, plural, timelineEntries, NEUTRAL, type Selection } from "../components/megatrends/model";
 import { SummaryPanel, type PanelNode } from "../components/megatrends/SummaryPanel";
 import { Timeline, type LegendItem } from "../components/megatrends/Timeline";
+import { GraphToggle } from "../components/megatrends/GraphToggle";
 import "../styles/megatrends.css";
 
 interface Focus {
@@ -209,9 +210,7 @@ export function MegatrendsPage({ me }: { me: Me }) {
 
   const crumbs = (
     <nav className="mg-crumbs" aria-label="Graph level">
-      <button onClick={() => select({ macro: null, sub: null })} aria-current={!sel.macro ? "page" : undefined}>
-        All macrotrends
-      </button>
+      <GraphToggle current="megatrends" onAll={() => select({ macro: null, sub: null })} />
       {sel.macro && (
         <>
           <span aria-hidden="true">›</span>

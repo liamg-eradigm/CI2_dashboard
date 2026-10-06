@@ -21,7 +21,7 @@ const MegatrendsPage = lazy(() => import("./pages/MegatrendsPage").then((m) => (
 const CompetitorsPage = lazy(() => import("./pages/CompetitorsPage").then((m) => ({ default: m.CompetitorsPage })));
 const TrendAnalysisPage = lazy(() => import("./pages/TrendAnalysisPage").then((m) => ({ default: m.TrendAnalysisPage })));
 
-const TITLES: Record<string, string> = { "/dashboard": "Dashboard", "/tracker": "Tracker", "/phantoms": "Phantoms", "/trend-analyses": "Trend Analyses", "/deliverables": "Deliverables", "/megatrends": "Megatrends", "/competitors": "Competitors", "/inbox": "Eradigm Inbox", "/client-inbox": "Client Inbox", "/input": "Input", "/admin": "Administration" };
+const TITLES: Record<string, string> = { "/dashboard": "Analytics Dashboard", "/tracker": "Tracker", "/phantoms": "Phantoms", "/trend-analyses": "Trend Analyses", "/deliverables": "Deliverables", "/megatrends": "Knowledge Graph · Megatrends", "/competitors": "Knowledge Graph · Competitors", "/analytics/megatrends": "Trends Analysis · Megatrends", "/analytics/competitors": "Trends Analysis · Competitors", "/inbox": "Eradigm Inbox", "/client-inbox": "Client Inbox", "/input": "Input", "/admin": "Administration" };
 
 export function App() {
   const loc = useLocation();
@@ -99,23 +99,25 @@ function SignedIn() {
                 </Suspense>
               }
             />
-            {/* Request 27: the second subtab of Megatrends and Competitors (the first is the knowledge graph). */}
+            {/* Request 31: Trends Analysis lives under the Analytics Dashboard (it was the Megatrends / Competitors "Trend analysis" subtab). */}
             <Route
-              path="/megatrends/analysis"
+              path="/analytics/megatrends"
               element={
-                <Suspense fallback={<div className="empty" role="status">Loading the trend analysis…</div>}>
+                <Suspense fallback={<div className="empty" role="status">Loading the trends analysis…</div>}>
                   <TrendAnalysisPage key="macro" me={me.data} kind="macro" />
                 </Suspense>
               }
             />
             <Route
-              path="/competitors/analysis"
+              path="/analytics/competitors"
               element={
-                <Suspense fallback={<div className="empty" role="status">Loading the trend analysis…</div>}>
+                <Suspense fallback={<div className="empty" role="status">Loading the trends analysis…</div>}>
                   <TrendAnalysisPage key="competitor" me={me.data} kind="competitor" />
                 </Suspense>
               }
             />
+            <Route path="/megatrends/analysis" element={<MovedTo path="/analytics/megatrends" />} />
+            <Route path="/competitors/analysis" element={<MovedTo path="/analytics/competitors" />} />
             <Route path="/inbox" element={only("inbox", <InboxPage me={me.data} />)} />
             <Route path="/client-inbox" element={only("clientinbox", <ClientInboxPage me={me.data} />)} />
             <Route path="/input" element={only("input", <InputPage me={me.data} />)} />
@@ -126,4 +128,10 @@ function SignedIn() {
       </main>
     </div>
   );
+}
+
+/** An old address (bookmarks, shared links): the same view at its new path. */
+function MovedTo({ path }: { path: string }) {
+  const loc = useLocation();
+  return <Navigate to={`${path}${loc.search}`} replace />;
 }

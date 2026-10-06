@@ -338,3 +338,86 @@
   .ta-note { display: none; }
   .ta-cell .ct { width: 112px; flex-basis: 112px; }
 }
+/* Knowledge Graph (request 31): Megatrends / Competitors toggle at the top left, in place of "All …". */
+.mg-toggle { display: inline-flex; gap: 2px; padding: 2px; border-radius: 999px; background: rgba(2, 12, 20, 0.55); border: 1px solid var(--mg-line); }
+.mg-toggle button { border: 0; background: none; color: var(--mg-ink-2); font: 700 12.5px var(--sans); padding: 4px 12px; border-radius: 999px; white-space: nowrap; }
+.mg-toggle button:hover { color: #fff; background: rgba(127, 211, 216, 0.12); }
+.mg-toggle button[aria-pressed="true"] { color: #04182a; background: var(--cyan-2); }
+.mg-toggle button:focus-visible { outline: 2px solid var(--cyan-2); outline-offset: 2px; }
+.mg-crumbs:has(.mg-toggle) { overflow: visible; }
+
+/*
+ * Analytics (request 31): the Analytics Dashboard and the Trends Analysis
+ * pages, in the knowledge graph's night sky. The dashboard's cards, Signal
+ * Timeline and impact mixes keep their shapes and impact colours; only the
+ * surfaces and text change. Built to fit: a short timeline, the two mixes side
+ * by side.
+ */
+.mg-page.ad-page { height: auto; min-height: 100vh; overflow: visible; }
+.ad-head { padding: 18px 28px 6px; }
+.ad-body { position: relative; z-index: 1; padding: 8px 28px 40px; display: flex; flex-direction: column; gap: 16px; }
+.ad-page .card { background: var(--mg-glass); border: 1px solid var(--mg-line); color: var(--mg-ink); padding: 14px 18px; gap: 10px; border-radius: 14px; box-shadow: 0 14px 36px rgba(0, 6, 12, 0.35); -webkit-backdrop-filter: blur(12px) saturate(125%); backdrop-filter: blur(12px) saturate(125%); }
+.ad-page .card-title { color: #fff; font-size: 13px; }
+.ad-page .card-sub, .ad-page .foot-note, .ad-page .empty { color: var(--mg-ink-3); }
+.ad-page .foot-note { border-top-color: var(--mg-line); }
+.ad-page .legend, .ad-page .legend .field-label { color: var(--mg-ink-2); }
+.ad-page .tl-y, .ad-page .tl-plot { height: 220px; }
+.ad-page .tl-y { color: var(--mg-ink-2); }
+.ad-page .tl-y b { color: var(--mg-ink-3); }
+.ad-page .tl-plot { background: rgba(2, 12, 20, 0.45); border-color: rgba(181, 207, 218, 0.3); }
+.ad-page .tl-grid { border-top-color: rgba(127, 211, 216, 0.14); }
+.ad-page .tl-x span { color: var(--mg-ink-3); }
+.ad-page .tl-pt { border-color: #04182a; }
+.ad-page .tip { border: 1px solid var(--mg-line); }
+.ad-page .bar-row .lbl { color: var(--mg-ink); }
+.ad-page .bar-row .n, .ad-page .bar-row.mix .n { color: var(--mg-ink-2); }
+.ad-page .track { background: rgba(255, 255, 255, 0.06); }
+.ad-page .expand-btn { background: transparent; border-color: var(--mg-line); color: var(--mg-ink-2); }
+.ad-page .expand-btn:hover { background: rgba(127, 211, 216, 0.1); color: #fff; }
+.ad-page .icon-btn, .ad-page .btn.secondary { background: rgba(2, 12, 20, 0.55); border: 1px solid rgba(127, 211, 216, 0.3); color: var(--mg-ink); }
+.ad-page .icon-btn:hover:not(:disabled), .ad-page .btn.secondary:hover:not(:disabled) { background: rgba(127, 211, 216, 0.14); border-color: var(--cyan-2); }
+.ad-page .icon-btn:disabled, .ad-page .btn.secondary:disabled { opacity: 0.45; }
+.ad-skeleton { border-radius: 14px; background: linear-gradient(90deg, rgba(127, 211, 216, 0.05), rgba(127, 211, 216, 0.1), rgba(127, 211, 216, 0.05)); }
+/* The timeline's zoom: scroll, drag when zoomed in, or the buttons. */
+.tl-tools { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.tl-zoom { display: inline-flex; align-items: center; gap: 6px; }
+.tl-range { font: 600 11.5px var(--mono); color: var(--mg-ink-3, var(--muted)); min-width: 110px; text-align: right; }
+.icon-btn.sm { width: 28px; height: 28px; font-size: 15px; line-height: 1; }
+.tl-plot { touch-action: pan-y; overflow: hidden; }
+.tl-plot.zoomed { cursor: grab; }
+.tl-plot.panning { cursor: grabbing; }
+.tl-plot.panning .tl-pt { pointer-events: none; }
+.tl-empty { position: absolute; inset: 0; display: grid; place-items: center; }
+/* The two impact mixes side by side (one, full width, on a trend's page). */
+.ad-mix { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.ad-mix.one { grid-template-columns: minmax(0, 1fr); }
+.ad-mix .bar-row, .ad-mix .bar-row.mix { grid-template-columns: minmax(110px, 190px) minmax(0, 1fr) 76px; }
+/* Trends Analysis: a centred subtitle, then Megatrends and Competitors. */
+.ad-trends { margin-top: 10px; text-align: center; }
+.ad-trends h2 { margin: 0 0 14px; font: 800 18px var(--sans); letter-spacing: 0.14em; text-transform: uppercase; color: #fff; }
+.ad-trend-links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; max-width: 980px; margin: 0 auto; }
+.ad-trend-links a { display: flex; flex-direction: column; gap: 6px; padding: 22px 24px; border-radius: 16px; background: var(--mg-glass); border: 1px solid var(--mg-line); color: var(--mg-ink); text-decoration: none; box-shadow: 0 14px 36px rgba(0, 6, 12, 0.35); transition: border-color 0.15s ease, background 0.15s ease; }
+.ad-trend-links a b { font: 800 22px var(--sans); letter-spacing: 0.06em; text-transform: uppercase; color: #fff; }
+.ad-trend-links a b::after { content: " →"; color: var(--cyan-2); }
+.ad-trend-links a span { font-size: 13px; line-height: 1.5; color: var(--mg-ink-2); }
+.ad-trend-links a:hover { border-color: rgba(127, 211, 216, 0.5); background: rgba(127, 211, 216, 0.1); }
+.ad-trend-links a:focus-visible { outline: 2px solid var(--cyan-2); outline-offset: 2px; }
+.ad-back { display: block; width: fit-content; margin-bottom: 8px; border: 0; padding: 0; background: none; color: var(--cyan-2); font: 700 12.5px var(--sans); text-decoration: none; cursor: pointer; }
+.ad-back:hover { color: #fff; }
+.ad-back + .eyebrow { display: block; }
+.ad-detail-head .eyebrow { display: inline-flex; align-items: center; gap: 8px; }
+.ad-detail-head .eyebrow .dot { width: 10px; height: 10px; }
+.ad-link { color: var(--cyan-2); font: 700 12.5px var(--sans); text-decoration: none; }
+.ad-link:hover { color: #fff; }
+/* A trend's analysis: large and easy to read. */
+.ta-summary { border-radius: 16px; background: var(--mg-glass); border: 1px solid rgba(127, 211, 216, 0.3); padding: 22px 28px 20px; box-shadow: 0 14px 36px rgba(0, 6, 12, 0.35); }
+.ta-summary-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.ta-summary h2 { margin: 0; font: 800 13px var(--sans); letter-spacing: 0.12em; text-transform: uppercase; color: var(--cyan-2); }
+.ta-summary-text { margin: 0; font: 400 19px/1.65 var(--sans); color: #fff; white-space: pre-wrap; max-width: 92ch; }
+.ta-summary-meta { display: block; margin-top: 12px; font-size: 12.5px; color: var(--mg-ink-3); }
+.ta-summary-empty { margin: 0; font-size: 16px; color: var(--mg-ink-2); }
+@media (max-width: 900px) {
+  .ad-mix, .ad-trend-links { grid-template-columns: minmax(0, 1fr); }
+  .ad-head, .ad-body { padding-left: 14px; padding-right: 14px; }
+  .ad-page .timeline { grid-template-columns: 84px minmax(0, 1fr); }
+}

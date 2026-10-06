@@ -1,94 +1,83 @@
 /**
- * The menu (request 28, contract 1.17): tabs in groups, each group a button
- * that opens its subtabs. Admins reorder the groups and the subtabs within
+ * The menu (request 28, contract 1.17; regrouped in request 31, contract 1.19):
+ * tabs in groups, each group a button that opens its subtabs. Admins reorder the groups and the subtabs within
  * each group, and rename both (Administration → Menu). People only see the
  * subtabs their role allows; a group with none is hidden.
  */
 import { canSeeTab, type NavTab } from "./megatrends.js";
 import type { Role } from "./permissions.js";
 
-export const MENU_GROUPS = ["trackers", "megatrends", "competitors", "inputs", "admin"] as const;
+export const MENU_GROUPS = ["inputs", "analytics", "trackers", "admin"] as const;
 export type MenuGroupKey = (typeof MENU_GROUPS)[number];
 
-export const MENU_ITEMS = [
-  "tracker",
-  "dashboard",
-  "phantoms",
-  "trend-analyses",
-  "megatrends",
-  "megatrends-analysis",
-  "competitors",
-  "competitors-analysis",
-  "input",
-  "inbox",
-  "clientinbox",
-  "deliverables",
-  "admin",
-] as const;
+export const MENU_ITEMS = ["input", "inbox", "clientinbox", "dashboard", "knowledge-graph", "tracker", "phantoms", "trend-analyses", "deliverables", "admin"] as const;
 export type MenuItemKey = (typeof MENU_ITEMS)[number];
 
-/** Each group's subtabs, in their default order (a subtab stays in its group). */
+/**
+ * Each group's subtabs, in their default order (a subtab stays in its group).
+ * Request 31: Inputs, Analytics (the Analytics Dashboard, with Trends Analysis,
+ * and the Knowledge Graph, Megatrends and Competitors behind one toggle),
+ * Trackers and Admin.
+ */
 export const MENU_GROUP_ITEMS: Record<MenuGroupKey, readonly MenuItemKey[]> = {
-  trackers: ["tracker", "dashboard", "phantoms", "trend-analyses"],
-  megatrends: ["megatrends", "megatrends-analysis"],
-  competitors: ["competitors", "competitors-analysis"],
   inputs: ["input", "inbox", "clientinbox"],
+  analytics: ["dashboard", "knowledge-graph"],
+  trackers: ["tracker", "phantoms", "trend-analyses"],
   admin: ["deliverables", "admin"],
 };
 
 export const MENU_GROUP_LABEL: Record<MenuGroupKey, string> = {
-  trackers: "Trackers",
-  megatrends: "Megatrends",
-  competitors: "Competitors",
   inputs: "Inputs",
+  analytics: "Analytics",
+  trackers: "Trackers",
   admin: "Admin",
 };
 
 export const MENU_ITEM_LABEL: Record<MenuItemKey, string> = {
-  tracker: "Tracker",
-  dashboard: "Dashboard",
-  phantoms: "Phantoms",
-  "trend-analyses": "Trend Analyses",
-  megatrends: "Knowledge graph",
-  "megatrends-analysis": "Trend analysis",
-  competitors: "Knowledge graph",
-  "competitors-analysis": "Trend analysis",
   input: "Input",
   inbox: "Eradigm Inbox",
   clientinbox: "Client Inbox",
+  dashboard: "Dashboard",
+  "knowledge-graph": "Knowledge Graph",
+  tracker: "Tracker",
+  phantoms: "Phantoms",
+  "trend-analyses": "Trend Analyses",
   deliverables: "Deliverables",
   admin: "Administration",
 };
 
 export const MENU_ITEM_PATH: Record<MenuItemKey, string> = {
-  tracker: "/tracker",
-  dashboard: "/dashboard",
-  phantoms: "/phantoms",
-  "trend-analyses": "/trend-analyses",
-  megatrends: "/megatrends",
-  "megatrends-analysis": "/megatrends/analysis",
-  competitors: "/competitors",
-  "competitors-analysis": "/competitors/analysis",
   input: "/input",
   inbox: "/inbox",
   clientinbox: "/client-inbox",
+  dashboard: "/dashboard",
+  "knowledge-graph": "/megatrends",
+  tracker: "/tracker",
+  phantoms: "/phantoms",
+  "trend-analyses": "/trend-analyses",
   deliverables: "/deliverables",
   admin: "/admin",
 };
 
+/** Other pages a subtab is current on: the Trends Analysis pages (Dashboard) and the Competitors graph (Knowledge Graph). */
+export const MENU_ITEM_ALSO: Partial<Record<MenuItemKey, readonly string[]>> = {
+  dashboard: ["/analytics/megatrends", "/analytics/competitors"],
+  "knowledge-graph": ["/competitors"],
+};
+
+/** Whether a subtab is the current page. */
+export const isMenuItemAt = (key: MenuItemKey, pathname: string): boolean => pathname === MENU_ITEM_PATH[key] || (MENU_ITEM_ALSO[key] ?? []).includes(pathname);
+
 /** The tab whose role rules a subtab follows. */
 export const MENU_ITEM_TAB: Record<MenuItemKey, NavTab> = {
-  tracker: "tracker",
-  dashboard: "dashboard",
-  phantoms: "phantoms",
-  "trend-analyses": "tracker",
-  megatrends: "megatrends",
-  "megatrends-analysis": "megatrends",
-  competitors: "competitors",
-  "competitors-analysis": "competitors",
   input: "input",
   inbox: "inbox",
   clientinbox: "clientinbox",
+  dashboard: "dashboard",
+  "knowledge-graph": "megatrends",
+  tracker: "tracker",
+  phantoms: "phantoms",
+  "trend-analyses": "tracker",
   deliverables: "deliverables",
   admin: "admin",
 };
@@ -120,13 +109,23 @@ const cleanLabel = (v: unknown): string | undefined => {
   return t ? t : undefined;
 };
 
+/** Groups of the menu before request 31: a menu saved with them is laid out afresh (names kept). */
+const LEGACY_GROUPS = ["megatrends", "competitors"];
+
 /**
  * A stored menu made whole: unknown or repeated groups and subtabs dropped, a
  * subtab only in its own group, missing ones added in their default place,
- * names trimmed (an empty name means the default).
+ * names trimmed (an empty name means the default). A menu saved before the
+ * request 31 layout (with Megatrends and Competitors groups) takes the new
+ * layout and keeps the names given to the groups and subtabs that remain.
  */
 export function normaliseMenu(menu: unknown): MenuSetting {
-  const raw = (menu && typeof menu === "object" && Array.isArray((menu as { groups?: unknown }).groups) ? (menu as { groups: unknown[] }).groups : []) as Partial<MenuGroupSetting>[];
+  let raw = (menu && typeof menu === "object" && Array.isArray((menu as { groups?: unknown }).groups) ? (menu as { groups: unknown[] }).groups : []) as Partial<MenuGroupSetting>[];
+  if (raw.some((g) => g && LEGACY_GROUPS.includes(g.key as string))) {
+    const groupNames = new Map(raw.filter((g) => g && g.label).map((g) => [g.key as string, g.label]));
+    const itemNames = new Map(raw.flatMap((g) => (g && Array.isArray(g.items) ? g.items : [])).filter((it) => it && it.label).map((it) => [it.key as string, it.label]));
+    raw = DEFAULT_MENU.groups.map((g) => ({ key: g.key, label: groupNames.get(g.key), items: g.items.map((it) => ({ key: it.key, label: itemNames.get(it.key) })) }));
+  }
   const groups: MenuGroupSetting[] = [];
   for (const g of raw) {
     if (!g || !(MENU_GROUPS as readonly string[]).includes(g.key as string) || groups.some((x) => x.key === g.key)) continue;
@@ -147,8 +146,12 @@ export function normaliseMenu(menu: unknown): MenuSetting {
     const label = cleanLabel(g.label);
     groups.push({ key, ...(label ? { label } : {}), items });
   }
-  MENU_GROUPS.forEach((k) => {
-    if (!groups.some((g) => g.key === k)) groups.push(structuredClone(DEFAULT_MENU.groups.find((g) => g.key === k)!));
+  // A missing group goes back after the group it follows by default (first when it leads).
+  MENU_GROUPS.forEach((k, i) => {
+    if (groups.some((g) => g.key === k)) return;
+    const before = MENU_GROUPS.slice(0, i).reverse().find((m) => groups.some((g) => g.key === m));
+    const at = before ? groups.findIndex((g) => g.key === before) + 1 : 0;
+    groups.splice(at, 0, structuredClone(DEFAULT_MENU.groups.find((g) => g.key === k)!));
   });
   return { groups };
 }
