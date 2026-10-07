@@ -62,3 +62,27 @@ describe("request 40: the new-signal cutoff", () => {
     expect((await json(call(w.a.client, "GET", "/api/settings"))).megatrends.summaryDays).toBe(90);
   });
 });
+
+describe("request 41: text filters and column values", () => {
+  it("filters on text a column contains (any case) and lists a stream's values of text columns", async () => {
+    const make = async (company: string, details: string) => {
+      const { item } = await json(call(w.a.analyst, "POST", "/api/submissions/manual", { body: { stream: "primary" } }));
+      const res = await approveWith(w.a.analyst, item, { title: `Answer from ${company}`, impact: "Medium", source_company: company, key_details: details });
+      expect(res.status).toBe(200);
+      return item.id as string;
+    };
+    const a = await make("Hospital Alpha 41", "Payers push back on price.");
+    const b = await make("Clinic Beta 41", "Uptake is growing fast.");
+    const list = async (q: string) => ((await json(call(w.a.client, "GET", `/api/tracker?stream=primary&${RANGE}&${q}`))).rows as Row[]).map((r) => r.id);
+    expect(await list("t.source_company=alpha%2041")).toEqual([a]);
+    expect(await list("t.key_details=GROWING")).toEqual([b]);
+    expect(await list("t.source_company=41&t.key_details=payers")).toEqual([a]);
+    // Unknown or non-text columns are ignored.
+    expect((await list("t.nope=x")).length).toBeGreaterThan(1);
+    const v = await json(call(w.a.client, "GET", "/api/tracker/values?stream=primary&key=source_company&key=key_details&key=impact"));
+    expect(v.source_company).toEqual(expect.arrayContaining(["Clinic Beta 41", "Hospital Alpha 41"]));
+    // Only one-line text columns: not long text or dropdowns.
+    expect(Object.keys(v)).toEqual(["source_company"]);
+    expect(await json(call(w.b.analyst, "GET", "/api/tracker/values?stream=primary&key=source_company"))).toEqual({ source_company: [] });
+  });
+});

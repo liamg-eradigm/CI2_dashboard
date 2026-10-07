@@ -210,7 +210,7 @@ test.describe("request 34", () => {
     await expect(page.getByRole("heading", { level: 1, name: "Primary Tracker" })).toBeVisible();
     // Primary only: no Primary/Secondary switch.
     await expect(page.getByRole("group", { name: /Show entries from/ })).toHaveCount(0);
-    await page.goto(`/analytics/primary?q=${tag}`);
+    await page.goto(`/analytics/primary?${new URLSearchParams({ "pt.source_role": role })}`);
     const table = page.locator("table.data").first();
     await expect(table.getByRole("columnheader", { name: "Archived Responses" })).toBeVisible();
     await expect(table.getByTestId("archived-cell")).toHaveCount(2);

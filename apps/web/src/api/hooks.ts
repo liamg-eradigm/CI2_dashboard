@@ -77,6 +77,13 @@ export const useMegatrends = (stream: Stream | "all", from: string | null, to: s
   });
 export const useCompetitors = () =>
   useQuery({ queryKey: ["competitors"], queryFn: () => api<Competitors>("/api/competitors?stream=all"), placeholderData: keepPreviousData });
+/** The distinct values of text columns among a stream's Tracker entries (Primary Tracker filter dropdowns, request 41). */
+export const useTrackerValues = (stream: Stream, keys: string[]) =>
+  useQuery({
+    queryKey: ["tracker", "values", stream, keys.join(",")],
+    queryFn: () => api<Record<string, string[]>>(`/api/tracker/values?${new URLSearchParams([["stream", stream], ...keys.map((k) => ["key", k])])}`),
+    enabled: keys.length > 0,
+  });
 export const useNewsletters = (enabled = true) => useQuery({ queryKey: ["newsletters"], queryFn: () => api<Newsletter[]>("/api/newsletters"), enabled });
 
 /** The Phantoms Markdown of an entry (text). */

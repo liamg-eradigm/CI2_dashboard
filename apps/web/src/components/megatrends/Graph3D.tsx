@@ -109,12 +109,16 @@ interface Parts {
   materials: { m: ThreeNS.Material & { opacity: number }; base: number }[];
   ring: ThreeNS.Mesh | null;
   /** A new entry's dot and the halo that pulses around it (request 40). */
-  pulse?: { dot: ThreeNS.Object3D; halo: ThreeNS.Sprite; size: number; phase: number };
+  pulse?: { dot: ThreeNS.Object3D; halo: ThreeNS.Sprite; ripple: ThreeNS.Sprite; size: number; phase: number };
 }
 
-/** The pulse of a new entry: a soft red halo that swells and fades about once every 2.2 s. */
-const PULSE_COLOUR = "#ff5a64";
-const PULSE_PERIOD_S = 2.2;
+/**
+ * The pulse of a new entry (made more noticeable after request 40): a red halo
+ * that swells and brightens, and a ripple that spreads out from the dot and
+ * fades, about once every 1.8 s.
+ */
+const PULSE_COLOUR = "#ff4d5a";
+const PULSE_PERIOD_S = 1.8;
 
 const ENTRIES_SHOWN = 80;
 /** Dots drawn inside one sphere at most (enough to read the mix). */
@@ -366,10 +370,14 @@ export function Graph3D({
           if (p.ring?.visible) p.ring.rotation.z += 0.004;
           if (p.pulse) {
             // 0 → 1 → 0, eased: the halo swells and fades, the dot breathes a little.
-            const k = (1 - Math.cos(((now / PULSE_PERIOD_S + p.pulse.phase) % 1) * 2 * Math.PI)) / 2;
-            p.pulse.halo.scale.setScalar(p.pulse.size * (0.85 + 0.75 * k));
-            (p.pulse.halo.material as ThreeNS.SpriteMaterial).opacity = 0.7 - 0.5 * k;
-            p.pulse.dot.scale.setScalar(1 + 0.25 * k);
+            const t = (now / PULSE_PERIOD_S + p.pulse.phase) % 1;
+            const k = (1 - Math.cos(t * 2 * Math.PI)) / 2;
+            p.pulse.halo.scale.setScalar(p.pulse.size * (0.8 + 1.1 * k));
+            (p.pulse.halo.material as ThreeNS.SpriteMaterial).opacity = 0.45 + 0.5 * k;
+            p.pulse.dot.scale.setScalar(1 + 0.45 * k);
+            // The ripple: grows from the dot to about three times the halo, fading as it goes.
+            p.pulse.ripple.scale.setScalar(p.pulse.size * (0.6 + 2.6 * t));
+            (p.pulse.ripple.material as ThreeNS.SpriteMaterial).opacity = 0.75 * (1 - t) * (1 - t);
           }
         }
       };
@@ -578,9 +586,10 @@ export function Graph3D({
       group.add(glow(T, n.colour, n.r * 6, 0.5, track));
       if (n.fresh) {
         // Not tracked: its opacity is the pulse's (entries in orbit are always in view).
-        const halo = glow(T, PULSE_COLOUR, n.r * 7, 0.55, (m) => m);
-        group.add(halo);
-        pulse = { dot, halo, size: n.r * 7, phase: (hash(n.id) % 1000) / 1000 };
+        const halo = glow(T, PULSE_COLOUR, n.r * 8, 0.7, (m) => m);
+        const ripple = rippleSprite(T, PULSE_COLOUR, n.r * 8);
+        group.add(halo, ripple);
+        pulse = { dot, halo, ripple, size: n.r * 8, phase: (hash(n.id) % 1000) / 1000 };
       }
     } else if (n.kind === "core") {
       const sphere = new T.Mesh(
@@ -731,6 +740,28 @@ function glow(T: Three, colour: string, size: number, opacity: number, track: <M
     glowTexture = new T.CanvasTexture(c);
   }
   const s = new T.Sprite(track(new T.SpriteMaterial({ map: glowTexture, color: new T.Color(colour), blending: T.AdditiveBlending, depthWrite: false, opacity })));
+  s.scale.set(size, size, 1);
+  return s;
+}
+
+/** A soft glowing ring that faces the camera: the ripple around a new entry. */
+let rippleTexture: ThreeNS.CanvasTexture | null = null;
+function rippleSprite(T: Three, colour: string, size: number) {
+  if (!rippleTexture) {
+    const c = document.createElement("canvas");
+    c.width = c.height = 128;
+    const ctx = c.getContext("2d")!;
+    const gr = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+    gr.addColorStop(0, "rgba(255,255,255,0)");
+    gr.addColorStop(0.62, "rgba(255,255,255,0)");
+    gr.addColorStop(0.8, "rgba(255,255,255,0.9)");
+    gr.addColorStop(0.9, "rgba(255,255,255,0.35)");
+    gr.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = gr;
+    ctx.fillRect(0, 0, 128, 128);
+    rippleTexture = new T.CanvasTexture(c);
+  }
+  const s = new T.Sprite(new T.SpriteMaterial({ map: rippleTexture, color: new T.Color(colour), blending: T.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0 }));
   s.scale.set(size, size, 1);
   return s;
 }

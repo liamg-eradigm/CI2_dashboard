@@ -26,6 +26,7 @@ import {
   type OutsideDates,
   type Signal,
   type Stream,
+  type TrackerColumn,
   type TrackerSchema,
   type TrendConfig,
   type TrendResult,
@@ -122,6 +123,14 @@ export function buildWhere(schema: TrackerSchema, tenantId: string, f: FilterSta
       parts.push("json_extract(i.extra_json, ?) = ?");
       binds.push(jsonPath(col.key), v);
     }
+  }
+  // Text filters (request 41): the value contains the text, in any case (instr(): see the search above).
+  for (const [key, v] of Object.entries(f.text ?? {})) {
+    const col = getColumn(schema, key);
+    if (!col || (col.type !== "text" && col.type !== "long") || !v) continue;
+    parts.push(`instr(lower(COALESCE(${PHYSICAL[col.key] ? `i.${PHYSICAL[col.key]}` : "json_extract(i.extra_json, ?)"}, '')), ?) > 0`);
+    if (!PHYSICAL[col.key]) binds.push(jsonPath(col.key));
+    binds.push(v.replace(/[A-Z]/g, (ch) => ch.toLowerCase()));
   }
   return { sql: parts.join(" AND "), binds };
 }
@@ -459,4 +468,24 @@ export async function archivedResponses(env: Env, schema: TrackerSchema, tenantI
     .bind(tenantId, id)
     .all<SignalRow>();
   return { rows: (r.results ?? []).map((x) => toSignal(schema, x)) };
+}
+
+/**
+ * The distinct values of text columns among a stream's Tracker entries, for
+ * the dropdowns of Analytics → Primary Tracker's filters (request 41).
+ * Empty values are left out; at most 500 per column, A → Z.
+ */
+export async function distinctTextValues(env: Env, schema: TrackerSchema, tenantId: string, stream: Stream, keys: string[]): Promise<Record<string, string[]>> {
+  const cols = keys.map((k) => getColumn(schema, k)).filter((c): c is TrackerColumn => !!c && c.type === "text");
+  if (!cols.length) return {};
+  const stmts = cols.map((c) => {
+    const expr = PHYSICAL[c.key] ? `i.${PHYSICAL[c.key]}` : "json_extract(i.extra_json, ?3)";
+    return env.DB.prepare(
+      `SELECT DISTINCT trim(${expr}) AS v FROM intelligence_items i
+        WHERE i.tenant_id = ?1 AND i.stream = ?2 AND i.status = 'approved' AND i.deleted_at IS NULL AND i.tracker_hidden_at IS NULL AND trim(COALESCE(${expr}, '')) <> ''
+        ORDER BY lower(v) LIMIT 500`,
+    ).bind(tenantId, stream, ...(PHYSICAL[c.key] ? [] : [jsonPath(c.key)]));
+  });
+  const res = await env.DB.batch<{ v: string }>(stmts);
+  return Object.fromEntries(cols.map((c, i) => [c.key, (res[i]?.results ?? []).map((r) => r.v)]));
 }

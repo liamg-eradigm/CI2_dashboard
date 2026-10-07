@@ -6,7 +6,7 @@
  * Event Date, "Date to" = today (or the newest entry, if later), evaluated on
  * the day the platform is used. With no entries yet: the last three months.
  */
-import { ALL, CORE, filterableColumns, type TrackerSchema } from "./schema.js";
+import { ALL, CORE, filterableColumns, sortedColumns, type TrackerSchema } from "./schema.js";
 import { isIsoDate } from "./validation.js";
 
 export interface FilterState {
@@ -16,6 +16,11 @@ export interface FilterState {
   to: string;
   /** Column key -> selected option, or "All" (no filter). */
   values: Record<string, string>;
+  /**
+   * Text columns: column key -> text the value must contain (any case).
+   * Used by Analytics → Primary Tracker's own filters (request 41).
+   */
+  text?: Record<string, string>;
 }
 
 export function toIso(d: Date): string {
@@ -93,6 +98,10 @@ export function setFilterValue(f: FilterState, key: string, value: string): Filt
 // ---------------------------------------------------------------------------
 
 export const FILTER_PARAM_PREFIX = "f.";
+/** Text filters in API requests: `t.<column>=<text it contains>`. */
+export const TEXT_PARAM_PREFIX = "t.";
+/** The text and long-text columns a "contains" filter may use (any column of the stream, shown in a table or not). */
+export const textFilterKeys = (schema: TrackerSchema) => sortedColumns(schema).filter((c) => c.type === "text" || c.type === "long").map((c) => c.key);
 export const MAX_QUERY_LENGTH = 200;
 
 export function filtersToParams(f: FilterState, params = new URLSearchParams()): URLSearchParams {
@@ -100,6 +109,7 @@ export function filtersToParams(f: FilterState, params = new URLSearchParams()):
   params.set("from", f.from);
   params.set("to", f.to);
   for (const k of activeValueKeys(f)) params.set(FILTER_PARAM_PREFIX + k, f.values[k] as string);
+  for (const [k, v] of Object.entries(f.text ?? {})) if (v.trim()) params.set(TEXT_PARAM_PREFIX + k, v.trim());
   return params;
 }
 
@@ -118,15 +128,22 @@ export function filtersFromParams(
   if (!isIsoDate(to)) to = d.to;
   if (from > to) [from, to] = [to, from];
   const allowed = opts.schema ? new Set(filterableColumns(opts.schema).map((c) => c.key)) : null;
+  const textAllowed = opts.schema ? new Set(textFilterKeys(opts.schema)) : null;
   const values: Record<string, string> = {};
+  const text: Record<string, string> = {};
   params.forEach((v, k) => {
+    if (k.startsWith(TEXT_PARAM_PREFIX)) {
+      const key = k.slice(TEXT_PARAM_PREFIX.length);
+      if ((!textAllowed || textAllowed.has(key)) && v.trim()) text[key] = v.trim().slice(0, MAX_QUERY_LENGTH);
+      return;
+    }
     if (!k.startsWith(FILTER_PARAM_PREFIX)) return;
     const key = k.slice(FILTER_PARAM_PREFIX.length);
     if (allowed && !allowed.has(key)) return;
     if (v && v !== ALL) values[key] = v.slice(0, 200);
   });
   const q = (params.get("q") ?? "").slice(0, MAX_QUERY_LENGTH).trim();
-  return { q, from, to, values };
+  return { q, from, to, values, ...(Object.keys(text).length ? { text } : {}) };
 }
 
 /**

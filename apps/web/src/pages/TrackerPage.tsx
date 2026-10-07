@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import { CORE, FIELDS, STREAM_LABEL, TABLE_ALL_MAX, can, displayValue, getColumn, phantomColumns, trackerColumns, type Me, type Signal, type TrackerColumn, type TrackerSchema } from "@eradigm/shared";
 import { request } from "../api/client";
 import { exportUrl, useArchived, useNewsletters, useSchema, useSettings, useSignal, useTracker, type TableView } from "../api/hooks";
@@ -16,6 +16,7 @@ import { GROWTH_GLYPH, IMPACT_CLASS, IMPACT_GLYPH, impactBucket } from "../lib/f
 import { useFilters } from "../state/filters";
 import { useToast } from "../state/toast";
 import { useFitToScreen } from "../lib/fitToScreen";
+import { PrimaryTrackerFilters, primaryTrackerFilters } from "../components/PrimaryTrackerFilters";
 
 const PAGE = 10;
 
@@ -142,7 +143,10 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
   const showAll = f.params.get("all") === "1";
   const page = showAll ? 0 : Math.max(0, Number(f.params.get("page") ?? 0) || 0);
   const size = showAll ? TABLE_ALL_MAX : PAGE;
-  const tracker = useTracker(f.filters, { key: sortKey, dir }, page, size, stream, view, !!schema.data && f.ready);
+  // Analytics → Primary Tracker has its own filters (request 41); every other table shares one set.
+  const ptFilters = useMemo(() => (primaryOnly ? primaryTrackerFilters(f.params, f.defaults) : null), [primaryOnly, f.params, f.defaults]);
+  const query = ptFilters ?? f.filters;
+  const tracker = useTracker(query, { key: sortKey, dir }, page, size, stream, view, !!schema.data && f.ready);
   const [exportOpen, setExportOpen] = useState(false);
   const [scope, setScope] = useState<"filtered" | "all">("filtered");
   const exportRef = useRef<HTMLDivElement>(null);
@@ -280,7 +284,7 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
   const doExport = async (format: string) => {
     setExportOpen(false);
     try {
-      const res = await request(exportUrl(f.filters, { key: sortKey, dir }, scope, format, stream, view));
+      const res = await request(exportUrl(query, { key: sortKey, dir }, scope, format, stream, view));
       const blob = await res.blob();
       const name = /filename="([^"]+)"/.exec(res.headers.get("content-disposition") ?? "")?.[1] ?? `eradigm-tracker.${format}`;
       const url = URL.createObjectURL(blob);
@@ -299,7 +303,11 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
 
   return (
     <>
-      <FilterHeader title={title ?? (phantoms ? "Phantoms Database" : "Signals Database")} schema={s} f={f} viewKind="tracker" />
+      {primaryOnly ? (
+        <PrimaryTrackerFilters title={title ?? "Primary Tracker"} schema={s} params={f.params} setParams={f.setParams} defaults={f.defaults} />
+      ) : (
+        <FilterHeader title={title ?? (phantoms ? "Phantoms Database" : "Signals Database")} schema={s} f={f} viewKind="tracker" />
+      )}
       <div className="content">
         {above}
         <div className="stream-bar">
@@ -326,7 +334,6 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
                 <h2 className="card-title">Primary Signals</h2>
                 <span className="card-sub info" aria-live="polite">
                   {info}
-                  <DatesHint info={t?.outsideDates} f={f} />
                 </span>
               </div>
             ) : (
