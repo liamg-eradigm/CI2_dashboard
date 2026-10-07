@@ -18,6 +18,9 @@ import { DEFAULT_MENU, MAX_MENU_LABEL, MENU_GROUPS, MENU_ITEMS } from "./menu.js
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD");
 const isoDateTime = z.string();
+/** Signals newer than this (days, by Event Date) are "new" by default (request 40). */
+export const DEFAULT_NEW_SIGNAL_DAYS = 14;
+
 export const FieldValueSchema = z.union([z.string(), z.array(z.string()), z.null()]);
 export const ItemValuesSchema = z.record(z.string(), FieldValueSchema);
 /** Primary or Secondary stream (Source → Inbox → Tracker → Phantoms). Added in contract 1.4. */
@@ -734,6 +737,12 @@ export const TenantSettingsSchema = z.object({
       perspective: z.string().trim().max(80),
     })
     .default({ summaryDays: 90, summarySentences: 2, model: "claude-opus-5-5", perspective: "AbbVie" }),
+  /**
+   * Request 40: a signal is "new" while its Event Date is less than this many
+   * days ago (it pulses in the knowledge graphs and is tagged NEW in their
+   * signals lists).
+   */
+  newSignals: z.object({ days: z.number().int().min(1).max(365) }).default({ days: DEFAULT_NEW_SIGNAL_DAYS }),
 });
 export const UpdateSettingsRequest = TenantSettingsSchema.partial().extend({
   navOrder: TenantSettingsSchema.shape.navOrder.unwrap().optional(),

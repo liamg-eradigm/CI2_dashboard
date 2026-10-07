@@ -701,3 +701,8 @@ button.mix-lbl:hover, button.mix-lbl:focus-visible { color: #fff; text-decoratio
 .mg-ci-text { max-height: 30vh; overflow-y: auto; overscroll-behavior: contain; }
 .mg-ci-text:focus-visible { outline: 2px solid var(--cyan-2); outline-offset: 2px; border-radius: 6px; }
 .mg-embedded .mg-drawer { top: 8px; bottom: 8px; right: 8px; }
+
+/* Request 40: a new signal (its Event Date within the admin's cutoff) is tagged NEW, glowing red, left of its CI Perspective tag. */
+.mg-tags { flex: none; align-self: flex-end; margin-left: auto; display: inline-flex; gap: 6px; align-items: center; }
+.mg-tags .mg-ci-tag { margin-left: 0; align-self: auto; }
+.mg-new-tag { padding: 1px 7px; border-radius: 999px; font: 700 9.5px var(--sans); letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; color: #fff1f1; background: rgba(255, 90, 100, 0.26); border: 1px solid #ff6b74; box-shadow: 0 0 6px rgba(255, 90, 100, 0.9), 0 0 14px rgba(255, 90, 100, 0.5); text-shadow: 0 0 6px rgba(255, 90, 100, 0.9); }

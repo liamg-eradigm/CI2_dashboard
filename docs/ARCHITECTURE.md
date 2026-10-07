@@ -551,6 +551,16 @@ analyst-entered information distinguishable; in the prototype every value is
   answers; Esc closes the right one, then the left). State in the URL: `pp`
   (the signal's pop-up), `arch` (the Archived Responses source), `ap` (the
   archived answer's pop-up).
+- **Request 40** (contract 1.22, no migration): new signals in the
+  knowledge graphs (the Knowledge Graph tab and a Macrotrend dashboard's
+  graph). A signal is new while its Event Date is less than
+  `newSignals.days` days before today (tenant setting, 14 by default;
+  Administration → Workspace settings → Knowledge graphs · New signals;
+  `components/megatrends/newSignals.ts`). In orbit around a selected
+  Subtrend or competitor a new signal pulses: a soft red halo swells and
+  fades about every 2.2 s and the dot breathes a little (still with reduced
+  motion). In the signals list it is tagged NEW, glowing red, left of the CI
+  Perspective tag.
 - **Menu in groups** (request 28, contract 1.17; regrouped in request 31,
   contract 1.19; renamed in request 34; `packages/shared/src/menu.ts`): the
   menu is four groups, each a button that opens its tabs: Inputs (Input,

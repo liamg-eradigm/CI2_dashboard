@@ -10,6 +10,7 @@ import {
   TYPE_LABEL,
   CORE,
   DEFAULT_COMPETITOR_TIERS,
+  DEFAULT_NEW_SIGNAL_DAYS,
   DEFAULT_NAV_ORDER,
   DEFAULT_MENU,
   DEFAULT_TREND_THRESHOLDS,
@@ -128,6 +129,7 @@ export const DEFAULT_SETTINGS: TenantSettings = {
   menu: structuredClone(DEFAULT_MENU),
   megatrends: { summaryDays: 90, summarySentences: 2, model: "claude-opus-5-5", perspective: "AbbVie" },
   competitorTiers: structuredClone(DEFAULT_COMPETITOR_TIERS),
+  newSignals: { days: DEFAULT_NEW_SIGNAL_DAYS },
 };
 
 export async function loadSettings(env: Env, tenantId: string): Promise<TenantSettings> {
@@ -145,6 +147,7 @@ export async function loadSettings(env: Env, tenantId: string): Promise<TenantSe
     menu: normaliseMenu(s.menu),
     megatrends: { ...DEFAULT_SETTINGS.megatrends, ...s.megatrends },
     competitorTiers: { ...DEFAULT_SETTINGS.competitorTiers, ...s.competitorTiers },
+    newSignals: { ...DEFAULT_SETTINGS.newSignals, ...s.newSignals },
   };
 }
 

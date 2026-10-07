@@ -8,6 +8,7 @@ import {
   ROLES,
   ROLE_LABEL,
   SUMMARY_MODELS,
+  DEFAULT_NEW_SIGNAL_DAYS,
   canCreateUserWithRole,
   groupLabel,
   itemLabel,
@@ -652,6 +653,23 @@ function Settings() {
             <input className="control" maxLength={80} value={draft.megatrends.perspective} onChange={(e) => setDraft({ ...draft, megatrends: { ...draft.megatrends, perspective: e.target.value } })} />
           </label>
         </div>
+      </fieldset>
+      <fieldset style={{ border: 0, padding: 0, margin: 0, display: "grid", gap: 8 }} data-testid="new-signal-settings">
+        <legend className="section-h">Knowledge graphs · New signals</legend>
+        <p className="card-sub" style={{ margin: 0 }}>
+          A signal whose Event Date is less than this many days ago is new: it pulses in the knowledge graphs and is tagged NEW in their signals lists.
+        </p>
+        <label className="field" style={{ maxWidth: 320 }}>
+          <span>New for (days after its Event Date)</span>
+          <input
+            className="control"
+            type="number"
+            min={1}
+            max={365}
+            value={draft.newSignals?.days ?? DEFAULT_NEW_SIGNAL_DAYS}
+            onChange={(e) => setDraft({ ...draft, newSignals: { days: num(e.target.value) } })}
+          />
+        </label>
       </fieldset>
       <fieldset style={{ border: 0, padding: 0, margin: 0, display: "grid", gap: 8 }}>
         <legend className="section-h">Data classification and redaction (checked for every capture; redaction applies to anything sent to an AI service if pre-fill is enabled)</legend>
