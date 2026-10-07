@@ -33,6 +33,8 @@ const LAST_VIEW = 3;
 /** The gap between cells: the vertical gap between the Megatrends Dashboard's boxes. */
 const GAP = 12;
 const STEP_LOCK_MS = 750;
+/** The height of the arrow bars above and below the two rows (less on short windows). */
+const barHeight = () => (typeof window !== "undefined" && window.innerHeight <= 760 ? 58 : 68);
 
 export function MacroDashboard({ me, macro, onBack }: { me: Me; macro: string; onBack: () => void }) {
   const [params, setParams] = useSearchParams();
@@ -65,26 +67,30 @@ export function MacroDashboard({ me, macro, onBack }: { me: Me; macro: string; o
     if (view === LAST_VIEW) setGraphOn(true);
   }, [view]);
 
-  // The cells' height: two rows (and the gap between them) fill the window.
+  // The cells' height: two rows (and the gap between them) fill the window between the arrow bars.
+  // Row 5 fills the whole window (request 36): its up arrow moves into the header and there is no down arrow.
   const win = useRef<HTMLDivElement>(null);
-  const [rowH, setRowH] = useState(300);
+  const body = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState({ winH: 736, bar: 68 });
   useLayoutEffect(() => {
     const el = win.current;
     if (!el) return;
-    const measure = () => setRowH(Math.max(140, Math.floor((el.clientHeight - GAP) / 2)));
+    const measure = () => setSize({ winH: el.clientHeight, bar: barHeight() });
     measure();
     if (typeof ResizeObserver === "undefined") return;
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  const offset = view === LAST_VIEW ? 4 * (rowH + GAP) : view * (rowH + GAP);
+  const { winH, bar } = size;
+  const rowH = Math.max(140, Math.floor((winH - 2 * bar - GAP) / 2));
+  const offset = view === LAST_VIEW ? bar + 4 * (rowH + GAP) : view * (rowH + GAP);
 
   // Scrolling steps one view at a time (inner scroll areas, the timeline's zoom and the graph keep their own scrolling).
   const lock = useRef(0);
   const acc = useRef(0);
   useEffect(() => {
-    const el = win.current;
+    const el = body.current;
     if (!el) return;
     const scrollsItself = (t: HTMLElement | null, dy: number) => {
       for (let n = t; n && n !== el; n = n.parentElement) {
@@ -134,6 +140,15 @@ export function MacroDashboard({ me, macro, onBack }: { me: Me; macro: string; o
   const sectionOf = (k: MacroSectionKey) => sections.data?.find((x) => x.macrotrend === macro && x.section === k);
   const rowStyle = { height: rowH } as CSSProperties;
   const inView = (row: number) => (view === LAST_VIEW ? row === 4 : row === view || row === view + 1);
+  const last = view === LAST_VIEW;
+  const upArrow = upLabel && (
+    <button className="md-arrow" onClick={() => go(view - 1)} data-testid="md-up" aria-label={`Back up: ${upLabel}`}>
+      <span className="md-chev" aria-hidden="true">
+        ⌃
+      </span>
+      <span className="md-arrow-label">{upLabel}</span>
+    </button>
+  );
 
   return (
     <div className="mg-page ad-page md-page" data-testid="macro-dashboard">
@@ -142,9 +157,11 @@ export function MacroDashboard({ me, macro, onBack }: { me: Me; macro: string; o
           <button className="ad-back" onClick={onBack}>
             ← All megatrends
           </button>
-          <span className="eyebrow">Macrotrend</span>
-          <h1 data-testid="ta-name">{macro}</h1>
+          {/* Row 5: its title where the Macrotrend's name is, the Macrotrend above it. */}
+          <span className="eyebrow">{last ? macro : "Macrotrend"}</span>
+          <h1 data-testid="ta-name">{last ? labels[4] : macro}</h1>
         </div>
+        {last && <div className="md-head-up">{upArrow}</div>}
         <nav className="md-dots" aria-label="Dashboard rows">
           {[0, 1, 2, 3].map((v) => (
             <button key={v} aria-current={view === v ? "true" : undefined} onClick={() => go(v)} title={v === 3 ? labels[4] : `${labels[v]} · ${labels[v + 1]}`}>
@@ -153,17 +170,8 @@ export function MacroDashboard({ me, macro, onBack }: { me: Me; macro: string; o
           ))}
         </nav>
       </header>
-      <div className="md-body">
-        <div className="md-arrow-bar up">
-          {upLabel && (
-            <button className="md-arrow" onClick={() => go(view - 1)} data-testid="md-up" aria-label={`Back up: ${upLabel}`}>
-              <span className="md-chev" aria-hidden="true">
-                ⌃
-              </span>
-              <span className="md-arrow-label">{upLabel}</span>
-            </button>
-          )}
-        </div>
+      <div className={`md-body${last ? " last" : ""}`} ref={body} style={{ ["--bar" as string]: `${bar}px` }}>
+        <div className="md-arrow-bar up">{!last && upArrow}</div>
         <div className="md-window" ref={win} data-testid="md-window">
           <div className="md-track" style={{ transform: `translateY(${-offset}px)`, ["--gap" as string]: `${GAP}px` }} data-view={view} data-testid="md-track">
             <div className="md-row" style={rowStyle} data-row="1" aria-hidden={!inView(0)} inert={!inView(0)}>
@@ -210,7 +218,7 @@ export function MacroDashboard({ me, macro, onBack }: { me: Me; macro: string; o
               <SectionCell me={me} macro={macro} k="next" s={sectionOf("next")} />
               <SectionCell me={me} macro={macro} k="abbvie" s={sectionOf("abbvie")} />
             </div>
-            <div className="md-row md-row5" style={{ height: 2 * rowH + GAP }} data-row="5" aria-hidden={!inView(4)} inert={!inView(4)}>
+            <div className="md-row md-row5" style={{ height: winH }} data-row="5" aria-hidden={!inView(4)} inert={!inView(4)}>
               <section className="md-cell md-graph" aria-label={`Explore Signals: the knowledge graph of ${macro}`} data-testid="md-graph">
                 {graphOn ? (
                   <Suspense fallback={<div className="mg-loading">Loading the knowledge graph…</div>}>

@@ -21,7 +21,7 @@ test.describe("request 26: sources list on the right", () => {
 
     await page.goto("/competitors?c=Pfizer");
     await expect(sheet).toHaveClass(/open/);
-    const list = sheet.getByRole("list", { name: "Sources of Pfizer" });
+    const list = sheet.getByRole("list", { name: "Signals of Pfizer" });
     await expect(list).toBeVisible();
     await expect(sheet.getByRole("heading", { name: "Pfizer" })).toBeVisible();
     const n = await list.getByRole("button").count();
@@ -61,7 +61,7 @@ test.describe("request 26: sources list on the right", () => {
     expect(Math.abs(box2.width - box.width)).toBeLessThan(2);
     expect(Math.abs(box2.height - box.height)).toBeLessThan(2);
     // › steps through the list.
-    await sheet.getByRole("button", { name: "Next entry in the sources list" }).click();
+    await sheet.getByRole("button", { name: "Next entry in the signals list" }).click();
     await expect(sheet.getByText(`2 of ${n}`)).toBeVisible();
     await sheet.getByTestId("mg-back").click();
     await expect(page).not.toHaveURL(/e=/);
@@ -69,7 +69,7 @@ test.describe("request 26: sources list on the right", () => {
     await expect(list.getByRole("button").nth(1)).toBeFocused();
 
     // ✕ hides the list; "Sources" brings it back. Esc: from a source back to the list, then hides it.
-    await sheet.getByRole("button", { name: "Close the sources list" }).click();
+    await sheet.getByRole("button", { name: "Close the signals list" }).click();
     await expect(sheet).not.toHaveClass(/open/);
     await page.getByTestId("mg-sources-open").click();
     await expect(list).toBeVisible();
@@ -97,7 +97,7 @@ test.describe("request 26: sources list on the right", () => {
 
     await page.getByRole("list", { name: "Legend" }).getByRole("button", { name: /Computational Infrastructure/ }).click();
     await expect(sheet).toHaveClass(/open/);
-    const list = sheet.getByRole("list", { name: "Sources of Computational Infrastructure" });
+    const list = sheet.getByRole("list", { name: "Signals of Computational Infrastructure" });
     await expect(list).toBeVisible();
     const n = await list.getByRole("button").count();
     const balls = await page.getByTestId("mg-ball").count();
@@ -108,7 +108,7 @@ test.describe("request 26: sources list on the right", () => {
 
     await list.getByRole("button").first().click();
     await expect(sheet.locator("dd", { hasText: "Computational Infrastructure" })).toBeVisible();
-    await sheet.getByRole("button", { name: /^Back to the sources of Computational Infrastructure/ }).click();
+    await sheet.getByRole("button", { name: /^Back to the signals of Computational Infrastructure/ }).click();
     await expect(list).toBeVisible();
     // ✕ on a source closes the drawer.
     await list.getByRole("button").first().click();

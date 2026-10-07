@@ -506,6 +506,16 @@ analyst-entered information distinguishable; in the prototype every value is
   or date range (scroll still zooms; Reset shows once zoomed in) and, instead
   of its levels, "Change Magnitude" running up the axis, so the plot is wider
   and taller; the impact mix has no line under its title.
+- **Request 36** (no API change): on row 5 of a Macrotrend's dashboard the
+  page title reads "Explore Signals" (the Macrotrend above it), the up arrow
+  and its name move into the header, and the graph fills the page below the
+  header (the arrow bars lie over the window and only rows 1–4 are clipped to
+  the space between them). The signal drawer (both knowledge graphs): its
+  list is "Signals"; an open signal shows its title beside the Impact dot
+  (15px, no ID), the stream, date and place below; the saved pages, fields
+  and CI Perspective scroll together, so the CI Perspective never covers the
+  fields, and a long CI Perspective scrolls in its own box (at most 30% of
+  the window). On the dashboard the drawer reaches the top of the graph.
 - **Menu in groups** (request 28, contract 1.17; regrouped in request 31,
   contract 1.19; renamed in request 34; `packages/shared/src/menu.ts`): the
   menu is four groups, each a button that opens its tabs: Inputs (Input,

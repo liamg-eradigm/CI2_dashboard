@@ -33,7 +33,7 @@ test.describe("Megatrends", () => {
     await expect(sheet.getByTestId("mg-sources")).toBeVisible();
     const inSub = await page.getByTestId("mg-ball").count();
     expect(inSub).toBeLessThanOrEqual(inMacro);
-    await sheet.getByRole("button", { name: "Close the sources list" }).click();
+    await sheet.getByRole("button", { name: "Close the signals list" }).click();
     await expect(sheet).not.toHaveClass(/open/);
 
     // Hover shows the title; click slides the row in from the right (request 23), and ✕ slides it away.

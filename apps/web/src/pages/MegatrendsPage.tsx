@@ -244,7 +244,7 @@ export function MegatrendsPage({ focusMacro }: { me?: Me; focusMacro?: string })
           entry={openItem?.entry ?? null}
           colour={openItem?.colour ?? NEUTRAL}
           position={inList >= 0 ? { index: inList, total: sources.length } : openIndex >= 0 ? { index: openIndex, total: items.length } : null}
-          stepIn={inList >= 0 ? "in the sources list" : "on the timeline"}
+          stepIn={inList >= 0 ? "in the signals list" : "on the timeline"}
           onClose={closeSheet}
           onStep={step}
           sources={listKey && sel.sub ? { title: sel.sub, entries: sources, shown: sourcesList.shown, onShow: sourcesList.show, onHide: sourcesList.hide } : null}
