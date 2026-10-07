@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Eradigm Competitive Intelligence API",
-    "version": "1.23.0",
+    "version": "1.24.0",
     "description": "Generated from packages/shared/src/api.ts. Every request is checked for both role and tenant server-side. Send X-Tenant-Id to select a tenant when the user belongs to more than one."
   },
   "components": {
@@ -6867,6 +6867,10 @@
                             "nullable": true,
                             "type": "string"
                           },
+                          "kiqEarlier": {
+                            "nullable": true,
+                            "type": "string"
+                          },
                           "linkedLater": {
                             "nullable": true,
                             "type": "string"
@@ -7110,6 +7114,10 @@
                             "nullable": true,
                             "type": "string"
                           },
+                          "kiqEarlier": {
+                            "nullable": true,
+                            "type": "string"
+                          },
                           "linkedLater": {
                             "nullable": true,
                             "type": "string"
@@ -7350,6 +7358,10 @@
                             "type": "string"
                           },
                           "linkedEarlier": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "kiqEarlier": {
                             "nullable": true,
                             "type": "string"
                           },
@@ -10470,13 +10482,21 @@
     },
     "/api/signals/{id}/archived": {
       "get": {
-        "summary": "Archived Responses: the earlier Primary entries from the same source (Source Role and Source Company) as this entry, newest first",
+        "summary": "Full Discussion: the earlier Primary entries from the same source (Source Role and Source Company) as this entry, newest first; with match=kiq (KIQ Archive), only those with the same Insight Topic and Key Intelligence Question too",
         "description": "Roles: admin, analyst, client",
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "match",
+            "in": "query",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -10565,6 +10585,10 @@
                             "type": "string"
                           },
                           "linkedEarlier": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "kiqEarlier": {
                             "nullable": true,
                             "type": "string"
                           },
@@ -12224,6 +12248,10 @@
                             "nullable": true,
                             "type": "string"
                           },
+                          "kiqEarlier": {
+                            "nullable": true,
+                            "type": "string"
+                          },
                           "linkedLater": {
                             "nullable": true,
                             "type": "string"
@@ -12616,6 +12644,10 @@
                       "type": "string"
                     },
                     "linkedEarlier": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "kiqEarlier": {
                       "nullable": true,
                       "type": "string"
                     },
@@ -13094,6 +13126,10 @@
                       "type": "string"
                     },
                     "linkedEarlier": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "kiqEarlier": {
                       "nullable": true,
                       "type": "string"
                     },

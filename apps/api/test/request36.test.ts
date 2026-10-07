@@ -86,3 +86,30 @@ describe("request 41: text filters and column values", () => {
     expect(await json(call(w.b.analyst, "GET", "/api/tracker/values?stream=primary&key=source_company"))).toEqual({ source_company: [] });
   });
 });
+
+describe("request 42: KIQ Archive", () => {
+  it("links earlier entries from the same source with the same Insight Topic and KIQ (trimmed, any case)", async () => {
+    const tag = Math.random().toString(36).slice(2, 8);
+    const make = async (title: string, date: string, topic: string, kiq: string, role = `Lead ${tag}`) => {
+      const { item } = await json(call(w.a.analyst, "POST", "/api/submissions/manual", { body: { stream: "primary" } }));
+      const res = await approveWith(w.a.analyst, item, { title, date, impact: "Medium", source_company: `Clinic ${tag}`, source_role: role, insight_topic: topic, key_intelligence_question: kiq });
+      expect(res.status, await res.clone().text()).toBe(200);
+      return item.id as string;
+    };
+    const first = await make(`First ${tag}`, "2026-02-01", "Pricing", "Will payers cover it?");
+    const other = await make(`Other KIQ ${tag}`, "2026-03-01", "Pricing", "Is uptake growing?");
+    const otherSource = await make(`Other source ${tag}`, "2026-03-15", "Pricing", "Will payers cover it?", `Someone else ${tag}`);
+    const latest = await make(`Latest ${tag}`, "2026-04-01", " pricing ", "WILL PAYERS COVER IT?");
+    const rows = (await json(call(w.a.client, "GET", `/api/tracker?stream=primary&${RANGE}&t.source_company=${tag}`))).rows as (Row & { kiqEarlier?: string | null; linkedEarlier?: string | null })[];
+    const by = new Map(rows.map((r) => [r.id, r]));
+    expect(by.get(latest)?.kiqEarlier).toBe(first);
+    expect(by.get(latest)?.linkedEarlier).toBe(other);
+    expect(by.get(first)?.kiqEarlier).toBeNull();
+    expect(by.get(other)?.kiqEarlier).toBeNull();
+    expect(by.get(otherSource)?.kiqEarlier).toBeNull();
+    const kiq = (await json(call(w.a.client, "GET", `/api/signals/${latest}/archived?match=kiq`))).rows as Row[];
+    expect(kiq.map((r) => r.id)).toEqual([first]);
+    const all = (await json(call(w.a.client, "GET", `/api/signals/${latest}/archived`))).rows as Row[];
+    expect(all.map((r) => r.id)).toEqual([other, first]);
+  });
+});

@@ -707,7 +707,8 @@ app.get("/api/tracker/export", async (c) => {
 app.get("/api/signals/:id/archived", async (c) => {
   requirePermission(P(c), "tracker:read");
   const schema = await schemaFor(c, "primary");
-  return cachedJson(c, () => archivedResponses(c.env, schema, P(c).tenantId, c.req.param("id")));
+  const match = c.req.query("match") === "kiq" ? "kiq" : "source";
+  return cachedJson(c, () => archivedResponses(c.env, schema, P(c).tenantId, c.req.param("id"), match));
 });
 
 app.get("/api/signals/:id", async (c) => {

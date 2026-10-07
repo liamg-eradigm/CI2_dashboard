@@ -35,8 +35,8 @@ test.describe("request 38", () => {
     const table = page.getByTestId("table-scroll").locator("table");
     await expect(table.getByRole("row", { name: new RegExp(`Later ${tag}`) })).toBeVisible();
     const heads = (await table.locator("thead th").allTextContents()).map((h) => h.replace(/[↓↑]/g, "").trim());
-    // After the tick box, Source, Archived Responses and Edit columns: exactly these, in order.
-    expect(heads.slice(heads.indexOf("Edit") + 1)).toEqual(COLUMNS);
+    // After the tick box, Full Discussion and KIQ Archive columns (request 42): exactly these, in order.
+    expect(heads.slice(heads.indexOf("KIQ Archive") + 1)).toEqual(COLUMNS);
     expect(heads).not.toContain("Title");
     expect(heads).not.toContain("Macrotrend");
     const row = table.getByRole("row", { name: new RegExp(`Later ${tag}`) });
