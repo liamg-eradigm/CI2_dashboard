@@ -638,8 +638,14 @@ a.link-btn { text-decoration: none; }
 /* Tracker / Phantoms "Display all": one long table, scrolled inside the card with the header kept in view. */
 .pager-gap { flex: 1; }
 .pager-row:has(.pager-gap) { justify-content: flex-start; }
-.table-wrap.all { max-height: calc(100vh - 140px); overflow: auto; }
-.table-wrap.all thead th { position: sticky; top: 0; z-index: 2; background: var(--thead); }
+/*
+ * Request 36: every database table fits the screen. It scrolls inside its own box (down and across), the
+ * header row stays in view, and the box (with the card's top bar and pager) is no taller than the window,
+ * so the horizontal scrollbar is always on screen.
+ */
+.table-wrap.fit { max-height: calc(100vh - 150px); min-height: 0; overflow: auto; }
+.table-wrap.fit thead th { position: sticky; top: 0; z-index: 2; background: var(--thead); box-shadow: inset 0 -1px 0 var(--rule); }
+.table-wrap.fit:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 
 /* Several saved pages: the page icon extends into a list (components/SavedPages.tsx). */
 .src-btn.multi { width: auto; gap: 3px; padding: 0 7px 0 6px; }
@@ -822,7 +828,7 @@ a.link-btn { text-decoration: none; }
 .tas-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .tas-tools .seg { min-width: 280px; }
 .tas-find { width: 260px; max-width: 100%; }
-.table-wrap.tas-wrap { max-height: calc(100vh - 300px); min-height: 200px; overflow: auto; }
+.table-wrap.tas-wrap { min-height: 200px; }
 .table-wrap.tas-wrap thead th { position: sticky; top: 0; z-index: 1; background: #fff; box-shadow: inset 0 -1px 0 var(--rule); }
 .tas-table td { vertical-align: top; }
 .tas-name b { display: block; }
@@ -846,7 +852,6 @@ th.arch-col, td.arch-col { width: 120px; text-align: center; white-space: nowrap
 .arch-panel .table-top > div { min-width: 0; }
 .arch-panel .table-top > .icon-btn { flex: none; }
 .arch-panel .table-top .card-title { color: var(--teal-press); }
-.table-wrap.arch-wrap { max-height: 70vh; overflow: auto; }
 .arch-row { cursor: pointer; }
 .arch-row:hover td { background: var(--tint); }
 .arch-popup { background: #fff; border-radius: 12px; border: 1px solid var(--border); width: min(760px, calc(100vw - 32px)); max-height: min(86vh, 900px); display: flex; flex-direction: column; gap: 10px; padding: 18px 22px 20px; }
@@ -870,3 +875,8 @@ th.arch-col, td.arch-col { width: 120px; text-align: center; white-space: nowrap
 @media (max-width: 900px) {
   .tai-sections-grid { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Deliverables (request 36): delete a newsletter. */
+.nl-del-col { width: 56px; text-align: center; }
+.icon-btn.danger { color: var(--error); border-color: #e3c9c6; }
+.icon-btn.danger:hover { background: #f7e3e1; border-color: var(--high); }

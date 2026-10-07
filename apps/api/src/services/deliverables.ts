@@ -88,6 +88,29 @@ export async function readDeliverable(env: Env, tenantId: string, id: string): P
   return { kind: r.kind, name: r.name, fileName: docxFileName(r.name, r.kind), bytes: fromBase64(r.docx_b64) };
 }
 
+/**
+ * Delete a stored alert or newsletter (soft delete, audited). A deleted
+ * alert's entry no longer appears in Deliverables → Alerts and gets no new
+ * alert; the Phantom itself is not touched.
+ */
+export async function deleteDeliverable(env: Env, p: Principal, id: string): Promise<{ ok: true; kind: "alert" | "newsletter"; name: string }> {
+  const r = await env.DB.prepare("SELECT kind, name, item_id FROM deliverables WHERE tenant_id = ?1 AND id = ?2 AND deleted_at IS NULL")
+    .bind(p.tenantId, id)
+    .first<{ kind: "alert" | "newsletter"; name: string; item_id: string | null }>();
+  if (!r) throw notFound("Deliverable");
+  await env.DB.prepare("UPDATE deliverables SET deleted_at = ?1, updated_at = ?1 WHERE tenant_id = ?2 AND id = ?3 AND deleted_at IS NULL").bind(nowIso(), p.tenantId, id).run();
+  await audit(env, {
+    tenantId: p.tenantId,
+    actorId: p.userId,
+    actorEmail: p.email,
+    action: "deliverable.deleted",
+    targetType: "deliverable",
+    targetId: id,
+    details: { kind: r.kind, name: r.name, ...(r.item_id ? { itemId: r.item_id } : {}) },
+  });
+  return { ok: true, kind: r.kind, name: r.name };
+}
+
 interface ItemRef {
   id: string;
   signal_code: string | null;
