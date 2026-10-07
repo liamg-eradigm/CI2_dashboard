@@ -792,8 +792,9 @@ test.describe("Eradigm staff (admin)", () => {
     expect(Math.abs(swBox.x + swBox.width / 2 - (content.x + content.width / 2))).toBeLessThanOrEqual(4);
     await expect(page.getByTestId("deliv-alerts")).toHaveAttribute("aria-pressed", "true");
     // Only High Impact entries, with the Phantoms columns (and Alert, Markdown, Source; no Edit: Phantoms are never edited).
+    // (after the tick boxes for deleting alerts, request 37)
     const heads = await page.locator("table thead th").allInnerTexts();
-    expect(heads.slice(0, 4).map((h) => h.trim().toLowerCase())).toEqual(["alert", "markdown", "source", "id"]);
+    expect(heads.slice(0, 5).map((h) => h.trim().toLowerCase())).toEqual(["", "alert", "markdown", "source", "id"]);
     const impacts = await page.evaluate(async () => {
       const h = { "x-dev-user": localStorage.getItem("eradigm.devUser") ?? "" };
       const get = async (s: string) => ((await (await fetch(`/api/deliverables/alerts?stream=${s}&from=2000-01-01&to=2100-01-01&pageSize=25`, { headers: h })).json()) as { rows: { values: { impact: string } }[] }).rows.map((r) => r.values.impact);
@@ -836,7 +837,7 @@ test.describe("Eradigm staff (admin)", () => {
     const table = page.locator("section[aria-label='Approved signals table']");
     // The Newsletters table sits above the entries.
     expect((await list.boundingBox())!.y).toBeLessThan((await table.boundingBox())!.y);
-    await expect(list.locator("thead th")).toHaveText([/Newsletter/i, /Name/i, /Phantoms used/i]);
+    await expect(list.locator("thead th")).toHaveText([/Newsletter/i, /Name/i, /Phantoms used/i, /Delete/i]);
     const before = await list.locator("tbody tr").count();
     const create = page.getByRole("button", { name: "Create Newsletter" });
     await expect(create).toBeDisabled();

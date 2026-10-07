@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useFitToScreen } from "../lib/fitToScreen";
 import { Link, useSearchParams } from "react-router-dom";
 import { TREND_ANALYSIS_COLUMNS, TREND_CATEGORY_LABEL, TREND_LEVEL_LABEL, can, type Me, type TrendAnalysis, type TrendAnalysisCategory } from "@eradigm/shared";
 import { api, type ApiError } from "../api/client";
@@ -31,6 +32,7 @@ export function TrendAnalysesPage({ me }: { me: Me | undefined }) {
   const q = useTrendAnalyses();
   const [params, setParams] = useSearchParams();
   const [find, setFind] = useState("");
+  const fitRef = useFitToScreen(200);
   const [cat, setCat] = useState<TrendAnalysisCategory | "all">("all");
   const inv = useInvalidate();
   const toast = useToast();
@@ -110,7 +112,7 @@ export function TrendAnalysesPage({ me }: { me: Me | undefined }) {
               Could not load the trend analyses · {(q.error as Error).message}
             </div>
           )}
-          <div className="table-wrap tas-wrap" tabIndex={0} role="region" aria-label="CI analyses (scrollable)">
+          <div ref={fitRef} className="table-wrap fit tas-wrap" tabIndex={0} role="region" aria-label="CI analyses (scrollable)">
             <table className="data tas-table" data-testid="trend-analyses-table">
               <caption className="sr-only">CI analyses</caption>
               <thead>

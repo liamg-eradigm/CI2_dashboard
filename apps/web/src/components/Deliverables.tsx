@@ -6,6 +6,7 @@ import { useInvalidate, useNewsletters } from "../api/hooks";
 import { localDateTime } from "../lib/format";
 import { useToast } from "../state/toast";
 import { useFocusTrap } from "./RecordDrawer";
+import { useFitToScreen } from "../lib/fitToScreen";
 
 /** Save a stored alert or newsletter .docx. Returns the file name. */
 export async function downloadDocx(id: string): Promise<string> {
@@ -20,6 +21,14 @@ export async function downloadDocx(id: string): Promise<string> {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 2000);
   return name;
+}
+
+export function TrashIcon() {
+  return (
+    <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
+      <path d="M4 5.5h12M8 5.5V4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1.5M5.5 5.5l.8 10.6a1 1 0 0 0 1 .9h5.4a1 1 0 0 0 1-.9l.8-10.6M8.5 8.5v5.5M11.5 8.5v5.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
 }
 
 /** The document icon used for .docx deliverables (same button style as the MD and saved-page icons). */
@@ -116,9 +125,90 @@ export function DocxPane({ id, title, kind, onClose }: { id: string; title: stri
   );
 }
 
+export interface DeliverableTarget {
+  /** The stored deliverable's ID. */
+  id: string;
+  code?: string;
+  label: string;
+}
+
+/**
+ * Confirm deleting alerts or newsletters (request 36). An alert's entry leaves
+ * the Alerts table and gets no new alert; its Phantom stays. One request each
+ * (soft delete, audited).
+ */
+export function DeleteDeliverables({ kind, items, onCancel, onDone }: { kind: "alert" | "newsletter"; items: DeliverableTarget[]; onCancel: () => void; onDone: (deletedIds: string[]) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(0);
+  const [err, setErr] = useState<string | null>(null);
+  const trap = useFocusTrap(true, busy ? () => undefined : onCancel);
+  const toast = useToast();
+  const inv = useInvalidate();
+  const n = items.length;
+  const noun = kind === "alert" ? (n === 1 ? "alert" : "alerts") : n === 1 ? "newsletter" : "newsletters";
+  const run = async () => {
+    setBusy(true);
+    setErr(null);
+    const deleted: string[] = [];
+    for (const it of items) {
+      try {
+        await api(`/api/deliverables/${it.id}`, { method: "DELETE" });
+        deleted.push(it.id);
+        setDone(deleted.length);
+      } catch (x) {
+        setErr(`Stopped at ${it.code || it.label}: ${(x as ApiError).message}. ${deleted.length} of ${n} deleted.`);
+        break;
+      }
+    }
+    await inv("tracker", "newsletters");
+    if (deleted.length === n) toast(n === 1 ? `Deleted ${kind === "alert" ? "the alert" : "newsletter"} “${items[0]?.label}”` : `Deleted ${n} ${noun}`);
+    setBusy(false);
+    onDone(deleted);
+  };
+  return (
+    <>
+      <div className="scrim" onClick={busy ? undefined : onCancel} aria-hidden="true" />
+      <div className="modal delete-confirm" role="alertdialog" aria-modal="true" aria-labelledby="dd-title" aria-describedby="dd-desc" ref={trap} data-testid="delete-deliverables">
+        <b id="dd-title">
+          Delete {n === 1 ? `this ${noun}` : `${n} ${noun}`}?
+        </b>
+        <p id="dd-desc">
+          {kind === "alert"
+            ? `${n === 1 ? "The entry leaves" : "The entries leave"} the Alerts table and ${n === 1 ? "gets" : "get"} no new alert. ${n === 1 ? "Its Phantom stays" : "Their Phantoms stay"} in the Phantoms Database and the Newsletter table.`
+            : `The ${noun} ${n === 1 ? "and its .docx are" : "and their .docx files are"} removed for everyone. The Phantoms ${n === 1 ? "it was" : "they were"} built from stay.`}{" "}
+          This cannot be undone from the dashboard; the audit log keeps a record.
+        </p>
+        <ul className="bulk-del-list">
+          {items.map((it) => (
+            <li key={it.id}>
+              {it.code && <span className="mono">{it.code}</span>} {it.label}
+            </li>
+          ))}
+        </ul>
+        {err && (
+          <div className="err-msg" role="alert">
+            ✕ {err}
+          </div>
+        )}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button className="btn secondary" disabled={busy} onClick={onCancel} data-autofocus>
+            Cancel
+          </button>
+          <button className="btn danger confirm" disabled={busy} onClick={() => void run()}>
+            {busy ? `Deleting… ${done} of ${n}` : `Delete ${n === 1 ? noun : `${n} ${noun}`}`}
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
 /** The newsletters created so far (Deliverables → Newsletter), above the entries they are built from. */
-export function NewslettersCard() {
+export function NewslettersCard({ me }: { me?: Me }) {
   const q = useNewsletters();
+  const canDelete = !!me && can(me.role, "item:delete");
+  const [deleting, setDeleting] = useState<Newsletter | null>(null);
+  const fitRef = useFitToScreen(200);
   const [, setParams] = useSearchParams();
   const open = (id: string) =>
     setParams(
@@ -140,7 +230,7 @@ export function NewslettersCard() {
           <span className="card-sub">{q.data ? `${list.length} created · each built from the Phantoms listed` : "Loading…"}</span>
         </div>
       </div>
-      <div className="table-wrap">
+      <div ref={fitRef} className="table-wrap fit" tabIndex={0} role="region" aria-label="Newsletters (scrollable)">
         <table className="data nl-table">
           <caption className="sr-only">Newsletters</caption>
           <thead>
@@ -154,6 +244,11 @@ export function NewslettersCard() {
               <th scope="col">
                 <span>Phantoms used</span>
               </th>
+              {canDelete && (
+                <th scope="col" className="nl-del-col">
+                  <span className="sr-only">Delete</span>
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -178,12 +273,20 @@ export function NewslettersCard() {
                     ))}
                   </ul>
                 </td>
+                {canDelete && (
+                  <td className="nl-del-col">
+                    <button className="icon-btn danger" onClick={() => setDeleting(n)} aria-label={`Delete newsletter ${n.name}`} title="Delete this newsletter" data-testid="nl-delete">
+                      <TrashIcon />
+                    </button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
       {q.data && !list.length && <div className="empty">No newsletters yet. Tick entries below and choose Create Newsletter.</div>}
+      {deleting && <DeleteDeliverables kind="newsletter" items={[{ id: deleting.id, label: deleting.name }]} onCancel={() => setDeleting(null)} onDone={() => setDeleting(null)} />}
     </section>
   );
 }

@@ -7,7 +7,7 @@ import { MarkdownPanel } from "../components/MarkdownPanel";
 import { DeleteEntries } from "../components/DeleteEntries";
 import { DatesHint } from "../components/DatesHint";
 import { RecordDrawer, useFocusTrap } from "../components/RecordDrawer";
-import { DocxButton, DocxPane, NewsletterCreate, canCreateNewsletter } from "../components/Deliverables";
+import { DeleteDeliverables, DocxButton, DocxPane, NewsletterCreate, canCreateNewsletter } from "../components/Deliverables";
 import { SourceDrawer } from "../components/SnapshotFrame";
 import { SavedPagesButton, useAttachPage } from "../components/SavedPages";
 import { StreamSwitch } from "../components/StreamSwitch";
@@ -15,6 +15,7 @@ import { useStreamParam } from "../state/stream";
 import { GROWTH_GLYPH, IMPACT_CLASS, IMPACT_GLYPH, impactBucket } from "../lib/format";
 import { useFilters } from "../state/filters";
 import { useToast } from "../state/toast";
+import { useFitToScreen } from "../lib/fitToScreen";
 
 const PAGE = 10;
 
@@ -138,6 +139,7 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
   const [exportOpen, setExportOpen] = useState(false);
   const [scope, setScope] = useState<"filtered" | "all">("filtered");
   const exportRef = useRef<HTMLDivElement>(null);
+  const fitRef = useFitToScreen();
   const selected = f.params.get("signal");
   const mdOpen = f.params.get("md");
   const archId = primaryOnly ? f.params.get("arch") : null;
@@ -200,7 +202,8 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
   // Phantoms (and the Deliverables built from them) are an evergreen snapshot: only Tracker entries are edited.
   const canEdit = canAttach && view === "tracker";
   const canDelete = can(me.role, "item:delete");
-  const tickable = newsletter ? canCreateNewsletter(me) : (view === "tracker" || view === "phantoms") && canDelete;
+  // Alerts (request 36): tick to delete alerts.
+  const tickable = newsletter ? canCreateNewsletter(me) : (view === "tracker" || view === "phantoms" || view === "alerts") && canDelete;
   const impactCol = getColumn(s, CORE.impact);
   const growthCol = getColumn(s, CORE.growth);
   const actionCol = getColumn(s, "action");
@@ -356,7 +359,8 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
               </div>
             </div>
           </div>
-          <div className={showAll ? "table-wrap all" : "table-wrap"} tabIndex={showAll ? 0 : undefined} role={showAll ? "region" : undefined} aria-label={showAll ? "All entries (scrollable)" : undefined}>
+          {/* Request 36: the table scrolls inside its own box, sized to the screen, so its horizontal scrollbar is always in view. */}
+          <div ref={fitRef} className={`table-wrap fit${showAll ? " all" : ""}`} tabIndex={0} role="region" aria-label={showAll ? "All entries (scrollable)" : "Entries (scrollable)"} data-testid="table-scroll">
             <table className="data" style={{ minWidth: Math.max(1100, cols.length * 125 + (phantoms ? 150 : 0) + (linkCol ? 60 : 0) + (view === "alerts" ? 70 : 0)) }}>
               <caption className="sr-only">Approved signals, sorted by {getColumn(s, sortKey)?.label ?? "Date"} {dir === "asc" ? "ascending" : "descending"}</caption>
               <thead>
@@ -565,6 +569,17 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
           }}
         />
       )}
+      {confirmDelete && pickedRows.some((r) => r.alertId) && view === "alerts" && (
+        <DeleteDeliverables
+          kind="alert"
+          items={pickedRows.filter((r) => r.alertId).map((r) => ({ id: r.alertId!, code: String(r.values[FIELDS.id] ?? "") || r.code, label: titleOf(r) }))}
+          onCancel={() => setConfirmDelete(false)}
+          onDone={(ids) => {
+            setPicked((p) => new Map([...p].filter(([, r]) => !r.alertId || !ids.includes(r.alertId))));
+            setConfirmDelete(false);
+          }}
+        />
+      )}
       {confirmDelete && pickedRows.length > 0 && (view === "tracker" || view === "phantoms") && (
         <DeleteEntries
           modal
@@ -613,6 +628,7 @@ function ArchivedPanel({ id, schema, cols, onOpen, onClose }: { id: string; sche
   const growthCol = getColumn(schema, CORE.growth);
   const actionCol = getColumn(schema, "action");
   const rows = q.data?.rows ?? [];
+  const fitRef = useFitToScreen(200);
   const role = String(cur.data?.values[FIELDS.sourceRole] ?? "");
   const company = String(cur.data?.values[FIELDS.sourceCompany] ?? "");
   return (
@@ -628,7 +644,7 @@ function ArchivedPanel({ id, schema, cols, onOpen, onClose }: { id: string; sche
           ✕
         </button>
       </div>
-      <div className="table-wrap arch-wrap" tabIndex={0} role="region" aria-label="Archived Responses (scrollable)">
+      <div ref={fitRef} className="table-wrap fit arch-wrap" tabIndex={0} role="region" aria-label="Archived Responses (scrollable)">
         <table className="data" style={{ minWidth: Math.max(700, cols.length * 125) }}>
           <caption className="sr-only">Archived Responses: earlier entries from the same source</caption>
           <thead>

@@ -118,7 +118,7 @@ import {
 } from "./services/trendAnalyses.js";
 import { listPages, pageSnapshotId } from "./services/pages.js";
 import { addComment, backToEradigm, clientPush, listComments, sendToClient, updateComment } from "./services/clientInbox.js";
-import { createNewsletter, ensureAlerts, listNewsletters, readDeliverable } from "./services/deliverables.js";
+import { createNewsletter, deleteDeliverable, ensureAlerts, listNewsletters, readDeliverable } from "./services/deliverables.js";
 import { createInvite, createUser, listUsers, revokeSessions, updateUser } from "./services/users.js";
 
 type Vars = { principal: Principal; requestId: string; dataVersion?: DataVersions };
@@ -329,7 +329,7 @@ async function deliverableScope(c: C, stream: Stream, schema: TrackerSchema, kin
   const sc = await phantomScope(c, stream, schema);
   const opts = getColumn(schema, CORE.impact)?.options ?? [];
   const want = opts.slice(kind === "alerts" ? -1 : -2);
-  return { ...sc, impacts: sc.impacts ? sc.impacts.filter((i) => want.includes(i)) : want };
+  return { ...sc, impacts: sc.impacts ? sc.impacts.filter((i) => want.includes(i)) : want, ...(kind === "alerts" ? { withoutDeletedAlerts: true } : {}) };
 }
 
 async function scopeFor(c: C, view: TableView, stream: Stream, schema: TrackerSchema): Promise<Scope> {
@@ -640,6 +640,13 @@ app.post("/api/newsletters", async (c) => {
     return !!impact && (scopes[stream]?.impacts ?? []).includes(impact);
   });
   return c.json(n, 201);
+});
+
+/** Delete an alert (its entry leaves the Alerts table; the Phantom stays) or a newsletter (request 36). */
+app.delete("/api/deliverables/:id", async (c) => {
+  const p = P(c);
+  requirePermission(p, "item:delete");
+  return c.json(await deleteDeliverable(c.env, p, c.req.param("id")));
 });
 
 /** A stored alert or newsletter .docx: inline for the side pane, or ?download=1 as a file. */

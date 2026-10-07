@@ -516,6 +516,20 @@ analyst-entered information distinguishable; in the prototype every value is
   and CI Perspective scroll together, so the CI Perspective never covers the
   fields, and a long CI Perspective scrolls in its own box (at most 30% of
   the window). On the dashboard the drawer reaches the top of the graph.
+- **Request 37** (contract 1.21, no migration):
+  - Every database table (Signals Database, Phantoms Database, the Primary
+    Tracker and its Archived Responses, Deliverables, Newsletters, CI
+    analyses) scrolls inside its own box, down and across, with its header
+    row kept in view. The box is sized (`lib/fitToScreen.ts`) so that its card
+    (top bar, table, pager) fits the window below the sticky filter bar: once
+    the card is scrolled into view, the horizontal scrollbar is on screen.
+    "Display all" uses the same box.
+  - Deliverables: analysts and admins delete alerts (tick, Delete selected)
+    and newsletters (the bin on each row), after a confirmation (`DELETE
+    /api/deliverables/:id`, soft delete, audited `deliverable.deleted`). A
+    deleted alert's entry leaves the Alerts table and gets no new alert
+    (`withoutDeletedAlerts` in the Alerts scope); its Phantom stays, and so
+    does its place in the Newsletter table.
 - **Menu in groups** (request 28, contract 1.17; regrouped in request 31,
   contract 1.19; renamed in request 34; `packages/shared/src/menu.ts`): the
   menu is four groups, each a button that opens its tabs: Inputs (Input,

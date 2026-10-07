@@ -46,7 +46,7 @@ export function DeliverablesPage({ me }: { me: Me }) {
       above={
         <>
           {toggle}
-          {tab === "newsletter" && <NewslettersCard />}
+          {tab === "newsletter" && <NewslettersCard me={me} />}
         </>
       }
     />

@@ -57,6 +57,7 @@ export type AuditAction =
   | "snapshot.attached"
   | "deliverable.created"
   | "deliverable.downloaded"
+  | "deliverable.deleted"
   | "summary.changed"
   | "summary.generated"
   | "trend_analysis.submitted"
