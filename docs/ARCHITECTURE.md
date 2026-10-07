@@ -557,8 +557,9 @@ analyst-entered information distinguishable; in the prototype every value is
   `newSignals.days` days before today (tenant setting, 14 by default;
   Administration → Workspace settings → Knowledge graphs · New signals;
   `components/megatrends/newSignals.ts`). In orbit around a selected
-  Subtrend or competitor a new signal pulses: a soft red halo swells and
-  fades about every 2.2 s and the dot breathes a little (still with reduced
+  Subtrend or competitor a new signal pulses about every 1.8 s: a red halo
+  swells and brightens, a ring ripples out from the dot and fades, and the
+  dot breathes (made more noticeable after request 40; still with reduced
   motion). In the signals list it is tagged NEW, glowing red, left of the CI
   Perspective tag.
 - **Menu in groups** (request 28, contract 1.17; regrouped in request 31,
