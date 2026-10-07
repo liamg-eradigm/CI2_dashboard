@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Eradigm Competitive Intelligence API",
-    "version": "1.21.0",
+    "version": "1.22.0",
     "description": "Generated from packages/shared/src/api.ts. Every request is checked for both role and tenant server-side. Send X-Tenant-Id to select a tenant when the user belongs to more than one."
   },
   "components": {
@@ -20901,6 +20901,23 @@
                         "perspective"
                       ],
                       "additionalProperties": false
+                    },
+                    "newSignals": {
+                      "default": {
+                        "days": 14
+                      },
+                      "type": "object",
+                      "properties": {
+                        "days": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 365
+                        }
+                      },
+                      "required": [
+                        "days"
+                      ],
+                      "additionalProperties": false
                     }
                   },
                   "required": [
@@ -20912,7 +20929,8 @@
                     "navOrder",
                     "menu",
                     "competitorTiers",
-                    "megatrends"
+                    "megatrends",
+                    "newSignals"
                   ],
                   "additionalProperties": false
                 }
@@ -21375,6 +21393,23 @@
                         "perspective"
                       ],
                       "additionalProperties": false
+                    },
+                    "newSignals": {
+                      "default": {
+                        "days": 14
+                      },
+                      "type": "object",
+                      "properties": {
+                        "days": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 365
+                        }
+                      },
+                      "required": [
+                        "days"
+                      ],
+                      "additionalProperties": false
                     }
                   },
                   "required": [
@@ -21386,7 +21421,8 @@
                     "navOrder",
                     "menu",
                     "competitorTiers",
-                    "megatrends"
+                    "megatrends",
+                    "newSignals"
                   ],
                   "additionalProperties": false
                 }
@@ -21756,6 +21792,23 @@
                         "maxLength": 80
                       }
                     },
+                    "additionalProperties": false
+                  },
+                  "newSignals": {
+                    "default": {
+                      "days": 14
+                    },
+                    "type": "object",
+                    "properties": {
+                      "days": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 365
+                      }
+                    },
+                    "required": [
+                      "days"
+                    ],
                     "additionalProperties": false
                   }
                 },

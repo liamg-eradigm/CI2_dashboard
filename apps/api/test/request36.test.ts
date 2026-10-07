@@ -50,3 +50,15 @@ describe("request 36: deleting deliverables", () => {
     expect((await call(w.a.client, "GET", `/api/deliverables/${n.id}/docx`)).status).toBe(404);
   });
 });
+
+describe("request 40: the new-signal cutoff", () => {
+  it("defaults to 14 days and admins change it", async () => {
+    expect((await json(call(w.a.client, "GET", "/api/settings"))).newSignals).toEqual({ days: 14 });
+    expect((await call(w.a.analyst, "PATCH", "/api/settings", { body: { newSignals: { days: 30 } } })).status).toBe(403);
+    expect((await call(w.a.admin, "PATCH", "/api/settings", { body: { newSignals: { days: 0 } } })).status).toBe(422);
+    expect((await json(call(w.a.admin, "PATCH", "/api/settings", { body: { newSignals: { days: 30 } } }))).newSignals).toEqual({ days: 30 });
+    expect((await json(call(w.a.client, "GET", "/api/settings"))).newSignals).toEqual({ days: 30 });
+    // Other settings are kept.
+    expect((await json(call(w.a.client, "GET", "/api/settings"))).megatrends.summaryDays).toBe(90);
+  });
+});

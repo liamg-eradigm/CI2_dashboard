@@ -19,6 +19,7 @@ import { bySourceOrder, impactColour, impactOrder, paletteOf, plural, timelineEn
 import { Timeline, type LegendItem } from "../components/megatrends/Timeline";
 import { GraphToggle } from "../components/megatrends/GraphToggle";
 import "../styles/megatrends.css";
+import { useIsNewSignal } from "../components/megatrends/newSignals";
 
 const SEP = "\u001f";
 const macroId = (m: string) => `m:${m}`;
@@ -67,6 +68,7 @@ export function MegatrendsPage({ focusMacro }: { me?: Me; focusMacro?: string })
   const select = useCallback((s: Selection) => (focusMacro ? set({ s: s.sub }) : set({ m: s.macro, s: s.sub })), [set, focusMacro]);
 
   const macros = useMemo(() => data?.macrotrends ?? [], [data]);
+  const isNew = useIsNewSignal();
   const palette = useMemo(() => paletteOf(macros), [macros]);
   const entries = useMemo(() => data?.entries ?? [], [data]);
   const visible = macros.filter((m) => m.count > 0 && (!focusMacro || m.name === focusMacro));
@@ -167,7 +169,7 @@ export function MegatrendsPage({ focusMacro }: { me?: Me; focusMacro?: string })
       sel.macro && sel.sub
         ? {
             hub: subId(sel.macro, sel.sub),
-            entries: entries.filter((e) => e.macrotrend === sel.macro && e.subtrend === sel.sub).map((e) => ({ id: e.id, title: e.title, date: e.date, colour: impactColour(e.impact) })),
+            entries: entries.filter((e) => e.macrotrend === sel.macro && e.subtrend === sel.sub).map((e) => ({ id: e.id, title: e.title, date: e.date, colour: impactColour(e.impact), fresh: isNew(e.date) })),
           }
         : null;
     return {
@@ -181,7 +183,7 @@ export function MegatrendsPage({ focusMacro }: { me?: Me; focusMacro?: string })
       frame: !!focusMacro,
       noCore: !!focusMacro,
     };
-  }, [macros, entries, palette, sel, total, focusMacro]);
+  }, [macros, entries, palette, sel, total, focusMacro, isNew]);
   const onHub = useCallback(
     (id: string) => {
       if (id.startsWith("m:")) {

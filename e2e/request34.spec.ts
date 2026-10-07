@@ -119,6 +119,8 @@ test.describe("request 34", () => {
     const graph = dash.getByTestId("md-graph");
     await expect(graph.getByRole("button", { name: R_AND_D, exact: true })).toBeVisible();
     await expect(graph.locator(".mg-panel, .mg-rail")).toHaveCount(0);
+    // (once the rows have finished sliding)
+    await expect.poll(async () => (await graph.boundingBox())!.y + (await graph.boundingBox())!.height).toBeLessThanOrEqual(900);
     const g = (await graph.boundingBox())!;
     expect(Math.abs(g.x - a.x)).toBeLessThan(2);
     expect(Math.abs(g.width - (b.x + b.width - a.x))).toBeLessThan(2);
@@ -215,15 +217,15 @@ test.describe("request 34", () => {
     await expect(table.getByRole("row", { name: new RegExp(`First answer ${tag}`) }).getByTestId("archived-cell")).toHaveCount(0);
     await table.getByRole("row", { name: new RegExp(`Latest answer ${tag}`) }).getByTestId("archived-cell").click();
 
-    // The popup: source at the top, Key Details and Key Metrics below.
-    const pop = page.getByTestId("archived-popup");
+    // The signal's pop-up (on the left, request 39): source at the top, Key Details and Key Metrics below.
+    const pop = page.getByTestId("answer-primary");
     await expect(pop).toContainText(role);
     await expect(pop).toContainText(company);
     await expect(pop).toContainText("1 Aug 2026");
     await expect(pop.getByRole("heading", { name: "Key Details" })).toBeVisible();
     await expect(pop).toContainText(kd("latest"));
     await expectAccessible(page, "Primary Tracker with an Archived Responses popup");
-    await pop.getByRole("button", { name: "Close" }).click();
+    await pop.getByRole("button", { name: "Close the primary signal" }).click();
 
     // The split: the Archived Responses table on the right, the earlier answers newest first.
     const split = page.getByTestId("arch-split");
@@ -236,11 +238,12 @@ test.describe("request 34", () => {
     expect(left.x + left.width).toBeLessThanOrEqual(right.x);
     expect(right.x + right.width).toBeLessThanOrEqual((await split.boundingBox())!.x + (await split.boundingBox())!.width + 1);
     await panel.getByRole("button", { name: `Open archived response: First answer ${tag}` }).click();
-    await expect(pop).toContainText(kd("first"));
-    await expect(pop).toContainText("12% uptake");
+    const old = page.getByTestId("answer-archived");
+    await expect(old).toContainText(kd("first"));
+    await expect(old).toContainText("12% uptake");
     await expectAccessible(page, "Archived Responses split screen");
     await page.keyboard.press("Escape");
-    await expect(pop).toHaveCount(0);
+    await expect(old).toHaveCount(0);
     await panel.getByRole("button", { name: "Close Archived Responses" }).click();
     await expect(panel).toHaveCount(0);
 

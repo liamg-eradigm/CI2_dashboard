@@ -4,6 +4,7 @@ import { useSchema, useSignal } from "../../api/hooks";
 import { formatDate } from "../../lib/format";
 import { useSavedPages } from "../SavedPages";
 import { impactColour } from "./model";
+import { useIsNewSignal } from "./newSignals";
 
 /** Open an entry's saved page in a popup window (the app's sandboxed source view). */
 export function openSourcePopup(itemId: string, pageId: string | null = null) {
@@ -78,6 +79,7 @@ export function EntrySheet({
   const e = entry ?? shown;
   const signal = useSignal(e?.id ?? null);
   const schema = useSchema(e?.stream ?? "primary");
+  const isNew = useIsNewSignal();
   const hasPage = !!signal.data?.hasSnapshot;
   const pages = useSavedPages(e?.id ?? null, hasPage && (signal.data?.pages ?? 0) > 1);
   const head = useRef<HTMLHeadingElement>(null);
@@ -161,9 +163,18 @@ export function EntrySheet({
                       <span className="dot" style={{ background: impactColour(x.impact) }} aria-hidden="true" />
                       <span className="sr-only">{x.impact ? `${x.impact} impact: ` : "No impact: "}</span>
                       <span className="nm">{x.title || x.code}</span>
-                      {x.ci && (
-                        <span className="mg-ci-tag" data-testid="ci-tag" title="This signal's Phantom has a CI Perspective">
-                          CI Perspective
+                      {(isNew(x.date) || x.ci) && (
+                        <span className="mg-tags">
+                          {isNew(x.date) && (
+                            <span className="mg-new-tag" data-testid="new-tag" title="A new signal: its Event Date is recent">
+                              New
+                            </span>
+                          )}
+                          {x.ci && (
+                            <span className="mg-ci-tag" data-testid="ci-tag" title="This signal's Phantom has a CI Perspective">
+                              CI Perspective
+                            </span>
+                          )}
                         </span>
                       )}
                     </button>

@@ -20,6 +20,7 @@ import { TIER_COLOUR, bySourceOrder, colourMap, impactColour, impactOrder, NEUTR
 import { Timeline, type LegendItem } from "../components/megatrends/Timeline";
 import { GraphToggle } from "../components/megatrends/GraphToggle";
 import "../styles/megatrends.css";
+import { useIsNewSignal } from "../components/megatrends/newSignals";
 
 /**
  * Tiers (Administration → Competitor tiers) colour the spheres: Tier 1 red,
@@ -68,6 +69,7 @@ export function CompetitorsPage(_props: { me?: Me }) {
 
   // Tiers from the admin setting (computed here too, so an API from before tiers still colours them).
   const settings = useSettings();
+  const isNew = useIsNewSignal();
   const tiers = settings.data?.competitorTiers ?? DEFAULT_COMPETITOR_TIERS;
   // "N/A" and the like are never competitors, whatever the API sends.
   const comps = useMemo(() => (data?.competitors ?? []).filter((c) => !isPlaceholderCompetitor(c.name)).map((c) => ({ ...c, tier: tierOf(c.name, tiers) })), [data, tiers]);
@@ -117,9 +119,9 @@ export function CompetitorsPage(_props: { me?: Me }) {
       ties: (data?.pairs ?? []).filter((p) => !isPlaceholderCompetitor(p.a) && !isPlaceholderCompetitor(p.b)).map((p) => ({ a: hubId(p.a), b: hubId(p.b), weight: p.count })),
       open: selected ? hubId(selected) : null,
       selected: selected ? hubId(selected) : null,
-      orbit: selected ? { hub: hubId(selected), entries: (ofComp.get(selected) ?? []).map((e) => ({ id: e.id, title: e.title, date: e.date, colour: impactColour(e.impact) })) } : null,
+      orbit: selected ? { hub: hubId(selected), entries: (ofComp.get(selected) ?? []).map((e) => ({ id: e.id, title: e.title, date: e.date, colour: impactColour(e.impact), fresh: isNew(e.date) })) } : null,
     }),
-    [comps, max, ofComp, data, selected, total],
+    [comps, max, ofComp, data, selected, total, isNew],
   );
 
   // Timeline: the selected competitor's entries (or every entry naming one), by Impact or by Macrotrend.

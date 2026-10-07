@@ -45,6 +45,8 @@ export interface GraphEntry {
   title: string;
   date: string;
   colour: string;
+  /** New (request 40): its Event Date is within the "new" window; it pulses. */
+  fresh?: boolean;
 }
 export interface GraphSpec {
   layout: "trends" | "competitors";
@@ -81,6 +83,8 @@ interface GNode {
   vz?: number;
   title?: string;
   date?: string;
+  /** A new entry: pulses (request 40). */
+  fresh?: boolean;
   x?: number;
   y?: number;
   z?: number;
@@ -104,7 +108,13 @@ interface Parts {
   group: ThreeNS.Group;
   materials: { m: ThreeNS.Material & { opacity: number }; base: number }[];
   ring: ThreeNS.Mesh | null;
+  /** A new entry's dot and the halo that pulses around it (request 40). */
+  pulse?: { dot: ThreeNS.Object3D; halo: ThreeNS.Sprite; size: number; phase: number };
 }
+
+/** The pulse of a new entry: a soft red halo that swells and fades about once every 2.2 s. */
+const PULSE_COLOUR = "#ff5a64";
+const PULSE_PERIOD_S = 2.2;
 
 const ENTRIES_SHOWN = 80;
 /** Dots drawn inside one sphere at most (enough to read the mix). */
@@ -351,7 +361,17 @@ export function Graph3D({
         } else if (shift !== 0 && (!cam.view?.enabled || cam.view.fullWidth !== el.clientWidth)) applyShift();
         if (reducedMotion) return;
         stars.rotation.y += 0.00006;
-        for (const p of parts.current.values()) if (p.ring?.visible) p.ring.rotation.z += 0.004;
+        const now = performance.now() / 1000;
+        for (const p of parts.current.values()) {
+          if (p.ring?.visible) p.ring.rotation.z += 0.004;
+          if (p.pulse) {
+            // 0 → 1 → 0, eased: the halo swells and fades, the dot breathes a little.
+            const k = (1 - Math.cos(((now / PULSE_PERIOD_S + p.pulse.phase) % 1) * 2 * Math.PI)) / 2;
+            p.pulse.halo.scale.setScalar(p.pulse.size * (0.85 + 0.75 * k));
+            (p.pulse.halo.material as ThreeNS.SpriteMaterial).opacity = 0.7 - 0.5 * k;
+            p.pulse.dot.scale.setScalar(1 + 0.25 * k);
+          }
+        }
       };
       tick();
 
@@ -400,7 +420,7 @@ export function Graph3D({
     const links: GLink[] = [];
     const born = new Set<string>();
     const node = (n: Omit<GNode, "dotsKey">): GNode => {
-      const dotsKey = n.dots.join(",");
+      const dotsKey = n.dots.join(",") + (n.fresh ? "|new" : "");
       const cur = nodes.current.get(n.id);
       // Keep the same object (and so its position) unless its look changed.
       if (cur && cur.colour === n.colour && cur.r === n.r && cur.dotsKey === dotsKey) {
@@ -451,7 +471,7 @@ export function Graph3D({
     if (spec.orbit && byId.has(spec.orbit.hub)) {
       const hub = spec.orbit.hub;
       for (const e of spec.orbit.entries.slice(-ENTRIES_SHOWN)) {
-        want.push(node({ id: `e:${e.id}`, kind: "entry", level: 0, root: hub, name: e.title, title: e.title, date: e.date, count: 1, colour: e.colour, r: 1.5, dots: [], labelScale: 0 }));
+        want.push(node({ id: `e:${e.id}`, kind: "entry", level: 0, root: hub, name: e.title, title: e.title, date: e.date, fresh: !!e.fresh, count: 1, colour: e.colour, r: 1.5, dots: [], labelScale: 0 }));
         links.push({ source: hub, target: `e:${e.id}`, kind: "entry", weight: 1 });
       }
     }
@@ -475,6 +495,7 @@ export function Graph3D({
     if (host.current) {
       host.current.dataset.hubs = String(want.filter((n) => n.kind === "hub").length);
       host.current.dataset.core = core ? "shown" : "none";
+      host.current.dataset.fresh = String(want.filter((n) => n.fresh).length);
     }
 
     // Emphasis: the open branch is bright, the rest recedes (nodes drawn later get it in buildNode).
@@ -550,10 +571,17 @@ export function Graph3D({
       return m;
     };
     const colour = new T.Color(n.colour);
+    let pulse: Parts["pulse"];
     if (n.kind === "entry") {
       const dot = new T.Mesh(new T.SphereGeometry(n.r, 16, 12), track(new T.MeshBasicMaterial({ color: new T.Color(shade(n.colour, 0.25)), opacity: 1 })));
       group.add(dot);
       group.add(glow(T, n.colour, n.r * 6, 0.5, track));
+      if (n.fresh) {
+        // Not tracked: its opacity is the pulse's (entries in orbit are always in view).
+        const halo = glow(T, PULSE_COLOUR, n.r * 7, 0.55, (m) => m);
+        group.add(halo);
+        pulse = { dot, halo, size: n.r * 7, phase: (hash(n.id) % 1000) / 1000 };
+      }
     } else if (n.kind === "core") {
       const sphere = new T.Mesh(
         new T.SphereGeometry(n.r, 48, 32),
@@ -593,7 +621,7 @@ export function Graph3D({
       ring.visible = false;
       group.add(ring);
     }
-    const p = { group, materials, ring };
+    const p: Parts = { group, materials, ring, ...(pulse ? { pulse } : {}) };
     emphasise(n, p, live.current.spec, litSet(live.current.spec));
     parts.current.set(n.id, p);
     return group;
@@ -625,6 +653,13 @@ function emphasise(n: GNode, p: Parts, spec: GraphSpec, lit: Set<string> | null)
 }
 
 /** One dot per entry, scattered through the sphere (the same place every time), coloured by Impact. */
+/** A stable number from a string (so each new entry pulses a little out of step with the others). */
+function hash(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return h;
+}
+
 function innerDots(T: Three, id: string, colours: string[], r: number): ThreeNS.Points {
   let seed = 0;
   for (let i = 0; i < id.length; i++) seed = (seed * 31 + id.charCodeAt(i)) >>> 0;

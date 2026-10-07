@@ -539,6 +539,28 @@ analyst-entered information distinguishable; in the prototype every value is
   nothing else, and the answer popup the same fields in the same order
   (Source Company, Source Role and Event Date small at the top; the other
   four below). The Signals Database's Primary Tracker keeps its own columns.
+- **Request 39** (no API change): Analytics → Primary Tracker. The main
+  table takes the Archived Responses table's look (a tinted top bar with the
+  teal title "Primary Signals", a teal edge, rows that open on click).
+  Pressing a row (or its Source Company) opens the answer's pop-up
+  (`AnswerCard`: the seven fields, and "Open the full record"), centred. The
+  Archived Responses icon opens the same pop-up as a pane over the left-hand
+  table, with the Archived Responses table on the right still in use;
+  pressing one of its rows opens that answer's pop-up over the right-hand
+  table, level with the first, to compare (‹ › step through the archived
+  answers; Esc closes the right one, then the left). State in the URL: `pp`
+  (the signal's pop-up), `arch` (the Archived Responses source), `ap` (the
+  archived answer's pop-up).
+- **Request 40** (contract 1.22, no migration): new signals in the
+  knowledge graphs (the Knowledge Graph tab and a Macrotrend dashboard's
+  graph). A signal is new while its Event Date is less than
+  `newSignals.days` days before today (tenant setting, 14 by default;
+  Administration → Workspace settings → Knowledge graphs · New signals;
+  `components/megatrends/newSignals.ts`). In orbit around a selected
+  Subtrend or competitor a new signal pulses: a soft red halo swells and
+  fades about every 2.2 s and the dot breathes a little (still with reduced
+  motion). In the signals list it is tagged NEW, glowing red, left of the CI
+  Perspective tag.
 - **Menu in groups** (request 28, contract 1.17; regrouped in request 31,
   contract 1.19; renamed in request 34; `packages/shared/src/menu.ts`): the
   menu is four groups, each a button that opens its tabs: Inputs (Input,
