@@ -31,7 +31,7 @@ test.describe("request 38", () => {
       { ...base, title: `Earlier ${tag}`, date: "2026-05-01", key_intelligence_question: "How will payers react?", key_details: "Payers push back.", key_metrics: "30% rejections" },
       { ...base, title: `Later ${tag}`, date: "2026-09-01", key_intelligence_question: "Has it changed?", key_details: "Payers accept it now.", key_metrics: "5% rejections" },
     ]);
-    await page.goto(`/analytics/primary?q=${tag}`);
+    await page.goto(`/analytics/primary?${new URLSearchParams({ "pt.source_company": `Clinic ${tag}` })}`);
     const table = page.getByTestId("table-scroll").locator("table");
     await expect(table.getByRole("row", { name: new RegExp(`Later ${tag}`) })).toBeVisible();
     const heads = (await table.locator("thead th").allTextContents()).map((h) => h.replace(/[↓↑]/g, "").trim());

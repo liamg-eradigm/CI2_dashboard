@@ -84,7 +84,7 @@ import { readSnapshot, snapshotBackend } from "./pipeline/snapshots.js";
 import { audit, listAudit, verifyChain } from "./services/audit.js";
 import { clientInboxCount, getDetail, getItemRow, inboxCounts, listItems } from "./services/items.js";
 import { qualityMetrics } from "./services/metrics.js";
-import { archivedResponses, dashboard, dateBounds, exportRows, trackerPage, trendTest, type Scope } from "./services/query.js";
+import { archivedResponses, dashboard, dateBounds, distinctTextValues, exportRows, trackerPage, trendTest, type Scope } from "./services/query.js";
 import { approve, clearDecided, deleteFromTable, reject, splitItem, reprocess, revise, saveDraft, softDelete } from "./services/review.js";
 import {
   addColumn,
@@ -505,6 +505,14 @@ app.get("/api/phantoms", (c) => tablePage(c, "phantoms"));
 app.get("/api/primary-sources", async (c) => {
   requirePermission(P(c), "tracker:read");
   return cachedJson(c, () => primarySources(c.env, P(c).tenantId));
+});
+/** The values of text columns among a stream's Tracker entries (Analytics → Primary Tracker's filter dropdowns, request 41). */
+app.get("/api/tracker/values", async (c) => {
+  requirePermission(P(c), "tracker:read");
+  const stream = streamOf(c);
+  const keys = (c.req.queries("key") ?? []).slice(0, 8);
+  const schema = await schemaFor(c, stream);
+  return cachedJson(c, () => distinctTextValues(c.env, schema, P(c).tenantId, stream, keys));
 });
 app.get("/api/deliverables/alerts", (c) => tablePage(c, "alerts"));
 app.get("/api/deliverables/newsletter", (c) => tablePage(c, "newsletter"));

@@ -31,7 +31,7 @@ test.describe("request 39", () => {
       { ...base, title: `Middle ${tag}`, date: "2026-06-01", key_intelligence_question: "Q2", key_details: "Middle details.", key_metrics: "20%" },
       { ...base, title: `Newest ${tag}`, date: "2026-09-01", key_intelligence_question: "Q3", key_details: "Newest details.", key_metrics: "5%" },
     ]);
-    await page.goto(`/analytics/primary?q=${tag}`);
+    await page.goto(`/analytics/primary?${new URLSearchParams({ "pt.source_company": `Clinic ${tag}` })}`);
     // The main table has the Archived Responses table's look: a tinted top bar with a teal title.
     const card = page.getByTestId("table-scroll").locator("xpath=ancestor::section[1]");
     await expect(card.getByRole("heading", { name: "Primary Signals" })).toBeVisible();

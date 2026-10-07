@@ -562,6 +562,18 @@ analyst-entered information distinguishable; in the prototype every value is
   dot breathes (made more noticeable after request 40; still with reduced
   motion). In the signals list it is tagged NEW, glowing red, left of the CI
   Perspective tag.
+- **Request 41** (contract 1.23, no migration): Analytics → Primary Tracker
+  has its own filters instead of the shared filter bar, one per column in
+  the table's order (`components/PrimaryTrackerFilters.tsx`): Source Company,
+  Source Role and Insight Topic (a searchable list of the values in the
+  Primary Tracker, `GET /api/tracker/values?stream=primary&key=…`), Event
+  Date (from / to), and Key Intelligence Question, Key Details and Key
+  Metrics (the text they contain, in any case). They live in the address
+  under `pt.` (e.g. `pt.source_company`, `pt.from`), which the menu never
+  carries to the other pages, and the shared `q` / `f.` / `from` / `to`
+  filters are ignored there. In API requests a text filter is `t.<column>`
+  (any text or long-text column of the stream; `FilterState.text`), which
+  exports honour too.
 - **Menu in groups** (request 28, contract 1.17; regrouped in request 31,
   contract 1.19; renamed in request 34; `packages/shared/src/menu.ts`): the
   menu is four groups, each a button that opens its tabs: Inputs (Input,
