@@ -880,3 +880,7 @@ th.arch-col, td.arch-col { width: 120px; text-align: center; white-space: nowrap
 .nl-del-col { width: 56px; text-align: center; }
 .icon-btn.danger { color: var(--error); border-color: #e3c9c6; }
 .icon-btn.danger:hover { background: #f7e3e1; border-color: var(--high); }
+
+/* Analytics → Primary Tracker (request 38): room for the long answers. */
+table.data.ptr td.long { min-width: 260px; }
+table.data.ptr td.title { min-width: 150px; }

@@ -219,7 +219,7 @@ test.describe("request 34", () => {
     const pop = page.getByTestId("archived-popup");
     await expect(pop).toContainText(role);
     await expect(pop).toContainText(company);
-    await expect(pop).toContainText("2026-08-01");
+    await expect(pop).toContainText("1 Aug 2026");
     await expect(pop.getByRole("heading", { name: "Key Details" })).toBeVisible();
     await expect(pop).toContainText(kd("latest"));
     await expectAccessible(page, "Primary Tracker with an Archived Responses popup");
@@ -230,7 +230,7 @@ test.describe("request 34", () => {
     const panel = page.getByTestId("archived-panel");
     await expect(panel.getByRole("heading", { name: "Archived Responses" })).toBeVisible();
     await expect(panel.locator("tbody tr")).toHaveCount(2);
-    await expect(panel.locator("tbody tr").first()).toContainText(`Second answer ${tag}`);
+    await expect(panel.locator("tbody tr").first()).toContainText(kd("second"));
     const left = (await split.locator("> section").first().boundingBox())!;
     const right = (await panel.boundingBox())!;
     expect(left.x + left.width).toBeLessThanOrEqual(right.x);

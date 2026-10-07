@@ -19,6 +19,13 @@ import { useFitToScreen } from "../lib/fitToScreen";
 
 const PAGE = 10;
 
+/**
+ * Analytics → Primary Tracker (request 38): these columns, in this order, in
+ * the table and in Archived Responses. The Signals Database keeps its own.
+ */
+const PRIMARY_TRACKER_KEYS = [FIELDS.sourceCompany, FIELDS.sourceRole, CORE.date, FIELDS.insightTopic, FIELDS.keyQuestion, FIELDS.keyDetails, FIELDS.keyMetrics];
+const primaryTrackerColumns = (s: TrackerSchema) => PRIMARY_TRACKER_KEYS.map((k) => getColumn(s, k)).filter((c): c is TrackerColumn => !!c);
+
 function Cell({ col, s, impactCol, growthCol, actionCol }: { col: TrackerColumn; s: Signal; impactCol?: TrackerColumn; growthCol?: TrackerColumn; actionCol?: TrackerColumn }) {
   const v = s.values[col.key];
   const text = displayValue(col, v);
@@ -197,7 +204,9 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
   if (!schema.data) return <div className="content"><div className="skeleton" style={{ height: 200 }} /></div>;
   const s = schema.data;
   // Each table has its own columns, chosen from the Inbox columns (Inbox → Edit columns).
-  const cols = phantoms ? phantomColumns(s) : trackerColumns(s);
+  const cols = primaryOnly ? primaryTrackerColumns(s) : phantoms ? phantomColumns(s) : trackerColumns(s);
+  // The column whose cell opens the entry: its Title, or (Primary Tracker, no Title column) the first.
+  const openKey = primaryOnly ? cols[0]?.key : CORE.title;
   const canAttach = can(me.role, "item:edit");
   // Phantoms (and the Deliverables built from them) are an evergreen snapshot: only Tracker entries are edited.
   const canEdit = canAttach && view === "tracker";
@@ -361,7 +370,7 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
           </div>
           {/* Request 36: the table scrolls inside its own box, sized to the screen, so its horizontal scrollbar is always in view. */}
           <div ref={fitRef} className={`table-wrap fit${showAll ? " all" : ""}`} tabIndex={0} role="region" aria-label={showAll ? "All entries (scrollable)" : "Entries (scrollable)"} data-testid="table-scroll">
-            <table className="data" style={{ minWidth: Math.max(1100, cols.length * 125 + (phantoms ? 150 : 0) + (linkCol ? 60 : 0) + (view === "alerts" ? 70 : 0)) }}>
+            <table className={`data${primaryOnly ? " ptr" : ""}`} style={{ minWidth: primaryOnly ? 1500 : Math.max(1100, cols.length * 125 + (phantoms ? 150 : 0) + (linkCol ? 60 : 0) + (view === "alerts" ? 70 : 0)) }}>
               <caption className="sr-only">Approved signals, sorted by {getColumn(s, sortKey)?.label ?? "Date"} {dir === "asc" ? "ascending" : "descending"}</caption>
               <thead>
                 <tr>
@@ -495,13 +504,13 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
                       </td>
                     )}
                     {cols.map((c) =>
-                      c.key === CORE.title ? (
+                      c.key === openKey ? (
                         <td key={c.key} className="title">
                           <button
                             onClick={(e) => (e.stopPropagation(), setParam(phantoms ? { md: r.id } : { signal: r.id }, true))}
-                            aria-label={`${phantoms ? "View Markdown" : "Open record"}: ${String(r.values[c.key] ?? "")}`}
+                            aria-label={`${phantoms ? "View Markdown" : "Open record"}: ${c.key === CORE.title ? String(r.values[c.key] ?? "") : titleOf(r)}`}
                           >
-                            {String(r.values[c.key] ?? "")}
+                            {displayValue(c, r.values[c.key]) || "—"}
                           </button>
                         </td>
                       ) : (
@@ -538,7 +547,7 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
         {archId && <ArchivedPanel id={archId} schema={s} cols={cols} onOpen={(id) => setParam({ ap: id }, true)} onClose={() => setParam({ arch: null, ap: null })} />}
         </div>
       </div>
-      {archPopup && <ArchivedPopup id={archPopup} onClose={() => setParam({ ap: null })} />}
+      {archPopup && <ArchivedPopup id={archPopup} schema={s} onClose={() => setParam({ ap: null })} />}
       {savedOpen && !selected && !mdOpen && (
         <SourceDrawer
           itemId={savedOpen}
@@ -645,7 +654,7 @@ function ArchivedPanel({ id, schema, cols, onOpen, onClose }: { id: string; sche
         </button>
       </div>
       <div ref={fitRef} className="table-wrap fit arch-wrap" tabIndex={0} role="region" aria-label="Archived Responses (scrollable)">
-        <table className="data" style={{ minWidth: Math.max(700, cols.length * 125) }}>
+        <table className="data ptr" style={{ minWidth: 1300 }}>
           <caption className="sr-only">Archived Responses: earlier entries from the same source</caption>
           <thead>
             <tr>
@@ -659,17 +668,17 @@ function ArchivedPanel({ id, schema, cols, onOpen, onClose }: { id: string; sche
           <tbody>
             {rows.map((r) => (
               <tr key={r.id} className="arch-row" onClick={() => onOpen(r.id)}>
-                {cols.map((c) =>
-                  c.key === CORE.title ? (
+                {cols.map((c, i) =>
+                  i === 0 ? (
                     <td key={c.key} className="title">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           onOpen(r.id);
                         }}
-                        aria-label={`Open archived response: ${String(r.values[c.key] ?? r.code)}`}
+                        aria-label={`Open archived response: ${String(r.values[CORE.title] ?? r.code)}`}
                       >
-                        {String(r.values[c.key] ?? "")}
+                        {displayValue(c, r.values[c.key]) || "—"}
                       </button>
                     </td>
                   ) : (
@@ -686,50 +695,47 @@ function ArchivedPanel({ id, schema, cols, onOpen, onClose }: { id: string; sche
   );
 }
 
-/** A Primary answer at a glance: Source Role, Company and Date small at the top; Key Details and Key Metrics filling the rest. */
-function ArchivedPopup({ id, onClose }: { id: string; onClose: () => void }) {
+/**
+ * A Primary answer at a glance (request 38: the Primary Tracker's columns,
+ * in order, and nothing else): Source Company, Source Role and Event Date
+ * small at the top; Insight Topic, Key Intelligence Question, Key Details and
+ * Key Metrics filling the rest.
+ */
+function ArchivedPopup({ id, schema, onClose }: { id: string; schema: TrackerSchema; onClose: () => void }) {
   const q = useSignal(id);
   const ref = useFocusTrap(true, onClose);
   const v = q.data?.values ?? {};
-  const text = (k: string) => {
-    const x = v[k];
-    return Array.isArray(x) ? x.join(", ") : (x ?? "");
-  };
+  const cols = primaryTrackerColumns(schema);
+  const text = (c: TrackerColumn) => displayValue(c, v[c.key]);
+  const meta = cols.slice(0, 3);
+  const body = cols.slice(3);
+  const company = getColumn(schema, FIELDS.sourceCompany);
+  const date = getColumn(schema, CORE.date);
+  const name = q.data ? [company && text(company), date && text(date)].filter(Boolean).join(" · ") || q.data.code : "Loading…";
   return (
     <>
       <div className="scrim" onClick={onClose} aria-hidden="true" />
-      <div className="modal arch-popup" role="dialog" aria-modal="true" aria-labelledby="arch-pop-title" ref={ref} data-testid="archived-popup">
+      <div className="modal arch-popup" role="dialog" aria-modal="true" aria-label={`Archived response: ${name}`} ref={ref} data-testid="archived-popup">
         <div className="arch-pop-head">
           <dl className="arch-pop-meta">
-            <div>
-              <dt>Source Role</dt>
-              <dd>{text(FIELDS.sourceRole) || "—"}</dd>
-            </div>
-            <div>
-              <dt>Company</dt>
-              <dd>{text(FIELDS.sourceCompany) || "—"}</dd>
-            </div>
-            <div>
-              <dt>Date</dt>
-              <dd>{text(CORE.date) || "—"}</dd>
-            </div>
+            {meta.map((c) => (
+              <div key={c.key}>
+                <dt>{c.label}</dt>
+                <dd>{text(c) || "—"}</dd>
+              </div>
+            ))}
           </dl>
           <button className="icon-btn" onClick={onClose} aria-label="Close" data-autofocus>
             ✕
           </button>
         </div>
-        <h2 id="arch-pop-title" className="arch-pop-title">
-          {text(CORE.title) || q.data?.code || "Loading…"}
-        </h2>
         <div className="arch-pop-body">
-          <section>
-            <h3>Key Details</h3>
-            <p>{text(FIELDS.keyDetails) || "—"}</p>
-          </section>
-          <section>
-            <h3>Key Metrics</h3>
-            <p>{text(FIELDS.keyMetrics) || "—"}</p>
-          </section>
+          {body.map((c) => (
+            <section key={c.key}>
+              <h3>{c.label}</h3>
+              <p>{text(c) || "—"}</p>
+            </section>
+          ))}
         </div>
       </div>
     </>

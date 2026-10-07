@@ -530,6 +530,15 @@ analyst-entered information distinguishable; in the prototype every value is
     deleted alert's entry leaves the Alerts table and gets no new alert
     (`withoutDeletedAlerts` in the Alerts scope); its Phantom stays, and so
     does its place in the Newsletter table.
+- **Request 38** (no API change): Analytics → Primary Tracker shows, after
+  its tick box, Source, Archived Responses and Edit columns, exactly Source
+  Company, Source Role, Event Date, Insight Topic, Key Intelligence Question,
+  Key Details and Key Metrics, in that order (`PRIMARY_TRACKER_KEYS` in
+  `TrackerPage.tsx`; the labels are the schema's). Source Company opens the
+  entry. The Archived Responses table shows the same seven columns and
+  nothing else, and the answer popup the same fields in the same order
+  (Source Company, Source Role and Event Date small at the top; the other
+  four below). The Signals Database's Primary Tracker keeps its own columns.
 - **Menu in groups** (request 28, contract 1.17; regrouped in request 31,
   contract 1.19; renamed in request 34; `packages/shared/src/menu.ts`): the
   menu is four groups, each a button that opens its tabs: Inputs (Input,
