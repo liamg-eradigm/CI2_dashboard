@@ -44,20 +44,21 @@ test.describe("request 38", () => {
     await expect(row).toContainText("1 Sept 2026".replace("Sept", "Sep"));
     await expect(row).toContainText("Has it changed?");
     await expect(row).toContainText("5% rejections");
-    // The first column opens the entry.
-    await row.getByRole("button", { name: `Open record: Later ${tag}` }).click();
-    await expect(page.getByRole("dialog")).toBeVisible();
+    // The first column opens the entry's pop-up (request 39).
+    await row.getByRole("button", { name: `Open: Later ${tag}` }).click();
+    await expect(page.getByTestId("answer-primary")).toBeVisible();
     await page.keyboard.press("Escape");
+    await expect(page.getByTestId("answer-primary")).toHaveCount(0);
 
     // Archived Responses: the same columns, in order, and nothing else.
     await row.getByTestId("archived-cell").click();
-    const pop = page.getByTestId("archived-popup");
+    const pop = page.getByTestId("answer-primary");
     await expect(pop.locator("dt")).toHaveText(COLUMNS.slice(0, 3));
     await expect(pop.locator("h3")).toHaveText(COLUMNS.slice(3));
     await expect(pop).toContainText("Has it changed?");
     await expect(pop).not.toContainText(`Later ${tag}`);
     await expectAccessible(page, "Primary Tracker answer popup");
-    await pop.getByRole("button", { name: "Close" }).click();
+    await pop.getByRole("button", { name: "Close the primary signal" }).click();
     const panel = page.getByTestId("archived-panel");
     await expect(panel.locator("thead th")).toHaveText(COLUMNS);
     const arow = panel.locator("tbody tr").first();
@@ -66,7 +67,7 @@ test.describe("request 38", () => {
     await expect(arow).toContainText("How will payers react?");
     await expect(arow).toContainText("30% rejections");
     await arow.getByRole("button", { name: `Open archived response: Earlier ${tag}` }).click();
-    await expect(pop).toContainText("Payers push back.");
+    await expect(page.getByTestId("answer-archived")).toContainText("Payers push back.");
     await expectAccessible(page, "Archived Responses with the seven columns");
   });
 });

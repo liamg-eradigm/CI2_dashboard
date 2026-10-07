@@ -884,3 +884,27 @@ th.arch-col, td.arch-col { width: 120px; text-align: center; white-space: nowrap
 /* Analytics → Primary Tracker (request 38): room for the long answers. */
 table.data.ptr td.long { min-width: 260px; }
 table.data.ptr td.title { min-width: 150px; }
+
+/*
+ * Analytics → Primary Tracker (request 39). The main table takes the Archived Responses table's look (tinted
+ * top bar with a teal title, teal edge, rows that open on click). A row's pop-up lies over its table: the
+ * signal on the left, an archived response on the right, side by side; each table stays where it is.
+ */
+.ptr-card { border-left: 4px solid var(--teal); }
+.ptr-card .table-top { background: var(--tint); border-bottom: 1px solid var(--rule); align-items: flex-start; }
+.ptr-card .table-top .card-title { color: var(--teal-press); }
+.ptr-head { min-width: 0; }
+.ptr-head .info { margin-top: 4px; }
+tr.arch-row.open td { background: #d9eff1; }
+.arch-split > section { position: relative; }
+.arch-pane { position: absolute; z-index: 4; top: 0; left: 0; right: 0; height: max(100%, 460px); overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 16px 20px 18px; background: #fff; border: 1px solid var(--border); border-top: 4px solid var(--navy-700); border-radius: 10px; box-shadow: 0 18px 40px rgba(7, 40, 56, 0.22); }
+.arch-pane.archived { border-top-color: var(--teal); }
+.arch-pane:focus { outline: none; }
+.arch-pane:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.arch-pop-top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.arch-pop-kind { font: 700 10.5px var(--sans); letter-spacing: 0.12em; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; color: #fff; background: var(--navy-700); }
+.arch-pop-kind.archived { background: var(--teal-press); }
+.arch-pop-nav { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.arch-pop-nav .icon-btn.sm { width: 26px; height: 26px; font-size: 15px; }
+.arch-pop-foot { margin-top: auto; padding-top: 8px; border-top: 1px solid var(--rule); }
+.arch-split > .arch-panel { overflow: visible; }

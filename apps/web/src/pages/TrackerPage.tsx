@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import { CORE, FIELDS, STREAM_LABEL, TABLE_ALL_MAX, can, displayValue, getColumn, phantomColumns, trackerColumns, type Me, type Signal, type TrackerColumn, type TrackerSchema } from "@eradigm/shared";
 import { request } from "../api/client";
 import { exportUrl, useArchived, useNewsletters, useSchema, useSettings, useSignal, useTracker, type TableView } from "../api/hooks";
@@ -151,6 +151,10 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
   const mdOpen = f.params.get("md");
   const archId = primaryOnly ? f.params.get("arch") : null;
   const archPopup = primaryOnly ? f.params.get("ap") : null;
+  // Request 39: the pop-up of a Primary Tracker row (left, over the table, beside Archived Responses; else centred).
+  const rowPopup = primaryOnly ? f.params.get("pp") : null;
+  const archived = useArchived(primaryOnly ? archId : null);
+  const archRows = archived.data?.rows ?? [];
   const savedOpen = f.params.get("saved");
   const docxOpen = f.params.get("docx");
   const newsletters = useNewsletters(newsletter);
@@ -180,6 +184,18 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
       ),
     [f],
   );
+
+  // Esc closes the right-hand pop-up first, then the left one (the panes are not modal).
+  useEffect(() => {
+    if (!archId || (!rowPopup && !archPopup)) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || document.querySelector("[role=dialog][aria-modal=true]")) return;
+      if (archPopup) setParam({ ap: null });
+      else setParam({ pp: null });
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [archId, rowPopup, archPopup, setParam]);
 
   useEffect(() => {
     if (!exportOpen) return;
@@ -241,6 +257,15 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
   const docxRow = docxOpen ? t?.rows.find((r) => r.alertId === docxOpen) : undefined;
   const docxNewsletter = docxOpen ? newsletters.data?.find((n) => n.id === docxOpen) : undefined;
   const titleOf = (r: Signal) => String(r.values[CORE.title] ?? r.code);
+  /** Primary Tracker (request 39): a row opens its pop-up; beside Archived Responses when that source has earlier answers and they are open. */
+  const openRow = (r: Signal) => {
+    if (!archId || archId === r.id) return setParam({ pp: r.id }, true);
+    setParam({ pp: r.id, arch: r.linkedEarlier ? r.id : null, ap: null }, true);
+  };
+  const onRowClick = (e: ReactMouseEvent, r: Signal) => {
+    if (!primaryOnly || (e.target as HTMLElement).closest("button, a, input, label, select, textarea")) return;
+    openRow(r);
+  };
   const info = t
     ? !t.total
       ? "0 results"
@@ -294,12 +319,22 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
           </span>
         </div>
         <div className={archId ? "arch-split" : undefined} data-testid={archId ? "arch-split" : undefined}>
-        <section className="card flush pop-host" aria-label="Approved signals table">
+        <section className={`card flush pop-host${primaryOnly ? " ptr-card" : ""}`} aria-label="Approved signals table">
           <div className="table-top">
-            <span className="info" aria-live="polite">
-              {info}
-              <DatesHint info={t?.outsideDates} f={f} />
-            </span>
+            {primaryOnly ? (
+              <div className="ptr-head">
+                <h2 className="card-title">Primary Signals</h2>
+                <span className="card-sub info" aria-live="polite">
+                  {info}
+                  <DatesHint info={t?.outsideDates} f={f} />
+                </span>
+              </div>
+            ) : (
+              <span className="info" aria-live="polite">
+                {info}
+                <DatesHint info={t?.outsideDates} f={f} />
+              </span>
+            )}
             <div className="table-actions">
               {newsletter && tickable && (
                 <div className="pick-bar" role="group" aria-label="Selected entries">
@@ -431,7 +466,7 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
               </thead>
               <tbody>
                 {t?.rows.map((r) => (
-                  <tr key={r.id} className={picked.has(r.id) ? "picked" : undefined}>
+                  <tr key={r.id} className={[picked.has(r.id) ? "picked" : "", primaryOnly ? "arch-row" : "", primaryOnly && rowPopup === r.id ? "open" : ""].filter(Boolean).join(" ") || undefined} onClick={(e) => onRowClick(e, r)}>
                     {tickable && (
                       <td className="pick-col">
                         <input type="checkbox" checked={picked.has(r.id)} onChange={() => toggle(r)} aria-label={`Select ${titleOf(r)}`} />
@@ -458,7 +493,7 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
                           <button
                             className={`src-btn open arch-btn${archId === r.id ? " on" : ""}`}
                             data-testid="archived-cell"
-                            onClick={() => setParam({ arch: r.id, ap: r.id }, true)}
+                            onClick={() => setParam({ arch: r.id, pp: r.id, ap: null }, true)}
                             aria-label={`Archived Responses: earlier answers from the same source as ${titleOf(r)}`}
                             title="Archived Responses · earlier answers from the same source"
                           >
@@ -507,8 +542,8 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
                       c.key === openKey ? (
                         <td key={c.key} className="title">
                           <button
-                            onClick={(e) => (e.stopPropagation(), setParam(phantoms ? { md: r.id } : { signal: r.id }, true))}
-                            aria-label={`${phantoms ? "View Markdown" : "Open record"}: ${c.key === CORE.title ? String(r.values[c.key] ?? "") : titleOf(r)}`}
+                            onClick={(e) => (e.stopPropagation(), primaryOnly ? openRow(r) : setParam(phantoms ? { md: r.id } : { signal: r.id }, true))}
+                            aria-label={`${phantoms ? "View Markdown" : primaryOnly ? "Open" : "Open record"}: ${c.key === CORE.title ? String(r.values[c.key] ?? "") : titleOf(r)}`}
                           >
                             {displayValue(c, r.values[c.key]) || "—"}
                           </button>
@@ -543,11 +578,48 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
               </>
             )}
           </div>
+          {archId && rowPopup && (
+            <AnswerCard
+              key={rowPopup}
+              id={rowPopup}
+              schema={s}
+              kind="primary"
+              mode="pane"
+              onClose={() => setParam({ pp: null })}
+              onOpenRecord={() => setParam({ signal: rowPopup }, true)}
+            />
+          )}
         </section>
-        {archId && <ArchivedPanel id={archId} schema={s} cols={cols} onOpen={(id) => setParam({ ap: id }, true)} onClose={() => setParam({ arch: null, ap: null })} />}
+        {archId && (
+          <ArchivedPanel
+            id={archId}
+            schema={s}
+            cols={cols}
+            current={archPopup}
+            onOpen={(id) => setParam({ ap: id }, true)}
+            onClose={() => setParam({ arch: null, ap: null })}
+          >
+            {archPopup && (
+              <AnswerCard
+                key={archPopup}
+                id={archPopup}
+                schema={s}
+                kind="archived"
+                mode="pane"
+                onClose={() => setParam({ ap: null })}
+                nav={(() => {
+                  const i = archRows.findIndex((x) => x.id === archPopup);
+                  return i < 0 ? undefined : { index: i, total: archRows.length, onStep: (d: number) => archRows[i + d] && setParam({ ap: archRows[i + d]!.id }) };
+                })()}
+              />
+            )}
+          </ArchivedPanel>
+        )}
         </div>
       </div>
-      {archPopup && <ArchivedPopup id={archPopup} schema={s} onClose={() => setParam({ ap: null })} />}
+      {!archId && rowPopup && (
+        <AnswerCard key={rowPopup} id={rowPopup} schema={s} kind="primary" mode="modal" onClose={() => setParam({ pp: null })} onOpenRecord={() => setParam({ pp: null, signal: rowPopup }, true)} />
+      )}
       {savedOpen && !selected && !mdOpen && (
         <SourceDrawer
           itemId={savedOpen}
@@ -630,7 +702,24 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
  * Archived Responses (request 34): the earlier entries from the same source,
  * in a table like the Primary Tracker's, on the right of a split screen.
  */
-function ArchivedPanel({ id, schema, cols, onOpen, onClose }: { id: string; schema: TrackerSchema; cols: TrackerColumn[]; onOpen: (id: string) => void; onClose: () => void }) {
+function ArchivedPanel({
+  id,
+  schema,
+  cols,
+  current,
+  onOpen,
+  onClose,
+  children,
+}: {
+  id: string;
+  schema: TrackerSchema;
+  cols: TrackerColumn[];
+  current: string | null;
+  onOpen: (id: string) => void;
+  onClose: () => void;
+  /** The open archived response's pop-up, over this table (request 39). */
+  children?: ReactNode;
+}) {
   const q = useArchived(id);
   const cur = useSignal(id);
   const impactCol = getColumn(schema, CORE.impact);
@@ -667,7 +756,7 @@ function ArchivedPanel({ id, schema, cols, onOpen, onClose }: { id: string; sche
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.id} className="arch-row" onClick={() => onOpen(r.id)}>
+              <tr key={r.id} className={`arch-row${current === r.id ? " open" : ""}`} onClick={() => onOpen(r.id)}>
                 {cols.map((c, i) =>
                   i === 0 ? (
                     <td key={c.key} className="title">
@@ -691,52 +780,117 @@ function ArchivedPanel({ id, schema, cols, onOpen, onClose }: { id: string; sche
         </table>
       </div>
       {q.data && !rows.length && <div className="empty">No earlier answers from this source.</div>}
+      {children}
     </section>
   );
 }
 
 /**
- * A Primary answer at a glance (request 38: the Primary Tracker's columns,
- * in order, and nothing else): Source Company, Source Role and Event Date
- * small at the top; Insight Topic, Key Intelligence Question, Key Details and
- * Key Metrics filling the rest.
+ * A Primary answer at a glance (requests 38 and 39): the Primary Tracker's
+ * columns, in order, and nothing else. Source Company, Source Role and Event
+ * Date small at the top; Insight Topic, Key Intelligence Question, Key
+ * Details and Key Metrics filling the rest. As a pane it lies over its table
+ * (the signal on the left, an archived response on the right, side by side
+ * to compare) and leaves the rest of the page usable; otherwise it is a
+ * centred dialog.
  */
-function ArchivedPopup({ id, schema, onClose }: { id: string; schema: TrackerSchema; onClose: () => void }) {
+function AnswerCard({
+  id,
+  schema,
+  kind,
+  mode,
+  onClose,
+  onOpenRecord,
+  nav,
+}: {
+  id: string;
+  schema: TrackerSchema;
+  kind: "primary" | "archived";
+  mode: "pane" | "modal";
+  onClose: () => void;
+  onOpenRecord?: () => void;
+  nav?: { index: number; total: number; onStep: (d: number) => void };
+}) {
   const q = useSignal(id);
-  const ref = useFocusTrap(true, onClose);
+  const trap = useFocusTrap(mode === "modal", onClose);
+  const pane = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (mode === "pane") pane.current?.focus();
+  }, [mode, id]);
   const v = q.data?.values ?? {};
   const cols = primaryTrackerColumns(schema);
   const text = (c: TrackerColumn) => displayValue(c, v[c.key]);
-  const meta = cols.slice(0, 3);
-  const body = cols.slice(3);
   const company = getColumn(schema, FIELDS.sourceCompany);
   const date = getColumn(schema, CORE.date);
   const name = q.data ? [company && text(company), date && text(date)].filter(Boolean).join(" · ") || q.data.code : "Loading…";
+  const label = kind === "primary" ? "Primary signal" : "Archived response";
+  const body = (
+    <>
+      <div className="arch-pop-head">
+        <div className="arch-pop-top">
+          <span className={`arch-pop-kind ${kind}`}>{label}</span>
+          {nav && (
+            <span className="arch-pop-nav">
+              <button className="icon-btn sm" onClick={() => nav.onStep(-1)} disabled={nav.index === 0} aria-label="Newer archived response" title="Newer">
+                ‹
+              </button>
+              <span>
+                {nav.index + 1} of {nav.total}
+              </span>
+              <button className="icon-btn sm" onClick={() => nav.onStep(1)} disabled={nav.index >= nav.total - 1} aria-label="Older archived response" title="Older">
+                ›
+              </button>
+            </span>
+          )}
+        </div>
+        <button className="icon-btn" onClick={onClose} aria-label={`Close the ${label.toLowerCase()}`} data-autofocus>
+          ✕
+        </button>
+      </div>
+      <dl className="arch-pop-meta">
+        {cols.slice(0, 3).map((c) => (
+          <div key={c.key}>
+            <dt>{c.label}</dt>
+            <dd>{text(c) || "—"}</dd>
+          </div>
+        ))}
+      </dl>
+      <div className="arch-pop-body">
+        {cols.slice(3).map((c) => (
+          <section key={c.key}>
+            <h3>{c.label}</h3>
+            <p>{text(c) || "—"}</p>
+          </section>
+        ))}
+      </div>
+      {onOpenRecord && (
+        <div className="arch-pop-foot">
+          <button className="link-btn" onClick={onOpenRecord}>
+            Open the full record →
+          </button>
+        </div>
+      )}
+    </>
+  );
+  if (mode === "pane")
+    return (
+      <section
+        className={`arch-pane ${kind}`}
+        role="dialog"
+        aria-modal="false"
+        aria-label={`${label}: ${name}`}
+        tabIndex={-1}
+        ref={pane}
+        data-testid={kind === "primary" ? "answer-primary" : "answer-archived"}
+      >
+        {body}
+      </section>
+    );
   return (
     <>
       <div className="scrim" onClick={onClose} aria-hidden="true" />
-      <div className="modal arch-popup" role="dialog" aria-modal="true" aria-label={`Archived response: ${name}`} ref={ref} data-testid="archived-popup">
-        <div className="arch-pop-head">
-          <dl className="arch-pop-meta">
-            {meta.map((c) => (
-              <div key={c.key}>
-                <dt>{c.label}</dt>
-                <dd>{text(c) || "—"}</dd>
-              </div>
-            ))}
-          </dl>
-          <button className="icon-btn" onClick={onClose} aria-label="Close" data-autofocus>
-            ✕
-          </button>
-        </div>
-        <div className="arch-pop-body">
-          {body.map((c) => (
-            <section key={c.key}>
-              <h3>{c.label}</h3>
-              <p>{text(c) || "—"}</p>
-            </section>
-          ))}
-        </div>
+      <div className="modal arch-popup" role="dialog" aria-modal="true" aria-label={`${label}: ${name}`} ref={trap} data-testid="answer-primary">
+        {body}
       </div>
     </>
   );
