@@ -5,10 +5,12 @@
  * mix by Macrotrend. At the bottom, as on a Macrotrend's dashboard, an arrow
  * to Explore Signals: pressing it, scrolling on past the end or Page Down
  * glides up to the full-page knowledge graph of the company's signals (its
- * up arrow, scrolling up over its header or Page Up glide back).
+ * up arrow, scrolling up over its header or Page Up glide back). The graph
+ * is the company's globe with its signals in orbit (request 49: no
+ * Macrotrend / Subtrend breakdown).
  *
  * State lives in the URL (c = the company, v = "signals" for the graph; the
- * graph keeps m, s and e).
+ * graph keeps e, the open signal).
  */
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
@@ -18,7 +20,7 @@ import { RichText } from "../BulletText";
 import { localDateTime } from "../../lib/format";
 
 // The knowledge graph carries three.js: loaded when Explore Signals is first opened.
-const MegatrendsPage = lazy(() => import("../../pages/MegatrendsPage").then((m) => ({ default: m.MegatrendsPage })));
+const CompetitorsPage = lazy(() => import("../../pages/CompetitorsPage").then((m) => ({ default: m.CompetitorsPage })));
 
 const STEP_LOCK_MS = 750;
 const SIGNALS = "signals";
@@ -196,7 +198,7 @@ export function CompetitorDashboard({
           <section className="cd-panel cd-graph" aria-label={`Explore Signals: the knowledge graph of ${name}'s signals`} aria-hidden={!graph} inert={!graph} data-testid="cd-graph">
             {graphOn ? (
               <Suspense fallback={<div className="mg-loading">Loading the knowledge graph…</div>}>
-                <MegatrendsPage me={me} focusCompetitor={name} />
+                <CompetitorsPage me={me} focus={name} />
               </Suspense>
             ) : (
               <div className="mg-loading">The knowledge graph of {name}'s signals</div>

@@ -740,9 +740,9 @@ analyst-entered information distinguishable; in the prototype every value is
     pressing it, scrolling on past the end of the page or Page Down glides up
     to the full-page knowledge graph of the company's signals (`v=signals`);
     its up arrow, scrolling up over its header or Page Up glides back. The
-    graph is the Megatrends graph (`MegatrendsPage focusCompetitor`) over only
-    the entries naming the company, with the Macrotrends and Subtrends
-    counted over them.
+    graph (request 49) is the company's globe alone with its signals in orbit
+    and its signals list (`CompetitorsPage focus`): no other competitors, ties,
+    Macrotrend / Subtrend breakdown or timeline.
 - **Menu in groups** (request 28, contract 1.17; regrouped in request 31,
   contract 1.19; renamed in request 34; `packages/shared/src/menu.ts`): the
   menu is four groups (and, from request 43, the Database tab on its own),

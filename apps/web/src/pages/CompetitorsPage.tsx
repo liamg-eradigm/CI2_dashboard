@@ -8,6 +8,10 @@
  * slides its Tracker row in from the right.
  *
  * State lives in the URL (c = competitor, e = open entry).
+ *
+ * `focus` (request 48, reworked in request 49): only that company's globe with
+ * its signals in orbit, embedded in its page (Explore Signals); no other
+ * competitors, ties or timeline.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
@@ -35,11 +39,11 @@ const hubId = (name: string) => `c:${name}`;
 const R_MIN = 1.4;
 const R_TOP = 26;
 
-export function CompetitorsPage(_props: { me?: Me }) {
+export function CompetitorsPage({ focus }: { me?: Me; focus?: string }) {
   const [params, setParams] = useSearchParams();
   const q = useCompetitors();
   const data = q.data;
-  const selected = params.get("c");
+  const selected = focus ?? params.get("c");
   const openId = params.get("e");
   const [colourBy, setColourBy] = useState<"impact" | "macro">("impact");
   const [only, setOnly] = useState<string | null>(null);
@@ -61,10 +65,12 @@ export function CompetitorsPage(_props: { me?: Me }) {
   );
   const select = useCallback(
     (name: string | null) => {
+      // A company's own graph always shows that company.
+      if (focus) return;
       setOnly(null);
       set({ c: name });
     },
-    [set],
+    [set, focus],
   );
 
   // Tiers from the admin setting (computed here too, so an API from before tiers still colours them).
@@ -86,8 +92,8 @@ export function CompetitorsPage(_props: { me?: Me }) {
 
   // A competitor no longer named by any entry falls back to all.
   useEffect(() => {
-    if (data && selected && !byName.has(selected)) set({ c: null }, false);
-  }, [data, selected, byName, set]);
+    if (!focus && data && selected && !byName.has(selected)) set({ c: null }, false);
+  }, [data, selected, byName, set, focus]);
 
   const named = useCallback((e: CompetitorEntry, name: string) => e.competitors.includes(name), []);
   const ofComp = useMemo(() => {
@@ -101,7 +107,7 @@ export function CompetitorsPage(_props: { me?: Me }) {
     () => ({
       layout: "competitors",
       total,
-      hubs: comps.map((c) => {
+      hubs: comps.filter((c) => !focus || c.name === focus).map((c) => {
         const r = competitorRadius(c.count, max, R_MIN, R_TOP);
         const tier = tierOfC(c);
         return {
@@ -116,12 +122,13 @@ export function CompetitorsPage(_props: { me?: Me }) {
           labelScale: r < 2.2 ? 0 : 0.45 + (0.5 * (r - R_MIN)) / (R_TOP - R_MIN),
         };
       }),
-      ties: (data?.pairs ?? []).filter((p) => !isPlaceholderCompetitor(p.a) && !isPlaceholderCompetitor(p.b)).map((p) => ({ a: hubId(p.a), b: hubId(p.b), weight: p.count })),
+      ties: focus ? [] : (data?.pairs ?? []).filter((p) => !isPlaceholderCompetitor(p.a) && !isPlaceholderCompetitor(p.b)).map((p) => ({ a: hubId(p.a), b: hubId(p.b), weight: p.count })),
       open: selected ? hubId(selected) : null,
       selected: selected ? hubId(selected) : null,
       orbit: selected ? { hub: hubId(selected), entries: (ofComp.get(selected) ?? []).map((e) => ({ id: e.id, title: e.title, date: e.date, colour: impactColour(e.impact), fresh: isNew(e.date) })) } : null,
+      noCore: !!focus,
     }),
-    [comps, max, ofComp, data, selected, total, isNew],
+    [comps, max, ofComp, data, selected, total, isNew, focus],
   );
 
   // Timeline: the selected competitor's entries (or every entry naming one), by Impact or by Macrotrend.
@@ -163,10 +170,10 @@ export function CompetitorsPage(_props: { me?: Me }) {
 
   const crumbs = (
     <nav className="mg-crumbs" aria-label="Graph level">
-      <GraphToggle current="competitors" onAll={() => select(null)} />
+      {!focus && <GraphToggle current="competitors" onAll={() => select(null)} />}
       {selected && (
         <>
-          <span aria-hidden="true">›</span>
+          {!focus && <span aria-hidden="true">›</span>}
           <span className="here" aria-current="page">
             {selected}
           </span>
@@ -182,9 +189,10 @@ export function CompetitorsPage(_props: { me?: Me }) {
 
   return (
     <GraphShell
-      storageKey="competitors"
-      stageLabel="Competitors knowledge graph"
+      storageKey={focus ? "competitor-focus" : "competitors"}
+      stageLabel={focus ? `${focus}: knowledge graph of its signals` : "Competitors knowledge graph"}
       spec={spec}
+      embedded={!!focus}
       graph={{ onHub: (id) => select(id.slice(2) === selected ? null : id.slice(2)), onCore: () => select(null), onFocus: () => undefined, onEntry: (id) => set({ e: id }, false) }}
       crumbs={crumbs}
       keyNav={{ label: "Competitors", items: comps.filter((c) => c.count > 0).map((c) => ({ name: c.name, count: c.count, current: selected === c.name, onSelect: () => select(c.name) })) }}
@@ -206,6 +214,7 @@ export function CompetitorsPage(_props: { me?: Me }) {
         />
       }
       timeline={
+        focus ? undefined : (
         <Timeline
           items={items}
           legend={legend}
@@ -234,6 +243,7 @@ export function CompetitorsPage(_props: { me?: Me }) {
           onOpen={(id) => set({ e: openId === id ? null : id }, false)}
           onLegend={(name) => setOnly((cur) => (cur === name ? null : name))}
         />
+        )
       }
     />
   );
