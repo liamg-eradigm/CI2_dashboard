@@ -1,4 +1,4 @@
-import { expect, expectAccessible, menuOf, navLink, signInAs, test } from "./fixtures";
+import { expect, expectAccessible, menuOf, navLink, navOf, signInAs, test } from "./fixtures";
 import type { Page } from "@playwright/test";
 
 const ADMIN = { "x-dev-user": "admin@example.com" };
@@ -37,20 +37,20 @@ async function push(page: Page, stream: "primary" | "secondary", rows: Record<st
 }
 
 test.describe("request 34", () => {
-  test("the menu: Databases, Signals/Phantoms Database, CI analyses, Megatrends Dashboard and Primary Tracker", async ({ page }) => {
+  test("the menu: Database, Megatrends Dashboard and Primary Tracker (the Databases group went in request 48)", async ({ page }) => {
     await signInAs(page, "admin");
     await page.goto("/dashboard");
     expect(await menuOf(page)).toEqual([
       "Inputs: Input, Eradigm Inbox, Client Inbox",
       "Analytics: Megatrends Dashboard, Knowledge Graph, Primary Tracker",
       "Database",
-      "Databases: Signals Database, Phantoms Database, CI analyses",
       "Admin: Deliverables, Administration",
     ]);
     await expect(page.getByRole("heading", { level: 1, name: "Megatrends Dashboard" })).toBeVisible();
-    await navLink(page, "Databases", "Signals Database").click();
-    await expect(page).toHaveURL(/\/tracker/);
-    await expect(page.getByRole("heading", { level: 1, name: "Signals Database" })).toBeVisible();
+    // Request 48: the Databases group is gone; the Database tab has them all.
+    await navOf(page).getByRole("link", { name: "Database", exact: true }).click();
+    await expect(page).toHaveURL(/\/database/);
+    await expect(page.getByRole("heading", { level: 1, name: "Database" })).toBeVisible();
   });
 
   test("the Macrotrend dashboard: two rows at a time, arrows with the next row's name, then the knowledge graph", async ({ page }) => {
@@ -251,8 +251,5 @@ test.describe("request 34", () => {
     await panel.getByRole("button", { name: "Close Archived Responses" }).click();
     await expect(panel).toHaveCount(0);
 
-    // The Signals Database's Primary Tracker is unchanged.
-    await page.goto(`/tracker?stream=primary&q=${tag}`);
-    await expect(page.locator("table.data").getByRole("columnheader", { name: "Linked" })).toBeVisible();
   });
 });

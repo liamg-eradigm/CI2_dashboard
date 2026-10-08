@@ -726,7 +726,11 @@ analyst-entered information distinguishable; in the prototype every value is
     Analysis. Links in the app (the Inbox's "in the Tracker" and duplicate
     links, the prior-information flag, the import and trend-analysis
     confirmations) now point at the Database. The Phantoms API and the
-    Phantoms columns stay (the Database's Markdown column uses them).
+    Phantoms columns stay (the Database's Markdown column uses them). The
+    Primary 🔗 Linked column is not carried over: the Primary Tracker's Full
+    Discussion and KIQ Archive cover it. Deleting from the Database offers
+    Delete Tracker Entry or Delete Globally (a Phantom alone is no longer
+    deleted from the page).
   - **A competitor's page** (Megatrends Dashboard → Competitors → a company,
     `components/analytics/CompetitorDashboard.tsx`): the **Company Profile**
     (the competitor's analysis, formerly "Trend analysis"; Input → Input Trend

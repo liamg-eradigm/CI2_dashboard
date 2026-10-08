@@ -31,18 +31,19 @@ test.describe("request 43", () => {
       { title: `High ${tag}`, date: "2026-05-01", impact: "High", source_company: `Clinic ${tag}`, source_location: "Lyon", workstream: "Digital and Data Platforms" },
       { title: `Low ${tag}`, date: "2026-06-01", impact: "Low", source_company: `Clinic ${tag}`, source_location: "Paris" },
     ]);
-    // A tab of its own: a link, no group to open; the other databases stay.
+    // A tab of its own: a link, no group to open (request 48: the other databases are gone, it has them all).
     const link = nav(page).getByRole("link", { name: "Database", exact: true });
     await expect(nav(page).getByRole("button", { name: /^Database\b/ })).toHaveCount(0);
-    await expect(nav(page).getByRole("button", { name: /^Databases\b/ })).toBeVisible();
+    await expect(nav(page).getByRole("button", { name: /^Databases\b/ })).toHaveCount(0);
     await link.click();
     await expect(page).toHaveURL(/\/database$/);
     await expect(link).toHaveAttribute("aria-current", "page");
     await expect(page.getByRole("heading", { level: 1, name: "Database" })).toBeVisible();
 
     await page.getByTestId("stream-primary").click();
-    // Filters on every field: one row at first, all of them on demand.
+    // Filters on every field (hidden at first since request 48): one row at first, all of them on demand.
     const bar = page.getByTestId("db-filters");
+    if (!(await bar.isVisible())) await page.getByTestId("filters-toggle").click();
     await expect(bar.getByLabel("Source Company contains")).toHaveCount(0);
     await bar.getByRole("button", { name: /All filters/ }).click();
     await bar.getByLabel("Source Company contains").fill(tag);

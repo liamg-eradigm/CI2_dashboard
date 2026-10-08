@@ -35,7 +35,7 @@ test.describe("request 19", () => {
   test("each role sees only its tabs", async ({ page, browser }) => {
     await signInAs(page, "analyst");
     await page.goto("/dashboard");
-    expect(await menuOf(page)).toEqual(["Inputs: Eradigm Inbox", "Analytics: Megatrends Dashboard, Knowledge Graph, Primary Tracker", "Database", "Databases: Signals Database, Phantoms Database, CI analyses"]);
+    expect(await menuOf(page)).toEqual(["Inputs: Eradigm Inbox", "Analytics: Megatrends Dashboard, Knowledge Graph, Primary Tracker", "Database"]);
     for (const path of ["/input", "/admin", "/deliverables", "/client-inbox"]) {
       await page.goto(path);
       await expect(page).toHaveURL(/\/dashboard/);
@@ -44,7 +44,7 @@ test.describe("request 19", () => {
     const client = await ctx.newPage();
     await signInAs(client, "client");
     await client.goto("/dashboard");
-    expect(await menuOf(client)).toEqual(["Inputs: Client Inbox", "Analytics: Megatrends Dashboard, Knowledge Graph, Primary Tracker", "Database", "Databases: Signals Database, Phantoms Database, CI analyses"]);
+    expect(await menuOf(client)).toEqual(["Inputs: Client Inbox", "Analytics: Megatrends Dashboard, Knowledge Graph, Primary Tracker", "Database"]);
     await ctx.close();
     const actx = await browser.newContext();
     const admin = await actx.newPage();
@@ -54,7 +54,6 @@ test.describe("request 19", () => {
       "Inputs: Input, Eradigm Inbox, Client Inbox",
       "Analytics: Megatrends Dashboard, Knowledge Graph, Primary Tracker",
       "Database",
-      "Databases: Signals Database, Phantoms Database, CI analyses",
       "Admin: Deliverables, Administration",
     ]);
     await actx.close();
@@ -156,9 +155,9 @@ test.describe("request 19", () => {
     await expect(field).not.toBeFocused();
   });
 
-  test("Tracker Edit: the fields first, then the page text, no saved-page window; Phantoms cannot be edited", async ({ page }) => {
+  test("Tracker Edit: the fields first, then the page text, no saved-page window", async ({ page }) => {
     await signInAs(page, "analyst");
-    await page.goto("/tracker");
+    await page.goto("/database");
     // Secondary is the default.
     await expect(page.getByTestId("stream-secondary")).toHaveAttribute("aria-pressed", "true");
     await page.locator("table.data tbody tr").first().getByRole("button", { name: /^Edit / }).click();
@@ -170,10 +169,6 @@ test.describe("request 19", () => {
     await expect(drawer.locator("iframe")).toHaveCount(0);
     await expect(drawer.getByText("Bullets: Tab indents").first()).toBeVisible();
     await page.keyboard.press("Escape");
-    await page.goto("/phantoms");
-    await expect(page.getByTestId("stream-secondary")).toHaveAttribute("aria-pressed", "true");
-    await expect(page.locator("table.data thead").getByText("Edit", { exact: true })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: /^Edit / })).toHaveCount(0);
   });
 
   test("Megatrends: no filter bar, and the timeline coloured by Impact", async ({ page }) => {

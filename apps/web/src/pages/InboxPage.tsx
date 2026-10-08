@@ -576,7 +576,7 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
               </span>
               {item.status === "approved" && (
                 <Link className="link-btn decided-link" to={trackerLink(item)}>
-                  View in Tracker →
+                  View in Database →
                 </Link>
               )}
             </div>
@@ -809,7 +809,7 @@ function DuplicateWarning({ code, dup, confirming, busy, onCancel, onConfirm }: 
           {confirming ? "Approving it anyway will publish a second, separate tracker entry. Only do this if it is genuinely a different update." : "You will be asked to confirm before it can be approved."}{" "}
           {dup.id && (
             <Link to={`/database?signal=${encodeURIComponent(dup.id)}`} target="_blank" rel="noopener">
-              Open {dup.signalCode} in the Tracker ↗
+              Open {dup.signalCode} in the Database ↗
             </Link>
           )}
         </p>

@@ -84,3 +84,11 @@ export async function menuOf(page: Page): Promise<string[]> {
   }
   return out;
 }
+
+/** Search the Database page (request 48: its filters start hidden, so open them first). */
+export async function searchDatabase(page: Page, text: string) {
+  const toggle = page.getByTestId("filters-toggle");
+  await expect(toggle).toBeVisible();
+  if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
+  await page.getByRole("searchbox", { name: "Search contains" }).fill(text);
+}
