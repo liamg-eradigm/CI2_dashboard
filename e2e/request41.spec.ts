@@ -66,6 +66,7 @@ test.describe("request 41", () => {
     await expect(page.getByRole("region", { name: "Active filters" })).not.toContainText(tag);
     // …and the filters set there do not reach the Primary Tracker.
     if (!(await page.getByTestId("db-filters").isVisible())) await page.getByTestId("filters-toggle").click();
+    await page.getByTestId("db-filters").getByRole("button", { name: /^All filters/ }).click();
     await choose(page.getByTestId("db-filters").getByRole("combobox", { name: "Macrotrend", exact: true }), "AI Investment in R&D");
     await goTab(page, "Analytics", "Primary Tracker");
     await expect(page).toHaveURL(/\/analytics\/primary$/);

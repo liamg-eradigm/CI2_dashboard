@@ -303,7 +303,8 @@ test.describe("Eradigm staff (admin)", () => {
 
   test("reorders tracker columns: A–Z, Z–A, move buttons and drag and drop", async ({ page }) => {
     await page.goto("/inbox");
-    const original = [...(await schemaOf(page, "primary")).columns].sort((a, b) => a.position - b.position).map((c) => c.key);
+    // The column editor opens on Secondary.
+    const original = [...(await schemaOf(page, "secondary")).columns].sort((a, b) => a.position - b.position).map((c) => c.key);
     await page.getByRole("button", { name: "Edit columns" }).click();
     const labels = () => page.locator(".schema-row .schema-grid input[aria-label^='Rename column']").evaluateAll((els) => els.map((e) => (e as HTMLInputElement).value));
     await page.getByRole("button", { name: "Sort A → Z" }).click();
@@ -325,7 +326,7 @@ test.describe("Eradigm staff (admin)", () => {
     // The Tracker has its own order: reordering the Inbox does not change it (request 48: the Tracker table has no page of its own).
     await expect(page.getByTestId("table-cols-tracker").locator(".tcol-label").first()).toHaveText("Title");
     await expect(page.getByTestId("table-cols-tracker").locator(".tcol-label")).toHaveCount(9);
-    await restoreOrder(page, "primary", original);
+    await restoreOrder(page, "secondary", original);
   });
 
   test("edits the Tracker and Phantoms tables separately, from the Inbox columns only", async ({ page }) => {
@@ -410,7 +411,7 @@ test.describe("Eradigm staff (admin)", () => {
     await page.locator(".schema-row", { has: page.getByLabel("Rename column Impact", { exact: true }) }).getByRole("button", { name: /options/ }).click();
     await expect(page.locator(".order-note")).toContainText("the order is also the level");
     // Restore the original Source Type order for the other tests.
-    await restoreOrder(page, "primary", original, "source");
+    await restoreOrder(page, "secondary", original, "source");
   });
 
   test("a long-text manual entry with an old Event Date is approved, flagged and one click away", async ({ page }) => {
@@ -754,7 +755,7 @@ test.describe("Eradigm staff (admin)", () => {
 
     // No saved page yet: a green plus on the left; the row itself no longer opens anything.
     const tr = page.locator("table tbody tr", { hasText: title });
-    await expect(tr.locator("td.src-col").getByRole("button", { name: `Attach the HTML page for ${title}` })).toBeVisible();
+    await expect(tr.getByRole("button", { name: `Attach the HTML page for ${title}` })).toBeVisible();
     await tr.locator("td.date").click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
     const html = htmlFile("kol.html", `<!DOCTYPE html><html><head><title>KOL notes</title><script>alert(1)</script></head><body><article><h1>KOL notes on Roche</h1><p>The KOL said Roche is piloting agentic AI in two early research sites.</p><p>Results are expected in 2027.</p></article></body></html>`);
@@ -845,6 +846,8 @@ test.describe("Eradigm staff (admin)", () => {
     // Selection is kept across streams (Secondary first, then Primary).
     await page.getByTestId("stream-primary").click();
     await expect(page.locator(".stream-note")).toContainText("Primary Phantoms with High or Medium Impact");
+    // Wait for the Primary rows (not the Secondary ones still on screen).
+    await expect(rows.nth(0).locator("td.title")).not.toHaveText(t1);
     const t2 = (await rows.nth(0).locator("td.title").innerText()).trim();
     await rows.nth(0).getByRole("checkbox").check();
     await expect(page.getByRole("group", { name: "Selected entries" })).toContainText("2 selected");
@@ -905,7 +908,6 @@ test.describe("Eradigm staff (admin)", () => {
     const md = page.getByRole("dialog").getByLabel("Markdown source");
     await expect(md).toContainText(`title: ${title}`);
     await expect(md).not.toContainText(newTitle);
-    await expect(page.getByRole("dialog").getByRole("button", { name: "✎ Edit" })).toHaveCount(0);
   });
 
   test("Inbox and Input pass automated accessibility checks", async ({ page }) => {

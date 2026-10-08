@@ -136,6 +136,7 @@ test.describe("client role", () => {
     await page.goto("/database");
     await searchDatabase(page, "");
     const bar = page.getByTestId("db-filters");
+    await bar.getByRole("button", { name: /^All filters/ }).click();
     const macro = bar.getByRole("combobox", { name: "Macrotrend", exact: true });
     await expect(macro).toHaveValue("All");
     await macro.click();
@@ -147,7 +148,6 @@ test.describe("client role", () => {
     // "All" clears the filter again.
     await choose(macro, "All");
     await expect(page.locator(".pill", { hasText: "Macrotrend:" })).toHaveCount(0);
-    await bar.getByRole("button", { name: /^All filters/ }).click();
     const comp = bar.getByRole("combobox", { name: "Competitors", exact: true });
     await comp.click();
     await comp.fill("astra");
