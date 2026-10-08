@@ -4,11 +4,12 @@ import { BubbleMenu } from "@tiptap/react/menus";
 import StarterKit from "@tiptap/starter-kit";
 import { FontSize, TextStyle } from "@tiptap/extension-text-style";
 import { Placeholder } from "@tiptap/extensions";
+import { ListKeymap } from "@tiptap/extension-list";
 import { stepFontSize } from "@eradigm/shared";
 import { fromDoc, toDoc } from "../lib/richDoc";
 
 /** Shown under formatted-text fields (and read out with them). */
-export const RICH_HINT = "Select text to format it (bold, underline, size, title) · “- ” starts a bullet · Tab / Shift+Tab nest it";
+export const RICH_HINT = "Select text to format it (bold, underline, size, title) · Bullets: Tab indents · Shift+Tab outdents · Esc then Tab leaves the field";
 
 /** The font size (em) of the selection, 1 when it has none. */
 const sizeOf = (editor: Editor) => {
@@ -32,6 +33,53 @@ const SizeKeys = Extension.create({
       "Mod-Shift-.": () => (stepSize(this.editor, 1), true),
       "Mod-Shift-,": () => (stepSize(this.editor, -1), true),
     };
+  },
+});
+
+/**
+ * Word-style bullets, as in the plain text boxes before (request 19): Tab makes
+ * a line a bullet or nests it one level, Shift+Tab un-nests it (and turns a
+ * top-level bullet back into a line). Press Esc first to Tab out of the field,
+ * so the keyboard never gets stuck in it.
+ */
+const ListKeys = Extension.create({
+  name: "listKeys",
+  priority: 1000,
+  addStorage() {
+    return { released: false };
+  },
+  addKeyboardShortcuts() {
+    const inList = () => this.editor.isActive("listItem");
+    return {
+      Escape: () => {
+        if (this.storage.released) return false;
+        this.storage.released = true;
+        return true;
+      },
+      Tab: () => {
+        if (this.storage.released) {
+          this.storage.released = false;
+          return false;
+        }
+        if (inList()) this.editor.commands.sinkListItem("listItem");
+        else this.editor.commands.toggleBulletList();
+        return true;
+      },
+      "Shift-Tab": () => {
+        if (this.storage.released) {
+          this.storage.released = false;
+          return false;
+        }
+        if (inList()) this.editor.commands.liftListItem("listItem");
+        return true;
+      },
+    };
+  },
+  onSelectionUpdate() {
+    this.storage.released = false;
+  },
+  onUpdate() {
+    this.storage.released = false;
   },
 });
 
@@ -132,11 +180,21 @@ export function RichTextField({ value, onValueChange, id, className = "", style,
         strike: false,
         link: false,
         trailingNode: false,
+        listKeymap: false,
         heading: { levels: [3] },
       }),
       TextStyle,
       FontSize,
       SizeKeys,
+      ListKeys,
+      // Its Backspace / Delete handling, without its Tab (ours decides, so Esc then Tab can leave the field).
+      ListKeymap.extend({
+        addKeyboardShortcuts() {
+          const keys = { ...(this.parent?.() ?? {}) };
+          delete (keys as Record<string, unknown>).Tab;
+          return keys;
+        },
+      }),
       Placeholder.configure({ placeholder: () => placeholderRef.current }),
     ],
     content: toDoc(value),

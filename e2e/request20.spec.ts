@@ -69,7 +69,9 @@ test.describe("request 20", () => {
     const more = card.getByRole("textbox", { name: "Tell Me More", exact: true });
     const details = card.getByRole("textbox", { name: "Key Details", exact: true });
     await expect(more).toBeVisible();
-    expect(await more.evaluate((el) => el.tagName)).toBe("TEXTAREA");
+    // The same formatted-text box as Key Details (request 46).
+    expect(await more.getAttribute("data-rich")).not.toBeNull();
+    expect(await details.getAttribute("data-rich")).not.toBeNull();
     const [a, b] = [await more.boundingBox(), await details.boundingBox()];
     expect(Math.abs(a!.height - b!.height)).toBeLessThanOrEqual(1);
     expect(Math.abs(a!.width - b!.width)).toBeLessThanOrEqual(1);
@@ -79,6 +81,7 @@ test.describe("request 20", () => {
     await more.press("Enter");
     await more.press("Tab");
     await more.pressSequentially("Sub point");
-    await expect(more).toHaveValue("- First point\n  - Sub point");
+    await expect(more.locator("> ul > li > p")).toHaveText(["First point"]);
+    await expect(more.locator("> ul > li > ul > li")).toHaveText(["Sub point"]);
   });
 });

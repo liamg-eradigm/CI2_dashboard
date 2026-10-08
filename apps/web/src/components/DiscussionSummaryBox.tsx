@@ -33,8 +33,8 @@ function useStickUnderFilters() {
 /** Remembered per viewer (a convenience only: without storage it starts at its natural height). */
 const HEIGHT_KEY = "eradigm.ptr.aiSummaryHeight";
 const MIN_HEIGHT = 96;
-/** Room the table keeps below the summary when it is dragged taller. */
-const TABLE_ROOM = 180;
+/** The smallest height the table's rows keep when the summary is dragged taller (the table fills the rest). */
+const TABLE_ROOM = 160;
 const readHeight = () => {
   try {
     const v = Number(window.localStorage.getItem(HEIGHT_KEY));
@@ -59,10 +59,15 @@ const storeHeight = (h: number | null) => {
  */
 function useResizableHeight(box: RefObject<HTMLElement | null>) {
   const [height, setHeight] = useState<number | null>(readHeight);
+  // As tall as leaves the table (its top bar, pager and at least its smallest height) on screen below it.
   const max = () => {
-    const bar = document.querySelector<HTMLElement>(".filterbar");
-    const top = bar ? bar.getBoundingClientRect().height : 0;
-    return Math.max(MIN_HEIGHT, window.innerHeight - top - TABLE_ROOM);
+    const el = box.current;
+    if (!el) return MIN_HEIGHT;
+    const top = el.getBoundingClientRect().top + window.scrollY;
+    const scroll = document.querySelector<HTMLElement>('.ptr-content [data-testid="table-scroll"]');
+    const card = scroll?.closest<HTMLElement>(".card");
+    const room = scroll && card ? card.getBoundingClientRect().height - scroll.getBoundingClientRect().height + TABLE_ROOM : TABLE_ROOM;
+    return Math.max(MIN_HEIGHT, Math.floor(window.innerHeight - top - room));
   };
   const clamp = (h: number) => Math.round(Math.min(max(), Math.max(MIN_HEIGHT, h)));
   const set = (h: number | null) => {

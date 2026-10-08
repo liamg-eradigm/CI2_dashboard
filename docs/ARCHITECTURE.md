@@ -661,6 +661,33 @@ analyst-entered information distinguishable; in the prototype every value is
     a convenience only).
   - The bullet editor (`ListTextarea`) puts the caret back as soon as the
     new text renders, so fast typing after Tab / Enter lands in place.
+- **Request 46** (contract 1.26, no migration):
+  - **Formatted text** in every content editing box: long-text fields (Inbox,
+    record editor, KIQ details and metrics), the AI Summary, the Macrotrend
+    dashboard sections, Megatrends / competitor summaries and the Trend
+    Analysis input. `components/RichTextField.tsx` is a TipTap editor
+    (free, MIT): selecting text shows a bar (BubbleMenu) with Bold,
+    Underline, smaller / larger text (85%–200%) and Title (a title line,
+    whose size can be changed too); Ctrl+B, Ctrl+U and Ctrl+Shift+< / > work
+    too. Bullets as before: Tab makes / nests one, Shift+Tab un-nests, Esc
+    then Tab leaves the field. The value is still plain text with light,
+    Markdown-compatible markup (`packages/shared/src/richText.ts`):
+    `**bold**`, `<u>…</u>`, `<span style="font-size:1.3em">…</span>`, `### `
+    title lines and "- " bullets, so existing values need no migration and
+    the Phantoms Markdown shows it formatted. `lib/richDoc.ts` converts it
+    to and from the editor; `components/BulletText.tsx` (`RichText`) shows it
+    formatted (never as raw HTML). Tables, the Client Inbox, spreadsheet
+    exports and the AI writer's input use `plainText` (`displayValue` does
+    so for long text). The KIQ question and short inputs stay plain (the KIQ
+    Archive matches on the question's text).
+  - **Full Discussion** is one conversation: the other answers from the same
+    Source Role and Source Company on the same Event Date
+    (`Signal.discussionWith`; `GET /api/signals/:id/archived` without
+    `match`). The AI Summary of a Full Discussion covers that conversation.
+    KIQ Archive still spans dates.
+  - Resizing the AI Summary: the table is sized in the same frame
+    (`useFitToScreen` fill mode measures at once, not on the next frame), and
+    the page does not scroll while dragging, so no scrollbar flickers.
 - **Menu in groups** (request 28, contract 1.17; regrouped in request 31,
   contract 1.19; renamed in request 34; `packages/shared/src/menu.ts`): the
   menu is four groups (and, from request 43, the Database tab on its own),

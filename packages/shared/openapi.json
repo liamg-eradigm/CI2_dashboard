@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Eradigm Competitive Intelligence API",
-    "version": "1.25.0",
+    "version": "1.26.0",
     "description": "Generated from packages/shared/src/api.ts. Every request is checked for both role and tenant server-side. Send X-Tenant-Id to select a tenant when the user belongs to more than one."
   },
   "components": {
@@ -6871,6 +6871,10 @@
                             "nullable": true,
                             "type": "string"
                           },
+                          "discussionWith": {
+                            "nullable": true,
+                            "type": "string"
+                          },
                           "linkedLater": {
                             "nullable": true,
                             "type": "string"
@@ -7147,6 +7151,10 @@
                             "nullable": true,
                             "type": "string"
                           },
+                          "discussionWith": {
+                            "nullable": true,
+                            "type": "string"
+                          },
                           "linkedLater": {
                             "nullable": true,
                             "type": "string"
@@ -7420,6 +7428,10 @@
                             "type": "string"
                           },
                           "kiqEarlier": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "discussionWith": {
                             "nullable": true,
                             "type": "string"
                           },
@@ -8311,6 +8323,10 @@
                             "type": "string"
                           },
                           "kiqEarlier": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "discussionWith": {
                             "nullable": true,
                             "type": "string"
                           },
@@ -11670,7 +11686,7 @@
     },
     "/api/signals/{id}/archived": {
       "get": {
-        "summary": "Full Discussion: the earlier Primary entries from the same source (Source Role and Source Company) as this entry, newest first; with match=kiq (KIQ Archive), only those with the same Insight Topic and Key Intelligence Question too",
+        "summary": "Full Discussion: the other Primary entries of the same conversation as this entry (same Source Role, Source Company and Event Date), newest first; with match=kiq (KIQ Archive), the earlier entries from the same source with the same Insight Topic and Key Intelligence Question, on any date",
         "description": "Roles: admin, analyst, client",
         "parameters": [
           {
@@ -11777,6 +11793,10 @@
                             "type": "string"
                           },
                           "kiqEarlier": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "discussionWith": {
                             "nullable": true,
                             "type": "string"
                           },
@@ -13469,6 +13489,10 @@
                             "nullable": true,
                             "type": "string"
                           },
+                          "discussionWith": {
+                            "nullable": true,
+                            "type": "string"
+                          },
                           "linkedLater": {
                             "nullable": true,
                             "type": "string"
@@ -13894,6 +13918,10 @@
                       "type": "string"
                     },
                     "kiqEarlier": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "discussionWith": {
                       "nullable": true,
                       "type": "string"
                     },
@@ -14405,6 +14433,10 @@
                       "type": "string"
                     },
                     "kiqEarlier": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "discussionWith": {
                       "nullable": true,
                       "type": "string"
                     },

@@ -28,8 +28,9 @@ test.describe("request 42", () => {
     const tag = Math.random().toString(36).slice(2, 8);
     const base = { source_role: `Head of Access ${tag}`, source_company: `Clinic ${tag}`, insight_topic: "Pricing" };
     await push(page, [
-      { ...base, title: `Oldest ${tag}`, date: "2026-04-01", key_intelligence_question: "Will payers cover it?", key_details: "Oldest details." },
-      { ...base, title: `Middle ${tag}`, date: "2026-06-01", key_intelligence_question: "Is uptake growing?", key_details: "Middle details." },
+      // One conversation (request 46): the same source on the same Event Date (answered in this order).
+      { ...base, title: `Oldest ${tag}`, date: "2026-09-01", key_intelligence_question: "Will payers cover it?", key_details: "Oldest details." },
+      { ...base, title: `Middle ${tag}`, date: "2026-09-01", key_intelligence_question: "Is uptake growing?", key_details: "Middle details." },
       { ...base, title: `Newest ${tag}`, date: "2026-09-01", insight_topic: " pricing ", key_intelligence_question: "will payers cover it?", key_details: "Newest details." },
     ]);
     await page.goto(`/analytics/primary?${new URLSearchParams({ "pt.source_company": `Clinic ${tag}` })}`);
@@ -46,7 +47,8 @@ test.describe("request 42", () => {
     await expect(table.getByRole("button", { name: /^Edit/ })).toHaveCount(0);
 
     // Full Discussion: a chat icon, every earlier answer from the source, as before.
-    await expect(table.getByTestId("archived-cell")).toHaveCount(2);
+    // Every answer of the conversation has the others.
+    await expect(table.getByTestId("archived-cell")).toHaveCount(3);
     await expect(row(`Newest ${tag}`).getByTestId("archived-cell").locator('svg[data-icon="chat"]')).toHaveCount(1);
     // KIQ Archive: a link icon only where an earlier answer has the same Insight Topic and KIQ.
     await expect(table.getByTestId("kiq-cell")).toHaveCount(1);

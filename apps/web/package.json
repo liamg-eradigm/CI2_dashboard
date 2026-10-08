@@ -17,6 +17,7 @@
     "@eradigm/shared": "*",
     "@tanstack/react-query": "^5.90.0",
     "@tiptap/extension-bubble-menu": "^3.31.4",
+    "@tiptap/extension-list": "^3.31.4",
     "@tiptap/extension-text-style": "^3.31.4",
     "@tiptap/extensions": "^3.31.4",
     "@tiptap/pm": "^3.31.4",

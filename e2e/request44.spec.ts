@@ -13,7 +13,8 @@ async function push(page: Page, tag: string, n: number) {
         const values = {
           ...item.draft,
           title: `Answer ${i} ${tag}`,
-          date: `2026-0${1 + (i % 9)}-0${1 + (i % 7)}`,
+          // One conversation (request 46): the same source on the same Event Date.
+          date: "2026-09-01",
           source_role: `Head of Access ${tag}`,
           source_company: `Clinic ${tag}`,
           insight_topic: "Pricing",
@@ -107,7 +108,10 @@ test.describe("request 44", () => {
     await page.keyboard.press("Shift+Tab");
     await page.keyboard.press("Shift+Tab");
     await page.keyboard.type("Uptake");
-    await expect(field).toHaveValue("Payers pushed back, then accepted it.\nA second line.\n\n- Pricing\n  - Rejections fell\n    - New evidence\n- Uptake");
+    // A formatted-text field (request 46): real nested lists as it is typed.
+    await expect(field.locator("> p")).toHaveText(["Payers pushed back, then accepted it.", "A second line.", ""]);
+    await expect(field.locator("> ul > li > p")).toHaveText(["Pricing", "Uptake"]);
+    await expect(field.locator("> ul > li > ul > li > ul > li")).toHaveText(["New evidence"]);
     await box.getByRole("button", { name: "Save", exact: true }).click();
     const text = box.getByTestId("ai-summary-text");
     await expect(text.locator("> p")).toHaveCount(1);

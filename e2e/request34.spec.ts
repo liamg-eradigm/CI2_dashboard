@@ -150,7 +150,8 @@ test.describe("request 34", () => {
     const card = page.getByTestId("trend-analysis-input");
     await card.getByTestId("tai-macrotrend").click();
     await card.getByTestId("tai-macro").selectOption("Geopolitics");
-    await expect(card.getByTestId("tai-section-current")).toHaveAttribute("placeholder", new RegExp(`Tariffs today ${tag}`));
+    // A formatted-text box (request 46): its placeholder is on its empty line.
+    await expect(card.getByTestId("tai-section-current").locator("p").first()).toHaveAttribute("data-placeholder", new RegExp(`Tariffs today ${tag}`));
     await expect(card.getByTestId("tai-submit")).toBeDisabled();
     await card.getByTestId("tai-section-longterm").fill(`A decade of tariffs ${tag}`);
     await card.getByTestId("tai-submit").click();
@@ -201,8 +202,10 @@ test.describe("request 34", () => {
     const company = "Hôpital Lyon";
     const kd = (t: string) => `Key details of ${t}.`;
     await push(page, "primary", [
-      { title: `First answer ${tag}`, date: "2026-06-01", source_role: role, source_company: company, key_details: kd("first"), key_metrics: "12% uptake" },
-      { title: `Second answer ${tag}`, date: "2026-07-01", source_role: role, source_company: company, key_details: kd("second") },
+      // One conversation (request 46): the same source on the same Event Date; another day's answer is not part of it.
+      { title: `First answer ${tag}`, date: "2026-08-01", source_role: role, source_company: company, key_details: kd("first"), key_metrics: "12% uptake" },
+      { title: `Second answer ${tag}`, date: "2026-08-01", source_role: role, source_company: company, key_details: kd("second") },
+      { title: `Another day ${tag}`, date: "2026-03-01", source_role: role, source_company: company, key_details: kd("another day") },
       { title: `Latest answer ${tag}`, date: "2026-08-01", source_role: role, source_company: company, key_details: kd("latest") },
     ]);
     await page.goto("/dashboard");
@@ -214,8 +217,8 @@ test.describe("request 34", () => {
     await page.goto(`/analytics/primary?${new URLSearchParams({ "pt.source_role": role })}`);
     const table = page.locator("table.data").first();
     await expect(table.getByRole("columnheader", { name: "Full Discussion" })).toBeVisible();
-    await expect(table.getByTestId("archived-cell")).toHaveCount(2);
-    await expect(table.getByRole("row", { name: new RegExp(`First answer ${tag}`) }).getByTestId("archived-cell")).toHaveCount(0);
+    await expect(table.getByTestId("archived-cell")).toHaveCount(3);
+    await expect(table.getByRole("row", { name: new RegExp(`Another day ${tag}`) }).getByTestId("archived-cell")).toHaveCount(0);
     await table.getByRole("row", { name: new RegExp(`Latest answer ${tag}`) }).getByTestId("archived-cell").click();
 
     // The signal's pop-up (on the left, request 39): source at the top, Key Details and Key Metrics below.
