@@ -343,7 +343,7 @@ export function ImportCard() {
           </b>
           <span>
             They have no saved page yet: attach one from the tracker with the green <span aria-hidden="true">+</span> on each row.{" "}
-            <Link to={`/tracker?stream=${stream}`}>Open the {trackerName} →</Link>
+            <Link to={`/database?stream=${stream}`}>Open the {trackerName} in the Database →</Link>
           </span>
         </div>
       )}

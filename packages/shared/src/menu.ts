@@ -7,10 +7,10 @@
 import { canSeeTab, type NavTab } from "./megatrends.js";
 import type { Role } from "./permissions.js";
 
-export const MENU_GROUPS = ["inputs", "analytics", "database", "trackers", "admin"] as const;
+export const MENU_GROUPS = ["inputs", "analytics", "database", "admin"] as const;
 export type MenuGroupKey = (typeof MENU_GROUPS)[number];
 
-export const MENU_ITEMS = ["input", "inbox", "clientinbox", "dashboard", "knowledge-graph", "primary-tracker", "database", "tracker", "phantoms", "trend-analyses", "deliverables", "admin"] as const;
+export const MENU_ITEMS = ["input", "inbox", "clientinbox", "dashboard", "knowledge-graph", "primary-tracker", "database", "deliverables", "admin"] as const;
 export type MenuItemKey = (typeof MENU_ITEMS)[number];
 
 /**
@@ -21,13 +21,13 @@ export type MenuItemKey = (typeof MENU_ITEMS)[number];
  * Database, Phantoms Database, CI analyses), Dashboard is the Megatrends
  * Dashboard, and Analytics gains the Primary Tracker (Archived Responses).
  * Request 43: Database, a tab of its own (no subtabs) bringing the databases
- * and Deliverables onto one page.
+ * and Deliverables onto one page. Request 48: the Databases group (Signals
+ * Database, Phantoms Database, CI analyses) is gone; Database has them all.
  */
 export const MENU_GROUP_ITEMS: Record<MenuGroupKey, readonly MenuItemKey[]> = {
   inputs: ["input", "inbox", "clientinbox"],
   analytics: ["dashboard", "knowledge-graph", "primary-tracker"],
   database: ["database"],
-  trackers: ["tracker", "phantoms", "trend-analyses"],
   admin: ["deliverables", "admin"],
 };
 
@@ -35,7 +35,6 @@ export const MENU_GROUP_LABEL: Record<MenuGroupKey, string> = {
   inputs: "Inputs",
   analytics: "Analytics",
   database: "Database",
-  trackers: "Databases",
   admin: "Admin",
 };
 
@@ -47,9 +46,6 @@ export const MENU_ITEM_LABEL: Record<MenuItemKey, string> = {
   "knowledge-graph": "Knowledge Graph",
   "primary-tracker": "Primary Tracker",
   database: "Database",
-  tracker: "Signals Database",
-  phantoms: "Phantoms Database",
-  "trend-analyses": "CI analyses",
   deliverables: "Deliverables",
   admin: "Administration",
 };
@@ -62,9 +58,6 @@ export const MENU_ITEM_PATH: Record<MenuItemKey, string> = {
   "knowledge-graph": "/megatrends",
   "primary-tracker": "/analytics/primary",
   database: "/database",
-  tracker: "/tracker",
-  phantoms: "/phantoms",
-  "trend-analyses": "/trend-analyses",
   deliverables: "/deliverables",
   admin: "/admin",
 };
@@ -91,9 +84,6 @@ export const MENU_ITEM_TAB: Record<MenuItemKey, NavTab> = {
   "knowledge-graph": "megatrends",
   "primary-tracker": "tracker",
   database: "tracker",
-  tracker: "tracker",
-  phantoms: "phantoms",
-  "trend-analyses": "tracker",
   deliverables: "deliverables",
   admin: "admin",
 };

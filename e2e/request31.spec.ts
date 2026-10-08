@@ -3,14 +3,13 @@ import { expect, expectAccessible, goTab, menuOf, navLink, navOf, signInAs, test
 const R_AND_D = "AI Investment in R&D";
 
 test.describe("request 31", () => {
-  test("the menu is Inputs, Analytics, Databases and Admin (renamed in request 34)", async ({ page }) => {
+  test("the menu is Inputs, Analytics, Database and Admin (Databases went in request 48)", async ({ page }) => {
     await signInAs(page, "admin");
     await page.goto("/dashboard");
     expect(await menuOf(page)).toEqual([
       "Inputs: Input, Eradigm Inbox, Client Inbox",
       "Analytics: Megatrends Dashboard, Knowledge Graph, Primary Tracker",
       "Database",
-      "Databases: Signals Database, Phantoms Database, CI analyses",
       "Admin: Deliverables, Administration",
     ]);
     await expect(navOf(page).getByRole("link", { name: /Trend analysis$/ })).toHaveCount(0);

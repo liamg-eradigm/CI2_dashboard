@@ -47,14 +47,14 @@ import { useToast } from "../state/toast";
 import { ENTRY_TITLE, EntryTitleInput, SizedHeading, TextSizeButtons } from "../components/TextSize";
 
 
-/** The approved entry in its Tracker (searched for; the default dates cover every entry). */
+/** The approved entry on the Database page, in its stream (searched for; the default dates cover every entry). */
 function trackerLink(item: ItemSummary): string {
   const p = new URLSearchParams({ signal: item.id });
   p.set("stream", item.stream);
   // Search for it too, so the table behind the record shows exactly this entry.
   const title = String(item.draft[CORE.title] ?? "").trim();
-  if (title) p.set("q", title.slice(0, 200));
-  return `/tracker?${p.toString()}`;
+  if (title) p.set("db.q", title.slice(0, 200));
+  return `/database?${p.toString()}`;
 }
 
 const TABS: { key: string; label: string; statuses: ItemStatus[]; withClient?: boolean }[] = [
@@ -576,7 +576,7 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
               </span>
               {item.status === "approved" && (
                 <Link className="link-btn decided-link" to={trackerLink(item)}>
-                  View in Tracker →
+                  View in Database →
                 </Link>
               )}
             </div>
@@ -808,8 +808,8 @@ function DuplicateWarning({ code, dup, confirming, busy, onCancel, onConfirm }: 
           {code} has the {why} as {dup.signalCode}.{" "}
           {confirming ? "Approving it anyway will publish a second, separate tracker entry. Only do this if it is genuinely a different update." : "You will be asked to confirm before it can be approved."}{" "}
           {dup.id && (
-            <Link to={`/tracker?signal=${encodeURIComponent(dup.id)}`} target="_blank" rel="noopener">
-              Open {dup.signalCode} in the Tracker ↗
+            <Link to={`/database?signal=${encodeURIComponent(dup.id)}`} target="_blank" rel="noopener">
+              Open {dup.signalCode} in the Database ↗
             </Link>
           )}
         </p>

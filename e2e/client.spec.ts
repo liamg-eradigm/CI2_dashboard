@@ -1,4 +1,4 @@
-import { choose, expect, expectAccessible, signInAs, test, navLink, navOf, menuOf } from "./fixtures";
+import { choose, expect, expectAccessible, searchDatabase, signInAs, test, navLink, navOf, menuOf } from "./fixtures";
 
 test.describe("client role", () => {
   test.beforeEach(async ({ page }) => signInAs(page, "client"));
@@ -7,7 +7,7 @@ test.describe("client role", () => {
     await page.goto("/dashboard");
     await expect(page.getByRole("heading", { name: "Megatrends Dashboard" })).toBeVisible();
     // Requests 28 and 31: tabs in groups; a client's Inputs group has only the Client Inbox, and there is no Admin group.
-    expect(await menuOf(page)).toEqual(["Inputs: Client Inbox", "Analytics: Megatrends Dashboard, Knowledge Graph, Primary Tracker", "Database", "Databases: Signals Database, Phantoms Database, CI analyses"]);
+    expect(await menuOf(page)).toEqual(["Inputs: Client Inbox", "Analytics: Megatrends Dashboard, Knowledge Graph, Primary Tracker", "Database"]);
     const nav = navOf(page);
     // The Inbox and Input pages do not exist for clients: direct links go to the dashboard.
     for (const path of ["/input", "/inbox", "/admin"]) {
@@ -28,13 +28,12 @@ test.describe("client role", () => {
     expect(res).toEqual([403, 403, 403]);
   });
 
-  test("can view Phantoms and download Markdown, but not delete entries", async ({ page }) => {
-    await page.goto("/phantoms?stream=primary");
-    await expect(page.getByRole("heading", { name: "Phantoms Database" })).toBeVisible();
-    await expect(page.getByTestId("stream-primary")).toHaveText("Primary Phantoms");
-    const row = page.locator("table tbody tr").first();
+  test("can open Phantoms' Markdown from the Database and download it, but not delete entries", async ({ page }) => {
+    // Request 48: the Phantoms Database is the Database page's Markdown column.
+    await page.goto("/database?stream=primary");
+    await expect(page.getByRole("heading", { name: "Database", level: 1 })).toBeVisible();
     // The MD icon opens the Markdown file as a side pane, with Download at the top right.
-    await row.locator("td.md-col").getByRole("button", { name: /^Open Markdown for / }).click();
+    await page.getByRole("button", { name: /^Open Markdown for / }).first().click();
     const panel = page.getByRole("dialog");
     await expect(panel.getByRole("button", { name: "Download Markdown" })).toBeVisible();
     const [download] = await Promise.all([page.waitForEvent("download"), panel.getByRole("button", { name: "Download Markdown" }).click()]);
@@ -44,11 +43,7 @@ test.describe("client role", () => {
     await panel.getByRole("button", { name: "Open full record" }).click();
     await expect(page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true })).toHaveCount(0);
     await page.keyboard.press("Escape");
-    // Secondary Phantoms: only Impact at or above the admin setting (Low by default).
-    await page.getByTestId("stream-secondary").click();
-    await expect(page.locator(".stream-note")).toContainText("Impact Low or higher");
-    await expect(page.locator("table tbody tr").first()).toBeVisible();
-    // Impact is not a Secondary Phantoms column, so check the rows' values through the API.
+    // Secondary Phantoms: only Impact at or above the admin setting (Low by default), checked through the API.
     const impacts = await page.evaluate(async () => {
       const res = await fetch("/api/phantoms?stream=secondary&from=2000-01-01&to=2100-01-01&pageSize=100", { headers: { "x-dev-user": localStorage.getItem("eradigm.devUser") ?? "" } });
       return ((await res.json()) as { rows: { values: { impact: string } }[] }).rows.map((r) => r.values.impact);
@@ -57,10 +52,7 @@ test.describe("client role", () => {
     // Low by default: every Secondary entry, including Low ones.
     for (const i of impacts) expect(i).toMatch(/Low|Medium|High/);
     expect(impacts).toContain("Low");
-    // Secondary Phantoms shows its own columns, not the Tracker's.
-    await expect(page.locator("table thead")).toContainText("Publisher");
-    await expect(page.locator("table thead")).not.toContainText("Macrotrend");
-    await expectAccessible(page, "/phantoms");
+    await expectAccessible(page, "/database (client)");
   });
 
   test("has no Deliverables or Eradigm Inbox tab: those pages redirect to the Dashboard", async ({ page }) => {
@@ -77,21 +69,21 @@ test.describe("client role", () => {
   });
 
   test("sees the saved-page icon but cannot attach pages", async ({ page }) => {
-    await page.goto("/tracker");
-    await expect(page.locator("table tbody tr td.src-col").first()).toBeVisible();
+    await page.goto("/database");
+    await expect(page.getByRole("button", { name: /^Open saved page for / }).first()).toBeVisible();
     await expect(page.getByRole("button", { name: /Attach the HTML page/ })).toHaveCount(0);
   });
 
   test("cannot edit approved entries", async ({ page }) => {
-    await page.goto("/phantoms");
+    await page.goto("/database");
     await expect(page.locator("table tbody tr").first()).toBeVisible();
     await expect(page.getByRole("button", { name: /^Edit / })).toHaveCount(0);
-    await page.locator("table tbody tr").first().locator("td.md-col button").click();
+    await page.getByRole("button", { name: /^Open Markdown for / }).first().click();
     await expect(page.getByRole("dialog").getByRole("button", { name: "✎ Edit" })).toHaveCount(0);
   });
 
   test("cannot delete tracker entries", async ({ page }) => {
-    await page.goto("/tracker");
+    await page.goto("/database");
     await expect(page.locator("table tbody tr").first()).toBeVisible();
     await expect(page.getByRole("checkbox")).toHaveCount(0);
     await page.locator("table tbody td.title button").first().click();
@@ -99,32 +91,33 @@ test.describe("client role", () => {
     await expect(page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true })).toHaveCount(0);
   });
 
-  test("the Tracker defaults to everything in view (oldest entry to today) and its two streams add up to the Analytics Dashboard", async ({ page }) => {
+  test("the Database defaults to everything in view (oldest entry to today) and its two streams add up to the Analytics Dashboard", async ({ page }) => {
     // The Analytics Dashboard (request 31) has no filters: its timeline shows every Tracker entry.
     await page.goto("/dashboard");
     await expect(page.locator(".tl-pt").first()).toBeVisible();
     const all = await page.locator(".tl-pt").count();
-    await page.goto("/tracker");
-    const bar = page.getByRole("region", { name: "Filters", exact: true });
+    await page.goto("/database");
+    await searchDatabase(page, "");
+    const bar = page.getByTestId("db-filters");
     const today = new Date();
     const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     const bounds = await page.evaluate(async () => (await fetch("/api/tracker/bounds", { headers: { "x-dev-user": "client@example.com" } })).json());
-    await expect(bar.getByLabel("Date to")).toHaveValue(bounds.newest > iso(today) ? bounds.newest : iso(today));
-    await expect(bar.getByLabel("Date from")).toHaveValue(bounds.oldest);
+    await expect(bar.getByLabel("Event Date to")).toHaveValue(bounds.newest > iso(today) ? bounds.newest : iso(today));
+    await expect(bar.getByLabel("Event Date from")).toHaveValue(bounds.oldest);
     await expect(page.locator(".dates-banner")).toHaveCount(0);
     const count = async (act: () => Promise<unknown>, stream: string) => {
-      const [res] = await Promise.all([page.waitForResponse((r) => r.url().includes("/api/tracker?") && r.url().includes(`stream=${stream}`)), act()]);
+      const [res] = await Promise.all([page.waitForResponse((r) => r.url().includes("/api/database?") && r.url().includes(`stream=${stream}`)), act()]);
       return ((await res.json()) as { total: number }).total;
     };
-    // The Tracker opens on Secondary.
+    // The Database opens on Secondary.
     await expect(page.getByTestId("stream-secondary")).toHaveAttribute("aria-pressed", "true");
     const s1 = await count(() => page.reload(), "secondary");
     const p1 = await count(() => page.getByTestId("stream-primary").click(), "primary");
     expect(p1 + s1).toBe(all);
   });
 
-  test("opens a record from the tracker, keeps filters and closes with Escape", async ({ page }) => {
-    await page.goto("/tracker?f.impact=High");
+  test("opens a record from the Database, keeps filters and closes with Escape", async ({ page }) => {
+    await page.goto("/database?db.f.impact=High");
     const first = page.locator("td.title button").first();
     const title = await first.innerText();
     await first.click();
@@ -132,16 +125,18 @@ test.describe("client role", () => {
     await expect(dialog.getByRole("heading", { name: title })).toBeVisible();
     await expect(dialog.getByText("Provenance")).toBeVisible();
     await expect(dialog.getByText("Analyst revision history")).toBeVisible();
-    await expect(page).toHaveURL(/f\.impact=High/);
+    await expect(page).toHaveURL(/db\.f\.impact=High/);
     await expectAccessible(page, "record drawer");
     await page.keyboard.press("Escape");
     await expect(dialog).toHaveCount(0);
-    await expect(page.getByRole("region", { name: "Filters", exact: true }).getByRole("combobox", { name: "Impact", exact: true })).toHaveValue("High");
+    await expect(page.getByRole("region", { name: "Active filters" })).toContainText("Impact: High");
   });
 
-  test("filter dropdowns on the Tracker and Phantoms are searchable", async ({ page }) => {
-    await page.goto("/tracker");
-    const bar = page.getByRole("region", { name: "Filters", exact: true });
+  test("filter dropdowns on the Database are searchable", async ({ page }) => {
+    await page.goto("/database");
+    await searchDatabase(page, "");
+    const bar = page.getByTestId("db-filters");
+    await bar.getByRole("button", { name: /^All filters/ }).click();
     const macro = bar.getByRole("combobox", { name: "Macrotrend", exact: true });
     await expect(macro).toHaveValue("All");
     await macro.click();
@@ -149,17 +144,16 @@ test.describe("client role", () => {
     await expect(page.getByRole("listbox").getByRole("option")).toHaveText(["Geopolitics"]);
     await page.keyboard.press("Enter");
     await expect(page.locator(".pill", { hasText: "Macrotrend:" })).toContainText("Geopolitics");
-    await expect(page).toHaveURL(/f\.macrotrend=Geopolitics/);
+    await expect(page).toHaveURL(/db\.f\.macrotrend=Geopolitics/);
     // "All" clears the filter again.
     await choose(macro, "All");
     await expect(page.locator(".pill", { hasText: "Macrotrend:" })).toHaveCount(0);
-    await page.goto("/phantoms");
-    const comp = page.getByRole("region", { name: "Filters", exact: true }).getByRole("combobox", { name: "Competitors", exact: true });
+    const comp = bar.getByRole("combobox", { name: "Competitors", exact: true });
     await comp.click();
     await comp.fill("astra");
     await page.keyboard.press("Enter");
     await expect(page.locator(".pill", { hasText: "Competitors:" })).toContainText("AstraZeneca");
-    await expectAccessible(page, "/phantoms with searchable filters");
+    await expectAccessible(page, "/database with searchable filters");
   });
 
   test("timeline points are keyboard accessible", async ({ page }) => {
@@ -173,19 +167,19 @@ test.describe("client role", () => {
     await expect(page.getByRole("dialog")).toHaveCount(0);
   });
 
-  test("exports the filtered tracker as CSV", async ({ page }) => {
-    await page.goto("/tracker");
+  test("exports the filtered Database as CSV", async ({ page }) => {
+    await page.goto("/database");
     await page.getByRole("button", { name: /Export/ }).click();
     const download = page.waitForEvent("download");
     await page.getByRole("button", { name: /^CSV/ }).click();
     const d = await download;
-    expect(d.suggestedFilename()).toMatch(/^eradigm-secondary-tracker-filtered-\d{4}-\d{2}-\d{2}\.csv$/);
+    expect(d.suggestedFilename()).toMatch(/^eradigm-secondary-database-filtered-\d{4}-\d{2}-\d{2}\.csv$/);
   });
 
   test("the Export menu is not cut off when only a few rows are shown", async ({ page }) => {
-    await page.goto("/tracker");
+    await page.goto("/database");
     const first = (await page.locator("table tbody td.title").first().innerText()).trim();
-    await page.getByRole("searchbox").fill(first);
+    await searchDatabase(page, first);
     await expect(page.locator("table tbody tr")).toHaveCount(1);
     await page.getByRole("button", { name: /Export/ }).click();
     const menu = page.getByRole("dialog", { name: "Export options" });
@@ -202,7 +196,7 @@ test.describe("client role", () => {
   });
 
   test("pages pass automated accessibility checks", async ({ page }) => {
-    for (const path of ["/dashboard", "/tracker"]) {
+    for (const path of ["/dashboard", "/database"]) {
       await page.goto(path);
       await expect(page.locator("#main")).toBeVisible();
       await page.waitForLoadState("networkidle");

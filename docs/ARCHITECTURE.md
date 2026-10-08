@@ -714,6 +714,35 @@ analyst-entered information distinguishable; in the prototype every value is
     affected. `components/TextSize.tsx` (`SizedHeading`, `TextSizeButtons`,
     `EntryTitleInput`) puts the buttons beside the heading, not in it, so
     its name stays its text.
+- **Request 48** (no contract change, no migration):
+  - The **Database** page opens with its filters hidden (Show filters opens
+    them; each browser remembers the choice, `eradigm.filters.db`).
+  - The **Databases** menu group and its tabs (Signals Database, Phantoms
+    Database, CI analyses) are gone: the Database tab has them all.
+    `MENU_GROUPS` / `MENU_ITEMS` no longer list them, so a saved menu drops
+    them when read. `/tracker`, `/phantoms` and `/trend-analyses` open the
+    Database page (`ToDatabase` in `App.tsx`), with their filters moved under
+    `db.` and any open record or Markdown kept; `/trend-analyses` opens CI
+    Analysis. Links in the app (the Inbox's "in the Tracker" and duplicate
+    links, the prior-information flag, the import and trend-analysis
+    confirmations) now point at the Database. The Phantoms API and the
+    Phantoms columns stay (the Database's Markdown column uses them). The
+    Primary 🔗 Linked column is not carried over: the Primary Tracker's Full
+    Discussion and KIQ Archive cover it. Deleting from the Database offers
+    Delete Tracker Entry or Delete Globally (a Phantom alone is no longer
+    deleted from the page).
+  - **A competitor's page** (Megatrends Dashboard → Competitors → a company,
+    `components/analytics/CompetitorDashboard.tsx`): the **Company Profile**
+    (the competitor's analysis, formerly "Trend analysis"; Input → Input Trend
+    Analysis → Competitor now says Company Profile) at the top, then the
+    Signal Timeline and the impact mix by Macrotrend, unchanged. At the
+    bottom, as on a Macrotrend's dashboard, the **Explore Signals** arrow:
+    pressing it, scrolling on past the end of the page or Page Down glides up
+    to the full-page knowledge graph of the company's signals (`v=signals`);
+    its up arrow, scrolling up over its header or Page Up glides back. The
+    graph is the Megatrends graph (`MegatrendsPage focusCompetitor`) over only
+    the entries naming the company, with the Macrotrends and Subtrends
+    counted over them.
 - **Menu in groups** (request 28, contract 1.17; regrouped in request 31,
   contract 1.19; renamed in request 34; `packages/shared/src/menu.ts`): the
   menu is four groups (and, from request 43, the Database tab on its own),

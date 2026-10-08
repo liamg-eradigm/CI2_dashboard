@@ -112,10 +112,10 @@ export function Sidebar({ me }: { me: Me }) {
   const settings = useSettings();
   const n = (counts.data?.primary ?? 0) + (counts.data?.secondary ?? 0);
   const loc = useLocation();
-  // Tracker, Phantoms and Deliverables share one filter state (and the Primary/Secondary switch): carry it across.
+  // Deliverables keeps the filters it was opened with (and the Primary/Secondary switch).
   const cur = [...new URLSearchParams(loc.search)];
   const filterPairs = cur.filter(([k]) => k === "q" || k === "from" || k === "to" || k.startsWith("f."));
-  const TABLES = ["/tracker", "/phantoms", "/deliverables"];
+  const TABLES = ["/deliverables"];
   const tables = TABLES.includes(loc.pathname);
   const withFilters = (to: string) => {
     if (!TABLES.includes(to)) return to;

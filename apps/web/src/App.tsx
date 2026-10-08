@@ -15,14 +15,14 @@ import { AdminPage } from "./pages/AdminPage";
 import { InvitePage, SignInPage } from "./pages/SignInPage";
 import { SourcePage } from "./pages/SourcePage";
 import { DatabasePage } from "./pages/DatabasePage";
-import { TrendAnalysesPage } from "./pages/TrendAnalysesPage";
+import { DB_PREFIX } from "./components/DatabaseFilters";
 
 // Loaded on first visit: it carries the 3D graph (three.js).
 const MegatrendsPage = lazy(() => import("./pages/MegatrendsPage").then((m) => ({ default: m.MegatrendsPage })));
 const CompetitorsPage = lazy(() => import("./pages/CompetitorsPage").then((m) => ({ default: m.CompetitorsPage })));
 const TrendAnalysisPage = lazy(() => import("./pages/TrendAnalysisPage").then((m) => ({ default: m.TrendAnalysisPage })));
 
-const TITLES: Record<string, string> = { "/dashboard": "Megatrends Dashboard", "/tracker": "Signals Database", "/phantoms": "Phantoms Database", "/trend-analyses": "CI analyses", "/analytics/primary": "Primary Tracker", "/deliverables": "Deliverables", "/megatrends": "Knowledge Graph · Megatrends", "/competitors": "Knowledge Graph · Competitors", "/analytics/megatrends": "Trends Analysis · Megatrends", "/analytics/competitors": "Trends Analysis · Competitors", "/inbox": "Eradigm Inbox", "/client-inbox": "Client Inbox", "/input": "Input", "/admin": "Administration" };
+const TITLES: Record<string, string> = { "/dashboard": "Megatrends Dashboard", "/database": "Database", "/analytics/primary": "Primary Tracker", "/deliverables": "Deliverables", "/megatrends": "Knowledge Graph · Megatrends", "/competitors": "Knowledge Graph · Competitors", "/analytics/megatrends": "Trends Analysis · Megatrends", "/analytics/competitors": "Trends Analysis · Competitors", "/inbox": "Eradigm Inbox", "/client-inbox": "Client Inbox", "/input": "Input", "/admin": "Administration" };
 
 export function App() {
   const loc = useLocation();
@@ -80,10 +80,11 @@ function SignedIn() {
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<DashboardPage me={me.data} />} />
-            <Route path="/tracker" element={<TrackerPage me={me.data} view="tracker" />} />
-            <Route path="/phantoms" element={<TrackerPage key="phantoms" me={me.data} view="phantoms" />} />
+            {/* Request 48: the Signals and Phantoms Databases and CI analyses are on the Database page (old links still work). */}
+            <Route path="/tracker" element={<ToDatabase />} />
+            <Route path="/phantoms" element={<ToDatabase />} />
             <Route path="/analytics/primary" element={<TrackerPage key="primary-tracker" me={me.data} view="tracker" title="Primary Tracker" primaryOnly />} />
-            <Route path="/trend-analyses" element={<TrendAnalysesPage me={me.data} />} />
+            <Route path="/trend-analyses" element={<ToDatabase ci />} />
             <Route path="/database" element={<DatabasePage me={me.data} />} />
             <Route path="/deliverables" element={only("deliverables", <DeliverablesPage me={me.data} />)} />
             <Route
@@ -131,6 +132,23 @@ function SignedIn() {
       </main>
     </div>
   );
+}
+
+/**
+ * Request 48: an old Signals Database, Phantoms Database or CI analyses
+ * address opens the Database page, with its filters (the Database keeps them
+ * under `db.`) and any open record, Markdown or page.
+ */
+function ToDatabase({ ci = false }: { ci?: boolean }) {
+  const loc = useLocation();
+  const p = new URLSearchParams();
+  new URLSearchParams(loc.search).forEach((v, k) => {
+    const filter = k === "q" || k === "from" || k === "to" || /^(f|t|df|dt)\./.test(k);
+    p.set(filter ? `${DB_PREFIX}${k}` : k, v);
+  });
+  if (ci) p.set("db", "ci");
+  const q = p.toString();
+  return <Navigate to={`/database${q ? `?${q}` : ""}`} replace />;
 }
 
 /** An old address (bookmarks, shared links): the same view at its new path. */

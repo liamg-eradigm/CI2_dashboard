@@ -77,8 +77,8 @@ export const useMegatrends = (stream: Stream | "all", from: string | null, to: s
     queryFn: () => api<Megatrends>(`/api/megatrends?${new URLSearchParams({ stream, ...(from ? { from } : {}), ...(to ? { to } : {}) })}`),
     placeholderData: keepPreviousData,
   });
-export const useCompetitors = () =>
-  useQuery({ queryKey: ["competitors"], queryFn: () => api<Competitors>("/api/competitors?stream=all"), placeholderData: keepPreviousData });
+export const useCompetitors = (enabled = true) =>
+  useQuery({ queryKey: ["competitors"], queryFn: () => api<Competitors>("/api/competitors?stream=all"), placeholderData: keepPreviousData, enabled });
 /** The distinct values of text columns among a stream's Tracker entries (Primary Tracker filter dropdowns, request 41). */
 export const useTrackerValues = (stream: Stream, keys: string[]) =>
   useQuery({

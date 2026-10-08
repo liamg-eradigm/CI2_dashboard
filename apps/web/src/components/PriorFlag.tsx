@@ -15,8 +15,8 @@ export function PriorFlag({ code, role, company, prior }: { code: string; role: 
         <p>
           {role.trim()} at {company.trim()} · {prior.length === 1 ? "1 entry" : `${prior.length} entries`} from this source in the Primary Tracker, the latest {latest.code} “{latest.title}”
           {latest.date ? ` (${formatDate(latest.date)})` : ""}. Once pushed, this entry is linked to them (🔗 in the Primary Tracker and Phantoms).{" "}
-          <Link to={`/tracker?stream=primary&signal=${encodeURIComponent(latest.id)}`} target="_blank" rel="noopener">
-            Open {latest.code} in the Tracker ↗
+          <Link to={`/database?stream=primary&signal=${encodeURIComponent(latest.id)}`} target="_blank" rel="noopener">
+            Open {latest.code} in the Database ↗
           </Link>
         </p>
       </div>

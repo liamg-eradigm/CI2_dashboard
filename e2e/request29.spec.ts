@@ -1,4 +1,4 @@
-import { expect, expectAccessible, goTab, navLink, signInAs, test } from "./fixtures";
+import { expect, expectAccessible, navOf, signInAs, test } from "./fixtures";
 
 const WORKFORCE = "Workforce AI Upskilling";
 
@@ -37,7 +37,7 @@ test.describe("requests 29 and 30", () => {
     ]);
   });
 
-  test("Input Trend Analysis: a Macrotrend's sections fill its dashboard and are kept in Databases → CI analyses as Markdown", async ({ page }) => {
+  test("Input Trend Analysis: a Macrotrend's sections fill its dashboard and are kept in Database → CI Analysis as Markdown", async ({ page }) => {
     await signInAs(page, "admin");
     await page.goto("/input");
     const card = page.getByTestId("trend-analysis-input");
@@ -53,8 +53,9 @@ test.describe("requests 29 and 30", () => {
     await expect(page).toHaveURL(/\/analytics\/megatrends\?/);
     await expect(page.getByTestId("md-section-current")).toContainText(text);
 
-    await goTab(page, "Databases", "CI analyses");
-    await expect(page).toHaveURL(/\/trend-analyses$/);
+    // Request 48: CI analyses are on the Database page (CI Analysis).
+    await page.goto("/database?db=ci");
+    await expect(page.getByTestId("db-ci")).toHaveAttribute("aria-pressed", "true");
     const row = page.getByTestId("trend-analyses-table").getByRole("row").filter({ hasText: text });
     await expect(row).toContainText(WORKFORCE);
     await expectAccessible(page, "CI analyses");
@@ -96,7 +97,7 @@ test.describe("requests 29 and 30", () => {
     await upload([`${WORKFORCE},"${tag}: overview",,,,,"${tag}: AbbVie"`], head2);
     await imp.getByTestId("tai-import-run").click();
     await expect(imp.getByTestId("tai-import-done")).toContainText("Imported 1 Macrotrend analysis");
-    await page.goto("/trend-analyses");
+    await page.goto("/database?db=ci");
     const rows = page.getByTestId("trend-analyses-table").getByRole("row").filter({ hasText: tag });
     await expect(rows).toHaveCount(2);
     await expect(rows.first()).toContainText("Imported · analyses.csv");
@@ -104,10 +105,10 @@ test.describe("requests 29 and 30", () => {
     await expect(page.getByTestId("md-section-overview")).toContainText(`${tag}: overview`);
   });
 
-  test("clients see CI analyses under Databases but cannot input or remove them", async ({ page }) => {
+  test("clients see CI analyses on the Database page but cannot input or remove them", async ({ page }) => {
     await signInAs(page, "client");
-    await page.goto("/trend-analyses");
-    await expect(navLink(page, "Databases", "CI analyses")).toHaveAttribute("aria-current", "page");
+    await page.goto("/database?db=ci");
+    await expect(navOf(page).getByRole("link", { name: "Database", exact: true })).toHaveAttribute("aria-current", "page");
     await expect(page.getByTestId("trend-analyses-table")).toBeVisible();
     await expect(page.getByRole("link", { name: "+ Input a trend analysis" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: /^Remove the trend analysis/ })).toHaveCount(0);

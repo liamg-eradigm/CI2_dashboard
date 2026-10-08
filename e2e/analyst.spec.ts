@@ -2,7 +2,7 @@ import path from "node:path";
 import { readFileSync, writeFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import type { Locator, Page } from "@playwright/test";
-import { choose, chooseMany, expect, expectAccessible, signInAs, test, goTab, navLink } from "./fixtures";
+import { choose, chooseMany, expect, expectAccessible, searchDatabase, signInAs, test, navLink } from "./fixtures";
 
 const uid = () => Date.now().toString(36);
 
@@ -42,6 +42,17 @@ async function schemaOf(page: Page, stream: "primary" | "secondary") {
     const res = await fetch(`/api/schema?stream=${stream}`, { headers: { "x-dev-user": localStorage.getItem("eradigm.devUser") ?? "" } });
     return (await res.json()) as { columns: { key: string; label: string; position: number; inTracker: boolean; options?: string[] }[] };
   }, stream);
+}
+
+/** How many Phantoms rows match a search (request 48: Phantoms has no page of its own; checked through the API). */
+async function phantomsMatching(page: Page, q: string, stream: "primary" | "secondary" = "secondary") {
+  return page.evaluate(
+    async ({ q, stream }) => {
+      const res = await fetch(`/api/phantoms?${new URLSearchParams({ stream, q, from: "2000-01-01", to: "2100-01-01", pageSize: "50" })}`, { headers: { "x-dev-user": localStorage.getItem("eradigm.devUser") ?? "" } });
+      return ((await res.json()) as { rows: unknown[] }).rows.length;
+    },
+    { q, stream },
+  );
 }
 
 /** Upload an HTML file through the one Input source card, as a Primary or a Secondary source. */
@@ -194,9 +205,9 @@ test.describe("Eradigm staff (admin)", () => {
     await expectAccessible(page, "/inbox manual entry");
     await entry.getByRole("button", { name: "✓ Push to Tracker" }).click();
     await expect(page.getByText(/SIG-\d+ published to the tracker/).first()).toBeVisible();
-    // In the Secondary Tracker with a green plus to attach the HTML later.
-    await page.goto("/tracker?stream=secondary");
-    await page.getByRole("searchbox").fill(title);
+    // In the Secondary Tracker (on the Database page, request 48) with a green plus to attach the HTML later.
+    await page.goto("/database?stream=secondary");
+    await searchDatabase(page, title);
     await expect(page.locator("table tbody tr", { hasText: title }).getByRole("button", { name: `Attach the HTML page for ${title}` })).toBeVisible();
   });
 
@@ -275,7 +286,7 @@ test.describe("Eradigm staff (admin)", () => {
     await card.getByRole("button", { name: "✓ Push to Tracker" }).click();
     const dialog = card.getByRole("alertdialog");
     await expect(dialog).toContainText("Duplicate — SIG-1102 is already in the tracker");
-    await expect(dialog.getByRole("link", { name: /Open SIG-1102 in the Tracker/ })).toHaveAttribute("href", /\/tracker\?signal=/);
+    await expect(dialog.getByRole("link", { name: /Open SIG-1102 in the Database/ })).toHaveAttribute("href", /\/database\?signal=/);
     await expectAccessible(page, "/inbox duplicate confirmation");
     await dialog.getByRole("button", { name: "Cancel — don't approve" }).click();
     await expect(card.getByRole("alertdialog")).toHaveCount(0);
@@ -292,7 +303,8 @@ test.describe("Eradigm staff (admin)", () => {
 
   test("reorders tracker columns: A–Z, Z–A, move buttons and drag and drop", async ({ page }) => {
     await page.goto("/inbox");
-    const original = [...(await schemaOf(page, "primary")).columns].sort((a, b) => a.position - b.position).map((c) => c.key);
+    // The column editor opens on Secondary.
+    const original = [...(await schemaOf(page, "secondary")).columns].sort((a, b) => a.position - b.position).map((c) => c.key);
     await page.getByRole("button", { name: "Edit columns" }).click();
     const labels = () => page.locator(".schema-row .schema-grid input[aria-label^='Rename column']").evaluateAll((els) => els.map((e) => (e as HTMLInputElement).value));
     await page.getByRole("button", { name: "Sort A → Z" }).click();
@@ -311,11 +323,10 @@ test.describe("Eradigm staff (admin)", () => {
     const handle = page.locator(".schema-row", { has: page.getByLabel(`Rename column ${third}`, { exact: true }) }).locator(".drag-handle");
     await handle.dragTo(page.locator(".schema-row").first());
     await expect.poll(async () => (await labels())[0]).toBe(third);
-    // The Tracker has its own order: reordering the Inbox does not change it.
-    await page.goto("/tracker");
-    await expect(page.locator("table thead th:not(.src-col):not(.pick-col)").first()).toContainText("Title", { timeout: 15_000 });
-    await expect(page.locator("table thead th:not(.src-col):not(.pick-col)")).toHaveCount(9);
-    await restoreOrder(page, "primary", original);
+    // The Tracker has its own order: reordering the Inbox does not change it (request 48: the Tracker table has no page of its own).
+    await expect(page.getByTestId("table-cols-tracker").locator(".tcol-label").first()).toHaveText("Title");
+    await expect(page.getByTestId("table-cols-tracker").locator(".tcol-label")).toHaveCount(9);
+    await restoreOrder(page, "secondary", original);
   });
 
   test("edits the Tracker and Phantoms tables separately, from the Inbox columns only", async ({ page }) => {
@@ -351,13 +362,13 @@ test.describe("Eradigm staff (admin)", () => {
     // Key Metrics is still an Inbox column.
     await expect(page.getByLabel("Rename column Key Metrics", { exact: true })).toBeVisible();
 
-    // The tables follow.
-    await page.goto("/tracker?stream=primary");
-    const heads = () => page.locator("table thead th:not(.src-col):not(.pick-col):not(.link-col)").allInnerTexts();
-    await expect.poll(async () => (await heads())[0]).toMatch(/^Action/i);
-    await page.goto("/phantoms?stream=primary");
-    await expect.poll(async () => (await heads()).at(-1)).toMatch(/^Macrotrend/i);
-    expect((await heads()).join("|").toLowerCase()).not.toContain("key metrics");
+    // Saved: the tables keep them after a reload (request 48: they have no pages of their own; they shape exports, Markdown and the graphs' entries).
+    await page.reload();
+    await page.getByRole("button", { name: "Edit columns" }).click();
+    await page.getByRole("group", { name: "Columns of" }).getByTestId("stream-primary").click();
+    await expect.poll(async () => (await names(tracker))[0]).toBe("Action");
+    await expect.poll(async () => (await names(phantoms)).at(-1)).toBe("Macrotrend");
+    expect(await names(phantoms)).not.toContain("Key Metrics");
 
     // Put the defaults back for the other tests.
     await page.evaluate(async () => {
@@ -400,7 +411,7 @@ test.describe("Eradigm staff (admin)", () => {
     await page.locator(".schema-row", { has: page.getByLabel("Rename column Impact", { exact: true }) }).getByRole("button", { name: /options/ }).click();
     await expect(page.locator(".order-note")).toContainText("the order is also the level");
     // Restore the original Source Type order for the other tests.
-    await restoreOrder(page, "primary", original, "source");
+    await restoreOrder(page, "secondary", original, "source");
   });
 
   test("a long-text manual entry with an old Event Date is approved, flagged and one click away", async ({ page }) => {
@@ -424,28 +435,28 @@ test.describe("Eradigm staff (admin)", () => {
     await card.getByRole("button", { name: "✓ Push to Tracker" }).click();
     await expect(page.locator(".toast").last()).toContainText(/SIG-\d+ published to the tracker as rev 1/);
     // The default dates start at the oldest entry, so it is in view straight away (no date hint).
-    await page.goto("/tracker?stream=secondary");
-    await expect(page.getByLabel("Date from")).toHaveValue("2024-03-12");
-    await page.getByRole("searchbox").fill(title);
+    await page.goto("/database?stream=secondary");
+    await searchDatabase(page, title);
+    await expect(page.getByLabel("Event Date from")).toHaveValue("2024-03-12");
     await expect(page.locator("table tbody td.title", { hasText: title })).toBeVisible();
     await expect(page.getByTestId("dates-hint")).toHaveCount(0);
     await expect(page).not.toHaveURL(/from=/);
     // The Analytics Dashboard plots it too (all dates, no filters).
     await page.goto("/dashboard");
     await expect(page.getByTestId("signal-timeline").getByRole("button", { name: new RegExp(`^${title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\.`) })).toHaveCount(1);
-    // From the Inbox: View in Tracker opens the entry.
+    // From the Inbox: View in Database opens the entry.
     await page.goto("/inbox?stream=secondary");
     await page.getByRole("button", { name: /^Pushed & Rejected/ }).click();
     const done = page.locator(".inbox-card", { has: page.locator(".code", { hasText: code }) });
-    await done.getByRole("link", { name: "View in Tracker →" }).click();
-    await expect(page).toHaveURL(/\/tracker\?.*signal=/);
+    await done.getByRole("link", { name: "View in Database →" }).click();
+    await expect(page).toHaveURL(/\/database\?.*signal=/);
     await expect(page.getByRole("dialog").getByRole("heading", { name: title })).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(page.locator("table tbody td.title", { hasText: title })).toBeVisible();
   });
 
   test("Delete Tracker Entry from the record: gone from the Tracker, still in Phantoms", async ({ page }) => {
-    await page.goto("/tracker");
+    await page.goto("/database");
     // The oldest entry (the Phantoms test below works on the newest ones).
     await page.locator("table thead").getByRole("button", { name: /^Event Date/ }).click();
     await expect(page).toHaveURL(/dir=asc/);
@@ -458,19 +469,18 @@ test.describe("Eradigm staff (admin)", () => {
     await expect(confirm).toContainText("Delete Tracker Entry removes it from the Tracker, the Dashboard and Tracker exports. It stays in Phantoms.");
     await expect(confirm).toContainText("Delete Globally removes it from the Tracker, Phantoms, the Dashboard and all exports");
     await expect(confirm.getByRole("button", { name: "Delete Globally" })).toBeVisible();
-    await expectAccessible(page, "/tracker delete choice");
+    await expectAccessible(page, "/database delete choice");
     await confirm.getByLabel(/Reason/).fill("E2E tracker-only deletion");
     const code = (await confirm.locator("#del-title").innerText()).match(/SIG-\d+/)?.[0] as string;
     await confirm.getByRole("button", { name: "Delete Tracker Entry" }).click();
     await expect(page.locator(".toast")).toContainText(`Deleted ${code} from the Tracker · still in Phantoms`);
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(page.locator("table tbody td.title", { hasText: title })).toHaveCount(0);
-    await goTab(page, "Databases", "Phantoms Database");
-    await page.getByRole("searchbox").fill(title);
-    await expect(page.locator("table tbody td.title", { hasText: title })).toBeVisible();
+    // Still in Phantoms (its Markdown and the Deliverables use it).
+    expect(await phantomsMatching(page, title)).toBeGreaterThan(0);
   });
 
-  test("selects Phantoms entries with tick boxes: Delete Phantom Entry, then Delete Globally", async ({ page }) => {
+  test("selects Database entries with tick boxes: Delete Tracker Entry, then Delete Globally", async ({ page }) => {
     // Three entries of its own (in the Tracker and Phantoms), so other tests' deletions never get in the way.
     const tag = `TICK-${uid()}`;
     await page.goto("/dashboard");
@@ -483,50 +493,47 @@ test.describe("Eradigm staff (admin)", () => {
         if (!res.ok) throw new Error(await res.text());
       }
     }, tag);
-    await page.goto(`/phantoms?q=${tag}`);
+    // Request 48: the Database page (Phantoms has no page of its own any more).
+    await page.goto(`/database?${new URLSearchParams({ "db.q": tag })}`);
     const rows = page.locator("table tbody tr");
-    await expect(rows.first()).toBeVisible();
+    await expect(rows).toHaveCount(3);
     const bar = page.getByRole("group", { name: "Selected entries" });
     // The header box selects the whole page, and again clears it.
     const all = page.getByRole("checkbox", { name: "Select every entry on this page" });
     await all.check();
-    await expect(bar).toContainText(`${await rows.count()} selected`);
+    await expect(bar).toContainText("3 selected");
     await all.uncheck();
     await expect(bar).toHaveCount(0);
 
-    // One entry from Phantoms only: it stays in the Tracker.
+    // One entry from the Tracker only: it stays in Phantoms.
     const only = (await rows.nth(0).locator("td.title").innerText()).trim();
     await rows.nth(0).getByRole("checkbox").check();
     await expect(bar).toContainText("1 selected");
     await bar.getByRole("button", { name: "Delete selected" }).click();
     const one = page.getByRole("alertdialog", { name: /^Delete SIG-\d+\?$/ });
-    await expect(one).toContainText("Delete Phantom Entry removes it from Phantoms only. It stays in the Tracker and on the Dashboard.");
-    await one.getByRole("button", { name: "Delete Phantom Entry" }).click();
-    await expect(page.locator(".toast")).toContainText(/Deleted SIG-\d+ from Phantoms · still in the Tracker/);
+    await expect(one).toContainText("Delete Tracker Entry removes it from the Tracker, the Dashboard and Tracker exports. It stays in Phantoms.");
+    await one.getByRole("button", { name: "Delete Tracker Entry" }).click();
+    await expect(page.locator(".toast")).toContainText(/Deleted SIG-\d+ from the Tracker · still in Phantoms/);
     await expect(page.locator("table tbody td.title", { hasText: only })).toHaveCount(0);
+    expect(await phantomsMatching(page, only)).toBe(1);
 
-    // Two entries globally: gone from the Tracker too.
+    // Two entries globally: gone from Phantoms too.
+    await expect(rows).toHaveCount(2);
     const titles = [(await rows.nth(0).locator("td.title").innerText()).trim(), (await rows.nth(1).locator("td.title").innerText()).trim()];
     await rows.nth(0).getByRole("checkbox").check();
     await rows.nth(1).getByRole("checkbox").check();
     await expect(bar).toContainText("2 selected");
     await bar.getByRole("button", { name: "Delete selected" }).click();
     const confirm = page.getByRole("alertdialog", { name: "Delete 2 entries?" });
-    await expect(confirm.getByRole("button", { name: "Delete Phantom Entries" })).toBeVisible();
+    await expect(confirm.getByRole("button", { name: "Delete Tracker Entries" })).toBeVisible();
     await expect(confirm).toContainText(titles[0]!);
-    await expectAccessible(page, "/phantoms delete confirmation");
+    await expectAccessible(page, "/database delete confirmation");
     await confirm.getByLabel(/Reason/).fill("E2E bulk deletion");
     await confirm.getByRole("button", { name: "Delete Globally" }).click();
     await expect(page.locator(".toast")).toContainText("Deleted 2 entries globally");
     await expect(page.getByRole("alertdialog")).toHaveCount(0);
-    for (const t of titles) await expect(page.locator("table tbody td.title", { hasText: t })).toHaveCount(0);
-    await goTab(page, "Databases", "Signals Database");
-    const search = page.getByRole("searchbox");
-    await search.fill(titles[0]!);
-    await expect(page.locator("table tbody td.title", { hasText: titles[0]! })).toHaveCount(0);
-    // The Phantom-only deletion is still in the Tracker.
-    await search.fill(only);
-    await expect(page.locator("table tbody td.title", { hasText: only })).toBeVisible();
+    await expect(rows).toHaveCount(0);
+    for (const t of titles) expect(await phantomsMatching(page, t)).toBe(0);
   });
 
   test("opens the saved page full-window in a new tab", async ({ page, context }) => {
@@ -587,7 +594,7 @@ test.describe("Eradigm staff (admin)", () => {
     await expectAccessible(page, "/inbox");
   });
 
-  test("Phantoms: approved entries appear with their own columns and an MD icon that opens the Markdown file as a side pane", async ({ page }) => {
+  test("Phantoms: approved entries get a Markdown file (Database → Markdown column) that opens as a side pane", async ({ page }) => {
     const title = `Sanofi opens AI hub ${uid()}`;
     const file = htmlFile("phantom.html", `<!DOCTYPE html><html><head><title>${title}</title></head><body><article><h1>${title}</h1><p>Sanofi has opened an AI hub in Paris with 300 staff, the company said on Monday.</p><p>The hub opens in 2027.</p></article></body></html>`);
     await page.goto("/input");
@@ -608,20 +615,16 @@ test.describe("Eradigm staff (admin)", () => {
     await card.getByRole("button", { name: "✓ Push to Tracker" }).click();
     await expect(page.getByText(/SIG-\d+ published to the tracker/).first()).toBeVisible();
 
-    // In the Secondary Tracker (not the Primary one), and in Secondary Phantoms (Impact High ≥ Medium).
-    await page.goto("/tracker?stream=secondary");
+    // In the Secondary Tracker (not the Primary one), and in Secondary Phantoms (Impact High ≥ Medium): the Database's Markdown column (request 48).
+    await page.goto(`/database?${new URLSearchParams({ stream: "secondary", "db.q": title })}`);
     await expect(page.locator("td.title", { hasText: `${title}: Paris` })).toBeVisible();
     await page.getByTestId("stream-primary").click();
     await expect(page.locator("td.title", { hasText: `${title}: Paris` })).toHaveCount(0);
-    await goTab(page, "Databases", "Phantoms Database");
     await page.getByTestId("stream-secondary").click();
     const row = page.locator("table tbody tr", { hasText: `${title}: Paris` });
     await expect(row).toBeVisible();
-    // Phantoms has its own columns (Secondary: Publisher, Header… but no Macrotrend).
-    await expect(page.locator("table thead")).toContainText("Publisher");
-    await expect(page.locator("table thead")).not.toContainText("Macrotrend");
     // The MD icon opens the Markdown file as a full side pane; Download is at the top right.
-    await row.locator("td.md-col").getByRole("button", { name: `Open Markdown for ${title}: Paris` }).click();
+    await row.getByRole("button", { name: `Open Markdown for ${title}: Paris` }).click();
     const panel = page.getByRole("dialog", { name: `${title}: Paris` });
     const md = panel.getByLabel("Markdown source");
     await expect(md).toContainText(`id: "${rid}"`);
@@ -639,7 +642,7 @@ test.describe("Eradigm staff (admin)", () => {
     expect(text).toContain("QC:\n  Reviewed_by: E. Admin\n");
     expect(text).toContain("## Key Details\n300 staff.\n\nOpens 2027.\n");
     // The pane shows it raw and rendered.
-    await expectAccessible(page, "/phantoms Markdown panel");
+    await expectAccessible(page, "/database Markdown panel");
     await panel.getByRole("button", { name: "Preview" }).click();
     await expect(panel.getByRole("heading", { name: "CI Perspective" })).toBeVisible();
     await expect(panel.getByText("Raises the stakes for peers.")).toBeVisible();
@@ -684,8 +687,7 @@ test.describe("Eradigm staff (admin)", () => {
     await card.getByRole("button", { name: "Check and import" }).click();
     await expect(card.getByText(/Imported 1 entry into the Primary Tracker \(SIG-\d+\)/)).toBeVisible({ timeout: 30_000 });
     await expect(sourceRule).toContainText(option);
-    await page.goto("/tracker?stream=primary");
-    await page.getByRole("searchbox").fill(title);
+    await page.goto(`/database?${new URLSearchParams({ stream: "primary", "db.q": title })}`);
     const tr = page.locator("table tbody tr", { hasText: title });
     await expect(tr).toContainText(option);
     await expect(tr).toContainText("AI Investment in R&D");
@@ -747,13 +749,13 @@ test.describe("Eradigm staff (admin)", () => {
     await card.getByRole("button", { name: "Check and import" }).click();
     await expect(card.getByText(/Imported 1 entry into the Primary Tracker \(SIG-\d+\)/)).toBeVisible({ timeout: 30_000 });
     await expectAccessible(page, "/input after import");
-    await card.getByRole("link", { name: "Open the Primary Tracker →" }).click();
-    await expect(page).toHaveURL(/\/tracker\?stream=primary$/);
-    await page.getByRole("searchbox").fill(title);
+    await card.getByRole("link", { name: "Open the Primary Tracker in the Database →" }).click();
+    await expect(page).toHaveURL(/\/database\?stream=primary$/);
+    await searchDatabase(page, title);
 
     // No saved page yet: a green plus on the left; the row itself no longer opens anything.
     const tr = page.locator("table tbody tr", { hasText: title });
-    await expect(tr.locator("td.src-col").getByRole("button", { name: `Attach the HTML page for ${title}` })).toBeVisible();
+    await expect(tr.getByRole("button", { name: `Attach the HTML page for ${title}` })).toBeVisible();
     await tr.locator("td.date").click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
     const html = htmlFile("kol.html", `<!DOCTYPE html><html><head><title>KOL notes</title><script>alert(1)</script></head><body><article><h1>KOL notes on Roche</h1><p>The KOL said Roche is piloting agentic AI in two early research sites.</p><p>Results are expected in 2027.</p></article></body></html>`);
@@ -768,14 +770,11 @@ test.describe("Eradigm staff (admin)", () => {
     // The page fills the pane below its header.
     const [paneBox, frameBox] = [await pane.boundingBox(), await pane.locator("iframe.snapshot-frame").boundingBox()];
     expect(frameBox!.height).toBeGreaterThan(paneBox!.height * 0.8);
-    await expectAccessible(page, "/tracker saved-page pane");
+    await expectAccessible(page, "/database saved-page pane");
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog")).toHaveCount(0);
-    // It is in Primary Phantoms with the Primary Markdown.
-    await goTab(page, "Databases", "Phantoms Database");
-    await expect(page).toHaveURL(/\/phantoms\?stream=primary&q=/);
-    const ph = page.locator("table tbody tr", { hasText: title });
-    await ph.locator("td.title button").click();
+    // It is in Primary Phantoms with the Primary Markdown (the Database's Markdown column).
+    await tr.getByRole("button", { name: `Open Markdown for ${title}` }).click();
     const md = page.getByRole("dialog").getByLabel("Markdown source");
     await expect(md).toContainText(`id: ${id}`);
     await expect(md).toContainText("Source:\n  Role: Oncology KOL");
@@ -847,6 +846,8 @@ test.describe("Eradigm staff (admin)", () => {
     // Selection is kept across streams (Secondary first, then Primary).
     await page.getByTestId("stream-primary").click();
     await expect(page.locator(".stream-note")).toContainText("Primary Phantoms with High or Medium Impact");
+    // Wait for the Primary rows (not the Secondary ones still on screen).
+    await expect(rows.nth(0).locator("td.title")).not.toHaveText(t1);
     const t2 = (await rows.nth(0).locator("td.title").innerText()).trim();
     await rows.nth(0).getByRole("checkbox").check();
     await expect(page.getByRole("group", { name: "Selected entries" })).toContainText("2 selected");
@@ -879,7 +880,7 @@ test.describe("Eradigm staff (admin)", () => {
   });
 
   test("edits a Tracker entry and pushes it again; its Phantom (and Markdown) keeps the first version", async ({ page }) => {
-    await page.goto("/tracker?stream=primary");
+    await page.goto("/database?stream=primary");
     const row = page.locator("table tbody tr").nth(2);
     const title = (await row.locator("td.title").innerText()).trim();
     await row.getByRole("button", { name: `Edit ${title}` }).click();
@@ -896,22 +897,17 @@ test.describe("Eradigm staff (admin)", () => {
     await expect(drawer.getByRole("alert")).toContainText("One field needs attention before approval");
     await expect(drawer.locator(".field-err")).toContainText(/ID/);
     await field("ID *").fill(id);
-    await expectAccessible(page, "/tracker edit form");
+    await expectAccessible(page, "/database edit form");
     await drawer.getByRole("button", { name: "✓ Push to Tracker" }).click();
     await expect(page.locator(".toast").last()).toContainText(/SIG-\d+ pushed to the Tracker again as rev \d+ · its Phantom is unchanged/);
     await expect(drawer.getByRole("heading", { name: newTitle })).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(page.locator("table tbody tr", { hasText: newTitle })).toBeVisible();
-    // Phantoms: the first version, with no Edit anywhere (table or Markdown pane).
-    await page.goto("/phantoms?stream=primary");
-    await expect(page.getByRole("button", { name: /^Edit / })).toHaveCount(0);
-    await expect(page.locator("table tbody tr", { hasText: newTitle })).toHaveCount(0);
-    const original = page.locator("table tbody tr", { hasText: title }).first();
-    await original.getByRole("button", { name: `Open Markdown for ${title}` }).click();
+    // Its Phantom keeps the first version: the Markdown (Database → Markdown column), with no Edit in its pane.
+    await page.locator("table tbody tr", { hasText: newTitle }).getByRole("button", { name: `Open Markdown for ${newTitle}` }).click();
     const md = page.getByRole("dialog").getByLabel("Markdown source");
     await expect(md).toContainText(`title: ${title}`);
     await expect(md).not.toContainText(newTitle);
-    await expect(page.getByRole("dialog").getByRole("button", { name: "✎ Edit" })).toHaveCount(0);
   });
 
   test("Inbox and Input pass automated accessibility checks", async ({ page }) => {

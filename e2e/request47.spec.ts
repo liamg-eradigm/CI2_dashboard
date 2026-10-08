@@ -34,8 +34,7 @@ test.describe("request 47", () => {
     await page.setViewportSize({ width: 1536, height: 864 });
     await page.goto("/dashboard");
     await page.evaluate(() => {
-      localStorage.removeItem("eradigm.filters.ptr.closed");
-      localStorage.removeItem("eradigm.filters.db.closed");
+      for (const k of ["eradigm.filters.ptr", "eradigm.filters.db", "eradigm.filters.ptr.closed", "eradigm.filters.db.closed"]) localStorage.removeItem(k);
       localStorage.removeItem("eradigm.ptr.aiSummaryHeight");
     });
     const tag = Math.random().toString(36).slice(2, 8);
@@ -74,10 +73,12 @@ test.describe("request 47", () => {
     await toggle.click();
     await expect(filters).toBeVisible();
 
-    // Database: its own setting.
+    // Database: its own setting (closed at first since request 48).
     await page.goto(`/database?${new URLSearchParams({ stream: "primary", "db.t.source_company": tag })}`);
     const dbFilters = page.getByTestId("db-filters");
     await expect(page.getByTestId("table-scroll").locator("tbody tr").first()).toBeVisible();
+    await expect(dbFilters).toBeHidden();
+    await page.getByTestId("filters-toggle").click();
     await expect(dbFilters).toBeVisible();
     await page.waitForTimeout(250);
     const dbOpen = (await page.getByTestId("table-scroll").boundingBox())!.height;

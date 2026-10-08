@@ -1,4 +1,4 @@
-import { choose, expect, expectAccessible, goTab, signInAs, test } from "./fixtures";
+import { choose, expect, expectAccessible, goTab, navOf, signInAs, test } from "./fixtures";
 import type { Page } from "@playwright/test";
 
 const ADMIN = { "x-dev-user": "admin@example.com", "content-type": "application/json" };
@@ -59,17 +59,19 @@ test.describe("request 41", () => {
     await bar.getByLabel("Event Date to").fill("2026-06-30");
     await expect(rows).toHaveCount(1);
     await expect(rows.first()).toContainText(`Alpha Clinic ${tag}`);
-    // The Primary Tracker's filters stay on this tab: the Signals Database has none of them…
-    await goTab(page, "Databases", "Signals Database");
-    await expect(page).toHaveURL(/\/tracker/);
+    // The Primary Tracker's filters stay on this tab: the Database has none of them…
+    await navOf(page).getByRole("link", { name: "Database", exact: true }).click();
+    await expect(page).toHaveURL(/\/database/);
     expect(page.url()).not.toContain("pt.");
     await expect(page.getByRole("region", { name: "Active filters" })).not.toContainText(tag);
-    // …and the shared filters set there do not reach the Primary Tracker.
-    await choose(page.getByRole("combobox", { name: "Macrotrend", exact: true }), "AI Investment in R&D");
+    // …and the filters set there do not reach the Primary Tracker.
+    if (!(await page.getByTestId("db-filters").isVisible())) await page.getByTestId("filters-toggle").click();
+    await page.getByTestId("db-filters").getByRole("button", { name: /^All filters/ }).click();
+    await choose(page.getByTestId("db-filters").getByRole("combobox", { name: "Macrotrend", exact: true }), "AI Investment in R&D");
     await goTab(page, "Analytics", "Primary Tracker");
     await expect(page).toHaveURL(/\/analytics\/primary$/);
     await choose(page.getByTestId("ptr-filters").getByRole("combobox", { name: "Insight Topic" }), `Topic ${tag}`);
-    // Both Geopolitics entries show, though the Signals Database was filtered to another Macrotrend.
+    // Both Geopolitics entries show, though the Database was filtered to another Macrotrend.
     await expect(page.getByTestId("table-scroll").locator("tbody tr")).toHaveCount(2);
     // Reset clears them.
     await page.getByRole("button", { name: "Reset filter" }).click();

@@ -85,44 +85,43 @@ test.describe("tab order", () => {
     const card = page.getByTestId("tab-order");
     await expect(card.getByRole("heading", { name: "Menu" })).toBeVisible();
     const groups = () => navOf(page).locator(".nav-group > .nav-parent > span:first-child").allInnerTexts();
-    await expect.poll(groups).toEqual(["Inputs", "Analytics", "Databases", "Admin"]);
-    // Groups move; tabs move within their group (Databases moves past the Database tab, then Analytics).
-    await card.getByRole("button", { name: "Move group Databases up" }).click();
+    await expect.poll(groups).toEqual(["Inputs", "Analytics", "Admin"]);
+    // Groups move; tabs move within their group (Admin moves past the Database tab, then Analytics).
+    await card.getByRole("button", { name: "Move group Admin up" }).click();
     await expect(page.locator(".toast").last()).toContainText("Moved");
-    await card.getByRole("button", { name: "Move group Databases up" }).click();
-    await expect.poll(groups).toEqual(["Inputs", "Databases", "Analytics", "Admin"]);
-    await card.getByTestId("menu-group-trackers").getByRole("button", { name: "Move tab Databases: Phantoms Database up" }).click();
+    await card.getByRole("button", { name: "Move group Admin up" }).click();
+    await expect.poll(groups).toEqual(["Inputs", "Admin", "Analytics"]);
+    await card.getByTestId("menu-group-analytics").getByRole("button", { name: "Move tab Analytics: Primary Tracker up" }).click();
     await expect(page.locator(".toast").last()).toContainText("Moved");
     // Renamed: a group and a tab.
     await card.getByLabel("Name of the Inputs group").fill("Sources");
     await card.getByLabel("Name of the Inputs group").press("Enter");
     await expect(page.locator(".toast").last()).toContainText("Group renamed to “Sources”");
-    await card.getByLabel("Name of the Databases tab Phantoms Database").fill("Phantom files");
-    await card.getByLabel("Name of the Databases tab Phantoms Database").press("Tab");
-    await expect(page.locator(".toast").last()).toContainText("Tab renamed to “Phantom files”");
-    await expect(card.getByTestId("menu-item-phantoms")).toContainText("was Phantoms Database");
+    await card.getByLabel("Name of the Analytics tab Primary Tracker").fill("Interviews");
+    await card.getByLabel("Name of the Analytics tab Primary Tracker").press("Tab");
+    await expect(page.locator(".toast").last()).toContainText("Tab renamed to “Interviews”");
+    await expect(card.getByTestId("menu-item-primary-tracker")).toContainText("was Primary Tracker");
     await expectAccessible(page, "Administration with the menu editor");
     expect(await menuOf(page)).toEqual([
       "Sources: Input, Eradigm Inbox, Client Inbox",
-      "Databases: Phantom files, Signals Database, CI analyses",
-      "Analytics: Megatrends Dashboard, Knowledge Graph, Primary Tracker",
-      "Database",
       "Admin: Deliverables, Administration",
+      "Analytics: Megatrends Dashboard, Interviews, Knowledge Graph",
+      "Database",
     ]);
-    await goTab(page, "Databases", "Phantom files");
-    await expect(page).toHaveURL(/\/phantoms/);
+    await goTab(page, "Analytics", "Interviews");
+    await expect(page).toHaveURL(/\/analytics\/primary/);
     // A client sees the same order and names (without the staff tabs and the Admin group).
     const ctx = await browser.newContext();
     const other = await ctx.newPage();
     await signInAs(other, "client");
     await other.goto("/dashboard");
-    expect(await menuOf(other)).toEqual(["Sources: Client Inbox", "Databases: Phantom files, Signals Database, CI analyses", "Analytics: Megatrends Dashboard, Knowledge Graph, Primary Tracker", "Database"]);
+    expect(await menuOf(other)).toEqual(["Sources: Client Inbox", "Analytics: Megatrends Dashboard, Interviews, Knowledge Graph", "Database"]);
     await ctx.close();
     // Restore.
     await page.goto("/admin");
     await card.getByRole("button", { name: "Restore the usual menu" }).click();
-    await expect.poll(groups).toEqual(["Inputs", "Analytics", "Databases", "Admin"]);
-    await expect(card.getByLabel("Name of the Databases tab Phantoms Database")).toHaveValue("");
+    await expect.poll(groups).toEqual(["Inputs", "Analytics", "Admin"]);
+    await expect(card.getByLabel("Name of the Analytics tab Primary Tracker")).toHaveValue("");
   });
 
   test("admin sets how AI summaries are written", async ({ page }) => {
