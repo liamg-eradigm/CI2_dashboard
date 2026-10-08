@@ -85,7 +85,10 @@ test.describe("request 48", () => {
     await expect(page.getByTestId("ta-name")).toHaveText("Explore Signals");
     const graph = page.getByTestId("cd-graph");
     await expect(graph.getByTestId("mg-canvas")).toBeVisible();
+    // Request 49: just the company's globe and its signals (no Macrotrend / Subtrend breakdown, no other competitors).
     await expect(graph.getByRole("navigation", { name: "Graph level" })).toContainText("Pfizer");
+    await expect(graph.getByRole("group", { name: "Knowledge graph of" })).toHaveCount(0);
+    await expect(graph.getByTestId("competitor-focus")).toBeVisible();
     // Filling the page below the header.
     const g = (await graph.boundingBox())!;
     expect(g.height).toBeGreaterThan(600);
