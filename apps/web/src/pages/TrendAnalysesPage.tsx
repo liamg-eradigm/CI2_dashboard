@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useFitToScreen } from "../lib/fitToScreen";
 import { Link, useSearchParams } from "react-router-dom";
 import { TREND_ANALYSIS_COLUMNS, TREND_CATEGORY_LABEL, TREND_LEVEL_LABEL, can, type Me, type TrendAnalysis, type TrendAnalysisCategory } from "@eradigm/shared";
@@ -28,7 +28,7 @@ function MdIcon() {
  * the Input page, newest first, each kept as a Markdown file (the four
  * spreadsheet columns as rows, and the date of submission).
  */
-export function TrendAnalysesPage({ me }: { me: Me | undefined }) {
+export function TrendAnalysesPage({ me, title = "CI analyses", eyebrow = "Databases", above }: { me: Me | undefined; title?: string; eyebrow?: string; above?: ReactNode }) {
   const q = useTrendAnalyses();
   const [params, setParams] = useSearchParams();
   const [find, setFind] = useState("");
@@ -72,8 +72,8 @@ export function TrendAnalysesPage({ me }: { me: Me | undefined }) {
       <section className="band" aria-labelledby="page-title">
         <div className="band-row">
           <div>
-            <span className="eyebrow">Databases</span>
-            <h1 id="page-title">CI analyses</h1>
+            <span className="eyebrow">{eyebrow}</span>
+            <h1 id="page-title">{title}</h1>
           </div>
           <div className="band-copy">
             Every trend analysis submitted on the Input page, newest first. Each is a Markdown file with the columns {TREND_ANALYSIS_COLUMNS.category}, {TREND_ANALYSIS_COLUMNS.level},{" "}
@@ -83,6 +83,7 @@ export function TrendAnalysesPage({ me }: { me: Me | undefined }) {
         </div>
       </section>
       <div className="content">
+        {above}
         <section className="card flush" aria-labelledby="ta-list-title">
           <div className="table-top">
             <div>

@@ -10,7 +10,7 @@
  * The content is a placeholder until the AI writer is connected: the entry's
  * Title (alerts) or the newsletter's name, in bold 32 pt (`titleDocx`).
  */
-import { CORE, FIELDS, docxFileName, titleDocx, type Newsletter, type Signal, type Stream } from "@eradigm/shared";
+import { CORE, FIELDS, docxFileName, listDocx, titleDocx, type Newsletter, type Signal, type Stream } from "@eradigm/shared";
 import type { Principal } from "../auth/context.js";
 import type { Env } from "../env.js";
 import { ApiError, notFound } from "../lib/errors.js";
@@ -185,4 +185,111 @@ export async function createNewsletter(
     .run();
   await audit(env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "deliverable.created", targetType: "deliverable", targetId: id, details: { kind: "newsletter", name, items: ids.length } });
   return { id, name, createdAt: now, createdBy: p.name, items: toItems(ids, refs) };
+}
+
+// ---------------------------------------------------------------------------
+// The Database page (request 43)
+// ---------------------------------------------------------------------------
+
+/**
+ * The Database page's extras for a page of Tracker rows: whether each entry
+ * is in Phantoms (`phantomImpacts`: the Phantom Impacts that count, null =
+ * all), its alert (written now, as on Deliverables → Alerts, for a Phantom
+ * with the highest Impact whose alert was never deleted) and the newsletters
+ * it is in. Alerts are written from the Phantom (its evergreen snapshot), as
+ * on Deliverables → Alerts, so both pages share one alert per entry.
+ */
+export async function databaseExtras(env: Env, tenantId: string, rows: Signal[], phantomImpacts: string[] | null, alertImpact: string | null): Promise<Signal[]> {
+  if (!rows.length) return rows;
+  const ids = JSON.stringify(rows.map((r) => r.id));
+  const [snaps, deleted, letters] = await env.DB.batch([
+    env.DB.prepare(
+      `SELECT p.item_id, p.title, p.record_id, p.impact, p.published_rev FROM phantom_snapshots p JOIN intelligence_items i ON i.id = p.item_id
+        WHERE i.tenant_id = ?1 AND i.phantoms_hidden_at IS NULL AND p.item_id IN (SELECT value FROM json_each(?2))`,
+    ).bind(tenantId, ids),
+    env.DB.prepare("SELECT DISTINCT item_id FROM deliverables WHERE tenant_id = ?1 AND kind = 'alert' AND deleted_at IS NOT NULL AND item_id IN (SELECT value FROM json_each(?2))").bind(tenantId, ids),
+    env.DB.prepare(
+      `SELECT d.id, d.name, d.created_at, j.value AS item_id FROM deliverables d, json_each(d.items_json) j
+        WHERE d.tenant_id = ?1 AND d.kind = 'newsletter' AND d.deleted_at IS NULL AND j.value IN (SELECT value FROM json_each(?2))
+        ORDER BY d.created_at DESC, d.id DESC`,
+    ).bind(tenantId, ids),
+  ]);
+  type Snap = { item_id: string; title: string | null; record_id: string | null; impact: string | null; published_rev: number };
+  const snap = new Map(((snaps?.results ?? []) as Snap[]).map((x) => [x.item_id, x]));
+  const noAlert = new Set(((deleted?.results ?? []) as { item_id: string }[]).map((x) => x.item_id));
+  const inLetters = new Map<string, { id: string; name: string; createdAt: string }[]>();
+  for (const l of (letters?.results ?? []) as { id: string; name: string; created_at: string; item_id: string }[]) {
+    const list = inLetters.get(l.item_id) ?? [];
+    if (!list.some((x) => x.id === l.id)) list.push({ id: l.id, name: l.name, createdAt: l.created_at });
+    inLetters.set(l.item_id, list);
+  }
+  const phantom = (id: string) => {
+    const x = snap.get(id);
+    return !!x && (!phantomImpacts || (!!x.impact && phantomImpacts.includes(x.impact)));
+  };
+  // The Phantom as Deliverables → Alerts lists it (its snapshot title, ID and revision).
+  const due = rows
+    .filter((r) => phantom(r.id) && !!alertImpact && snap.get(r.id)?.impact === alertImpact && !noAlert.has(r.id))
+    .map((r) => {
+      const x = snap.get(r.id)!;
+      return { ...r, rev: x.published_rev, values: { ...r.values, [CORE.title]: x.title, [FIELDS.id]: x.record_id } };
+    });
+  const alerts = new Map((await ensureAlerts(env, tenantId, due)).map((r) => [r.id, r.alertId ?? null]));
+  return rows.map((r) => ({
+    ...r,
+    phantom: phantom(r.id),
+    alertId: alerts.get(r.id) ?? null,
+    alertPending: alerts.has(r.id) && !alerts.get(r.id),
+    newsletters: inLetters.get(r.id) ?? [],
+  }));
+}
+
+/** "Newsletter · 8 Oct 2026, 14:32" in the workspace's time zone. */
+export function generatedNewsletterName(now: Date, timeZone: string): string {
+  let when: string;
+  try {
+    when = new Intl.DateTimeFormat("en-GB", { timeZone, day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).format(now);
+  } catch {
+    when = now.toISOString().slice(0, 16).replace("T", " ");
+  }
+  return `Newsletter · ${when}`;
+}
+
+/**
+ * Generate Newsletter (request 43): from the ticked Database rows, any
+ * Tracker entries of either stream, in the order given. Until the AI writer
+ * is set up for newsletters, the .docx lists the entries' titles.
+ */
+export async function generateNewsletter(env: Env, p: Principal, itemIds: string[], timeZone: string): Promise<Newsletter> {
+  const ids = [...new Set(itemIds)];
+  const res = await env.DB.prepare(
+    `SELECT i.id, i.signal_code, i.record_id, i.title, i.stream, i.status, i.deleted_at, i.tracker_hidden_at
+       FROM intelligence_items i WHERE i.tenant_id = ?1 AND i.id IN (SELECT value FROM json_each(?2))`,
+  )
+    .bind(p.tenantId, JSON.stringify(ids))
+    .all<{ id: string; signal_code: string | null; record_id: string | null; title: string | null; stream: Stream; status: string; deleted_at: string | null; tracker_hidden_at: string | null }>();
+  const byId = new Map((res.results ?? []).map((r) => [r.id, r]));
+  const rows = ids.map((id) => {
+    const r = byId.get(id);
+    if (!r || r.status !== "approved" || r.deleted_at || r.tracker_hidden_at) throw new ApiError("VALIDATION", "One of the selected entries is no longer in the database. Reload and select again.");
+    return r;
+  });
+  const now = new Date();
+  const name = generatedNewsletterName(now, timeZone);
+  const doc = listDocx(name, rows.map((r) => r.title ?? r.signal_code ?? "Untitled"));
+  const id = newId("dlv");
+  const at = nowIso();
+  await env.DB.prepare(
+    "INSERT INTO deliverables (id, tenant_id, kind, name, items_json, docx_b64, bytes, created_by, created_at, updated_at) VALUES (?1, ?2, 'newsletter', ?3, ?4, ?5, ?6, ?7, ?8, ?8)",
+  )
+    .bind(id, p.tenantId, name, JSON.stringify(ids), toBase64(doc), doc.length, p.userId, at)
+    .run();
+  await audit(env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "deliverable.created", targetType: "deliverable", targetId: id, details: { kind: "newsletter", name, items: ids.length, generated: true } });
+  return {
+    id,
+    name,
+    createdAt: at,
+    createdBy: p.name,
+    items: rows.map((r) => ({ id: r.id, code: r.signal_code, recordId: r.record_id, title: r.title ?? "", stream: r.stream, deleted: false })),
+  };
 }

@@ -9,6 +9,9 @@ import {
   ROLE_LABEL,
   SUMMARY_MODELS,
   DEFAULT_NEW_SIGNAL_DAYS,
+  DEFAULT_DISCUSSION_SUMMARY_INSTRUCTIONS,
+  MAX_DISCUSSION_INSTRUCTIONS,
+  isStandaloneGroup,
   canCreateUserWithRole,
   groupLabel,
   itemLabel,
@@ -441,6 +444,8 @@ function MenuEditor() {
                     onCommit={(label) => void save(withGroup(g.key, (x) => ({ ...x, label })), label ? `Group renamed to “${label}”` : `Group named “${MENU_GROUP_LABEL[g.key]}” again`)}
                   />
                 </div>
+                {/* A tab of its own (Database): no tabs inside to order or name. */}
+                {!isStandaloneGroup(g.key) && (
                 <div className="menu-items">
                   <ReorderList
                     values={g.items.map((it) => it.key)}
@@ -471,6 +476,7 @@ function MenuEditor() {
                     }}
                   />
                 </div>
+                )}
               </div>
             );
           }}
@@ -652,6 +658,28 @@ function Settings() {
             <span>Written for (company)</span>
             <input className="control" maxLength={80} value={draft.megatrends.perspective} onChange={(e) => setDraft({ ...draft, megatrends: { ...draft.megatrends, perspective: e.target.value } })} />
           </label>
+        </div>
+      </fieldset>
+      <fieldset style={{ border: 0, padding: 0, margin: 0, display: "grid", gap: 8 }} data-testid="discussion-summary-settings">
+        <legend className="section-h">Primary Tracker · AI Summary</legend>
+        <p className="card-sub" style={{ margin: 0 }}>
+          The instructions Claude follows when it writes the AI Summary of a Full Discussion or KIQ Archive on Analytics → Primary Tracker, once the Claude API is connected (it uses the Claude model and company set
+          above). A summary already written is kept until its discussion changes.
+        </p>
+        <label className="field">
+          <span>Instructions for the AI Summary</span>
+          <textarea
+            className="control"
+            style={{ height: 110, padding: 8, lineHeight: 1.45 }}
+            maxLength={MAX_DISCUSSION_INSTRUCTIONS}
+            value={draft.discussionSummary?.instructions ?? DEFAULT_DISCUSSION_SUMMARY_INSTRUCTIONS}
+            onChange={(e) => setDraft({ ...draft, discussionSummary: { instructions: e.target.value } })}
+          />
+        </label>
+        <div>
+          <button className="link-btn" onClick={() => setDraft({ ...draft, discussionSummary: { instructions: DEFAULT_DISCUSSION_SUMMARY_INSTRUCTIONS } })}>
+            Use the usual instructions
+          </button>
         </div>
       </fieldset>
       <fieldset style={{ border: 0, padding: 0, margin: 0, display: "grid", gap: 8 }} data-testid="new-signal-settings">

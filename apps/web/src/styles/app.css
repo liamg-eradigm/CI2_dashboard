@@ -917,3 +917,47 @@ tr.arch-row.open td { background: #d9eff1; }
 @media (max-width: 1100px) {
   .filterbar.ptr-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* Request 43: the Database page — its own filters (every field; one row until "All filters"), the
+   Newsletter column (newspaper icon; a menu when an entry is in several), and Generate Newsletter. */
+.filterbar.db-filters { display: block; padding-bottom: 12px; }
+.db-filter-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; align-items: end; }
+.filterbar.db-filters.open { max-height: 62vh; overflow-y: auto; }
+.db-more { margin-top: 10px; font-size: 13px; }
+@media (max-width: 1100px) { .db-filter-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .db-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.gen-newsletter { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 0 0 3px rgba(31, 167, 176, 0.18); }
+.nl-cell { position: relative; display: inline-flex; }
+.nl-open { position: relative; }
+.nl-open.on { background: var(--tint); border-color: var(--focus); }
+.nl-count { position: absolute; top: -7px; right: -8px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 9px; background: var(--teal); color: #fff; font: 700 10.5px/17px var(--sans); text-align: center; }
+.nl-menu { position: fixed; z-index: 60; width: 290px; max-height: 260px; overflow-y: auto; background: #fff; border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-pop); padding: 6px; display: flex; flex-direction: column; gap: 2px; }
+.nl-menu button { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; padding: 8px 10px; border: 0; border-radius: 7px; background: transparent; color: var(--ink); text-align: left; cursor: pointer; }
+.nl-menu button:hover, .nl-menu button:focus-visible { background: var(--tint); }
+.nl-menu button b { font-size: 13px; }
+.nl-menu button span { font-size: 11.5px; color: var(--muted); }
+.db-table td.long .clamp { max-width: 360px; }
+/* The Database tab on its own in the menu (no subtabs). */
+.nav-group.solo > a { color: var(--on-dark); }
+.nav-group.solo.within > a { color: #fff; }
+
+/* Request 43: the Primary Tracker's AI Summary, above the table, in large type. */
+.ai-summary { display: flex; flex-direction: column; gap: 10px; border-left: 4px solid var(--teal); margin-bottom: 4px; }
+.ai-summary-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.ai-summary .card-title { color: var(--teal-press); }
+.ai-spark { color: var(--teal); }
+.ai-summary-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.ai-summary-text { font-size: 19px; line-height: 1.6; color: var(--ink); max-height: 34vh; overflow-y: auto; }
+.ai-summary-text p { margin: 0 0 10px; }
+.ai-summary-text p:last-child { margin-bottom: 0; }
+.ai-summary-text.muted, p.ai-summary-text.muted { color: var(--muted); font-size: 17px; margin: 0; }
+.ai-summary.idle { border-left-color: var(--border); }
+.ai-summary-stale { margin: 0; font-size: 13px; color: #8a5300; background: #fff6e8; border: 1px solid #f3d3a3; border-radius: 7px; padding: 6px 10px; }
+.ai-summary-edit { display: flex; flex-direction: column; gap: 8px; }
+.ai-summary-edit textarea { height: 150px; padding: 10px; font-size: 17px; line-height: 1.55; resize: vertical; }
+.link-btn.danger { color: var(--error); }
+/* The Database page: Generate Newsletter stays level with the toggle (the note gives way). */
+.stream-bar.db-bar { flex-wrap: nowrap; min-height: 44px; }
+.stream-bar.db-bar .stream-note { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stream-bar.db-bar .gen-newsletter { flex: none; }
+@media (max-width: 900px) { .stream-bar.db-bar { flex-wrap: wrap; } .stream-bar.db-bar .stream-note { white-space: normal; } }

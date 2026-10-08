@@ -142,7 +142,8 @@ export async function summarizeWith(
   }
   if (typeof text !== "string" || !text.trim()) throw new LlmError("INVALID_OUTPUT", "The model returned an empty summary");
   return {
-    text: text.trim().replace(/\s+/g, " "),
+    // Discussions keep their paragraphs (request 43); the others are one paragraph.
+    text: input.level === "discussion" ? text.trim().split(/\n\s*\n/).map((para) => para.replace(/\s+/g, " ").trim()).filter(Boolean).join("\n\n") : text.trim().replace(/\s+/g, " "),
     meta: {
       provider: "anthropic",
       model: response.model || model,

@@ -6,7 +6,7 @@
  * Event Date, "Date to" = today (or the newest entry, if later), evaluated on
  * the day the platform is used. With no entries yet: the last three months.
  */
-import { ALL, CORE, filterableColumns, sortedColumns, type TrackerSchema } from "./schema.js";
+import { ALL, CORE, hasOptions, sortedColumns, type TrackerSchema } from "./schema.js";
 import { isIsoDate } from "./validation.js";
 
 export interface FilterState {
@@ -21,6 +21,12 @@ export interface FilterState {
    * Used by Analytics → Primary Tracker's own filters (request 41).
    */
   text?: Record<string, string>;
+  /**
+   * Date columns other than the Event Date (whose range is from / to): column
+   * key -> the range its value must fall in (either end optional). Used by the
+   * Database page's filters (request 43).
+   */
+  dates?: Record<string, { from?: string; to?: string }>;
 }
 
 export function toIso(d: Date): string {
@@ -102,6 +108,13 @@ export const FILTER_PARAM_PREFIX = "f.";
 export const TEXT_PARAM_PREFIX = "t.";
 /** The text and long-text columns a "contains" filter may use (any column of the stream, shown in a table or not). */
 export const textFilterKeys = (schema: TrackerSchema) => sortedColumns(schema).filter((c) => c.type === "text" || c.type === "long").map((c) => c.key);
+/** Date ranges on other date columns in API requests: `df.<column>` (from) and `dt.<column>` (to), YYYY-MM-DD. */
+export const DATE_FROM_PREFIX = "df.";
+export const DATE_TO_PREFIX = "dt.";
+/** The date columns a range filter may use besides the Event Date. */
+export const dateFilterKeys = (schema: TrackerSchema) => sortedColumns(schema).filter((c) => c.type === "date" && c.key !== CORE.date).map((c) => c.key);
+/** The dropdown-style columns a value filter may use (any column of the stream, shown in a table or not; request 43). */
+export const optionFilterKeys = (schema: TrackerSchema) => sortedColumns(schema).filter(hasOptions).map((c) => c.key);
 export const MAX_QUERY_LENGTH = 200;
 
 export function filtersToParams(f: FilterState, params = new URLSearchParams()): URLSearchParams {
@@ -110,6 +123,10 @@ export function filtersToParams(f: FilterState, params = new URLSearchParams()):
   params.set("to", f.to);
   for (const k of activeValueKeys(f)) params.set(FILTER_PARAM_PREFIX + k, f.values[k] as string);
   for (const [k, v] of Object.entries(f.text ?? {})) if (v.trim()) params.set(TEXT_PARAM_PREFIX + k, v.trim());
+  for (const [k, r] of Object.entries(f.dates ?? {})) {
+    if (r.from) params.set(DATE_FROM_PREFIX + k, r.from);
+    if (r.to) params.set(DATE_TO_PREFIX + k, r.to);
+  }
   return params;
 }
 
@@ -127,11 +144,19 @@ export function filtersFromParams(
   if (!isIsoDate(from)) from = d.from;
   if (!isIsoDate(to)) to = d.to;
   if (from > to) [from, to] = [to, from];
-  const allowed = opts.schema ? new Set(filterableColumns(opts.schema).map((c) => c.key)) : null;
+  const allowed = opts.schema ? new Set(optionFilterKeys(opts.schema)) : null;
   const textAllowed = opts.schema ? new Set(textFilterKeys(opts.schema)) : null;
+  const datesAllowed = opts.schema ? new Set(dateFilterKeys(opts.schema)) : null;
   const values: Record<string, string> = {};
   const text: Record<string, string> = {};
+  const dates: Record<string, { from?: string; to?: string }> = {};
   params.forEach((v, k) => {
+    const dateEnd = k.startsWith(DATE_FROM_PREFIX) ? "from" : k.startsWith(DATE_TO_PREFIX) ? "to" : null;
+    if (dateEnd) {
+      const key = k.slice(DATE_FROM_PREFIX.length);
+      if ((!datesAllowed || datesAllowed.has(key)) && isIsoDate(v)) dates[key] = { ...dates[key], [dateEnd]: v };
+      return;
+    }
     if (k.startsWith(TEXT_PARAM_PREFIX)) {
       const key = k.slice(TEXT_PARAM_PREFIX.length);
       if ((!textAllowed || textAllowed.has(key)) && v.trim()) text[key] = v.trim().slice(0, MAX_QUERY_LENGTH);
@@ -143,7 +168,7 @@ export function filtersFromParams(
     if (v && v !== ALL) values[key] = v.slice(0, 200);
   });
   const q = (params.get("q") ?? "").slice(0, MAX_QUERY_LENGTH).trim();
-  return { q, from, to, values, ...(Object.keys(text).length ? { text } : {}) };
+  return { q, from, to, values, ...(Object.keys(text).length ? { text } : {}), ...(Object.keys(dates).length ? { dates } : {}) };
 }
 
 /**

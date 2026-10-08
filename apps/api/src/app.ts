@@ -17,6 +17,9 @@ import {
   ReorderOptionsRequest,
   CreateManualRequest,
   CreateNewsletterRequest,
+  GenerateDiscussionSummaryRequest,
+  GenerateNewsletterRequest,
+  UpdateDiscussionSummaryRequest,
   DOCX_MIME,
   GenerateTrendSummaryRequest,
   CreateCommentRequest,
@@ -57,6 +60,7 @@ import {
   mergeSchemas,
   phantomColumns,
   trackerColumns,
+  sortedColumns,
   filtersFromParams,
   getColumn,
   toCsv,
@@ -118,7 +122,8 @@ import {
 } from "./services/trendAnalyses.js";
 import { listPages, pageSnapshotId } from "./services/pages.js";
 import { addComment, backToEradigm, clientPush, listComments, sendToClient, updateComment } from "./services/clientInbox.js";
-import { createNewsletter, deleteDeliverable, ensureAlerts, listNewsletters, readDeliverable } from "./services/deliverables.js";
+import { createNewsletter, databaseExtras, deleteDeliverable, ensureAlerts, generateNewsletter, listNewsletters, readDeliverable } from "./services/deliverables.js";
+import { getDiscussionSummary, regenerateDiscussionSummary, writeDiscussionSummary } from "./services/discussionSummaries.js";
 import { createInvite, createUser, listUsers, revokeSessions, updateUser } from "./services/users.js";
 
 type Vars = { principal: Principal; requestId: string; dataVersion?: DataVersions };
@@ -318,8 +323,9 @@ async function phantomScope(c: C, stream: Stream, schema: TrackerSchema): Promis
   return { stream, impacts: opts.slice(at >= 0 ? at : 0), table: "phantoms" };
 }
 
-type TableView = "tracker" | "phantoms" | "alerts" | "newsletter";
-const TABLE_VIEWS: readonly TableView[] = ["tracker", "phantoms", "alerts", "newsletter"];
+/** database: the Database page (request 43), every Tracker entry of a stream with every field. */
+type TableView = "tracker" | "phantoms" | "alerts" | "newsletter" | "database";
+const TABLE_VIEWS: readonly TableView[] = ["tracker", "phantoms", "alerts", "newsletter", "database"];
 
 /**
  * Deliverables are built from Phantoms: Alerts from those with the highest
@@ -491,6 +497,15 @@ async function tablePage(c: C, view: TableView) {
     result.rows = await ensureAlerts(c.env, P(c).tenantId, result.rows);
     return c.json(result);
   }
+  // The Database page: each row also says whether it is in Phantoms, carries its alert (written as on
+  // Deliverables → Alerts) and the newsletters it is in (writes alerts: never cached).
+  if (view === "database") {
+    const result = await trackerPage(c.env, schema, P(c).tenantId, f, sortOf(c, schema), page, pageSize, scope);
+    const phantoms = await phantomScope(c, stream, schema);
+    const top = getColumn(schema, CORE.impact)?.options?.at(-1) ?? null;
+    result.rows = await databaseExtras(c.env, P(c).tenantId, result.rows, phantoms.impacts ?? null, top);
+    return c.json(result);
+  }
   return cachedJson(c, () => trackerPage(c.env, schema, P(c).tenantId, f, sortOf(c, schema), page, pageSize, scope));
 }
 
@@ -515,6 +530,7 @@ app.get("/api/tracker/values", async (c) => {
   return cachedJson(c, () => distinctTextValues(c.env, schema, P(c).tenantId, stream, keys));
 });
 app.get("/api/deliverables/alerts", (c) => tablePage(c, "alerts"));
+app.get("/api/database", (c) => tablePage(c, "database"));
 app.get("/api/deliverables/newsletter", (c) => tablePage(c, "newsletter"));
 
 // ---------------------------------------------------------------------------
@@ -650,6 +666,15 @@ app.post("/api/newsletters", async (c) => {
   return c.json(n, 201);
 });
 
+/** The Database page's Generate Newsletter (request 43): any Tracker entries, either stream. */
+app.post("/api/newsletters/generate", async (c) => {
+  const p = P(c);
+  requirePermission(p, "item:edit");
+  const b = await body(c, GenerateNewsletterRequest);
+  const s = await loadSettings(c.env, p.tenantId);
+  return c.json(await generateNewsletter(c.env, p, b.itemIds, s.timezone), 201);
+});
+
 /** Delete an alert (its entry leaves the Alerts table; the Phantom stays) or a newsletter (request 36). */
 app.delete("/api/deliverables/:id", async (c) => {
   const p = P(c);
@@ -687,8 +712,8 @@ app.get("/api/tracker/export", async (c) => {
   const today = await todayFor(c);
   const f = scope === "all" ? null : await filtersOf(c, schema, today);
   const rows = await exportRows(c.env, schema, p.tenantId, f, sortOf(c, schema), rowScope);
-  // Deliverables tables show the Phantoms columns.
-  const cols = view === "tracker" ? trackerColumns(schema) : phantomColumns(schema);
+  // Deliverables tables show the Phantoms columns; the Database page every field.
+  const cols = view === "database" ? sortedColumns(schema) : view === "tracker" ? trackerColumns(schema) : phantomColumns(schema);
   const table = toTable(schema, rows, cols);
   const content: string | Uint8Array =
     format === "csv" ? toCsv(table) : format === "tsv" ? toTsv(table) : format === "json" ? toJson(schema, rows, cols) : toXlsx(table);
@@ -701,6 +726,30 @@ app.get("/api/tracker/export", async (c) => {
       "Cache-Control": "no-store",
     },
   });
+});
+
+// The Primary Tracker's AI Summary (request 43) of an entry's Full Discussion, or (match=kiq) its KIQ Archive.
+const discussionMode = (v: string | undefined) => (v === "kiq" ? "kiq" : "source");
+app.get("/api/signals/:id/summary", async (c) => {
+  const p = P(c);
+  requirePermission(p, "tracker:read");
+  const [schema, settings] = await Promise.all([schemaFor(c, "primary"), loadSettings(c.env, p.tenantId)]);
+  return c.json(await getDiscussionSummary(c.env, p, schema, settings, c.req.param("id"), discussionMode(c.req.query("match")), prefillMode(c.env) === "llm"));
+});
+app.put("/api/signals/:id/summary", async (c) => {
+  const p = P(c);
+  // Edited by admins only.
+  requirePermission(p, "settings:edit");
+  const b = await body(c, UpdateDiscussionSummaryRequest);
+  return c.json(await writeDiscussionSummary(c.env, p, await schemaFor(c, "primary"), c.req.param("id"), b.mode, b.text, prefillMode(c.env) === "llm"));
+});
+app.post("/api/signals/:id/summary/generate", async (c) => {
+  const p = P(c);
+  requirePermission(p, "settings:edit");
+  const b = await body(c, GenerateDiscussionSummaryRequest);
+  if (prefillMode(c.env) !== "llm") throw new ApiError("CONFLICT", "The AI writer is not connected yet (set LLM_PROVIDER and ANTHROPIC_API_KEY on the API). Write the summary by hand for now.");
+  const [schema, settings] = await Promise.all([schemaFor(c, "primary"), loadSettings(c.env, p.tenantId)]);
+  return c.json(await regenerateDiscussionSummary(c.env, p, schema, settings, c.req.param("id"), b.mode));
 });
 
 // Archived Responses (request 34): earlier Primary entries from the same source as this one.

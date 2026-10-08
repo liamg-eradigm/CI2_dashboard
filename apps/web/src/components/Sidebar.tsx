@@ -9,6 +9,7 @@ import {
   canSeeTab,
   groupLabel,
   isMenuItemAt,
+  isStandaloneGroup,
   itemLabel,
   visibleMenu,
   type Me,
@@ -87,6 +88,19 @@ function NavGroup({
   );
 }
 
+/** A group that is a tab of its own (request 43): one link, named as the group. */
+function SoloTab({ group, item }: { group: MenuGroupSetting; item: MenuItemKey }) {
+  const loc = useLocation();
+  const here = isMenuItemAt(item, loc.pathname);
+  return (
+    <div className={`nav-group solo${here ? " within" : ""}`} data-testid={`nav-group-${group.key}`}>
+      <Link className={`nav-solo${here ? " active" : ""}`} to={MENU_ITEM_PATH[item]} aria-current={here ? "page" : undefined}>
+        <span>{groupLabel(group)}</span>
+      </Link>
+    </div>
+  );
+}
+
 export function Sidebar({ me }: { me: Me }) {
   const [open, setOpen] = useState(true);
   // Groups the user opened or closed (else open while on one of their pages).
@@ -140,16 +154,21 @@ export function Sidebar({ me }: { me: Me }) {
         COMPETITIVE INTELLIGENCE
       </div>
       <nav className="nav" aria-labelledby="nav-label">
-        {groups.map((g) => (
-          <NavGroup
-            key={g.key}
-            group={g}
-            open={expanded[g.key] ?? g.items.some((it) => isMenuItemAt(it.key, loc.pathname))}
-            onToggle={(o) => setExpanded((e) => ({ ...e, [g.key]: o }))}
-            linkTo={withFilters}
-            badge={(k) => (k === "inbox" ? { n, label: `${n} unprocessed` } : k === "clientinbox" ? { n: waiting, label: `${waiting} to check` } : null)}
-          />
-        ))}
+        {groups.map((g) =>
+          // A tab of its own (Database, request 43): a link straight to its page, no subtabs.
+          isStandaloneGroup(g.key) && g.items[0] ? (
+            <SoloTab key={g.key} group={g} item={g.items[0].key} />
+          ) : (
+            <NavGroup
+              key={g.key}
+              group={g}
+              open={expanded[g.key] ?? g.items.some((it) => isMenuItemAt(it.key, loc.pathname))}
+              onToggle={(o) => setExpanded((e) => ({ ...e, [g.key]: o }))}
+              linkTo={withFilters}
+              badge={(k) => (k === "inbox" ? { n, label: `${n} unprocessed` } : k === "clientinbox" ? { n: waiting, label: `${waiting} to check` } : null)}
+            />
+          ),
+        )}
       </nav>
       <div className="side-foot">
         <div className="who">{me.user.name}</div>

@@ -76,6 +76,32 @@ export function titleDocx(text: string, createdAt = new Date().toISOString().rep
   ]);
 }
 
+/**
+ * A .docx with a bold 32 pt heading and one paragraph per line below it
+ * (request 43: a generated newsletter lists the titles of the entries it was
+ * built from, until the AI writer is connected).
+ */
+export function listDocx(heading: string, lines: string[], createdAt = new Date().toISOString().replace(/\.\d+Z$/, "Z")): Uint8Array {
+  const sz = DELIVERABLE_TITLE_PT * 2;
+  const head = heading.trim() || "Untitled";
+  const items = lines.map((l) => `<w:p><w:pPr><w:ind w:left="360" w:hanging="360"/></w:pPr><w:r><w:t xml:space="preserve">•\t${xmlEscape(l.trim() || "Untitled")}</w:t></w:r></w:p>`).join("");
+  const document =
+    XML +
+    `<w:document xmlns:w="${W}"><w:body>` +
+    `<w:p><w:r><w:rPr><w:b/><w:bCs/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/></w:rPr><w:t xml:space="preserve">${xmlEscape(head)}</w:t></w:r></w:p>` +
+    items +
+    '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr>' +
+    "</w:body></w:document>";
+  return zipStore([
+    { name: "[Content_Types].xml", data: enc.encode(CONTENT_TYPES) },
+    { name: "_rels/.rels", data: enc.encode(ROOT_RELS) },
+    { name: "word/document.xml", data: enc.encode(document) },
+    { name: "word/_rels/document.xml.rels", data: enc.encode(DOC_RELS) },
+    { name: "word/styles.xml", data: enc.encode(STYLES) },
+    { name: "docProps/core.xml", data: enc.encode(core(head, createdAt)) },
+  ]);
+}
+
 /** Safe .docx file name from a label, e.g. "P-1106 alert" → "P-1106-alert.docx". */
 export function docxFileName(label: string, fallback = "deliverable"): string {
   const safe = label.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^[-.]+|-+$/g, "").slice(0, 100);

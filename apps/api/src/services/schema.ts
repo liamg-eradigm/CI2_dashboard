@@ -11,6 +11,7 @@ import {
   CORE,
   DEFAULT_COMPETITOR_TIERS,
   DEFAULT_NEW_SIGNAL_DAYS,
+  DEFAULT_DISCUSSION_SUMMARY_INSTRUCTIONS,
   DEFAULT_NAV_ORDER,
   DEFAULT_MENU,
   DEFAULT_TREND_THRESHOLDS,
@@ -130,6 +131,7 @@ export const DEFAULT_SETTINGS: TenantSettings = {
   megatrends: { summaryDays: 90, summarySentences: 2, model: "claude-opus-5-5", perspective: "AbbVie" },
   competitorTiers: structuredClone(DEFAULT_COMPETITOR_TIERS),
   newSignals: { days: DEFAULT_NEW_SIGNAL_DAYS },
+  discussionSummary: { instructions: DEFAULT_DISCUSSION_SUMMARY_INSTRUCTIONS },
 };
 
 export async function loadSettings(env: Env, tenantId: string): Promise<TenantSettings> {
@@ -148,6 +150,7 @@ export async function loadSettings(env: Env, tenantId: string): Promise<TenantSe
     megatrends: { ...DEFAULT_SETTINGS.megatrends, ...s.megatrends },
     competitorTiers: { ...DEFAULT_SETTINGS.competitorTiers, ...s.competitorTiers },
     newSignals: { ...DEFAULT_SETTINGS.newSignals, ...s.newSignals },
+    discussionSummary: { ...DEFAULT_SETTINGS.discussionSummary, ...s.discussionSummary },
   };
 }
 
