@@ -51,6 +51,8 @@ import {
   TrendConfigSchema,
   UpdateColumnRequest,
   UpdateSettingsRequest,
+  SetTextSizeRequest,
+  MAX_TEXT_SIZES,
   UpdateUserRequest,
   CORE,
   TABLE_ALL_MAX,
@@ -1128,6 +1130,22 @@ app.patch("/api/settings", async (c) => {
   };
   await saveSettings(c.env, p.tenantId, next, p.userId);
   await audit(c.env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "settings.changed", targetType: "settings", details: { sections: Object.keys(b) } });
+  return c.json(next);
+});
+
+/** Request 47: staff change the size of a title or heading for everyone (1 = back to the default). */
+app.put("/api/settings/text-size", async (c) => {
+  const p = P(c);
+  requirePermission(p, "item:edit");
+  const b = await body(c, SetTextSizeRequest);
+  const current = await loadSettings(c.env, p.tenantId);
+  const textSizes = { ...current.textSizes };
+  if (Math.abs(b.size - 1) < 0.001) delete textSizes[b.key];
+  else textSizes[b.key] = b.size;
+  if (Object.keys(textSizes).length > MAX_TEXT_SIZES) throw new ApiError("VALIDATION", "Too many sizes have been changed; set some back first");
+  const next: TenantSettings = { ...current, textSizes };
+  await saveSettings(c.env, p.tenantId, next, p.userId);
+  await audit(c.env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "settings.changed", targetType: "settings", details: { sections: ["textSizes"], key: b.key, size: b.size } });
   return c.json(next);
 });
 

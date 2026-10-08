@@ -706,3 +706,16 @@ button.mix-lbl:hover, button.mix-lbl:focus-visible { color: #fff; text-decoratio
 .mg-tags { flex: none; align-self: flex-end; margin-left: auto; display: inline-flex; gap: 6px; align-items: center; }
 .mg-tags .mg-ci-tag { margin-left: 0; align-self: auto; }
 .mg-new-tag { padding: 1px 7px; border-radius: 999px; font: 700 9.5px var(--sans); letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; color: #fff1f1; background: rgba(255, 90, 100, 0.26); border: 1px solid #ff6b74; box-shadow: 0 0 6px rgba(255, 90, 100, 0.9), 0 0 14px rgba(255, 90, 100, 0.5); text-shadow: 0 0 6px rgba(255, 90, 100, 0.9); }
+
+/* Request 47: the formatted-text editors keep the size of the box they replace, and scroll inside it. */
+.md-edit-box .rt-field { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.md-edit-box .rt-field > div:first-child { flex: 1 1 auto; min-height: 0; display: flex; }
+.md-edit-box .rt-editor { flex: 1 1 auto; height: auto !important; min-height: 0; resize: none; border-radius: 10px; border: 1px solid rgba(127, 211, 216, 0.4); background: rgba(2, 12, 20, 0.6); color: var(--mg-ink); padding: 10px 12px; font: 15px/1.55 var(--sans); }
+.md-edit-box .rt-editor:focus { outline: 2px solid var(--cyan-2); outline-offset: 0; box-shadow: none; }
+.mg-edit .rt-field { margin-top: 4px; }
+.mg-edit .rt-editor { border-radius: 10px; border: 1px solid rgba(127, 211, 216, 0.35); background: rgba(2, 12, 20, 0.6); color: var(--mg-ink); padding: 10px 12px; font: 13.5px/1.55 var(--sans); }
+.md-edit-box .rt-editor p.is-editor-empty:first-child::before, .mg-edit .rt-editor p.is-editor-empty:first-child::before { color: var(--mg-ink-3, #8fb4c4); }
+.md-text-head .ts-row { flex: 1 1 auto; }
+.md-text-head .ts-btn { background: rgba(2, 12, 20, 0.6); border-color: rgba(127, 211, 216, 0.4); color: var(--mg-ink); }
+.md-text-head .ts-btn:hover { background: rgba(127, 211, 216, 0.15); color: #fff; }
+.md-text-head .ts-pct { color: var(--mg-ink-2, #b5cfda); }

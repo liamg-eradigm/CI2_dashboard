@@ -817,6 +817,7 @@ a.link-btn { text-decoration: none; }
 .tai-scope label { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; }
 .tai-scope:disabled { opacity: 0.55; }
 .tai-text { height: auto; min-height: 170px; padding: 8px 10px; line-height: 1.5; resize: vertical; }
+.rt-editor.tai-text { min-height: 0; }
 .tai-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .tai-current { font-size: 13px; color: var(--ink-2); }
 .tai-current summary { cursor: pointer; font-weight: 700; color: var(--navy-700); }
@@ -996,7 +997,9 @@ html.resizing-rows { overflow: hidden; }
 /* Request 46: formatted-text fields (RichTextField). The editable text keeps each field's own look
    (control / dcell classes) and grows with its text; a bar of buttons appears over selected text. */
 .rt-field { position: relative; width: 100%; min-width: 0; }
-.rt-editor { height: auto !important; min-height: calc(var(--rt-rows, 4) * 1.45em + 16px); max-height: 60vh; overflow-y: auto; padding: 8px 10px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; outline: none; cursor: text; }
+/* Request 47: a fixed height (its rows, as the text boxes had), scrolling inside, resizable by its corner;
+   it never grows to show all its text. */
+.rt-editor { height: calc(var(--rt-rows, 4) * 1.45em + 18px) !important; min-height: 48px; max-height: none; overflow-y: auto; resize: vertical; padding: 8px 10px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; outline: none; cursor: text; }
 .rt-editor:focus { border-color: var(--focus); box-shadow: 0 0 0 2px rgba(31, 167, 176, 0.18); }
 .rt-editor p { margin: 0; min-height: 1.45em; }
 .rt-editor h3 { font-size: 1.3em; font-weight: 700; line-height: 1.3; margin: 4px 0 2px; color: var(--ink); letter-spacing: 0; text-transform: none; }
@@ -1029,4 +1032,28 @@ html.resizing-rows { overflow: hidden; }
 .ai-summary-edit .rt-editor { font-size: 19px; line-height: 1.55; padding: 12px; }
 .ai-summary.sized .ai-summary-edit .rt-field { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 .ai-summary.sized .ai-summary-edit .rt-field > div { flex: 1 1 auto; min-height: 0; display: flex; }
-.ai-summary.sized .ai-summary-edit .rt-editor { flex: 1 1 auto; min-height: 48px; max-height: none; }
+.ai-summary.sized .ai-summary-edit .rt-editor { flex: 1 1 auto; height: auto !important; min-height: 48px; max-height: none; resize: none; }
+/* Request 47: filters closed — the Active filters bar sits inside a more compact band; the table gets the room. */
+.filterbar[hidden] { display: none !important; }
+.band.filters-closed { padding-top: 18px; padding-bottom: 16px; gap: 12px; }
+.band.filters-closed h1 { font-size: 24px; }
+.band.filters-closed .active-filters { margin-bottom: 0; }
+.filters-toggle { margin-left: 6px; padding-left: 10px; border-left: 1px solid var(--rule); white-space: nowrap; }
+
+/* Request 47: A− / A+ beside titles and headings (staff; saved for everyone). Shown on hover or focus. */
+.ts-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ts-row > :first-child { min-width: 0; margin: 0; }
+.ts-btns { display: inline-flex; align-items: center; gap: 2px; flex: none; opacity: 0; transition: opacity 0.15s; font: 600 11px/1 var(--sans); letter-spacing: 0; text-transform: none; }
+.ts-row:hover > .ts-btns, .ts-btns:focus-within, .dfield:hover .ts-btns, .dfield:focus-within .ts-btns, .field:hover .ts-btns, .field:focus-within .ts-btns { opacity: 1; }
+@media (hover: none) { .ts-btns { opacity: 1; } }
+.ts-btn { border: 1px solid var(--border); background: var(--surface); color: var(--ink-2); border-radius: 6px; padding: 3px 6px; font: inherit; cursor: pointer; }
+.ts-btn:hover { background: var(--tint); color: var(--teal); }
+.ts-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.ts-pct { min-width: 34px; text-align: center; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ts-label-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ts-label-row .ts-btns { font-size: 10.5px; }
+.dcell.ts-title-input { font-size: calc(12.5px * var(--ts, 1)); height: auto; min-height: 32px; padding-block: 4px; line-height: 1.3; }
+.control.ts-title-input { font-size: calc(13px * var(--ts, 1)); height: auto; min-height: 34px; padding-block: 5px; line-height: 1.3; }
+.arch-pop-h { margin: 0 0 6px; }
+.inbox-title-row { margin-top: 4px; }
+.ts-plain { display: contents; }

@@ -44,6 +44,7 @@ import { SchemaEditor, TableColumnsEditor } from "../components/SchemaEditor";
 import { SnapshotActions, SnapshotFrame } from "../components/SnapshotFrame";
 import { localDateTime, pct } from "../lib/format";
 import { useToast } from "../state/toast";
+import { ENTRY_TITLE, EntryTitleInput, SizedHeading, TextSizeButtons } from "../components/TextSize";
 
 
 /** The approved entry in its Tracker (searched for; the default dates cover every entry). */
@@ -496,9 +497,9 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
             )}
             {item.comments > 0 && <span className="tag warn">💬 {item.comments} open comment{item.comments === 1 ? "" : "s"}</span>}
           </div>
-          <div className="inbox-title" id={`t-${item.id}`}>
+          <SizedHeading as="div" className="inbox-title" id={`t-${item.id}`} sizeKey={ENTRY_TITLE} label="entry titles" rowClassName="inbox-title-row">
             {String(item.draft[CORE.title] ?? "") || item.title || item.url || "Untitled submission"}
-          </div>
+          </SizedHeading>
           {hasId && (pending || item.status === "approved") && (
             <div className="auto-id" data-testid="auto-id">
               <b>ID</b>
@@ -680,24 +681,31 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
               const lowConf = ex?.confidence != null && ex.confidence < LOW_CONFIDENCE;
               const prov = item.provenance[c.key];
               const span = c.type === "long" ? "full" : c.key === CORE.title ? "wide" : "";
+              const titleBox = c.key === CORE.title && c.type === "text" && !auto;
               return (
                 <div key={c.key} className={`dfield ${span}`}>
-                  <span className="dlabel" id={`h-${item.id}-${c.key}`}>
-                    {c.label}
-                    {auto ? " (automatic)" : c.required ? "" : " (optional)"}
-                    {openOn(c.key) > 0 && (
-                      <span className="dlabel-c" title="Open client comments on this field">
-                        {" "}
-                        💬 {openOn(c.key)}
-                      </span>
-                    )}
-                  </span>
+                  {/* Request 47: A− / A+ beside the Title's label size every entry's title. */}
+                  <div className={titleBox ? "ts-label-row" : "ts-plain"}>
+                    <span className="dlabel" id={`h-${item.id}-${c.key}`}>
+                      {c.label}
+                      {auto ? " (automatic)" : c.required ? "" : " (optional)"}
+                      {openOn(c.key) > 0 && (
+                        <span className="dlabel-c" title="Open client comments on this field">
+                          {" "}
+                          💬 {openOn(c.key)}
+                        </span>
+                      )}
+                    </span>
+                    {titleBox && actionable && canReview && <TextSizeButtons sizeKey={ENTRY_TITLE} label="entry titles" />}
+                  </div>
                   {auto ? (
                     <input className="dcell auto" aria-label={c.label} readOnly value={SOURCE_TIER[item.stream]} aria-describedby={`n-${item.id}-${c.key}`} />
                   ) : c.type === "date" ? (
                     <input type="date" {...common} value={v} onChange={(e) => set(c.key, e.target.value)} />
                   ) : c.type === "long" ? (
                     <RichTextField {...common} className={`${cls} long`} rows={4} value={v} onValueChange={(x) => set(c.key, x)} />
+                  ) : titleBox ? (
+                    <EntryTitleInput {...common} value={v} onChange={(e) => set(c.key, e.target.value)} />
                   ) : c.type === "text" ? (
                     <input {...common} value={v} onChange={(e) => set(c.key, e.target.value)} />
                   ) : c.type === "multi" ? (

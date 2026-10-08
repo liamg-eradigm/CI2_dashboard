@@ -688,6 +688,32 @@ analyst-entered information distinguishable; in the prototype every value is
   - Resizing the AI Summary: the table is sized in the same frame
     (`useFitToScreen` fill mode measures at once, not on the next frame), and
     the page does not scroll while dragging, so no scrollbar flickers.
+- **Request 47** (contract 1.27, no migration):
+  - **Hide filters / Show filters** on the Primary Tracker and the Database
+    page, at the end of the Active filters bar. Closed, the filter grid is
+    hidden (still in the page, so `useFitToScreen` and the sticky AI Summary
+    keep measuring it), the band is shorter and the table gets the room.
+    Each page remembers its choice in the browser (`state/filtersOpen.ts`,
+    `eradigm.filters.ptr|db.closed`).
+  - **Editing keeps the box's size**: a formatted-text field is a fixed
+    number of lines high (`--rt-rows`) and scrolls; it can still be resized
+    by its corner. The AI Summary keeps the height it had when Edit was
+    pressed (at least 240px); the Macrotrend dashboard sections and the
+    Megatrends summaries edit inside their own boxes.
+  - **Title sizes**: staff (admins and analysts) change the size of titles
+    outside the text boxes with A− / A+ (75%–200%), shown when the title is
+    hovered or its box focused. The size applies for everyone and is kept
+    in the tenant settings (`textSizes`, set one at a time with
+    `PUT /api/settings/text-size`; 1 removes it). Keys: `entry-title` (each
+    entry's Title: the record's heading, the Inbox item's title and the
+    Title box in the Inbox and record editor), `heading:ai-summary`,
+    `heading:primary-signals`, `heading:archive`, `heading:md-<section>`
+    (Macrotrend dashboard sections) and `label:<field>` (a field's heading
+    in records and pop-ups, e.g. KEY DETAILS). The stored titles are
+    unchanged, so duplicate checks, alerts, graphs and exports are not
+    affected. `components/TextSize.tsx` (`SizedHeading`, `TextSizeButtons`,
+    `EntryTitleInput`) puts the buttons beside the heading, not in it, so
+    its name stays its text.
 - **Menu in groups** (request 28, contract 1.17; regrouped in request 31,
   contract 1.19; renamed in request 34; `packages/shared/src/menu.ts`): the
   menu is four groups (and, from request 43, the Database tab on its own),

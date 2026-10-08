@@ -7,6 +7,7 @@ import { localDateTime } from "../lib/format";
 import { useToast } from "../state/toast";
 import { BulletText } from "./BulletText";
 import { RICH_HINT, RichTextField } from "./RichTextField";
+import { SizedHeading } from "./TextSize";
 
 /** Request 44: keep the box stuck to the bottom of the sticky filter bar, whatever its height. */
 function useStickUnderFilters() {
@@ -33,6 +34,8 @@ function useStickUnderFilters() {
 /** Remembered per viewer (a convenience only: without storage it starts at its natural height). */
 const HEIGHT_KEY = "eradigm.ptr.aiSummaryHeight";
 const MIN_HEIGHT = 96;
+/** The smallest box an edit happens in (a few lines, the hint and the buttons). */
+const EDIT_MIN_HEIGHT = 240;
 /** The smallest height the table's rows keep when the summary is dragged taller (the table fills the rest). */
 const TABLE_ROOM = 160;
 const readHeight = () => {
@@ -128,9 +131,14 @@ export function DiscussionSummaryBox({ me, id, mode, source }: { me: Me; id: str
   const toast = useToast();
   const admin = can(me.role, "settings:edit");
   const [editing, setEditing] = useState(false);
+  // Request 47: editing keeps the box at the height it had (its text scrolls inside), however long the text.
+  const [editHeight, setEditHeight] = useState<number | null>(null);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   useEffect(() => setEditing(false), [id, mode]);
+  useEffect(() => {
+    if (!editing) setEditHeight(null);
+  }, [editing]);
   const s = q.data;
   const stick = useStickUnderFilters();
   const size = useResizableHeight(stick);
@@ -171,21 +179,21 @@ export function DiscussionSummaryBox({ me, id, mode, source }: { me: Me; id: str
 
   return (
     <section
-      className={`ai-summary${id ? "" : " idle"}${size.height != null ? " sized" : ""}`}
+      className={`ai-summary${id ? "" : " idle"}${(size.height ?? editHeight) != null ? " sized" : ""}`}
       aria-labelledby="ai-summary-title"
       data-testid="ai-summary"
       data-sticky-under=""
       ref={stick}
-      style={size.height != null ? { height: size.height } : undefined}
+      style={(size.height ?? editHeight) != null ? { height: size.height ?? editHeight! } : undefined}
     >
       <div className="ai-summary-head">
         <div>
-          <h2 className="card-title" id="ai-summary-title">
+          <SizedHeading className="card-title" id="ai-summary-title" sizeKey="heading:ai-summary" label="AI Summary heading">
             <span className="ai-spark" aria-hidden="true">
               ✦
             </span>{" "}
             AI Summary{id ? ` · ${NAME[mode]}` : ""}
-          </h2>
+          </SizedHeading>
           {id && (
             <span className="card-sub">
               {[source, s ? `${s.entries} ${s.entries === 1 ? "answer" : "answers"}` : null, meta].filter(Boolean).join(" · ")}
@@ -204,6 +212,8 @@ export function DiscussionSummaryBox({ me, id, mode, source }: { me: Me; id: str
               disabled={busy}
               onClick={() => {
                 setDraft(s.text ?? "");
+                // At least room for a few lines, the hint and the buttons.
+                if (size.height == null && stick.current) setEditHeight(Math.max(EDIT_MIN_HEIGHT, Math.round(stick.current.getBoundingClientRect().height)));
                 setEditing(true);
               }}
             >

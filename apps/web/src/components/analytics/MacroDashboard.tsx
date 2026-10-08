@@ -26,6 +26,7 @@ import { localDateTime } from "../../lib/format";
 import { ImpactMix, RecordFromTimeline, SignalTimeline, useAnalytics, useRecordParam } from "./Analytics";
 import { RichTextField } from "../RichTextField";
 import { RichText } from "../BulletText";
+import { SizedHeading } from "../TextSize";
 
 // The knowledge graph carries three.js: loaded when row 5 is first shown.
 const MegatrendsPage = lazy(() => import("../../pages/MegatrendsPage").then((m) => ({ default: m.MegatrendsPage })));
@@ -276,7 +277,9 @@ function SectionCell({ me, macro, k, s }: { me: Me; macro: string; k: MacroSecti
   return (
     <section className="md-cell md-text" aria-labelledby={`md-${k}`} data-testid={`md-section-${k}`}>
       <div className="md-text-head">
-        <h2 id={`md-${k}`}>{title}</h2>
+        <SizedHeading id={`md-${k}`} sizeKey={`heading:md-${k}`} label={`${title} heading`}>
+          {title}
+        </SizedHeading>
         {admin && !editing && (
           <button
             className="md-edit"

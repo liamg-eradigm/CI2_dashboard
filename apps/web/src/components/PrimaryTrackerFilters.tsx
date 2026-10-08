@@ -11,6 +11,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ALL, CORE, FIELDS, formatDate, getColumn, isIsoDate, type FilterState, type TrackerSchema } from "@eradigm/shared";
 import { useTrackerValues } from "../api/hooks";
 import { Combobox } from "./Combobox";
+import { filtersToggleLabel, useFiltersOpen } from "../state/filtersOpen";
 
 export const PT_PREFIX = "pt.";
 /** Chosen from the values in the tracker. */
@@ -46,6 +47,7 @@ function TypedFilter({ label, value, onChange }: { label: string; value: string;
 
 export function PrimaryTrackerFilters({ title, schema, params, setParams, defaults }: { title: string; schema: TrackerSchema; params: URLSearchParams; setParams: SetParams; defaults: { from: string; to: string } }) {
   const values = useTrackerValues("primary", PICK_KEYS);
+  const [shown, setShown] = useFiltersOpen("ptr");
   const f = useMemo(() => primaryTrackerFilters(params, defaults), [params, defaults]);
   const label = (k: string) => getColumn(schema, k)?.label ?? k;
   const set = (patch: Record<string, string | null>) =>
@@ -76,7 +78,7 @@ export function PrimaryTrackerFilters({ title, schema, params, setParams, defaul
 
   return (
     <>
-      <section className="band" aria-labelledby="page-title">
+      <section className={`band${shown ? "" : " filters-closed"}`} aria-labelledby="page-title">
         <div className="band-row">
           <div>
             <span className="eyebrow">Primary signals</span>
@@ -105,9 +107,13 @@ export function PrimaryTrackerFilters({ title, schema, params, setParams, defaul
               Reset filter
             </button>
           )}
+          <button className="link-btn filters-toggle" aria-expanded={shown} aria-controls="ptr-filters" onClick={() => setShown(!shown)} data-testid="filters-toggle">
+            {filtersToggleLabel(shown)} <span aria-hidden="true">{shown ? "▴" : "▾"}</span>
+          </button>
         </div>
       </section>
-      <section className="filterbar ptr-filters" aria-label="Primary Tracker filters" data-testid="ptr-filters">
+      {/* Request 47: closed, the filters give their room to the table (hidden, so the page still measures them). */}
+      <section className="filterbar ptr-filters" id="ptr-filters" aria-label="Primary Tracker filters" data-testid="ptr-filters" hidden={!shown}>
         {ORDER.map((k) => {
           if (k === CORE.date)
             return (
