@@ -212,7 +212,7 @@ test.describe("request 34", () => {
     await expect(page.getByRole("group", { name: /Show entries from/ })).toHaveCount(0);
     await page.goto(`/analytics/primary?${new URLSearchParams({ "pt.source_role": role })}`);
     const table = page.locator("table.data").first();
-    await expect(table.getByRole("columnheader", { name: "Archived Responses" })).toBeVisible();
+    await expect(table.getByRole("columnheader", { name: "Full Discussion" })).toBeVisible();
     await expect(table.getByTestId("archived-cell")).toHaveCount(2);
     await expect(table.getByRole("row", { name: new RegExp(`First answer ${tag}`) }).getByTestId("archived-cell")).toHaveCount(0);
     await table.getByRole("row", { name: new RegExp(`Latest answer ${tag}`) }).getByTestId("archived-cell").click();

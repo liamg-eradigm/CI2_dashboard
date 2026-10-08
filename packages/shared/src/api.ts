@@ -510,6 +510,8 @@ export const SignalSchema = z.object({
    * in contract 1.16.
    */
   linkedEarlier: z.string().nullable().optional(),
+  /** KIQ Archive (request 42): an earlier entry from the same source with the same Insight Topic and Key Intelligence Question. */
+  kiqEarlier: z.string().nullable().optional(),
   linkedLater: z.string().nullable().optional(),
 });
 
@@ -901,7 +903,7 @@ export const ENDPOINTS: EndpointDef[] = [
   { method: "post", path: "/api/trend-analyses/import", summary: "Import trend analyses from a spreadsheet (columns: Macrotrend or Competitor; Competitor, Macrotrend, or Subtrend; Name; Trend analysis). At most 200 rows for a dry run, 8 otherwise", roles: STAFF, request: ImportTrendAnalysesRequest, response: ImportTrendAnalysesResponse },
   { method: "get", path: "/api/trend-analyses/{id}/markdown", summary: "A submitted trend analysis as Markdown (inline, or ?download=1 as a file)", roles: ALL_ROLES, raw: "text/markdown" },
   { method: "delete", path: "/api/trend-analyses/{id}", summary: "Remove a submission from Trend Analyses (the trend keeps its current analysis)", roles: STAFF, response: z.object({ ok: z.literal(true) }) },
-  { method: "get", path: "/api/signals/{id}/archived", summary: "Archived Responses: the earlier Primary entries from the same source (Source Role and Source Company) as this entry, newest first", roles: ALL_ROLES, response: ArchivedResponsesSchema },
+  { method: "get", path: "/api/signals/{id}/archived", summary: "Full Discussion: the earlier Primary entries from the same source (Source Role and Source Company) as this entry, newest first; with match=kiq (KIQ Archive), only those with the same Insight Topic and Key Intelligence Question too", roles: ALL_ROLES, query: ["match"], response: ArchivedResponsesSchema },
   { method: "get", path: "/api/signals/{id}/markdown", summary: "Markdown for a tracker entry (text/markdown; ?download=1 for an attachment)", roles: ALL_ROLES, raw: "text/markdown" },
   { method: "put", path: "/api/schema/columns/order", summary: "Change the column order of the Inbox, Tracker or Phantoms table", roles: STAFF, request: ReorderColumnsRequest, response: TrackerSchemaSchema },
   { method: "post", path: "/api/schema/columns/{key}/options", summary: "Add a dropdown option", roles: STAFF, request: AddOptionRequest, response: TrackerSchemaSchema },

@@ -27,6 +27,26 @@ const PAGE = 10;
 const PRIMARY_TRACKER_KEYS = [FIELDS.sourceCompany, FIELDS.sourceRole, CORE.date, FIELDS.insightTopic, FIELDS.keyQuestion, FIELDS.keyDetails, FIELDS.keyMetrics];
 const primaryTrackerColumns = (s: TrackerSchema) => PRIMARY_TRACKER_KEYS.map((k) => getColumn(s, k)).filter((c): c is TrackerColumn => !!c);
 
+/** Full Discussion (request 42): a speech bubble. */
+function ChatIcon() {
+  return (
+    <svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true" data-icon="chat">
+      <path d="M4 4.5h12a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H9l-3.6 2.8v-2.8H4a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1Z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M6.5 8.2h7M6.5 10.8h4.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** KIQ Archive (request 42): the link icon Archived Responses had. */
+function LinkIcon() {
+  return (
+    <svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true" data-icon="link">
+      <path d="M8.2 11.8a3.2 3.2 0 0 0 4.5 0l2.6-2.6a3.2 3.2 0 0 0-4.5-4.5l-1 1" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M11.8 8.2a3.2 3.2 0 0 0-4.5 0l-2.6 2.6a3.2 3.2 0 0 0 4.5 4.5l1-1" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function Cell({ col, s, impactCol, growthCol, actionCol }: { col: TrackerColumn; s: Signal; impactCol?: TrackerColumn; growthCol?: TrackerColumn; actionCol?: TrackerColumn }) {
   const v = s.values[col.key];
   const text = displayValue(col, v);
@@ -157,7 +177,9 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
   const archPopup = primaryOnly ? f.params.get("ap") : null;
   // Request 39: the pop-up of a Primary Tracker row (left, over the table, beside Archived Responses; else centred).
   const rowPopup = primaryOnly ? f.params.get("pp") : null;
-  const archived = useArchived(primaryOnly ? archId : null);
+  // Which earlier entries the split shows: Full Discussion (the same source) or, with am=kiq, the KIQ Archive (request 42).
+  const archMode: "source" | "kiq" = primaryOnly && f.params.get("am") === "kiq" ? "kiq" : "source";
+  const archived = useArchived(primaryOnly ? archId : null, archMode);
   const archRows = archived.data?.rows ?? [];
   const savedOpen = f.params.get("saved");
   const docxOpen = f.params.get("docx");
@@ -229,7 +251,8 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
   const openKey = primaryOnly ? cols[0]?.key : CORE.title;
   const canAttach = can(me.role, "item:edit");
   // Phantoms (and the Deliverables built from them) are an evergreen snapshot: only Tracker entries are edited.
-  const canEdit = canAttach && view === "tracker";
+  // (The Analytics Primary Tracker has no Source or Edit columns, request 42.)
+  const canEdit = canAttach && view === "tracker" && !primaryOnly;
   const canDelete = can(me.role, "item:delete");
   // Alerts (request 36): tick to delete alerts.
   const tickable = newsletter ? canCreateNewsletter(me) : (view === "tracker" || view === "phantoms" || view === "alerts") && canDelete;
@@ -264,7 +287,8 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
   /** Primary Tracker (request 39): a row opens its pop-up; beside Archived Responses when that source has earlier answers and they are open. */
   const openRow = (r: Signal) => {
     if (!archId || archId === r.id) return setParam({ pp: r.id }, true);
-    setParam({ pp: r.id, arch: r.linkedEarlier ? r.id : null, ap: null }, true);
+    const has = archMode === "kiq" ? r.kiqEarlier : r.linkedEarlier;
+    setParam({ pp: r.id, arch: has ? r.id : null, am: has && archMode === "kiq" ? "kiq" : null, ap: null }, true);
   };
   const onRowClick = (e: ReactMouseEvent, r: Signal) => {
     if (!primaryOnly || (e.target as HTMLElement).closest("button, a, input, label, select, textarea")) return;
@@ -314,7 +338,7 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
           {!primaryOnly && <StreamSwitch noun={NOUN[view]} value={stream} onChange={setStream} label={`${NOUN[view]} to show`} />}
           <span className="stream-note">
             {primaryOnly
-              ? "Approved entries from the Primary Inbox · Archived Responses opens the earlier answers from the same source (Source Role and Source Company)"
+              ? "Approved entries from the Primary Inbox · Full Discussion opens the earlier answers from the same source (Source Role and Source Company) · KIQ Archive only those with the same Insight Topic and Key Intelligence Question"
               : view === "alerts"
               ? `${STREAM_LABEL[stream]} Phantoms with High Impact · each gets a .docx alert automatically`
               : newsletter
@@ -440,14 +464,21 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
                       <span>Markdown</span>
                     </th>
                   )}
-                  <th scope="col" className="src-col">
-                    <span>Source</span>
-                  </th>
+                  {!primaryOnly && (
+                    <th scope="col" className="src-col">
+                      <span>Source</span>
+                    </th>
+                  )}
                   {linkCol &&
                     (primaryOnly ? (
-                      <th scope="col" className="arch-col" title="Earlier answers from the same source (Source Role and Source Company)">
-                        <span>Archived Responses</span>
-                      </th>
+                      <>
+                        <th scope="col" className="arch-col" title="Earlier answers from the same source (Source Role and Source Company)">
+                          <span>Full Discussion</span>
+                        </th>
+                        <th scope="col" className="arch-col" title="Earlier answers from the same source with the same Insight Topic and Key Intelligence Question">
+                          <span>KIQ Archive</span>
+                        </th>
+                      </>
                     ) : (
                       <th scope="col" className="link-col" title="Linked to other entries from the same source (Source Role and Source Company)">
                         <span aria-hidden="true">🔗</span>
@@ -493,24 +524,40 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
                         </button>
                       </td>
                     )}
-                    <SourceCell s={r} canAttach={canAttach} onOpen={(pageId) => setParam({ saved: r.id, savedPage: pageId }, true)} />
+                    {!primaryOnly && <SourceCell s={r} canAttach={canAttach} onOpen={(pageId) => setParam({ saved: r.id, savedPage: pageId }, true)} />}
                     {linkCol && primaryOnly && (
                       <td className="arch-col">
                         {r.linkedEarlier ? (
                           <button
-                            className={`src-btn open arch-btn${archId === r.id ? " on" : ""}`}
+                            className={`src-btn open arch-btn${archId === r.id && archMode === "source" ? " on" : ""}`}
                             data-testid="archived-cell"
-                            onClick={() => setParam({ arch: r.id, pp: r.id, ap: null }, true)}
-                            aria-label={`Archived Responses: earlier answers from the same source as ${titleOf(r)}`}
-                            title="Archived Responses · earlier answers from the same source"
+                            onClick={() => setParam({ arch: r.id, am: null, pp: r.id, ap: null }, true)}
+                            aria-label={`Full Discussion: earlier answers from the same source as ${titleOf(r)}`}
+                            title="Full Discussion · earlier answers from the same source"
                           >
-                            <svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true">
-                              <path d="M8.2 11.8a3.2 3.2 0 0 0 4.5 0l2.6-2.6a3.2 3.2 0 0 0-4.5-4.5l-1 1" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                              <path d="M11.8 8.2a3.2 3.2 0 0 0-4.5 0l-2.6 2.6a3.2 3.2 0 0 0 4.5 4.5l1-1" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                            </svg>
+                            <ChatIcon />
                           </button>
                         ) : (
-                          <span className="src-none" aria-label="No archived responses">
+                          <span className="src-none" aria-label="No earlier answers from this source">
+                            —
+                          </span>
+                        )}
+                      </td>
+                    )}
+                    {linkCol && primaryOnly && (
+                      <td className="arch-col">
+                        {r.kiqEarlier ? (
+                          <button
+                            className={`src-btn open arch-btn${archId === r.id && archMode === "kiq" ? " on" : ""}`}
+                            data-testid="kiq-cell"
+                            onClick={() => setParam({ arch: r.id, am: "kiq", pp: r.id, ap: null }, true)}
+                            aria-label={`KIQ Archive: earlier answers to the same Key Intelligence Question from the same source as ${titleOf(r)}`}
+                            title="KIQ Archive · earlier answers from the same source, Insight Topic and Key Intelligence Question"
+                          >
+                            <LinkIcon />
+                          </button>
+                        ) : (
+                          <span className="src-none" aria-label="No earlier answers to this Key Intelligence Question">
                             —
                           </span>
                         )}
@@ -602,9 +649,10 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
             id={archId}
             schema={s}
             cols={cols}
+            mode={archMode}
             current={archPopup}
             onOpen={(id) => setParam({ ap: id }, true)}
-            onClose={() => setParam({ arch: null, ap: null })}
+            onClose={() => setParam({ arch: null, am: null, ap: null })}
           >
             {archPopup && (
               <AnswerCard
@@ -713,6 +761,7 @@ function ArchivedPanel({
   id,
   schema,
   cols,
+  mode = "source",
   current,
   onOpen,
   onClose,
@@ -721,13 +770,16 @@ function ArchivedPanel({
   id: string;
   schema: TrackerSchema;
   cols: TrackerColumn[];
+  /** Full Discussion (the same source) or the KIQ Archive (also the same Insight Topic and KIQ, request 42). */
+  mode?: "source" | "kiq";
   current: string | null;
   onOpen: (id: string) => void;
   onClose: () => void;
   /** The open archived response's pop-up, over this table (request 39). */
   children?: ReactNode;
 }) {
-  const q = useArchived(id);
+  const q = useArchived(id, mode);
+  const name = mode === "kiq" ? "KIQ Archive" : "Archived Responses";
   const cur = useSignal(id);
   const impactCol = getColumn(schema, CORE.impact);
   const growthCol = getColumn(schema, CORE.growth);
@@ -741,17 +793,17 @@ function ArchivedPanel({
       <div className="table-top">
         <div>
           <h2 className="card-title" id="arch-title">
-            Archived Responses
+            {name}
           </h2>
-          <span className="card-sub">{role || company ? `${[role, company].filter(Boolean).join(" · ")} · ` : ""}{q.data ? `${rows.length} earlier ${rows.length === 1 ? "answer" : "answers"} from the same source` : "Loading…"}</span>
+          <span className="card-sub">{role || company ? `${[role, company].filter(Boolean).join(" · ")} · ` : ""}{q.data ? `${rows.length} earlier ${rows.length === 1 ? "answer" : "answers"} from the same source${mode === "kiq" ? " to the same Insight Topic and KIQ" : ""}` : "Loading…"}</span>
         </div>
-        <button className="icon-btn" onClick={onClose} aria-label="Close Archived Responses" title="Close">
+        <button className="icon-btn" onClick={onClose} aria-label={`Close ${name}`} title="Close">
           ✕
         </button>
       </div>
-      <div ref={fitRef} className="table-wrap fit arch-wrap" tabIndex={0} role="region" aria-label="Archived Responses (scrollable)">
+      <div ref={fitRef} className="table-wrap fit arch-wrap" tabIndex={0} role="region" aria-label={`${name} (scrollable)`}>
         <table className="data ptr" style={{ minWidth: 1300 }}>
-          <caption className="sr-only">Archived Responses: earlier entries from the same source</caption>
+          <caption className="sr-only">{name}: earlier entries from the same source{mode === "kiq" ? " with the same Insight Topic and KIQ" : ""}</caption>
           <thead>
             <tr>
               {cols.map((c) => (

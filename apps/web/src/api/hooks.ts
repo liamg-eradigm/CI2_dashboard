@@ -128,7 +128,9 @@ export const useTrendAnalysisMarkdown = (id: string | null) =>
   });
 
 /** Archived Responses (request 34): earlier Primary entries from the same source. */
-export const useArchived = (id: string | null) => useQuery({ queryKey: ["signal", id, "archived"], queryFn: () => api<ArchivedResponses>(`/api/signals/${id}/archived`), enabled: !!id });
+/** Full Discussion (the same source), or with `kiq` the KIQ Archive (also the same Insight Topic and KIQ, request 42). */
+export const useArchived = (id: string | null, match: "source" | "kiq" = "source") =>
+  useQuery({ queryKey: ["signal", id, "archived", match], queryFn: () => api<ArchivedResponses>(`/api/signals/${id}/archived${match === "kiq" ? "?match=kiq" : ""}`), enabled: !!id });
 
 export const useSignal = (id: string | null) =>
   useQuery({ queryKey: ["signal", id], queryFn: () => api<SignalDetail>(`/api/signals/${id}`), enabled: !!id });

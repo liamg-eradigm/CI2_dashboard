@@ -574,6 +574,17 @@ analyst-entered information distinguishable; in the prototype every value is
   filters are ignored there. In API requests a text filter is `t.<column>`
   (any text or long-text column of the stream; `FilterState.text`), which
   exports honour too.
+- **Request 42** (contract 1.24, no migration): Analytics → Primary Tracker
+  has no Source or Edit columns. The Archived Responses column is now
+  **Full Discussion**, with a chat icon and the same behaviour (every earlier
+  answer from the same Source Role and Source Company). Right of it, **KIQ
+  Archive** (link icon) works the same way but lists only earlier answers
+  from that source with the same Insight Topic and Key Intelligence Question
+  (compared trimmed and in any case; both must be filled in). The API gives
+  each tracker row `kiqEarlier` (the latest such answer, through the
+  `ix_item_source_key` index) and `GET /api/signals/:id/archived?match=kiq`
+  lists them; the page keeps the choice in the address as `am=kiq`. The
+  Signals Database's Primary Tracker is unchanged.
 - **Menu in groups** (request 28, contract 1.17; regrouped in request 31,
   contract 1.19; renamed in request 34; `packages/shared/src/menu.ts`): the
   menu is four groups, each a button that opens its tabs: Inputs (Input,
