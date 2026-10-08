@@ -20,6 +20,7 @@ import { PrimaryTrackerFilters, primaryTrackerFilters } from "../components/Prim
 import { DatabaseFilters, databaseFilters } from "../components/DatabaseFilters";
 import { NewsletterCell, NewspaperIcon } from "../components/NewsletterCell";
 import { DiscussionSummaryBox } from "../components/DiscussionSummaryBox";
+import { RichText } from "../components/BulletText";
 
 const PAGE = 10;
 
@@ -329,10 +330,10 @@ export function TrackerPage({
   const docxRow = docxOpen ? t?.rows.find((r) => r.alertId === docxOpen) : undefined;
   const docxNewsletter = docxOpen ? (newsletters.data?.find((n) => n.id === docxOpen) ?? t?.rows.flatMap((r) => r.newsletters ?? []).find((n) => n.id === docxOpen)) : undefined;
   const titleOf = (r: Signal) => String(r.values[CORE.title] ?? r.code);
-  /** Primary Tracker (request 39): a row opens its pop-up; beside Archived Responses when that source has earlier answers and they are open. */
+  /** Primary Tracker (request 39): a row opens its pop-up; beside the Full Discussion / KIQ Archive when it has one and they are open. */
   const openRow = (r: Signal) => {
     if (!archId || archId === r.id) return setParam({ pp: r.id }, true);
-    const has = archMode === "kiq" ? r.kiqEarlier : r.linkedEarlier;
+    const has = archMode === "kiq" ? r.kiqEarlier : r.discussionWith;
     setParam({ pp: r.id, arch: has ? r.id : null, am: has && archMode === "kiq" ? "kiq" : null, ap: null }, true);
   };
   const onRowClick = (e: ReactMouseEvent, r: Signal) => {
@@ -565,7 +566,7 @@ export function TrackerPage({
                   {linkCol &&
                     (primaryOnly ? (
                       <>
-                        <th scope="col" className="arch-col" title="Earlier answers from the same source (Source Role and Source Company)">
+                        <th scope="col" className="arch-col" title="The other answers of the same conversation (same Source Role, Source Company and Event Date)">
                           <span>Full Discussion</span>
                         </th>
                         <th scope="col" className="arch-col" title="Earlier answers from the same source with the same Insight Topic and Key Intelligence Question">
@@ -647,18 +648,18 @@ export function TrackerPage({
                     )}
                     {linkCol && primaryOnly && (
                       <td className="arch-col">
-                        {r.linkedEarlier ? (
+                        {r.discussionWith ? (
                           <button
                             className={`src-btn open arch-btn${archId === r.id && archMode === "source" ? " on" : ""}`}
                             data-testid="archived-cell"
                             onClick={() => setParam({ arch: r.id, am: null, pp: r.id, ap: null }, true)}
-                            aria-label={`Full Discussion: earlier answers from the same source as ${titleOf(r)}`}
-                            title="Full Discussion · earlier answers from the same source"
+                            aria-label={`Full Discussion: the other answers of the same conversation as ${titleOf(r)}`}
+                            title="Full Discussion · the other answers of the same conversation (same source and Event Date)"
                           >
                             <ChatIcon />
                           </button>
                         ) : (
-                          <span className="src-none" aria-label="No earlier answers from this source">
+                          <span className="src-none" aria-label="No other answers in this conversation">
                             —
                           </span>
                         )}
@@ -874,7 +875,8 @@ export function TrackerPage({
 }
 
 /**
- * Archived Responses (request 34): the earlier entries from the same source,
+ * Archived Responses (request 34): the entries linked to the open one — the
+ * rest of its conversation (Full Discussion, request 46) or its KIQ Archive —
  * in a table like the Primary Tracker's, on the right of a split screen.
  */
 function ArchivedPanel({
@@ -916,7 +918,11 @@ function ArchivedPanel({
           <h2 className="card-title" id="arch-title">
             {name}
           </h2>
-          <span className="card-sub">{role || company ? `${[role, company].filter(Boolean).join(" · ")} · ` : ""}{q.data ? `${rows.length} earlier ${rows.length === 1 ? "answer" : "answers"} from the same source${mode === "kiq" ? " to the same Insight Topic and KIQ" : ""}` : "Loading…"}</span>
+          <span className="card-sub">{role || company ? `${[role, company].filter(Boolean).join(" · ")} · ` : ""}{q.data
+            ? mode === "kiq"
+              ? `${rows.length} earlier ${rows.length === 1 ? "answer" : "answers"} from the same source to the same Insight Topic and KIQ`
+              : `${rows.length} other ${rows.length === 1 ? "answer" : "answers"} in the same conversation (same Event Date)`
+            : "Loading…"}</span>
         </div>
         <button className="icon-btn" onClick={onClose} aria-label={`Close ${name}`} title="Close">
           ✕
@@ -924,7 +930,7 @@ function ArchivedPanel({
       </div>
       <div ref={fitRef} className="table-wrap fit arch-wrap" tabIndex={0} role="region" aria-label={`${name} (scrollable)`}>
         <table className="data ptr" style={{ minWidth: 1300 }}>
-          <caption className="sr-only">{name}: earlier entries from the same source{mode === "kiq" ? " with the same Insight Topic and KIQ" : ""}</caption>
+          <caption className="sr-only">{name}: {mode === "kiq" ? "earlier entries from the same source with the same Insight Topic and KIQ" : "the other entries of the same conversation"}</caption>
           <thead>
             <tr>
               {cols.map((c) => (
@@ -959,7 +965,7 @@ function ArchivedPanel({
           </tbody>
         </table>
       </div>
-      {q.data && !rows.length && <div className="empty">No earlier answers from this source.</div>}
+      {q.data && !rows.length && <div className="empty">{mode === "kiq" ? "No earlier answers to this KIQ from this source." : "No other answers in this conversation."}</div>}
       {children}
     </section>
   );
@@ -1039,7 +1045,8 @@ function AnswerCard({
         {cols.slice(3).map((c) => (
           <section key={c.key}>
             <h3>{c.label}</h3>
-            <p>{text(c) || "—"}</p>
+            {/* Long text keeps its formatting (request 46). */}
+            {c.type === "long" && v[c.key] ? <RichText text={String(v[c.key])} /> : <p>{text(c) || "—"}</p>}
           </section>
         ))}
       </div>

@@ -132,21 +132,24 @@ test.describe("request 19", () => {
     const e = await draftEntry(page, `Bullets ${Date.now().toString(36)}`);
     await page.reload();
     const card = page.locator(".inbox-card", { has: page.locator(".code", { hasText: e.code }) });
+    // A formatted-text field since request 46: the bullets are real (nested) lists.
     const field = card.getByLabel("CI Perspective", { exact: true });
     await field.fill("");
     await field.focus();
     await page.keyboard.type("Deal terms");
     await page.keyboard.press("Tab");
-    await expect(field).toHaveValue("- Deal terms");
+    await expect(field.locator("> ul > li")).toHaveText(["Deal terms"]);
     await page.keyboard.press("Enter");
     await page.keyboard.type("Upfront");
     await page.keyboard.press("Tab");
-    await expect(field).toHaveValue("- Deal terms\n  - Upfront");
+    await expect(field.locator("> ul > li > ul > li")).toHaveText(["Upfront"]);
     await page.keyboard.press("Enter");
     await page.keyboard.press("Enter");
-    await expect(field).toHaveValue("- Deal terms\n  - Upfront\n- ");
+    // An empty bullet: Enter moves it up a level.
+    await expect(field.locator("> ul > li")).toHaveCount(2);
     await page.keyboard.press("Shift+Tab");
-    await expect(field).toHaveValue("- Deal terms\n  - Upfront\n");
+    await expect(field.locator("> ul > li")).toHaveCount(1);
+    await expect(field.locator("> p")).toHaveCount(1);
     await expect(field).toBeFocused();
     await page.keyboard.press("Escape");
     await page.keyboard.press("Tab");

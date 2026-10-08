@@ -18,6 +18,7 @@ import { ImpactMixes, RecordFromTimeline, SignalTimeline, useAnalytics, useRecor
 import { MacroDashboard } from "../components/analytics/MacroDashboard";
 import { NEUTRAL, TIER_COLOUR, impactColour, paletteOf, plural } from "../components/megatrends/model";
 import { localDateTime } from "../lib/format";
+import { RichText } from "../components/BulletText";
 import "../styles/megatrends.css";
 
 type Kind = "macro" | "competitor";
@@ -255,9 +256,7 @@ function TrendDetail({
           </div>
           {s?.text ? (
             <>
-              <p className="ta-summary-text" data-testid="ta-summary-text">
-                {s.text}
-              </p>
+              <RichText className="ta-summary-text" testId="ta-summary-text" text={s.text} />
               <span className="ta-summary-meta">
                 {written ? `${s.source === "ai" ? "Written by the AI writer" : `Written by ${s.updatedBy ?? "an analyst"}`}${s.updatedAt ? ` · ${localDateTime(s.updatedAt)}` : ""}` : "The default analysis (no trend analysis input yet)"}
               </span>

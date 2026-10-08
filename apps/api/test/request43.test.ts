@@ -100,7 +100,8 @@ describe("request 43: the Primary Tracker's AI Summary", () => {
   it("is written by hand by admins only, per discussion, and flagged when the discussion changes", async () => {
     const tag = Math.random().toString(36).slice(2, 8);
     const base = { source_company: `Clinic ${tag}`, source_role: `Lead ${tag}`, insight_topic: "Pricing", impact: "Medium" };
-    const first = await entry("primary", { ...base, title: `First ${tag}`, date: "2026-02-01", key_intelligence_question: "Will payers cover it?" });
+    // One conversation (request 46): the same source on the same Event Date.
+    const first = await entry("primary", { ...base, title: `First ${tag}`, date: "2026-04-01", key_intelligence_question: "Will payers cover it?" });
     const latest = await entry("primary", { ...base, title: `Latest ${tag}`, date: "2026-04-01", key_intelligence_question: "Will payers cover it?" });
     // Not connected: nothing written, no error.
     const none = await json(call(w.a.client, "GET", `/api/signals/${latest}/summary`));
@@ -125,9 +126,10 @@ describe("request 43: the Primary Tracker's AI Summary", () => {
 
   it("is written by the AI writer when connected, again once the discussion changes, never over a hand-written one", async () => {
     const tag = Math.random().toString(36).slice(2, 8);
+    // One conversation (request 46): every answer on the same Event Date.
     const base = { source_company: `Clinic ${tag}`, source_role: `Lead ${tag}`, insight_topic: "Access", impact: "Medium" };
-    await entry("primary", { ...base, title: `Old ${tag}`, date: "2026-01-01", key_intelligence_question: "Q one" });
-    await entry("primary", { ...base, title: `Other ${tag}`, date: "2026-02-01", key_intelligence_question: "Q two" });
+    await entry("primary", { ...base, title: `Old ${tag}`, date: "2026-03-01", key_intelligence_question: "Q one" });
+    await entry("primary", { ...base, title: `Other ${tag}`, date: "2026-03-01", key_intelligence_question: "Q two" });
     const latest = await entry("primary", { ...base, title: `New ${tag}`, date: "2026-03-01", key_intelligence_question: "Q one" });
     const full = await json(withMock("GET", `/api/signals/${latest}/summary`, w.a.client));
     expect(full, JSON.stringify(full)).toMatchObject({ source: "ai", aiConnected: true, entries: 3, stale: false, model: "mock-heuristic" });
@@ -138,11 +140,11 @@ describe("request 43: the Primary Tracker's AI Summary", () => {
     // Asked again with nothing changed: the same summary (not rewritten).
     expect((await json(withMock("GET", `/api/signals/${latest}/summary`, w.a.client))).updatedAt).toBe(full.updatedAt);
     // A new earlier answer from the source: written again.
-    await entry("primary", { ...base, title: `Older ${tag}`, date: "2025-12-01", key_intelligence_question: "Q three" });
+    await entry("primary", { ...base, title: `Older ${tag}`, date: "2026-03-01", key_intelligence_question: "Q three" });
     expect((await json(withMock("GET", `/api/signals/${latest}/summary`, w.a.client))).text).toMatch(/^Mock summary of 4 answers/);
     // A hand-written summary stays until an admin asks the AI writer again.
     await call(w.a.admin, "PUT", `/api/signals/${latest}/summary`, { body: { mode: "source", text: "Written by hand." } });
-    await entry("primary", { ...base, title: `Oldest ${tag}`, date: "2025-11-01", key_intelligence_question: "Q four" });
+    await entry("primary", { ...base, title: `Oldest ${tag}`, date: "2026-03-01", key_intelligence_question: "Q four" });
     expect(await json(withMock("GET", `/api/signals/${latest}/summary`, w.a.client))).toMatchObject({ text: "Written by hand.", stale: true });
     expect((await withMock("POST", `/api/signals/${latest}/summary/generate`, w.a.analyst, { mode: "source" })).status).toBe(403);
     const again = await json(withMock("POST", `/api/signals/${latest}/summary/generate`, w.a.admin, { mode: "source" }));

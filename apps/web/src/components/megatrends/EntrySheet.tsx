@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { RichText } from "../BulletText";
 import { CORE, displayValue, tableColumns, type MegatrendEntry } from "@eradigm/shared";
 import { useSchema, useSignal } from "../../api/hooks";
 import { formatDate } from "../../lib/format";
@@ -258,7 +259,8 @@ export function EntrySheet({
                     return (
                       <div key={c.key} className={`mg-field${c.type === "long" ? " long" : ""}`}>
                         <dt>{c.label}</dt>
-                        <dd>{text}</dd>
+                        {/* Long text keeps its formatting (request 46). */}
+                        <dd>{c.type === "long" && values[c.key] ? <RichText text={String(values[c.key])} /> : text}</dd>
                       </div>
                     );
                   })}

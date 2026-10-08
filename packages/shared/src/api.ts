@@ -555,6 +555,8 @@ export const SignalSchema = z.object({
   linkedEarlier: z.string().nullable().optional(),
   /** KIQ Archive (request 42): an earlier entry from the same source with the same Insight Topic and Key Intelligence Question. */
   kiqEarlier: z.string().nullable().optional(),
+  /** Full Discussion (request 46): another entry from the same conversation (same source and Event Date). */
+  discussionWith: z.string().nullable().optional(),
   linkedLater: z.string().nullable().optional(),
   /**
    * The Database page (request 43, contract 1.25): whether the entry is in
@@ -972,7 +974,7 @@ export const ENDPOINTS: EndpointDef[] = [
   { method: "get", path: "/api/signals/{id}/summary", summary: "Primary Tracker AI Summary of the entry's Full Discussion (or, with match=kiq, its KIQ Archive); written by the AI writer when it is connected and the summary is missing or out of date", roles: ALL_ROLES, query: ["match"], response: DiscussionSummarySchema },
   { method: "put", path: "/api/signals/{id}/summary", summary: "Admins write the AI Summary by hand (empty text removes it)", roles: ADMIN, request: UpdateDiscussionSummaryRequest, response: DiscussionSummarySchema },
   { method: "post", path: "/api/signals/{id}/summary/generate", summary: "Admins have the AI writer write the AI Summary again (replacing a hand-written one)", roles: ADMIN, request: GenerateDiscussionSummaryRequest, response: DiscussionSummarySchema },
-  { method: "get", path: "/api/signals/{id}/archived", summary: "Full Discussion: the earlier Primary entries from the same source (Source Role and Source Company) as this entry, newest first; with match=kiq (KIQ Archive), only those with the same Insight Topic and Key Intelligence Question too", roles: ALL_ROLES, query: ["match"], response: ArchivedResponsesSchema },
+  { method: "get", path: "/api/signals/{id}/archived", summary: "Full Discussion: the other Primary entries of the same conversation as this entry (same Source Role, Source Company and Event Date), newest first; with match=kiq (KIQ Archive), the earlier entries from the same source with the same Insight Topic and Key Intelligence Question, on any date", roles: ALL_ROLES, query: ["match"], response: ArchivedResponsesSchema },
   { method: "get", path: "/api/signals/{id}/markdown", summary: "Markdown for a tracker entry (text/markdown; ?download=1 for an attachment)", roles: ALL_ROLES, raw: "text/markdown" },
   { method: "put", path: "/api/schema/columns/order", summary: "Change the column order of the Inbox, Tracker or Phantoms table", roles: STAFF, request: ReorderColumnsRequest, response: TrackerSchemaSchema },
   { method: "post", path: "/api/schema/columns/{key}/options", summary: "Add a dropdown option", roles: STAFF, request: AddOptionRequest, response: TrackerSchemaSchema },

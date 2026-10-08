@@ -156,7 +156,8 @@ test.describe("request 43", () => {
     const tag = Math.random().toString(36).slice(2, 8);
     const base = { source_role: `Head of Access ${tag}`, source_company: `Clinic ${tag}`, insight_topic: "Pricing" };
     await push(page, "primary", [
-      { ...base, title: `Oldest ${tag}`, date: "2026-04-01", key_intelligence_question: "Will payers cover it?", key_details: "Oldest details." },
+      // One conversation (request 46): the same source on the same Event Date.
+      { ...base, title: `Oldest ${tag}`, date: "2026-09-01", key_intelligence_question: "Will payers cover it?", key_details: "Oldest details." },
       { ...base, title: `Newest ${tag}`, date: "2026-09-01", key_intelligence_question: "Will payers cover it?", key_details: "Newest details." },
     ]);
     await page.goto(`/analytics/primary?${new URLSearchParams({ "pt.source_company": `Clinic ${tag}` })}`);

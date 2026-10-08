@@ -17,10 +17,13 @@ import {
   type TrendAnalysis,
   type TrendAnalysisCategory,
   type TrendLevel,
+  plainText,
 } from "@eradigm/shared";
 import { api, type ApiError } from "../api/client";
 import { useCompetitors, useInvalidate, useMacroSections, useMegatrends, useSchema } from "../api/hooks";
 import { Combobox } from "./Combobox";
+import { RichTextField } from "./RichTextField";
+import { RichText } from "./BulletText";
 
 interface RowError {
   row: number;
@@ -195,7 +198,7 @@ export function TrendAnalysisInput() {
           {current && current.source !== "default" && current.text && (
             <details className="tai-current">
               <summary>Current analysis of {target?.name}</summary>
-              <p>{current.text}</p>
+              <RichText text={current.text} />
             </details>
           )}
 
@@ -204,15 +207,15 @@ export function TrendAnalysisInput() {
               Trend analysis
               {target ? ` · ${TREND_LEVEL_LABEL[target.level]} ${target.name}` : ""}
             </span>
-            <textarea
+            <RichTextField
               className="control tai-text"
               value={text}
-              maxLength={MAX_SUMMARY_LENGTH}
               rows={8}
-              onChange={(e) => setText(e.target.value)}
+              onValueChange={setText}
               placeholder={target ? `Write the analysis of ${target.name}…` : "Choose the competitor, then write its analysis here…"}
+              aria-label={`Trend analysis${target ? ` of ${target.name}` : ""}`}
               aria-describedby="tai-count"
-              data-testid="tai-text"
+              testId="tai-text"
             />
           </label>
           <div className="tai-foot">
@@ -557,15 +560,15 @@ function MacroSectionsForm({ macros, onSaved }: { macros: string[]; onSaved: () 
         {MACRO_SECTIONS.map((x) => (
           <label className="field tai-section" key={x.key}>
             <span>{x.label}</span>
-            <textarea
+            <RichTextField
               className="control tai-text"
               value={draft[x.key] ?? ""}
-              maxLength={MAX_SUMMARY_LENGTH}
               rows={6}
-              onChange={(e) => setDraft((d) => ({ ...d, [x.key]: e.target.value }))}
-              placeholder={macro ? (now(x.key) ? `Now: ${now(x.key).slice(0, 160)}${now(x.key).length > 160 ? "…" : ""}` : "Empty for now · leave blank to keep it so") : "Choose a Macrotrend first"}
+              onValueChange={(v) => setDraft((d) => ({ ...d, [x.key]: v }))}
+              placeholder={macro ? (now(x.key) ? `Now: ${plainText(now(x.key)).slice(0, 160)}${now(x.key).length > 160 ? "…" : ""}` : "Empty for now · leave blank to keep it so") : "Choose a Macrotrend first"}
               disabled={!macro}
-              data-testid={`tai-section-${x.key}`}
+              aria-label={x.label}
+              testId={`tai-section-${x.key}`}
             />
           </label>
         ))}

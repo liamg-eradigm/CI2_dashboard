@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
-import { MAX_SUMMARY_LENGTH, type TrendLevel, type TrendSummary } from "@eradigm/shared";
+import { type TrendLevel, type TrendSummary } from "@eradigm/shared";
 import { api, type ApiError } from "../../api/client";
 import { useInvalidate } from "../../api/hooks";
 import { localDateTime } from "../../lib/format";
 import { useToast } from "../../state/toast";
 import { plural } from "./model";
+import { RichTextField } from "../RichTextField";
+import { RichText } from "../BulletText";
 
 export interface PanelNode {
   level: TrendLevel;
@@ -86,7 +88,7 @@ export function SummaryPanel({
           <p className="mg-count">{intro.count}</p>
         </div>
         <div className="mg-panel-body">
-          <p className="mg-summary">{intro.text}</p>
+          <RichText className="mg-summary" text={intro.text} />
         </div>
       </section>
     );
@@ -129,10 +131,7 @@ export function SummaryPanel({
       <div className="mg-panel-body">
         {editing ? (
           <div className="mg-edit">
-            <label className="sr-only" htmlFor="mg-summary-text">
-              Summary of {node.name}
-            </label>
-            <textarea id="mg-summary-text" value={text} maxLength={MAX_SUMMARY_LENGTH} rows={6} onChange={(e) => setText(e.target.value)} autoFocus />
+            <RichTextField id="mg-summary-text" className="mg-summary-edit" value={text} rows={6} onValueChange={setText} autoFocus aria-label={`Summary of ${node.name}`} />
             <div className="mg-actions">
               <button className="mg-btn" disabled={!!busy} onClick={() => void run("save", { ...ref, text: text.trim() })}>
                 {busy === "save" ? "Saving…" : "Save"}
@@ -149,9 +148,7 @@ export function SummaryPanel({
           </div>
         ) : node.summary?.text ? (
           <>
-            <p className="mg-summary" data-testid="mg-summary">
-              {node.summary.text}
-            </p>
+            <RichText className="mg-summary" testId="mg-summary" text={node.summary.text} />
             <p className="mg-prov">{provenance(node.summary, node.level)}</p>
           </>
         ) : (
