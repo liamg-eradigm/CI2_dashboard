@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Eradigm Competitive Intelligence API",
-    "version": "1.26.0",
+    "version": "1.27.0",
     "description": "Generated from packages/shared/src/api.ts. Every request is checked for both role and tenant server-side. Send X-Tenant-Id to select a tenant when the user belongs to more than one."
   },
   "components": {
@@ -22430,6 +22430,15 @@
                         "instructions"
                       ],
                       "additionalProperties": false
+                    },
+                    "textSizes": {
+                      "default": {},
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "number",
+                        "minimum": 0.75,
+                        "maximum": 2
+                      }
                     }
                   },
                   "required": [
@@ -22443,7 +22452,8 @@
                     "competitorTiers",
                     "megatrends",
                     "newSignals",
-                    "discussionSummary"
+                    "discussionSummary",
+                    "textSizes"
                   ],
                   "additionalProperties": false
                 }
@@ -22950,6 +22960,15 @@
                         "instructions"
                       ],
                       "additionalProperties": false
+                    },
+                    "textSizes": {
+                      "default": {},
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "number",
+                        "minimum": 0.75,
+                        "maximum": 2
+                      }
                     }
                   },
                   "required": [
@@ -22963,7 +22982,8 @@
                     "competitorTiers",
                     "megatrends",
                     "newSignals",
-                    "discussionSummary"
+                    "discussionSummary",
+                    "textSizes"
                   ],
                   "additionalProperties": false
                 }
@@ -23335,8 +23355,574 @@
                       "instructions"
                     ],
                     "additionalProperties": false
+                  },
+                  "textSizes": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "number",
+                      "minimum": 0.75,
+                      "maximum": 2
+                    }
                   }
                 },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/settings/text-size": {
+      "put": {
+        "summary": "Set the size of a title or heading, for everyone",
+        "description": "Roles: admin, analyst",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "timezone": {
+                      "type": "string",
+                      "maxLength": 64
+                    },
+                    "trendDefaults": {
+                      "type": "object",
+                      "properties": {
+                        "minSampleSize": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 100000
+                        },
+                        "signalCountChangePct": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 100000
+                        },
+                        "distinctCompetitorsChange": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 10000
+                        },
+                        "impactScoreChangePct": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 100000
+                        },
+                        "growthScoreChange": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 2
+                        }
+                      },
+                      "required": [
+                        "minSampleSize",
+                        "signalCountChangePct",
+                        "distinctCompetitorsChange",
+                        "impactScoreChangePct",
+                        "growthScoreChange"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "retention": {
+                      "type": "object",
+                      "properties": {
+                        "snapshotDays": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 3650
+                        },
+                        "rejectedDays": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 3650
+                        },
+                        "deletedDays": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 3650
+                        }
+                      },
+                      "required": [
+                        "snapshotDays",
+                        "rejectedDays",
+                        "deletedDays"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "redaction": {
+                      "type": "object",
+                      "properties": {
+                        "redactEmails": {
+                          "type": "boolean"
+                        },
+                        "redactPhones": {
+                          "type": "boolean"
+                        },
+                        "quarantineMarkers": {
+                          "maxItems": 100,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 3,
+                            "maxLength": 80
+                          }
+                        }
+                      },
+                      "required": [
+                        "redactEmails",
+                        "redactPhones",
+                        "quarantineMarkers"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "phantoms": {
+                      "default": {
+                        "secondaryMinImpact": "Low"
+                      },
+                      "type": "object",
+                      "properties": {
+                        "secondaryMinImpact": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 120
+                        }
+                      },
+                      "required": [
+                        "secondaryMinImpact"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "navOrder": {
+                      "default": [
+                        "dashboard",
+                        "tracker",
+                        "phantoms",
+                        "deliverables",
+                        "megatrends",
+                        "competitors",
+                        "inbox",
+                        "clientinbox",
+                        "input",
+                        "admin"
+                      ],
+                      "maxItems": 10,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "dashboard",
+                          "tracker",
+                          "phantoms",
+                          "deliverables",
+                          "megatrends",
+                          "competitors",
+                          "inbox",
+                          "clientinbox",
+                          "input",
+                          "admin"
+                        ]
+                      }
+                    },
+                    "menu": {
+                      "default": {
+                        "groups": [
+                          {
+                            "key": "inputs",
+                            "items": [
+                              {
+                                "key": "input"
+                              },
+                              {
+                                "key": "inbox"
+                              },
+                              {
+                                "key": "clientinbox"
+                              }
+                            ]
+                          },
+                          {
+                            "key": "analytics",
+                            "items": [
+                              {
+                                "key": "dashboard"
+                              },
+                              {
+                                "key": "knowledge-graph"
+                              },
+                              {
+                                "key": "primary-tracker"
+                              }
+                            ]
+                          },
+                          {
+                            "key": "database",
+                            "items": [
+                              {
+                                "key": "database"
+                              }
+                            ]
+                          },
+                          {
+                            "key": "trackers",
+                            "items": [
+                              {
+                                "key": "tracker"
+                              },
+                              {
+                                "key": "phantoms"
+                              },
+                              {
+                                "key": "trend-analyses"
+                              }
+                            ]
+                          },
+                          {
+                            "key": "admin",
+                            "items": [
+                              {
+                                "key": "deliverables"
+                              },
+                              {
+                                "key": "admin"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      "type": "object",
+                      "properties": {
+                        "groups": {
+                          "maxItems": 5,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string",
+                                "enum": [
+                                  "inputs",
+                                  "analytics",
+                                  "database",
+                                  "trackers",
+                                  "admin"
+                                ]
+                              },
+                              "label": {
+                                "type": "string",
+                                "maxLength": 80
+                              },
+                              "items": {
+                                "maxItems": 12,
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "key": {
+                                      "type": "string",
+                                      "enum": [
+                                        "input",
+                                        "inbox",
+                                        "clientinbox",
+                                        "dashboard",
+                                        "knowledge-graph",
+                                        "primary-tracker",
+                                        "database",
+                                        "tracker",
+                                        "phantoms",
+                                        "trend-analyses",
+                                        "deliverables",
+                                        "admin"
+                                      ]
+                                    },
+                                    "label": {
+                                      "type": "string",
+                                      "maxLength": 80
+                                    }
+                                  },
+                                  "required": [
+                                    "key"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "items"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "groups"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "competitorTiers": {
+                      "default": {
+                        "tier1": [
+                          "Johnson & Johnson",
+                          "Roche",
+                          "Novartis",
+                          "Bristol Myers Squibb",
+                          "Eli Lilly",
+                          "AstraZeneca",
+                          "Sanofi",
+                          "Pfizer",
+                          "Takeda"
+                        ],
+                        "tier2": [
+                          "Amgen",
+                          "Salesforce",
+                          "Veeva Systems",
+                          "BeOne"
+                        ],
+                        "tier3": [
+                          "GSK",
+                          "NVIDIA",
+                          "GoodRx Holdings",
+                          "OpenEvidence",
+                          "Novo Nordisk"
+                        ]
+                      },
+                      "type": "object",
+                      "properties": {
+                        "tier1": {
+                          "maxItems": 300,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 120
+                          }
+                        },
+                        "tier2": {
+                          "maxItems": 300,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 120
+                          }
+                        },
+                        "tier3": {
+                          "maxItems": 300,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 120
+                          }
+                        }
+                      },
+                      "required": [
+                        "tier1",
+                        "tier2",
+                        "tier3"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "megatrends": {
+                      "default": {
+                        "summaryDays": 90,
+                        "summarySentences": 2,
+                        "model": "claude-opus-5-5",
+                        "perspective": "AbbVie"
+                      },
+                      "type": "object",
+                      "properties": {
+                        "summaryDays": {
+                          "type": "integer",
+                          "minimum": 7,
+                          "maximum": 1095
+                        },
+                        "summarySentences": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 6
+                        },
+                        "model": {
+                          "type": "string",
+                          "enum": [
+                            "claude-opus-5-5",
+                            "claude-sonnet-5-5",
+                            "claude-haiku-4-5"
+                          ]
+                        },
+                        "perspective": {
+                          "type": "string",
+                          "maxLength": 80
+                        }
+                      },
+                      "required": [
+                        "summaryDays",
+                        "summarySentences",
+                        "model",
+                        "perspective"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "newSignals": {
+                      "default": {
+                        "days": 14
+                      },
+                      "type": "object",
+                      "properties": {
+                        "days": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 365
+                        }
+                      },
+                      "required": [
+                        "days"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "discussionSummary": {
+                      "default": {
+                        "instructions": "Summarise the total information from all the sources through an enterprise strategic lens. Use layman terms and avoid overly technical jargon. Prioritise information in order of recency, with the oldest sources having the lowest weight in the summary."
+                      },
+                      "type": "object",
+                      "properties": {
+                        "instructions": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 4000
+                        }
+                      },
+                      "required": [
+                        "instructions"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "textSizes": {
+                      "default": {},
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "number",
+                        "minimum": 0.75,
+                        "maximum": 2
+                      }
+                    }
+                  },
+                  "required": [
+                    "timezone",
+                    "trendDefaults",
+                    "retention",
+                    "redaction",
+                    "phantoms",
+                    "navOrder",
+                    "menu",
+                    "competitorTiers",
+                    "megatrends",
+                    "newSignals",
+                    "discussionSummary",
+                    "textSizes"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9_.:-]{0,79}$"
+                  },
+                  "size": {
+                    "type": "number",
+                    "minimum": 0.75,
+                    "maximum": 2
+                  }
+                },
+                "required": [
+                  "key",
+                  "size"
+                ],
                 "additionalProperties": false
               }
             }

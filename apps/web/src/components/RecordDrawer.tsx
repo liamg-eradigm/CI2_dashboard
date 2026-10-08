@@ -10,6 +10,7 @@ import { LinkedPanes } from "./LinkedPanes";
 import { RICH_HINT, RichTextField } from "./RichTextField";
 import { RichText } from "./BulletText";
 import { SnapshotFrame } from "./SnapshotFrame";
+import { ENTRY_TITLE, EntryTitleInput, SizedHeading, TextSizeButtons } from "./TextSize";
 
 const PROV: Record<string, string> = { source: "From source", ai: "AI suggested", analyst: "Analyst" };
 
@@ -148,9 +149,9 @@ export function RecordDrawer({
             )}
             {editing ? (
               <>
-                <h2 id="drawer-title" style={{ font: "700 20px/1.3 var(--sans)", textWrap: "pretty" }}>
+                <SizedHeading id="drawer-title" style={{ font: "700 20px/1.3 var(--sans)", textWrap: "pretty" }} sizeKey={ENTRY_TITLE} label="entry titles">
                   {String(s.values[CORE.title] ?? "")}
-                </h2>
+                </SizedHeading>
                 {/* Editing: the fields first, then the page text to check them against (no saved-page window). */}
                 <EditForm id={id} code={s.code} schema={schema} values={s.values} onDone={() => setEditing(false)} />
                 <div className="edit-source" data-testid="edit-source-text">
@@ -175,9 +176,9 @@ function RecordView({ s, schema, me, onOpen, titleId }: { s: SignalDetail; schem
   return (
     <>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <h2 id={titleId} style={{ font: "700 20px/1.3 var(--sans)", textWrap: "pretty" }}>
+              <SizedHeading id={titleId} style={{ font: "700 20px/1.3 var(--sans)", textWrap: "pretty" }} sizeKey={ENTRY_TITLE} label="entry titles">
                 {String(s.values[CORE.title] ?? "")}
-              </h2>
+              </SizedHeading>
               <div style={{ fontSize: 14, lineHeight: 1.6, color: "var(--ink-2)", whiteSpace: "pre-line" }}>{s.text}</div>
             </div>
 
@@ -206,7 +207,9 @@ function RecordView({ s, schema, me, onOpen, titleId }: { s: SignalDetail; schem
                 .filter((c) => c.type === "long")
                 .map((c) => (
                   <div key={c.key} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    <div className="section-h">{c.label}</div>
+                    <SizedHeading as="div" className="section-h" sizeKey={`label:${c.key}`} label={`${c.label} headings`}>
+                      {c.label}
+                    </SizedHeading>
                     {s.values[c.key] ? <RichText className="rd-long" text={String(s.values[c.key])} /> : <div className="rd-long">—</div>}
                   </div>
                 ))}
@@ -360,6 +363,25 @@ function EditForm({ id, code, schema, values, onDone }: { id: string; code: stri
         const fe = fieldErr[c.key];
         const errId = fe ? `edit-err-${c.key}` : undefined;
         const hintId = `edit-hint-${c.key}`;
+        // Request 47: the Title, at the size set for entry titles (A− / A+ beside its label, for everyone).
+        if (c.key === CORE.title && c.type === "text")
+          return (
+            <div className="field" key={c.key}>
+              <div className="ts-label-row">
+                <label className="field-label" htmlFor="edit-title">
+                  {c.label}
+                  {c.required ? " *" : ""}
+                </label>
+                <TextSizeButtons sizeKey={ENTRY_TITLE} label="entry titles" />
+              </div>
+              <EntryTitleInput id="edit-title" className="control" value={val} onChange={(e) => set(e.target.value)} aria-invalid={!!fe} aria-describedby={errId} />
+              {fe && (
+                <span className="err-msg field-err" id={errId}>
+                  ✕ {fe}
+                </span>
+              )}
+            </div>
+          );
         return (
           <label className="field" key={c.key}>
             <span>

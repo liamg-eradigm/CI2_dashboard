@@ -28,6 +28,23 @@ export const DEFAULT_DISCUSSION_SUMMARY_INSTRUCTIONS =
   "Summarise the total information from all the sources through an enterprise strategic lens. Use layman terms and avoid overly technical jargon. Prioritise information in order of recency, with the oldest sources having the lowest weight in the summary.";
 export const MAX_DISCUSSION_INSTRUCTIONS = 4000;
 
+/**
+ * Request 47: the size of titles outside the text boxes (each entry's Title,
+ * section headings), changed with A− / A+ and saved for everyone. Keys name
+ * what is sized ("entry-title", "heading:ai-summary", "label:key_details"…);
+ * sizes are relative (1 = as designed).
+ */
+export const TITLE_SIZE_STEPS = [0.75, 0.85, 1, 1.15, 1.3, 1.5, 1.75, 2] as const;
+export const TEXT_SIZE_KEY = /^[a-z0-9][a-z0-9_.:-]{0,79}$/;
+export const MAX_TEXT_SIZES = 300;
+/** The size one step larger (1) or smaller (-1) than `size`, within TITLE_SIZE_STEPS. */
+export function stepTitleSize(size: number | null | undefined, dir: 1 | -1): number {
+  const cur = size ?? 1;
+  if (dir > 0) return TITLE_SIZE_STEPS.find((x) => x > cur + 0.001) ?? TITLE_SIZE_STEPS[TITLE_SIZE_STEPS.length - 1]!;
+  return [...TITLE_SIZE_STEPS].reverse().find((x) => x < cur - 0.001) ?? TITLE_SIZE_STEPS[0]!;
+}
+const TextSizeSchema = z.number().min(TITLE_SIZE_STEPS[0]).max(TITLE_SIZE_STEPS[TITLE_SIZE_STEPS.length - 1]!);
+
 export const FieldValueSchema = z.union([z.string(), z.array(z.string()), z.null()]);
 export const ItemValuesSchema = z.record(z.string(), FieldValueSchema);
 /** Primary or Secondary stream (Source → Inbox → Tracker → Phantoms). Added in contract 1.4. */
@@ -803,6 +820,11 @@ export const TenantSettingsSchema = z.object({
   discussionSummary: z
     .object({ instructions: z.string().trim().min(1, "Write the instructions").max(MAX_DISCUSSION_INSTRUCTIONS) })
     .default({ instructions: DEFAULT_DISCUSSION_SUMMARY_INSTRUCTIONS }),
+  /** Request 47 (contract 1.27): sizes of titles and headings changed from their default (see TITLE_SIZE_STEPS). */
+  textSizes: z
+    .record(z.string().regex(TEXT_SIZE_KEY), TextSizeSchema)
+    .refine((r) => Object.keys(r).length <= MAX_TEXT_SIZES, "Too many sizes")
+    .default({}),
 });
 /**
  * Only the sections sent are changed. Sections with a default are unwrapped,
@@ -816,7 +838,11 @@ export const UpdateSettingsRequest = TenantSettingsSchema.partial().extend({
   megatrends: TenantSettingsSchema.shape.megatrends.unwrap().partial().optional(),
   newSignals: TenantSettingsSchema.shape.newSignals.unwrap().optional(),
   discussionSummary: TenantSettingsSchema.shape.discussionSummary.unwrap().optional(),
+  textSizes: TenantSettingsSchema.shape.textSizes.unwrap().optional(),
 });
+
+/** Request 47: set one title or heading size (1 = back to the default). Staff can do this; it applies for everyone. */
+export const SetTextSizeRequest = z.object({ key: z.string().regex(TEXT_SIZE_KEY), size: TextSizeSchema });
 
 export const AuditEventSchema = z.object({
   seq: z.number().int(),
@@ -1005,6 +1031,7 @@ export const ENDPOINTS: EndpointDef[] = [
   { method: "delete", path: "/api/views/{id}", summary: "Delete a saved view", roles: ALL_ROLES },
   { method: "get", path: "/api/settings", summary: "Tenant settings (visible to all users)", roles: ALL_ROLES, response: TenantSettingsSchema },
   { method: "patch", path: "/api/settings", summary: "Update tenant settings", roles: ADMIN, request: UpdateSettingsRequest, response: TenantSettingsSchema },
+  { method: "put", path: "/api/settings/text-size", summary: "Set the size of a title or heading, for everyone", roles: STAFF, request: SetTextSizeRequest, response: TenantSettingsSchema },
   { method: "get", path: "/api/users", summary: "Users in this tenant", roles: STAFF, response: z.array(UserSchema) },
   { method: "post", path: "/api/users", summary: "Create a user and a one-time Microsoft sign-in invite link (analysts: analyst/client only)", roles: STAFF, request: CreateUserRequest, response: UserWithInviteSchema },
   { method: "post", path: "/api/users/{id}/invite", summary: "Issue a new one-time sign-in link (also re-links a changed Microsoft account)", roles: STAFF, response: InviteSchema },

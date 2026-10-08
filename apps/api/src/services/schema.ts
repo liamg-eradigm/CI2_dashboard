@@ -132,6 +132,7 @@ export const DEFAULT_SETTINGS: TenantSettings = {
   competitorTiers: structuredClone(DEFAULT_COMPETITOR_TIERS),
   newSignals: { days: DEFAULT_NEW_SIGNAL_DAYS },
   discussionSummary: { instructions: DEFAULT_DISCUSSION_SUMMARY_INSTRUCTIONS },
+  textSizes: {},
 };
 
 export async function loadSettings(env: Env, tenantId: string): Promise<TenantSettings> {
@@ -151,6 +152,7 @@ export async function loadSettings(env: Env, tenantId: string): Promise<TenantSe
     competitorTiers: { ...DEFAULT_SETTINGS.competitorTiers, ...s.competitorTiers },
     newSignals: { ...DEFAULT_SETTINGS.newSignals, ...s.newSignals },
     discussionSummary: { ...DEFAULT_SETTINGS.discussionSummary, ...s.discussionSummary },
+    textSizes: { ...s.textSizes },
   };
 }
 

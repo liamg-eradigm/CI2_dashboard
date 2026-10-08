@@ -21,6 +21,7 @@ import { DatabaseFilters, databaseFilters } from "../components/DatabaseFilters"
 import { NewsletterCell, NewspaperIcon } from "../components/NewsletterCell";
 import { DiscussionSummaryBox } from "../components/DiscussionSummaryBox";
 import { RichText } from "../components/BulletText";
+import { SizedHeading } from "../components/TextSize";
 
 const PAGE = 10;
 
@@ -431,7 +432,9 @@ export function TrackerPage({
           <div className="table-top">
             {primaryOnly ? (
               <div className="ptr-head">
-                <h2 className="card-title">Primary Signals</h2>
+                <SizedHeading className="card-title" sizeKey="heading:primary-signals" label="Primary Signals heading">
+                  Primary Signals
+                </SizedHeading>
                 <span className="card-sub info" aria-live="polite">
                   {info}
                 </span>
@@ -915,9 +918,9 @@ function ArchivedPanel({
     <section className="card flush arch-panel" aria-labelledby="arch-title" data-testid="archived-panel">
       <div className="table-top">
         <div>
-          <h2 className="card-title" id="arch-title">
+          <SizedHeading className="card-title" id="arch-title" sizeKey="heading:archive" label="Full Discussion / KIQ Archive heading">
             {name}
-          </h2>
+          </SizedHeading>
           <span className="card-sub">{role || company ? `${[role, company].filter(Boolean).join(" · ")} · ` : ""}{q.data
             ? mode === "kiq"
               ? `${rows.length} earlier ${rows.length === 1 ? "answer" : "answers"} from the same source to the same Insight Topic and KIQ`
@@ -1044,7 +1047,9 @@ function AnswerCard({
       <div className="arch-pop-body" tabIndex={0} role="region" aria-label={`${label}: details`}>
         {cols.slice(3).map((c) => (
           <section key={c.key}>
-            <h3>{c.label}</h3>
+            <SizedHeading as="h3" sizeKey={`label:${c.key}`} label={`${c.label} headings`} rowClassName="arch-pop-h">
+              {c.label}
+            </SizedHeading>
             {/* Long text keeps its formatting (request 46). */}
             {c.type === "long" && v[c.key] ? <RichText text={String(v[c.key])} /> : <p>{text(c) || "—"}</p>}
           </section>

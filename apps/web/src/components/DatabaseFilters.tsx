@@ -24,6 +24,7 @@ import {
   type TrackerSchema,
 } from "@eradigm/shared";
 import { Combobox } from "./Combobox";
+import { filtersToggleLabel, useFiltersOpen } from "../state/filtersOpen";
 
 export const DB_PREFIX = "db.";
 
@@ -62,6 +63,7 @@ const FIRST_ROW = 5;
 
 export function DatabaseFilters({ schema, params, setParams, defaults }: { schema: TrackerSchema; params: URLSearchParams; setParams: SetParams; defaults: { from: string; to: string } }) {
   const [open, setOpen] = useState(false);
+  const [shown, setShown] = useFiltersOpen("db");
   const f = useMemo(() => databaseFilters(params, defaults, schema), [params, defaults, schema]);
   const cols = sortedColumns(schema);
   const set = (patch: Record<string, string | null>) =>
@@ -167,7 +169,7 @@ export function DatabaseFilters({ schema, params, setParams, defaults }: { schem
 
   return (
     <>
-      <section className="band" aria-labelledby="page-title">
+      <section className={`band${shown ? "" : " filters-closed"}`} aria-labelledby="page-title">
         <div className="band-row">
           <div>
             <span className="eyebrow">Every database in one place</span>
@@ -196,9 +198,13 @@ export function DatabaseFilters({ schema, params, setParams, defaults }: { schem
               Reset filter
             </button>
           )}
+          <button className="link-btn filters-toggle" aria-expanded={shown} aria-controls="db-filters" onClick={() => setShown(!shown)} data-testid="filters-toggle">
+            {filtersToggleLabel(shown)} <span aria-hidden="true">{shown ? "▴" : "▾"}</span>
+          </button>
         </div>
       </section>
-      <section className={`filterbar db-filters${open ? " open" : ""}`} aria-label="Database filters" data-testid="db-filters">
+      {/* Request 47: closed, the filters give their room to the table (hidden, so the page still measures them). */}
+      <section className={`filterbar db-filters${open ? " open" : ""}`} id="db-filters" aria-label="Database filters" data-testid="db-filters" hidden={!shown}>
         <div className="db-filter-grid" id="db-filter-grid">
           {open ? items : items.slice(0, FIRST_ROW)}
         </div>
