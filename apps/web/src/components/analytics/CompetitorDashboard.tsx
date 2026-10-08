@@ -17,6 +17,11 @@ import { Link, useSearchParams } from "react-router-dom";
 import { CORE, can, type Me, type TrendSummary } from "@eradigm/shared";
 import { ImpactMixes, RecordFromTimeline, SignalTimeline, useAnalytics, useRecordParam } from "./Analytics";
 import { RichText } from "../BulletText";
+import { RICH_HINT, RichTextField } from "../RichTextField";
+import { SizedHeading } from "../TextSize";
+import { api, type ApiError } from "../../api/client";
+import { useInvalidate } from "../../api/hooks";
+import { useToast } from "../../state/toast";
 import { localDateTime } from "../../lib/format";
 
 // The knowledge graph carries three.js: loaded when Explore Signals is first opened.
@@ -66,8 +71,6 @@ export function CompetitorDashboard({
   const { schema, filters, dash } = useAnalytics({ [CORE.competitors]: name }, me);
   const rec = useRecordParam();
   const d = dash.data;
-  const s = summary;
-  const written = s && s.source !== "default" && s.text;
 
   // Scrolling on past the end of the page opens the graph; scrolling up over the graph's header comes back.
   const page = useRef<HTMLDivElement>(null);
@@ -152,26 +155,7 @@ export function CompetitorDashboard({
         <div className="cd-track" data-view={graph ? SIGNALS : "profile"}>
           <div className="cd-panel cd-profile" ref={profile} aria-hidden={graph} inert={graph} data-testid="cd-profile">
             <div className="ad-body">
-              <section className="ta-summary" aria-labelledby="ta-summary-title" data-testid="ta-summary">
-                <div className="ta-summary-head">
-                  <h2 id="ta-summary-title">Company Profile · {name}</h2>
-                  {can(me.role, "item:edit") && (
-                    <Link className="ad-link" to="/input">
-                      Input a new Company Profile →
-                    </Link>
-                  )}
-                </div>
-                {s?.text ? (
-                  <>
-                    <RichText className="ta-summary-text" testId="ta-summary-text" text={s.text} />
-                    <span className="ta-summary-meta">
-                      {written ? `${s.source === "ai" ? "Written by the AI writer" : `Written by ${s.updatedBy ?? "an analyst"}`}${s.updatedAt ? ` · ${localDateTime(s.updatedAt)}` : ""}` : "The default profile (no Company Profile input yet)"}
-                    </span>
-                  </>
-                ) : (
-                  <p className="ta-summary-empty">No Company Profile yet{can(me.role, "item:edit") ? ": add one on Input → Input Trend Analysis → Competitor." : "."}</p>
-                )}
-              </section>
+              <CompanyProfile me={me} name={name} summary={summary} />
               {dash.isError && (
                 <p className="mg-err" role="alert">
                   Could not load the signals: {(dash.error as Error).message}
@@ -179,8 +163,8 @@ export function CompetitorDashboard({
               )}
               {d && schema && filters ? (
                 <>
-                  <SignalTimeline data={d} schema={schema} from={filters.from} to={filters.to} onOpen={rec.open} id="ta-tl-title" />
-                  <ImpactMixes filters={filters} schema={schema} show={["macro"]} note="an entry counts for its Macrotrend" />
+                  <SignalTimeline data={d} schema={schema} from={filters.from} to={filters.to} onOpen={rec.open} id="ta-tl-title" sizeKey="heading:cd-timeline" />
+                  <ImpactMixes filters={filters} schema={schema} show={["macro"]} note="an entry counts for its Macrotrend" sizeKey={() => "heading:cd-mix"} />
                 </>
               ) : (
                 !dash.isError && <div className="ad-skeleton" style={{ height: 420 }} role="status" aria-label="Loading the signals" />
@@ -208,5 +192,86 @@ export function CompetitorDashboard({
       </div>
       {schema && <RecordFromTimeline schema={schema} me={me} />}
     </div>
+  );
+}
+
+/**
+ * The Company Profile (request 50, as a Macrotrend dashboard's text boxes):
+ * staff size its heading (A− / A+) and edit the text in place, where
+ * selecting text offers bold, underline, size and title.
+ */
+function CompanyProfile({ me, name, summary: s }: { me: Me; name: string; summary: TrendSummary | null }) {
+  const staff = can(me.role, "item:edit");
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState("");
+  const [saving, setSaving] = useState(false);
+  const inv = useInvalidate();
+  const toast = useToast();
+  const written = s && s.source !== "default" && s.text;
+  const save = async () => {
+    setSaving(true);
+    try {
+      await api<TrendSummary>("/api/megatrends/summaries", { method: "PUT", json: { level: "competitor", name, text } });
+      await inv("competitors");
+      toast(text.trim() ? `Company Profile of ${name} saved` : `Company Profile of ${name} set back to the default`);
+      setEditing(false);
+    } catch (e) {
+      toast((e as ApiError).message, false);
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <section className="ta-summary" aria-labelledby="ta-summary-title" data-testid="ta-summary">
+      <div className="ta-summary-head">
+        <SizedHeading id="ta-summary-title" sizeKey="heading:company-profile" label="Company Profile heading">
+          Company Profile · {name}
+        </SizedHeading>
+        {staff && (
+          <span className="ta-summary-tools">
+            {!editing && (
+              <button
+                className="md-edit"
+                onClick={() => {
+                  setText(s?.text ?? "");
+                  setEditing(true);
+                }}
+                aria-label={`Edit the Company Profile of ${name}`}
+              >
+                ✎ Edit
+              </button>
+            )}
+            <Link className="ad-link" to="/input">
+              Input a new Company Profile →
+            </Link>
+          </span>
+        )}
+      </div>
+      {editing ? (
+        <div className="mg-edit ta-summary-edit">
+          <RichTextField className="ta-summary-input" value={text} onValueChange={setText} autoFocus rows={8} aria-label={`Company Profile of ${name}`} aria-describedby="cd-profile-hint" testId="cd-profile-input" placeholder={`Write the Company Profile of ${name}…`} />
+          <span className="list-hint" id="cd-profile-hint">
+            {RICH_HINT}
+          </span>
+          <div className="md-edit-foot">
+            <button className="mg-btn ghost sm" onClick={() => setEditing(false)} disabled={saving}>
+              Cancel
+            </button>
+            <button className="mg-btn sm" onClick={() => void save()} disabled={saving}>
+              {saving ? "Saving…" : "Save"}
+            </button>
+          </div>
+        </div>
+      ) : s?.text ? (
+        <>
+          <RichText className="ta-summary-text" testId="ta-summary-text" text={s.text} />
+          <span className="ta-summary-meta">
+            {written ? `${s.source === "ai" ? "Written by the AI writer" : `Written by ${s.updatedBy ?? "an analyst"}`}${s.updatedAt ? ` · ${localDateTime(s.updatedAt)}` : ""}` : "The default profile (no Company Profile input yet)"}
+          </span>
+        </>
+      ) : (
+        <p className="ta-summary-empty">No Company Profile yet{staff ? ": edit it here, or add one on Input → Input Trend Analysis → Competitor." : "."}</p>
+      )}
+    </section>
   );
 }

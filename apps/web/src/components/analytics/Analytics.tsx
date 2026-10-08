@@ -4,6 +4,7 @@ import { CORE, defaultDateRange, getColumn, isPlaceholderCompetitor, todayIso, t
 import { useDashboard, useDateBounds, useSchema, useSettings } from "../../api/hooks";
 import { MixLegend, SignalTimeline } from "../Charts";
 import { RecordDrawer } from "../RecordDrawer";
+import { SizedHeading } from "../TextSize";
 
 /** Rows in an impact mix (the number of Macrotrends): the competitors' top nine until expanded. */
 const MIX_ROWS = 9;
@@ -64,11 +65,11 @@ export function RecordFromTimeline({ schema, me }: { schema: TrackerSchema; me: 
 }
 
 /** Impact mixes side by side: by Macrotrend and / or by Competitor (competitors with signals only, no N/A, the top ten until expanded), each with its own time frame. */
-export function ImpactMixes({ filters, schema, show, note }: { filters: FilterState; schema: TrackerSchema; show: ("macro" | "comp")[]; note?: string }) {
+export function ImpactMixes({ filters, schema, show, note, sizeKey }: { filters: FilterState; schema: TrackerSchema; show: ("macro" | "comp")[]; note?: string; sizeKey?: (k: "macro" | "comp") => string }) {
   return (
     <div className={`ad-mix${show.length === 1 ? " one" : ""}`}>
       {show.map((k) => (
-        <ImpactMix key={k} kind={k} filters={filters} schema={schema} note={note} />
+        <ImpactMix key={k} kind={k} filters={filters} schema={schema} note={note} sizeKey={sizeKey?.(k)} />
       ))}
     </div>
   );
@@ -107,6 +108,7 @@ export function ImpactMix({
   fit = false,
   headExtra,
   noSub = false,
+  sizeKey,
 }: {
   kind: "macro" | "comp" | "sub";
   filters: FilterState;
@@ -118,6 +120,8 @@ export function ImpactMix({
   headExtra?: ReactNode;
   /** Request 35: no line under the title. */
   noSub?: boolean;
+  /** Request 50: staff change the title's size (A− / A+, for everyone) under this key. */
+  sizeKey?: string;
 }) {
   const [open, setOpen] = useState(false);
   const months = useMemo(() => monthsBetween(filters.from, filters.to), [filters.from, filters.to]);
@@ -193,6 +197,7 @@ export function ImpactMix({
   return (
     <MixChart
       id={`mix-${kind}`}
+      sizeKey={sizeKey}
       fit={fit}
       headExtra={headExtra}
       title={title}
@@ -249,6 +254,7 @@ function CutLabel({ text }: { text: string }) {
  */
 function MixChart({
   id,
+  sizeKey,
   title,
   sub,
   subTitle,
@@ -264,6 +270,7 @@ function MixChart({
   fit?: boolean;
   headExtra?: ReactNode;
   id: string;
+  sizeKey?: string;
   title: string;
   sub: string;
   subTitle?: string;
@@ -300,9 +307,15 @@ function MixChart({
     <section className={`card mix-card${fit ? " fit" : ""}`} aria-labelledby={id} data-testid={id}>
       <div className="mix-head">
         <div>
-          <h2 className="card-title" id={id}>
-            {title}
-          </h2>
+          {sizeKey ? (
+            <SizedHeading className="card-title" id={id} sizeKey={sizeKey} label={`${title} heading`}>
+              {title}
+            </SizedHeading>
+          ) : (
+            <h2 className="card-title" id={id}>
+              {title}
+            </h2>
+          )}
           {sub && (
             <span className="card-sub" title={subTitle}>
               {fit && bars.length > shown.length ? `${sub} · top ${shown.length} of ${bars.length}` : sub}

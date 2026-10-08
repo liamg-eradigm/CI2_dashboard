@@ -743,6 +743,14 @@ analyst-entered information distinguishable; in the prototype every value is
     graph (request 49) is the company's globe alone with its signals in orbit
     and its signals list (`CompetitorsPage focus`): no other competitors, ties,
     Macrotrend / Subtrend breakdown or timeline.
+- **Request 50** (no contract change, no migration): on a competitor's page
+  (Megatrends Dashboard → Competitors → a company) staff change the size of
+  the headings with A− / A+ like the Macrotrend dashboard's
+  (`heading:company-profile`, `heading:cd-timeline`, `heading:cd-mix`;
+  `SignalTimeline` and `ImpactMix` take an optional `sizeKey`), and edit the
+  Company Profile in place (✎ Edit, a formatted-text field: select text for
+  bold, underline, size or title). Saved through `PUT
+  /api/megatrends/summaries` (level competitor); clients read it.
 - **Menu in groups** (request 28, contract 1.17; regrouped in request 31,
   contract 1.19; renamed in request 34; `packages/shared/src/menu.ts`): the
   menu is four groups (and, from request 43, the Database tab on its own),
