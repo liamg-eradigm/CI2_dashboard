@@ -190,6 +190,7 @@ interface SignalRow {
   linked_earlier: string | null;
   linked_later: string | null;
   kiq_earlier?: string | null;
+  discussion_with?: string | null;
 }
 
 /**
@@ -225,8 +226,18 @@ const kiqEarlierExpr = () =>
        AND (COALESCE(p.pub_date, ''), COALESCE(p.approved_at, ''), p.id) < (COALESCE(me.pub_date, ''), COALESCE(me.approved_at, ''), me.id)
      ORDER BY COALESCE(p.pub_date, '') DESC, COALESCE(p.approved_at, '') DESC, p.id DESC LIMIT 1)`;
 
+/**
+ * Full Discussion (request 46): another entry from the same conversation —
+ * the same source (Source Role and Source Company) on the same Event Date.
+ */
+const sameConversation = (p: string, me: string) => `COALESCE(${p}.pub_date, '') = COALESCE(${me}.pub_date, '')`;
+const discussionExpr = () =>
+  `(SELECT p.id FROM intelligence_items me JOIN intelligence_items p INDEXED BY ix_item_source_key ON p.tenant_id = me.tenant_id AND p.source_key = me.source_key AND p.id <> me.id
+     WHERE me.id = i.id AND me.source_key IS NOT NULL AND p.status = 'approved' AND p.deleted_at IS NULL AND p.tracker_hidden_at IS NULL AND ${sameConversation("p", "me")}
+     LIMIT 1)`;
+
 const signalColumns = (scope: Scope = {}) => `i.id, i.signal_code, i.stream, i.record_id, i.pub_date, i.title, i.macrotrend, i.subtrend, i.growth, i.impact, i.extra_json,
-  ${linkedExpr("earlier")} AS linked_earlier, ${linkedExpr("later")} AS linked_later, ${kiqEarlierExpr()} AS kiq_earlier,
+  ${linkedExpr("earlier")} AS linked_earlier, ${linkedExpr("later")} AS linked_later, ${kiqEarlierExpr()} AS kiq_earlier, ${discussionExpr()} AS discussion_with,
   ${competitorsExpr(scope)} AS competitors,
   substr(i.body_text, 1, 600) AS body_text, i.final_url, i.published_rev, i.approved_at,
   (SELECT u.name FROM users u WHERE u.id = i.approved_by) AS approved_by_name,
@@ -264,6 +275,7 @@ function toSignal(schema: TrackerSchema, r: SignalRow): Signal {
     linkedEarlier: r.linked_earlier ?? null,
     linkedLater: r.linked_later ?? null,
     kiqEarlier: r.kiq_earlier ?? null,
+    discussionWith: r.discussion_with ?? null,
   };
 }
 
@@ -487,16 +499,20 @@ export async function trendTest(env: Env, schema: TrackerSchema, tenantId: strin
 export { sortedColumns };
 
 /**
- * Archived Responses (request 34): the earlier Primary entries from the same
- * source (Source Role + Source Company, `source_key`) as entry `id`, newest
- * first, as Tracker rows. Only that source's entries are read (by index).
+ * The entries linked to Primary entry `id` on Analytics → Primary Tracker, as
+ * Tracker rows, newest first. Only that source's entries (Source Role +
+ * Source Company, `source_key`) are read (by index).
+ * - Full Discussion (request 46): every other answer of the same conversation,
+ *   i.e. from that source on the same Event Date.
+ * - KIQ Archive (request 42): the earlier answers from that source with the
+ *   same Insight Topic and Key Intelligence Question, on any date.
  */
 export async function archivedResponses(env: Env, schema: TrackerSchema, tenantId: string, id: string, match: "source" | "kiq" = "source"): Promise<{ rows: Signal[] }> {
   const r = await env.DB.prepare(
     `SELECT ${signalColumns()} FROM intelligence_items i
       WHERE i.id IN (SELECT p.id FROM intelligence_items me JOIN intelligence_items p INDEXED BY ix_item_source_key ON p.tenant_id = me.tenant_id AND p.source_key = me.source_key AND p.id <> me.id
-                      WHERE me.tenant_id = ?1 AND me.id = ?2 AND me.source_key IS NOT NULL AND p.status = 'approved' AND p.deleted_at IS NULL AND p.tracker_hidden_at IS NULL${match === "kiq" ? ` AND ${sameKiq("p", "me")}` : ""}
-                        AND (COALESCE(p.pub_date, ''), COALESCE(p.approved_at, ''), p.id) < (COALESCE(me.pub_date, ''), COALESCE(me.approved_at, ''), me.id))
+                      WHERE me.tenant_id = ?1 AND me.id = ?2 AND me.source_key IS NOT NULL AND p.status = 'approved' AND p.deleted_at IS NULL AND p.tracker_hidden_at IS NULL
+                        AND ${match === "kiq" ? `${sameKiq("p", "me")} AND (COALESCE(p.pub_date, ''), COALESCE(p.approved_at, ''), p.id) < (COALESCE(me.pub_date, ''), COALESCE(me.approved_at, ''), me.id)` : sameConversation("p", "me")})
       ORDER BY COALESCE(i.pub_date, '') DESC, COALESCE(i.approved_at, '') DESC, i.id DESC LIMIT 200`,
   )
     .bind(tenantId, id)

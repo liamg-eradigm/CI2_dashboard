@@ -110,6 +110,7 @@ describe("request 42: KIQ Archive", () => {
     const kiq = (await json(call(w.a.client, "GET", `/api/signals/${latest}/archived?match=kiq`))).rows as Row[];
     expect(kiq.map((r) => r.id)).toEqual([first]);
     const all = (await json(call(w.a.client, "GET", `/api/signals/${latest}/archived`))).rows as Row[];
-    expect(all.map((r) => r.id)).toEqual([other, first]);
+    // Full Discussion (request 46) is one conversation: the same source on the same Event Date only.
+    expect(all.map((r) => r.id)).toEqual([]);
   });
 });

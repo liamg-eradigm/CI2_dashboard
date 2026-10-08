@@ -24,6 +24,8 @@ import { useInvalidate, useMacroSections } from "../../api/hooks";
 import { useToast } from "../../state/toast";
 import { localDateTime } from "../../lib/format";
 import { ImpactMix, RecordFromTimeline, SignalTimeline, useAnalytics, useRecordParam } from "./Analytics";
+import { RichTextField } from "../RichTextField";
+import { RichText } from "../BulletText";
 
 // The knowledge graph carries three.js: loaded when row 5 is first shown.
 const MegatrendsPage = lazy(() => import("../../pages/MegatrendsPage").then((m) => ({ default: m.MegatrendsPage })));
@@ -291,10 +293,7 @@ function SectionCell({ me, macro, k, s }: { me: Me; macro: string; k: MacroSecti
       </div>
       {editing ? (
         <div className="md-edit-box">
-          <label className="sr-only" htmlFor={`md-edit-${k}`}>
-            {title}
-          </label>
-          <textarea id={`md-edit-${k}`} value={text} onChange={(e) => setText(e.target.value)} autoFocus maxLength={10_000} />
+          <RichTextField id={`md-edit-${k}`} className="md-edit-text" value={text} onValueChange={setText} autoFocus rows={6} aria-label={title} />
           <div className="md-edit-foot">
             <span>{text.trim() ? `${text.length.toLocaleString("en-GB")} characters` : "Empty: saving clears this section"}</span>
             <button className="mg-btn ghost sm" onClick={() => setEditing(false)} disabled={saving}>
@@ -308,7 +307,7 @@ function SectionCell({ me, macro, k, s }: { me: Me; macro: string; k: MacroSecti
       ) : s?.text ? (
         <>
           <div className="md-text-body" tabIndex={0}>
-            <p>{s.text}</p>
+            <RichText text={s.text} />
           </div>
           <span className="md-text-meta">
             {s.updatedBy} · {localDateTime(s.updatedAt)}

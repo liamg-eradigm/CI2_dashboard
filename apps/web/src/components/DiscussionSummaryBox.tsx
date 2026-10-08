@@ -6,7 +6,7 @@ import { useDiscussionSummary } from "../api/hooks";
 import { localDateTime } from "../lib/format";
 import { useToast } from "../state/toast";
 import { BulletText } from "./BulletText";
-import { LIST_HINT, ListTextarea } from "./ListTextarea";
+import { RICH_HINT, RichTextField } from "./RichTextField";
 
 /** Request 44: keep the box stuck to the bottom of the sticky filter bar, whatever its height. */
 function useStickUnderFilters() {
@@ -77,7 +77,9 @@ function useResizableHeight(box: RefObject<HTMLElement | null>) {
     const start = box.current.getBoundingClientRect().height;
     const grip = e.currentTarget;
     grip.setPointerCapture(e.pointerId);
+    // No page scrollbar while dragging (the table follows the summary in the same frame).
     document.body.classList.add("resizing-rows");
+    document.documentElement.classList.add("resizing-rows");
     const move = (ev: PointerEvent) => setHeight(clamp(start + ev.clientY - startY));
     const up = (ev: PointerEvent) => {
       grip.releasePointerCapture(ev.pointerId);
@@ -85,6 +87,7 @@ function useResizableHeight(box: RefObject<HTMLElement | null>) {
       grip.removeEventListener("pointerup", up);
       grip.removeEventListener("pointercancel", up);
       document.body.classList.remove("resizing-rows");
+      document.documentElement.classList.remove("resizing-rows");
       storeHeight(clamp(start + ev.clientY - startY));
     };
     grip.addEventListener("pointermove", move);
@@ -208,12 +211,9 @@ export function DiscussionSummaryBox({ me, id, mode, source }: { me: Me; id: str
         <p className="ai-summary-text muted">Open a Full Discussion (chat icon) or KIQ Archive (link icon) in the table below to read the summary of that discussion here.</p>
       ) : editing ? (
         <div className="ai-summary-edit">
-          <label className="sr-only" htmlFor="ai-summary-draft">
-            AI Summary of this {NAME[mode]}
-          </label>
-          <ListTextarea id="ai-summary-draft" className="control" value={draft} onValueChange={setDraft} maxLength={10_000} autoFocus aria-describedby="ai-summary-hint" />
+          <RichTextField id="ai-summary-draft" className="control" value={draft} onValueChange={setDraft} autoFocus rows={5} aria-label={`AI Summary of this ${NAME[mode]}`} aria-describedby="ai-summary-hint" />
           <span className="list-hint" id="ai-summary-hint">
-            {LIST_HINT} · Enter starts a new line
+            {RICH_HINT} · Enter starts a new line
           </span>
           <div className="ai-summary-actions">
             <button className="btn small" disabled={busy || !draft.trim()} onClick={() => void save(draft.trim())}>

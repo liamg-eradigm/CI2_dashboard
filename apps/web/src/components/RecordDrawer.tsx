@@ -7,7 +7,8 @@ import { formatDate, localDateTime, pct } from "../lib/format";
 import { Combobox } from "./Combobox";
 import { DeleteEntries, type DeleteTable } from "./DeleteEntries";
 import { LinkedPanes } from "./LinkedPanes";
-import { LIST_HINT, ListTextarea } from "./ListTextarea";
+import { RICH_HINT, RichTextField } from "./RichTextField";
+import { RichText } from "./BulletText";
 import { SnapshotFrame } from "./SnapshotFrame";
 
 const PROV: Record<string, string> = { source: "From source", ai: "AI suggested", analyst: "Analyst" };
@@ -206,7 +207,7 @@ function RecordView({ s, schema, me, onOpen, titleId }: { s: SignalDetail; schem
                 .map((c) => (
                   <div key={c.key} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                     <div className="section-h">{c.label}</div>
-                    <div style={{ fontSize: 14, lineHeight: 1.6, color: "var(--ink-2)", whiteSpace: "pre-line" }}>{String(s.values[c.key] ?? "") || "—"}</div>
+                    {s.values[c.key] ? <RichText className="rd-long" text={String(s.values[c.key])} /> : <div className="rd-long">—</div>}
                   </div>
                 ))}
 
@@ -371,17 +372,17 @@ function EditForm({ id, code, schema, values, onDone }: { id: string; code: stri
               <input className="control" value={val} onChange={(e) => set(e.target.value)} aria-invalid={!!fe} aria-describedby={errId} />
             ) : c.type === "long" ? (
               <>
-                <ListTextarea
+                <RichTextField
                   className="control"
                   rows={6}
-                  style={{ height: "auto", padding: 8, lineHeight: 1.45, resize: "vertical" }}
                   value={val}
                   onValueChange={set}
+                  aria-label={c.label}
                   aria-invalid={!!fe}
                   aria-describedby={errId ? `${errId} ${hintId}` : hintId}
                 />
                 <span className="list-hint" id={hintId}>
-                  {LIST_HINT}
+                  {RICH_HINT}
                 </span>
               </>
             ) : c.type === "multi" ? (

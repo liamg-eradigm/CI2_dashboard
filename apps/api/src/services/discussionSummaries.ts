@@ -10,7 +10,7 @@
  * summary is never replaced automatically (it is flagged once the discussion
  * changes), only when an admin asks the AI writer to write it again.
  */
-import { CORE, FIELDS, type DiscussionSummary, type Signal, type TenantSettings, type TrackerSchema } from "@eradigm/shared";
+import { CORE, FIELDS, plainText, type DiscussionSummary, type Signal, type TenantSettings, type TrackerSchema } from "@eradigm/shared";
 import { createLlmProvider, LlmError, type SummaryEntry } from "@eradigm/llm";
 import type { Principal } from "../auth/context.js";
 import type { Env } from "../env.js";
@@ -33,7 +33,8 @@ interface Row {
 
 const str = (s: Signal, k: string) => {
   const v = s.values[k];
-  return (Array.isArray(v) ? v.join(", ") : (v ?? "")).toString().trim();
+  // The AI writer reads the text without its formatting markup (request 46).
+  return plainText((Array.isArray(v) ? v.join(", ") : (v ?? "")).toString()).trim();
 };
 
 /** The discussion's answers, newest first (the entry itself, then its earlier answers). */
@@ -104,7 +105,7 @@ function discussionName(rows: Signal[], mode: DiscussionMode): string {
   const source = [str(cur, FIELDS.sourceRole), str(cur, FIELDS.sourceCompany)].filter(Boolean).join(", ");
   return mode === "kiq"
     ? `KIQ Archive: ${source} · Insight Topic: ${str(cur, FIELDS.insightTopic)} · Key Intelligence Question: ${str(cur, FIELDS.keyQuestion)}`
-    : `Full Discussion: ${source}`;
+    : `Full Discussion: ${source}, on ${str(cur, CORE.date)}`;
 }
 
 async function writeAi(env: Env, tenantId: string, id: string, mode: DiscussionMode, rows: Signal[], basis: string, settings: TenantSettings, by: Principal | null) {

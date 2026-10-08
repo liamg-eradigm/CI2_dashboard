@@ -6,6 +6,7 @@
  * strings, auto-fit column widths) so the API can produce workbooks inside a
  * Worker without shipping a large spreadsheet library.
  */
+import { plainText } from "./richText.js";
 import { trackerColumns, type TrackerColumn, type TrackerSchema } from "./schema.js";
 import type { ItemValues } from "./validation.js";
 
@@ -37,7 +38,8 @@ function cellText(v: ItemValues[string] | undefined): string {
 
 /** Array-of-arrays with a header row. */
 export function toTable(schema: TrackerSchema, rows: ExportRow[], cols: TrackerColumn[] = trackerColumns(schema)): string[][] {
-  return [["Signal ID", ...cols.map((c) => c.label)], ...rows.map((r) => [r.signalId, ...cols.map((c) => cellText(r.values[c.key]))])];
+  // Spreadsheets get long text without its formatting markup (request 46).
+  return [["Signal ID", ...cols.map((c) => c.label)], ...rows.map((r) => [r.signalId, ...cols.map((c) => (c.type === "long" ? plainText(cellText(r.values[c.key])) : cellText(r.values[c.key])))])];
 }
 
 /** Neutralise spreadsheet formula injection (=, +, -, @, tab, CR at the start of a cell). */

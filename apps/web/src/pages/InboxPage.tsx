@@ -35,7 +35,7 @@ import { api, ApiError } from "../api/client";
 import { useComments, useInvalidate, useItem, useItems, usePrimarySources, useSchema } from "../api/hooks";
 import { StreamSwitch } from "../components/StreamSwitch";
 import { CommentsMargin, useCommentNumbers } from "../components/Comments";
-import { LIST_HINT, ListTextarea } from "../components/ListTextarea";
+import { RICH_HINT, RichTextField } from "../components/RichTextField";
 import { KIQ_KEYS, KiqEditor, kiqFieldLabel } from "../components/KiqEditor";
 import { Combobox } from "../components/Combobox";
 import { ModelOutputTable } from "../components/ModelOutput";
@@ -658,7 +658,7 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
               title="Client comments"
             />
           )}
-          {actionable && (primary || cols.some((c) => c.type === "long")) && <div className="list-hint">{LIST_HINT}</div>}
+          {actionable && (primary || cols.some((c) => c.type === "long")) && <div className="list-hint">{RICH_HINT}</div>}
           <div className="draft-grid" role="group" aria-label={`Tracker fields for ${item.code}`}>
             {cols.map((c) => {
               const v = draft[c.key] ?? "";
@@ -697,7 +697,7 @@ function InboxCard({ item, schema, me }: { item: ItemSummary; schema: TrackerSch
                   ) : c.type === "date" ? (
                     <input type="date" {...common} value={v} onChange={(e) => set(c.key, e.target.value)} />
                   ) : c.type === "long" ? (
-                    <ListTextarea {...common} className={`${cls} long`} rows={4} value={v} onValueChange={(x) => set(c.key, x)} />
+                    <RichTextField {...common} className={`${cls} long`} rows={4} value={v} onValueChange={(x) => set(c.key, x)} />
                   ) : c.type === "text" ? (
                     <input {...common} value={v} onChange={(e) => set(c.key, e.target.value)} />
                   ) : c.type === "multi" ? (

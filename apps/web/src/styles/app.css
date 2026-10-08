@@ -990,3 +990,43 @@ body.resizing-rows, body.resizing-rows * { cursor: row-resize !important; user-s
 .data th.doc-col, .data td.doc-col { width: 86px; min-width: 86px; max-width: 86px; text-align: center; padding-left: 2px; padding-right: 2px; }
 .data th.doc-col > span { display: block; text-align: center; }
 .data td.doc-col > .nl-cell { justify-content: center; }
+/* Request 46: no page scrollbar while the AI Summary is dragged (the table follows it in the same frame). */
+html.resizing-rows { overflow: hidden; }
+
+/* Request 46: formatted-text fields (RichTextField). The editable text keeps each field's own look
+   (control / dcell classes) and grows with its text; a bar of buttons appears over selected text. */
+.rt-field { position: relative; width: 100%; min-width: 0; }
+.rt-editor { height: auto !important; min-height: calc(var(--rt-rows, 4) * 1.45em + 16px); max-height: 60vh; overflow-y: auto; padding: 8px 10px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; outline: none; cursor: text; }
+.rt-editor:focus { border-color: var(--focus); box-shadow: 0 0 0 2px rgba(31, 167, 176, 0.18); }
+.rt-editor p { margin: 0; min-height: 1.45em; }
+.rt-editor h3 { font-size: 1.3em; font-weight: 700; line-height: 1.3; margin: 4px 0 2px; color: var(--ink); letter-spacing: 0; text-transform: none; }
+.rt-editor ul, .rt-editor ol { margin: 0; padding-left: 1.4em; }
+.rt-editor ul ul { list-style-type: circle; }
+.rt-editor ul ul ul { list-style-type: square; }
+.rt-editor li > p { margin: 0; }
+.rt-field.disabled .rt-editor { background: var(--subtle); color: var(--ink-2); cursor: default; }
+.rt-editor p.is-editor-empty:first-child::before { content: attr(data-placeholder); color: var(--muted-2); float: left; height: 0; pointer-events: none; }
+.fmt-bar { display: flex; align-items: center; gap: 2px; padding: 4px; background: var(--navy-800); border-radius: 8px; box-shadow: 0 8px 22px rgba(7, 40, 56, 0.32); z-index: 70; }
+.fmt-btn { min-width: 30px; height: 30px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: #fff; font: 600 14px var(--sans); cursor: pointer; }
+.fmt-btn:hover, .fmt-btn:focus-visible { background: rgba(255, 255, 255, 0.14); }
+.fmt-btn[aria-pressed="true"] { background: var(--teal); }
+.fmt-btn.b { font-weight: 800; }
+.fmt-btn.u { text-decoration: underline; }
+.fmt-btn.small { font-size: 12px; }
+.fmt-btn.big { font-size: 16px; }
+.fmt-btn.title { font-size: 12.5px; letter-spacing: 0.04em; }
+.fmt-size { min-width: 42px; text-align: center; color: var(--on-dark-3); font: 600 11.5px var(--mono); }
+.fmt-sep { width: 1px; height: 18px; background: rgba(255, 255, 255, 0.2); margin: 0 3px; }
+/* Formatted text as shown (RichText). */
+.rich-text p { margin: 0 0 8px; }
+.rich-text > :last-child { margin-bottom: 0; }
+.rich-text ul, .rich-text ol { margin: 0 0 8px; padding-left: 1.4em; }
+.rich-text li > ul, .rich-text li > ol { margin: 2px 0 4px; }
+.rich-text ul ul { list-style-type: circle; }
+.rich-text ul ul ul { list-style-type: square; }
+.rich-text .rt-title { font-size: 1.3em; font-weight: 700; line-height: 1.3; margin: 4px 0 6px; color: var(--ink); letter-spacing: 0; text-transform: none; }
+.rd-long { font-size: 14px; line-height: 1.6; color: var(--ink-2); }
+.ai-summary-edit .rt-editor { font-size: 19px; line-height: 1.55; padding: 12px; }
+.ai-summary.sized .ai-summary-edit .rt-field { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.ai-summary.sized .ai-summary-edit .rt-field > div { flex: 1 1 auto; min-height: 0; display: flex; }
+.ai-summary.sized .ai-summary-edit .rt-editor { flex: 1 1 auto; min-height: 48px; max-height: none; }

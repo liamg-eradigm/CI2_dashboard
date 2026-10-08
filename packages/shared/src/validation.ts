@@ -2,6 +2,7 @@
  * Data rules applied to every draft and every approval. The API runs these
  * server-side; the dashboard runs the same functions for instant feedback.
  */
+import { plainText } from "./richText.js";
 import {
   ALL,
   CORE,
@@ -221,6 +222,8 @@ export function displayValue(col: TrackerColumn | undefined, v: FieldValue | und
   if (v == null) return "";
   if (Array.isArray(v)) return v.join(", ");
   if (col?.type === "date") return formatDate(v);
+  // Long text may carry formatting (request 46): shown as plain text in tables and lists.
+  if (col?.type === "long") return plainText(v);
   return v;
 }
 

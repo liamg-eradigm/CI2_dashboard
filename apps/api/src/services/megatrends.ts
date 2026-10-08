@@ -10,6 +10,7 @@ import {
   FIELDS,
   defaultSummary,
   isPlaceholderCompetitor,
+  plainText,
   tierOf,
   type CompetitorEntry,
   type Competitors,
@@ -327,7 +328,11 @@ async function competitorSummaryEntries(env: Env, tenantId: string, name: string
   )
     .bind(tenantId, name, jsonPath(FIELDS.keyDetails), jsonPath(FIELDS.ciPerspective))
     .all<{ pub_date: string; title: string | null; impact: string | null; details: string | null; ci: string | null; competitors: string | null }>();
-  const cut = (t: string | null) => (t ? (t.length > DETAILS_CHARS ? `${t.slice(0, DETAILS_CHARS - 1)}…` : t) : null);
+  const cut = (raw: string | null) => {
+    // The AI writer reads the text without its formatting markup (request 46).
+    const t = raw ? plainText(raw) : null;
+    return t ? (t.length > DETAILS_CHARS ? `${t.slice(0, DETAILS_CHARS - 1)}…` : t) : null;
+  };
   return (res.results ?? [])
     .map((r) => ({ r, score: competitorEntryScore(r.impact, r.pub_date, today, halfLifeDays) }))
     .sort((a, b) => b.score - a.score || b.r.pub_date.localeCompare(a.r.pub_date))
@@ -379,7 +384,7 @@ export async function generateSummary(env: Env, p: Principal, b: { level: TrendL
     date: r.pub_date,
     title: r.title ?? "",
     ...(r.competitors ? { competitors: r.competitors.split("\u001f") } : {}),
-    ...(r.details ? { details: r.details.length > DETAILS_CHARS ? `${r.details.slice(0, DETAILS_CHARS - 1)}…` : r.details } : {}),
+    ...(r.details ? { details: ((d) => (d.length > DETAILS_CHARS ? `${d.slice(0, DETAILS_CHARS - 1)}…` : d))(plainText(r.details)) } : {}),
   }));
   return writeAi(env, p, b, cfg, entries);
 }

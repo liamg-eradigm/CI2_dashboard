@@ -17,20 +17,22 @@ export function useFitToScreen(min = 260, ratio = 1, fill = false): (el: HTMLEle
     if (!el) return;
     const card = el.closest<HTMLElement>(".card") ?? el.parentElement;
     let frame = 0;
+    // From the box's place on the page (not the screen), to the bottom of the window, less what follows it in the card.
+    const fillNow = () => {
+      const box = el.getBoundingClientRect();
+      const after = card ? card.getBoundingClientRect().bottom - box.bottom : 0;
+      const h = Math.max(min, Math.floor(window.innerHeight - (box.top + window.scrollY) - after));
+      if (el.style.height !== `${h}px`) {
+        el.style.height = `${h}px`;
+        el.style.maxHeight = `${h}px`;
+      }
+    };
     const measure = () => {
       cancelAnimationFrame(frame);
+      // Request 46: filling the window is measured at once (in the same frame as the resize that moved the box,
+      // before it is painted), so the page never overflows for a frame and no scrollbar flickers in and out.
+      if (fill) return fillNow();
       frame = requestAnimationFrame(() => {
-        if (fill) {
-          // From the box's place on the page (not the screen), to the bottom of the window, less what follows it in the card.
-          const box = el.getBoundingClientRect();
-          const after = card ? card.getBoundingClientRect().bottom - box.bottom : 0;
-          const h = Math.max(min, Math.floor(window.innerHeight - (box.top + window.scrollY) - after));
-          if (el.style.height !== `${h}px`) {
-            el.style.height = `${h}px`;
-            el.style.maxHeight = `${h}px`;
-          }
-          return;
-        }
         const bar = document.querySelector<HTMLElement>(".filterbar");
         const stuck = [...document.querySelectorAll<HTMLElement>("[data-sticky-under]")].reduce((h, x) => h + x.getBoundingClientRect().height, 0);
         const top = (bar && getComputedStyle(bar).position === "sticky" ? bar.getBoundingClientRect().height : 0) + stuck;

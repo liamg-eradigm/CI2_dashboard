@@ -75,15 +75,21 @@ describe("request 34", () => {
     expect(list[0]).toMatchObject({ name: "Geopolitics", source: "import", fileName: "m.xlsx", sections: { current: "Tariffs." } });
   });
 
-  it("Archived Responses: the earlier Primary entries from the same source, newest first", async () => {
+  it("Full Discussion (request 46): the other answers of the same conversation — same source and Event Date — newest first", async () => {
     const role = `Head of Access ${Date.now()}`;
-    const old1 = await push("primary", { title: "First answer", date: "2026-01-10", source: "Primary Source", source_role: role, source_company: "Lyon CHU", key_details: "Early view." });
-    const old2 = await push("primary", { title: "Second answer", date: "2026-04-10", source: "Primary Source", source_role: role, source_company: "lyon chu" });
+    const old1 = await push("primary", { title: "First answer", date: "2026-08-10", source: "Primary Source", source_role: role, source_company: "Lyon CHU", key_details: "Early view." });
+    const old2 = await push("primary", { title: "Second answer", date: "2026-08-10", source: "Primary Source", source_role: role, source_company: "lyon chu" });
+    const other = await push("primary", { title: "Another day", date: "2026-04-10", source: "Primary Source", source_role: role, source_company: "Lyon CHU" });
     const now = await push("primary", { title: "Latest answer", date: "2026-08-10", source: "Primary Source", source_role: role, source_company: "Lyon CHU" });
     const a = await json(call(w.a.client, "GET", `/api/signals/${now}/archived`));
     expect(a.rows.map((r: { id: string }) => r.id)).toEqual([old2, old1]);
     expect(a.rows[1].values.key_details).toBe("Early view.");
-    expect((await json(call(w.a.client, "GET", `/api/signals/${old1}/archived`))).rows).toEqual([]);
+    // The whole conversation from any of its answers; another day's answer is not part of it.
+    expect((await json(call(w.a.client, "GET", `/api/signals/${old1}/archived`))).rows.map((r: { id: string }) => r.id)).toEqual([now, old2]);
+    expect((await json(call(w.a.client, "GET", `/api/signals/${other}/archived`))).rows).toEqual([]);
+    const rows = (await json(call(w.a.client, "GET", `/api/tracker?stream=primary&from=2000-01-01&to=2100-01-01&pageSize=100&t.source_role=${encodeURIComponent(role)}`))).rows as { id: string; discussionWith?: string | null }[];
+    expect(rows.find((r) => r.id === other)?.discussionWith).toBeNull();
+    expect([old1, old2]).toContain(rows.find((r) => r.id === now)?.discussionWith);
     expect((await json(call(w.b.analyst, "GET", `/api/signals/${now}/archived`))).rows).toEqual([]);
   });
 

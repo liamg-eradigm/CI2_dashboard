@@ -6,6 +6,7 @@
  */
 import { FIELDS, type KiqTopic, type TrackerSchema } from "@eradigm/shared";
 import { ListTextarea } from "./ListTextarea";
+import { RichTextField } from "./RichTextField";
 
 export const KIQ_KEYS: readonly string[] = [FIELDS.insightTopic, FIELDS.keyQuestion, FIELDS.keyDetails, FIELDS.keyMetrics];
 const EMPTY_KIQ = { question: "", details: "", metrics: "" };
@@ -127,18 +128,18 @@ export function KiqEditor({
                 />
                 <div className="kiq-parts">
                   <div>
-                    <label className="dlabel" htmlFor={id("details")}>
+                    <label className="dlabel" htmlFor={id("details")} id={`${id("details")}-label`}>
                       {L.details}
                       {badge(`_kiq.${ti}.${ki}.details`)}
                     </label>
-                    <ListTextarea id={id("details")} className="dcell long" rows={4} disabled={disabled} value={k.details} onValueChange={(v) => setKiq(ti, ki, { details: v })} onBlur={onBlur} />
+                    <RichTextField id={id("details")} aria-labelledby={`${id("details")}-label`} className="dcell long" rows={4} disabled={disabled} value={k.details} onValueChange={(v) => setKiq(ti, ki, { details: v })} onBlur={onBlur} />
                   </div>
                   <div>
-                    <label className="dlabel" htmlFor={id("metrics")}>
+                    <label className="dlabel" htmlFor={id("metrics")} id={`${id("metrics")}-label`}>
                       {L.metrics}
                       {badge(`_kiq.${ti}.${ki}.metrics`)}
                     </label>
-                    <ListTextarea id={id("metrics")} className="dcell long" rows={4} disabled={disabled} value={k.metrics} onValueChange={(v) => setKiq(ti, ki, { metrics: v })} onBlur={onBlur} />
+                    <RichTextField id={id("metrics")} aria-labelledby={`${id("metrics")}-label`} className="dcell long" rows={4} disabled={disabled} value={k.metrics} onValueChange={(v) => setKiq(ti, ki, { metrics: v })} onBlur={onBlur} />
                   </div>
                 </div>
               </div>

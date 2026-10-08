@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useFitToScreen } from "../lib/fitToScreen";
 import { Link, useSearchParams } from "react-router-dom";
-import { TREND_ANALYSIS_COLUMNS, TREND_CATEGORY_LABEL, TREND_LEVEL_LABEL, can, type Me, type TrendAnalysis, type TrendAnalysisCategory } from "@eradigm/shared";
+import { TREND_ANALYSIS_COLUMNS, TREND_CATEGORY_LABEL, TREND_LEVEL_LABEL, can, plainText, type Me, type TrendAnalysis, type TrendAnalysisCategory } from "@eradigm/shared";
 import { api, type ApiError } from "../api/client";
 import { useInvalidate, useTrendAnalyses, useTrendAnalysisMarkdown } from "../api/hooks";
 import { FrontMatter, parseMarkdown, saveMarkdown } from "../components/MarkdownPanel";
@@ -162,7 +162,7 @@ export function TrendAnalysesPage({ me, title = "CI analyses", eyebrow = "Databa
                       {a.level === "sub" && a.parent && <span>in {a.parent}</span>}
                     </td>
                     <td className="tas-text">
-                      <div>{a.text}</div>
+                      <div>{plainText(a.text)}</div>
                     </td>
                     <td className="tas-by">
                       {a.submittedBy}
