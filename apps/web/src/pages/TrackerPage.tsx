@@ -107,19 +107,19 @@ function Cell({ col, s, impactCol, growthCol, actionCol }: { col: TrackerColumn;
  * an entry without one (imported from a spreadsheet) — a green plus to attach
  * the HTML file (analysts and admins).
  */
-function SourceCell({ s, canAttach, onOpen }: { s: Signal; canAttach: boolean; onOpen: (pageId: string | null) => void }) {
+function SourceCell({ s, canAttach, onOpen, cls = "src-col" }: { s: Signal; canAttach: boolean; onOpen: (pageId: string | null) => void; cls?: string }) {
   const title = String(s.values[CORE.title] ?? s.code);
   const attach = useAttachPage(s);
   if (s.hasSnapshot) {
     return (
-      <td className="src-col">
+      <td className={cls}>
         <SavedPagesButton entry={{ id: s.id, code: s.code, title }} pages={s.pages} canAttach={canAttach} onOpen={onOpen} />
       </td>
     );
   }
   if (!canAttach) {
     return (
-      <td className="src-col">
+      <td className={cls}>
         <span className="src-none" title="No saved page for this entry" aria-label="No saved page">
           —
         </span>
@@ -127,7 +127,7 @@ function SourceCell({ s, canAttach, onOpen }: { s: Signal; canAttach: boolean; o
     );
   }
   return (
-    <td className="src-col">
+    <td className={cls}>
       {attach.input}
       <button className="src-btn add" disabled={attach.busy} onClick={attach.pick} aria-label={`Attach the HTML page for ${title}`} title="No saved page yet · click to upload the HTML file">
         <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
@@ -206,7 +206,8 @@ export function TrackerPage({
   const [exportOpen, setExportOpen] = useState(false);
   const [scope, setScope] = useState<"filtered" | "all">("filtered");
   const exportRef = useRef<HTMLDivElement>(null);
-  const fitRef = useFitToScreen();
+  // The Database and Primary Tracker tables take 80% of the space below the filters (request 44), so their page fits the screen.
+  const fitRef = useFitToScreen(260, database || primaryOnly ? 0.8 : 1);
   const selected = f.params.get("signal");
   const mdOpen = f.params.get("md");
   const archId = primaryOnly ? f.params.get("arch") : null;
@@ -386,16 +387,18 @@ export function TrackerPage({
   return (
     <>
       {primaryOnly ? (
-        <PrimaryTrackerFilters title={title ?? "Primary Tracker"} schema={s} params={f.params} setParams={f.setParams} defaults={f.defaults} />
+        <>
+          <PrimaryTrackerFilters title={title ?? "Primary Tracker"} schema={s} params={f.params} setParams={f.setParams} defaults={f.defaults} />
+          {/* The AI Summary of the open Full Discussion or KIQ Archive (request 43), attached under the sticky filters (request 44). */}
+          <DiscussionSummaryBox me={me} id={archId} mode={archMode} source={archSource} />
+        </>
       ) : database ? (
         <DatabaseFilters schema={s} params={f.params} setParams={f.setParams} defaults={f.defaults} />
       ) : (
         <FilterHeader title={title ?? (phantoms ? "Phantoms Database" : "Signals Database")} schema={s} f={f} viewKind="tracker" />
       )}
-      <div className="content">
+      <div className={`content${primaryOnly ? " ptr-content" : ""}`}>
         {above}
-        {/* Request 43: the AI Summary of the open Full Discussion or KIQ Archive, above the table. */}
-        {primaryOnly && <DiscussionSummaryBox me={me} id={archId} mode={archMode} source={archSource} />}
         <div className={`stream-bar${database ? " db-bar" : ""}`}>
           {switcher ?? (!primaryOnly && <StreamSwitch noun={NOUN[view]} value={stream} onChange={setStream} label={`${NOUN[view]} to show`} />)}
           <span className="stream-note">
@@ -539,19 +542,20 @@ export function TrackerPage({
                     </th>
                   )}
                   {!primaryOnly && (
-                    <th scope="col" className="src-col">
+                    <th scope="col" className={database ? "doc-col" : "src-col"}>
                       <span>Source</span>
                     </th>
                   )}
+                  {/* The Database page's four document columns share one width, their icons centred (request 44). */}
                   {database && (
                     <>
-                      <th scope="col" className="md-col">
+                      <th scope="col" className="doc-col">
                         <span>Markdown</span>
                       </th>
-                      <th scope="col" className="md-col">
+                      <th scope="col" className="doc-col">
                         <span>Alert</span>
                       </th>
-                      <th scope="col" className="md-col">
+                      <th scope="col" className="doc-col">
                         <span>Newsletter</span>
                       </th>
                     </>
@@ -611,10 +615,10 @@ export function TrackerPage({
                         </button>
                       </td>
                     )}
-                    {!primaryOnly && <SourceCell s={r} canAttach={canAttach} onOpen={(pageId) => setParam({ saved: r.id, savedPage: pageId }, true)} />}
+                    {!primaryOnly && <SourceCell s={r} canAttach={canAttach} cls={database ? "doc-col" : "src-col"} onOpen={(pageId) => setParam({ saved: r.id, savedPage: pageId }, true)} />}
                     {database && (
                       <>
-                        <td className="md-col">
+                        <td className="doc-col">
                           {r.phantom ? (
                             <button className="src-btn open md-open" onClick={() => setParam({ md: r.id }, true)} aria-label={`Open Markdown for ${titleOf(r)}`} title="Open the Phantom’s Markdown file">
                               <MdIcon />
@@ -625,7 +629,7 @@ export function TrackerPage({
                             </span>
                           )}
                         </td>
-                        <td className="md-col">
+                        <td className="doc-col">
                           {r.alertId ? (
                             <DocxButton label={`Open the alert for ${titleOf(r)}`} onClick={() => setParam({ docx: r.alertId ?? null }, true)} />
                           ) : (
@@ -634,7 +638,7 @@ export function TrackerPage({
                             </span>
                           )}
                         </td>
-                        <td className="md-col">
+                        <td className="doc-col">
                           <NewsletterCell title={titleOf(r)} newsletters={r.newsletters ?? []} onOpen={(id) => setParam({ docx: id }, true)} />
                         </td>
                       </>
@@ -899,7 +903,8 @@ function ArchivedPanel({
   const growthCol = getColumn(schema, CORE.growth);
   const actionCol = getColumn(schema, "action");
   const rows = q.data?.rows ?? [];
-  const fitRef = useFitToScreen(200);
+  // Level with the Primary Tracker beside it (80% of the space, request 44).
+  const fitRef = useFitToScreen(200, 0.8);
   const role = String(cur.data?.values[FIELDS.sourceRole] ?? "");
   const company = String(cur.data?.values[FIELDS.sourceCompany] ?? "");
   return (

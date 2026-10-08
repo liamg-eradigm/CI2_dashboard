@@ -2,11 +2,14 @@ import { useLayoutEffect, useState } from "react";
 
 /**
  * Request 37: a table's scroll box sized so that its card (top bar, table and
- * pager) fits the window below the sticky filter bar. The table then scrolls
- * inside the box, down and across, with its horizontal scrollbar always on
- * screen once the card is scrolled into view. Returns the ref for the box.
+ * pager) fits the window below the sticky filter bar (and anything stuck
+ * under it, `[data-sticky-under]`: the Primary Tracker's AI Summary). The
+ * table then scrolls inside the box, down and across, with its horizontal
+ * scrollbar always on screen once the card is scrolled into view. `ratio`
+ * (request 44): the share of that space the card takes. Returns the ref for
+ * the box.
  */
-export function useFitToScreen(min = 260): (el: HTMLElement | null) => void {
+export function useFitToScreen(min = 260, ratio = 1): (el: HTMLElement | null) => void {
   const [el, setEl] = useState<HTMLElement | null>(null);
   useLayoutEffect(() => {
     if (!el) return;
@@ -16,10 +19,11 @@ export function useFitToScreen(min = 260): (el: HTMLElement | null) => void {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
         const bar = document.querySelector<HTMLElement>(".filterbar");
-        const top = bar && getComputedStyle(bar).position === "sticky" ? bar.getBoundingClientRect().height : 0;
+        const stuck = [...document.querySelectorAll<HTMLElement>("[data-sticky-under]")].reduce((h, x) => h + x.getBoundingClientRect().height, 0);
+        const top = (bar && getComputedStyle(bar).position === "sticky" ? bar.getBoundingClientRect().height : 0) + stuck;
         // Everything in the card that is not the scroll box (its top bar and pager).
         const chrome = card ? card.getBoundingClientRect().height - el.getBoundingClientRect().height : 0;
-        const max = Math.max(min, Math.floor(window.innerHeight - top - chrome - 24));
+        const max = Math.max(min, Math.floor((window.innerHeight - top - 24) * ratio - chrome));
         if (el.style.maxHeight !== `${max}px`) el.style.maxHeight = `${max}px`;
         // Scrolling the card into view stops just below the filter bar.
         if (card) card.style.scrollMarginTop = `${Math.ceil(top) + 12}px`;
@@ -31,6 +35,7 @@ export function useFitToScreen(min = 260): (el: HTMLElement | null) => void {
     const bar = document.querySelector<HTMLElement>(".filterbar");
     if (ro) {
       if (bar) ro.observe(bar);
+      for (const x of document.querySelectorAll<HTMLElement>("[data-sticky-under]")) ro.observe(x);
       if (card) ro.observe(card);
     }
     return () => {
@@ -38,6 +43,6 @@ export function useFitToScreen(min = 260): (el: HTMLElement | null) => void {
       window.removeEventListener("resize", measure);
       ro?.disconnect();
     };
-  }, [el, min]);
+  }, [el, min, ratio]);
   return setEl;
 }
