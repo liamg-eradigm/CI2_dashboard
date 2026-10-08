@@ -738,3 +738,13 @@ button.mix-lbl:hover, button.mix-lbl:focus-visible { color: #fff; text-decoratio
   .cd-track { transition: none; }
   .cd-explore .md-chev { animation: none; }
 }
+
+/* Request 50: on a competitor's page, staff size the headings and edit the Company Profile in place. */
+.ad-page .ts-btn { background: rgba(2, 12, 20, 0.6); border-color: rgba(127, 211, 216, 0.4); color: var(--mg-ink); }
+.ad-page .ts-btn:hover { background: rgba(127, 211, 216, 0.15); color: #fff; }
+.ad-page .ts-pct { color: var(--mg-ink-2); }
+.ta-summary-tools { display: inline-flex; align-items: center; gap: 14px; }
+.ta-summary-edit { display: flex; flex-direction: column; gap: 8px; }
+.ta-summary-edit .rt-editor { font: 400 17px/1.6 var(--sans); }
+.ta-summary-edit .list-hint { color: var(--mg-ink-3); }
+.ta-summary-edit .md-edit-foot { display: flex; justify-content: flex-end; gap: 8px; }

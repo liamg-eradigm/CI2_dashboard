@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { CORE, bucket, getColumn, levelOf, type Bar, type DashboardData, type TrackerSchema } from "@eradigm/shared";
 import { IMPACT_CLASS, IMPACT_SHAPE, formatDate } from "../lib/format";
+import { SizedHeading } from "./TextSize";
 
 /** Impact legend: shape + colour + text, so the chart reads without colour. */
 function ImpactLegend({ schema, label }: { schema: TrackerSchema; label: string }) {
@@ -44,6 +45,7 @@ export function SignalTimeline({
   title = "Signal Timeline",
   id = "tl-title",
   compact = false,
+  sizeKey,
 }: {
   data: DashboardData;
   schema: TrackerSchema;
@@ -58,6 +60,8 @@ export function SignalTimeline({
    * the axis instead of its levels; the plot takes the room.
    */
   compact?: boolean;
+  /** Request 50: staff change the title's size (A− / A+, for everyone) under this key. */
+  sizeKey?: string;
 }) {
   const [hover, setHover] = useState<string | null>(null);
   const gCol = getColumn(schema, CORE.growth);
@@ -201,9 +205,15 @@ export function SignalTimeline({
     <section className={`card tl-card${compact ? " compact" : ""}`} aria-labelledby={id}>
       <div className="card-head">
         <div>
-          <h2 className="card-title" id={id}>
-            {title}
-          </h2>
+          {sizeKey ? (
+            <SizedHeading className="card-title" id={id} sizeKey={sizeKey} label={`${title} heading`}>
+              {title}
+            </SizedHeading>
+          ) : (
+            <h2 className="card-title" id={id}>
+              {title}
+            </h2>
+          )}
           {!compact && <span className="card-sub">{gLabel} by publication date · scroll to zoom, drag to move · select a point to open its record</span>}
         </div>
         <div className="tl-tools">
