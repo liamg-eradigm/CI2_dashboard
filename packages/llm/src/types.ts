@@ -22,10 +22,16 @@ export interface SummaryEntry {
   /** Competitors: the entry's Impact (High / Medium / Low) and its CI perspective. */
   impact?: string;
   ciPerspective?: string;
+  /** Discussions (request 43): who answered, the topic and question, and the metrics given. */
+  source?: string;
+  topic?: string;
+  question?: string;
+  metrics?: string;
 }
 
 export interface SummaryInput {
-  level: "macro" | "sub" | "competitor";
+  /** discussion (request 43): a Primary Tracker Full Discussion or KIQ Archive (entries newest first). */
+  level: "macro" | "sub" | "competitor" | "discussion";
   name: string;
   parent?: string;
   /** At most this many sentences. */
@@ -35,6 +41,8 @@ export interface SummaryInput {
   /** Trends: entries from the last N days. Competitors: recency half-life in days (older high-impact entries still count). */
   windowDays: number;
   entries: SummaryEntry[];
+  /** Discussions: the admin's instructions for the summary (Administration). */
+  instructions?: string;
 }
 
 export interface LlmSummaryResult {

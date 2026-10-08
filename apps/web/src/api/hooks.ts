@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import {
+  type DiscussionSummary,
   IN_PROGRESS_STATUSES,
   filtersToParams,
   type ArchivedResponses,
@@ -54,8 +55,9 @@ export const useDashboard = (f: FilterState, enabled = true) =>
   useQuery({ queryKey: ["dashboard", f], queryFn: () => api<DashboardData>(`/api/dashboard?${qs(f)}`), placeholderData: keepPreviousData, enabled });
 
 /** The Tracker, Phantoms and the two Deliverables tables (built from Phantoms). */
-export type TableView = "tracker" | "phantoms" | "alerts" | "newsletter";
-const TABLE_PATH: Record<TableView, string> = { tracker: "/api/tracker", phantoms: "/api/phantoms", alerts: "/api/deliverables/alerts", newsletter: "/api/deliverables/newsletter" };
+/** database: the Database page (request 43). */
+export type TableView = "tracker" | "phantoms" | "alerts" | "newsletter" | "database";
+const TABLE_PATH: Record<TableView, string> = { tracker: "/api/tracker", phantoms: "/api/phantoms", alerts: "/api/deliverables/alerts", newsletter: "/api/deliverables/newsletter", database: "/api/database" };
 
 export const useTracker = (f: FilterState, sort: { key: string; dir: "asc" | "desc" }, page: number, pageSize = 10, stream: Stream = "primary", view: TableView = "tracker", enabled = true) =>
   useQuery({
@@ -131,6 +133,15 @@ export const useTrendAnalysisMarkdown = (id: string | null) =>
 /** Full Discussion (the same source), or with `kiq` the KIQ Archive (also the same Insight Topic and KIQ, request 42). */
 export const useArchived = (id: string | null, match: "source" | "kiq" = "source") =>
   useQuery({ queryKey: ["signal", id, "archived", match], queryFn: () => api<ArchivedResponses>(`/api/signals/${id}/archived${match === "kiq" ? "?match=kiq" : ""}`), enabled: !!id });
+
+/** The Primary Tracker's AI Summary of a Full Discussion or KIQ Archive (request 43); may be written by the AI writer on first read. */
+export const useDiscussionSummary = (id: string | null, mode: "source" | "kiq") =>
+  useQuery({
+    queryKey: ["signal", id, "summary", mode],
+    queryFn: () => api<DiscussionSummary>(`/api/signals/${id}/summary${mode === "kiq" ? "?match=kiq" : ""}`),
+    enabled: !!id,
+    staleTime: 60_000,
+  });
 
 export const useSignal = (id: string | null) =>
   useQuery({ queryKey: ["signal", id], queryFn: () => api<SignalDetail>(`/api/signals/${id}`), enabled: !!id });

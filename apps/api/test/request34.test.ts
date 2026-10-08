@@ -22,6 +22,8 @@ describe("request 34", () => {
     expect(visibleMenu(DEFAULT_MENU, "client").map((g) => `${g.key}:${g.items.map((i) => i.key).join(",")}`)).toEqual([
       "inputs:clientinbox",
       "analytics:dashboard,knowledge-graph,primary-tracker",
+      // Request 43: the Database tab, on its own.
+      "database:database",
       "trackers:tracker,phantoms,trend-analyses",
     ]);
   });

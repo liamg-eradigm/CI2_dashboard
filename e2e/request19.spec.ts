@@ -35,7 +35,7 @@ test.describe("request 19", () => {
   test("each role sees only its tabs", async ({ page, browser }) => {
     await signInAs(page, "analyst");
     await page.goto("/dashboard");
-    expect(await menuOf(page)).toEqual(["Inputs: Eradigm Inbox", "Analytics: Megatrends Dashboard, Knowledge Graph, Primary Tracker", "Databases: Signals Database, Phantoms Database, CI analyses"]);
+    expect(await menuOf(page)).toEqual(["Inputs: Eradigm Inbox", "Analytics: Megatrends Dashboard, Knowledge Graph, Primary Tracker", "Database", "Databases: Signals Database, Phantoms Database, CI analyses"]);
     for (const path of ["/input", "/admin", "/deliverables", "/client-inbox"]) {
       await page.goto(path);
       await expect(page).toHaveURL(/\/dashboard/);
@@ -44,7 +44,7 @@ test.describe("request 19", () => {
     const client = await ctx.newPage();
     await signInAs(client, "client");
     await client.goto("/dashboard");
-    expect(await menuOf(client)).toEqual(["Inputs: Client Inbox", "Analytics: Megatrends Dashboard, Knowledge Graph, Primary Tracker", "Databases: Signals Database, Phantoms Database, CI analyses"]);
+    expect(await menuOf(client)).toEqual(["Inputs: Client Inbox", "Analytics: Megatrends Dashboard, Knowledge Graph, Primary Tracker", "Database", "Databases: Signals Database, Phantoms Database, CI analyses"]);
     await ctx.close();
     const actx = await browser.newContext();
     const admin = await actx.newPage();
@@ -53,6 +53,7 @@ test.describe("request 19", () => {
     expect(await menuOf(admin)).toEqual([
       "Inputs: Input, Eradigm Inbox, Client Inbox",
       "Analytics: Megatrends Dashboard, Knowledge Graph, Primary Tracker",
+      "Database",
       "Databases: Signals Database, Phantoms Database, CI analyses",
       "Admin: Deliverables, Administration",
     ]);

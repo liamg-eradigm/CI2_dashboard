@@ -16,17 +16,18 @@ describe("request 28: the menu in groups", () => {
         { key: "trackers", label: "", items: [{ key: "phantoms" }, { key: "tracker", label: "   " }] },
       ],
     });
-    // Inputs leads by default (first); Analytics goes after the group it follows by default (Inputs).
-    expect(m.groups.map((g) => g.key)).toEqual(["inputs", "analytics", "admin", "trackers"]);
+    // Inputs leads by default (first); Analytics goes after the group it follows by default (Inputs), then Database (request 43).
+    expect(m.groups.map((g) => g.key)).toEqual(["inputs", "analytics", "database", "admin", "trackers"]);
     // Deliverables was missing: it leads the group by default, so it goes first.
-    expect(m.groups[2]).toEqual({ key: "admin", label: "Back office", items: [{ key: "deliverables" }, { key: "admin", label: "Settings" }] });
+    expect(m.groups[3]).toEqual({ key: "admin", label: "Back office", items: [{ key: "deliverables" }, { key: "admin", label: "Settings" }] });
     // Trend Analyses was missing: it goes back after the tab it follows by default (Phantoms).
-    expect(m.groups[3]).toEqual({ key: "trackers", items: [{ key: "phantoms" }, { key: "trend-analyses" }, { key: "tracker" }] });
+    expect(m.groups[4]).toEqual({ key: "trackers", items: [{ key: "phantoms" }, { key: "trend-analyses" }, { key: "tracker" }] });
     expect(normaliseMenu(undefined)).toEqual(DEFAULT_MENU);
     // A client sees no Admin group and only the Client Inbox in Inputs.
     expect(visibleMenu(DEFAULT_MENU, "client").map((g) => `${g.key}:${g.items.map((i) => i.key).join(",")}`)).toEqual([
       "inputs:clientinbox",
       "analytics:dashboard,knowledge-graph,primary-tracker",
+      "database:database",
       "trackers:tracker,phantoms,trend-analyses",
     ]);
   });
@@ -45,6 +46,7 @@ describe("request 28: the menu in groups", () => {
       groups: [
         { key: "inputs", items: [{ key: "input" }, { key: "inbox" }, { key: "clientinbox" }] },
         { key: "analytics", items: [{ key: "dashboard", label: "Overview" }, { key: "knowledge-graph" }, { key: "primary-tracker" }] },
+        { key: "database", items: [{ key: "database" }] },
         { key: "trackers", items: [{ key: "tracker" }, { key: "phantoms", label: "Phantom files" }, { key: "trend-analyses" }] },
         { key: "admin", label: "Back office", items: [{ key: "deliverables", label: "Reports" }, { key: "admin" }] },
       ],
@@ -59,7 +61,7 @@ describe("request 28: the menu in groups", () => {
     const saved = await json(call(w.a.admin, "PATCH", "/api/settings", { body: { menu } }));
     // The Client Inbox (left out) goes back after the Eradigm Inbox, the tab it follows by default.
     expect(saved.menu.groups[0]).toEqual({ key: "inputs", label: "Sources", items: [{ key: "inbox" }, { key: "clientinbox" }, { key: "input", label: "Add sources" }] });
-    expect(saved.menu.groups.map((g: { key: string }) => g.key)).toEqual(["inputs", "analytics", "trackers", "admin"]);
+    expect(saved.menu.groups.map((g: { key: string }) => g.key)).toEqual(["inputs", "analytics", "database", "trackers", "admin"]);
     // Other settings leave it alone; another workspace is unaffected.
     const again = await json(call(w.a.admin, "PATCH", "/api/settings", { body: { timezone: "Europe/Paris" } }));
     expect(again.menu.groups[0].label).toBe("Sources");

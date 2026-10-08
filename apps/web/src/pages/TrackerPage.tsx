@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
-import { CORE, FIELDS, STREAM_LABEL, TABLE_ALL_MAX, can, displayValue, getColumn, phantomColumns, trackerColumns, type Me, type Signal, type TrackerColumn, type TrackerSchema } from "@eradigm/shared";
-import { request } from "../api/client";
-import { exportUrl, useArchived, useNewsletters, useSchema, useSettings, useSignal, useTracker, type TableView } from "../api/hooks";
+import { CORE, FIELDS, STREAM_LABEL, TABLE_ALL_MAX, can, displayValue, getColumn, phantomColumns, sortedColumns, trackerColumns, type Me, type Newsletter, type Signal, type TrackerColumn, type TrackerSchema } from "@eradigm/shared";
+import { api, request, type ApiError } from "../api/client";
+import { exportUrl, useArchived, useInvalidate, useNewsletters, useSchema, useSettings, useSignal, useTracker, type TableView } from "../api/hooks";
 import { FilterHeader } from "../components/FilterHeader";
 import { MarkdownPanel } from "../components/MarkdownPanel";
 import { DeleteEntries } from "../components/DeleteEntries";
@@ -17,6 +17,9 @@ import { useFilters } from "../state/filters";
 import { useToast } from "../state/toast";
 import { useFitToScreen } from "../lib/fitToScreen";
 import { PrimaryTrackerFilters, primaryTrackerFilters } from "../components/PrimaryTrackerFilters";
+import { DatabaseFilters, databaseFilters } from "../components/DatabaseFilters";
+import { NewsletterCell, NewspaperIcon } from "../components/NewsletterCell";
+import { DiscussionSummaryBox } from "../components/DiscussionSummaryBox";
 
 const PAGE = 10;
 
@@ -136,17 +139,48 @@ function SourceCell({ s, canAttach, onOpen }: { s: Signal; canAttach: boolean; o
   );
 }
 
-const NOUN: Record<TableView, string> = { tracker: "Tracker", phantoms: "Phantoms", alerts: "Phantoms", newsletter: "Phantoms" };
+const NOUN: Record<TableView, string> = { tracker: "Tracker", phantoms: "Phantoms", alerts: "Phantoms", newsletter: "Phantoms", database: "Tracker" };
+
+/** The Markdown icon (Phantoms). */
+function MdIcon() {
+  return (
+    <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+      <path d="M5 2.5h6.5L15.5 6.5V17a.5.5 0 0 1-.5.5H5a.5.5 0 0 1-.5-.5V3a.5.5 0 0 1 .5-.5Z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M11.5 2.5v4h4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+      <text x="10" y="14.6" textAnchor="middle" fontSize="5.6" fontWeight="700" fontFamily="sans-serif" fill="currentColor">MD</text>
+    </svg>
+  );
+}
 
 /**
  * The Tracker and Phantoms tabs, and the two Deliverables tables (Alerts and
  * Newsletter, built from Phantoms): the same filterable table, per stream.
  * Phantoms-based tables add the Markdown; Alerts add the .docx alert; the
  * Newsletter table's tick boxes build a newsletter.
+ *
+ * The Database page (request 43, view "database"): a stream's Tracker
+ * entries with every field, their saved page, Markdown (Phantoms), alert and
+ * newsletters, its own filters, and Generate Newsletter from the ticked rows.
  */
-export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = false }: { me: Me; view?: TableView; title?: string; above?: ReactNode; primaryOnly?: boolean }) {
+export function TrackerPage({
+  me,
+  view = "tracker",
+  title,
+  above,
+  primaryOnly = false,
+  switcher,
+}: {
+  me: Me;
+  view?: TableView;
+  title?: string;
+  above?: ReactNode;
+  primaryOnly?: boolean;
+  /** The Database page: its Primary / Secondary / CI Analysis toggle, in place of the Primary / Secondary switch. */
+  switcher?: ReactNode;
+}) {
+  const database = view === "database";
   // Phantoms and the Deliverables tables share the Phantoms columns, Markdown and rules.
-  const phantoms = view !== "tracker";
+  const phantoms = view !== "tracker" && !database;
   const newsletter = view === "newsletter";
   const [streamParam, setStream] = useStreamParam();
   // Analytics → Primary Tracker (request 34): the Primary Tracker only, with Archived Responses.
@@ -165,7 +199,9 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
   const size = showAll ? TABLE_ALL_MAX : PAGE;
   // Analytics → Primary Tracker has its own filters (request 41); every other table shares one set.
   const ptFilters = useMemo(() => (primaryOnly ? primaryTrackerFilters(f.params, f.defaults) : null), [primaryOnly, f.params, f.defaults]);
-  const query = ptFilters ?? f.filters;
+  // The Database page has its own filters too, on every field (request 43).
+  const dbFilters = useMemo(() => (database && schema.data ? databaseFilters(f.params, f.defaults, schema.data) : null), [database, f.params, f.defaults, schema.data]);
+  const query = ptFilters ?? dbFilters ?? f.filters;
   const tracker = useTracker(query, { key: sortKey, dir }, page, size, stream, view, !!schema.data && f.ready);
   const [exportOpen, setExportOpen] = useState(false);
   const [scope, setScope] = useState<"filtered" | "all">("filtered");
@@ -181,6 +217,8 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
   const archMode: "source" | "kiq" = primaryOnly && f.params.get("am") === "kiq" ? "kiq" : "source";
   const archived = useArchived(primaryOnly ? archId : null, archMode);
   const archRows = archived.data?.rows ?? [];
+  const archSignal = useSignal(archId);
+  const archSource = archSignal.data ? [archSignal.data.values[FIELDS.sourceRole], archSignal.data.values[FIELDS.sourceCompany]].filter(Boolean).join(" · ") : undefined;
   const savedOpen = f.params.get("saved");
   const docxOpen = f.params.get("docx");
   const newsletters = useNewsletters(newsletter);
@@ -190,10 +228,14 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
   const [picked, setPicked] = useState<Map<string, Signal>>(() => new Map());
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const inv = useInvalidate();
   const rowKey = tracker.data?.rows.map((r) => r.id).join(",") ?? "";
+  // The Database page keeps its ticks across pages and both streams, to build a newsletter from.
+  const keepPicks = newsletter || database;
   useEffect(() => {
-    if (!newsletter) setPicked(new Map());
-  }, [rowKey, stream, view, newsletter]);
+    if (!keepPicks) setPicked(new Map());
+  }, [rowKey, stream, view, keepPicks]);
 
   const setParam = useCallback(
     (patch: Record<string, string | null>, push = false) =>
@@ -236,7 +278,7 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
   }, [exportOpen]);
 
   // Alerts on a long page are written a batch at a time: fetch again until every row has one.
-  const missingAlerts = view === "alerts" && !!tracker.data?.rows.some((r) => !r.alertId);
+  const missingAlerts = (view === "alerts" && !!tracker.data?.rows.some((r) => !r.alertId)) || (database && !!tracker.data?.rows.some((r) => r.alertPending));
   useEffect(() => {
     if (!missingAlerts) return;
     const id = setTimeout(() => void tracker.refetch(), 1200);
@@ -246,16 +288,17 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
   if (!schema.data) return <div className="content"><div className="skeleton" style={{ height: 200 }} /></div>;
   const s = schema.data;
   // Each table has its own columns, chosen from the Inbox columns (Inbox → Edit columns).
-  const cols = primaryOnly ? primaryTrackerColumns(s) : phantoms ? phantomColumns(s) : trackerColumns(s);
+  const cols = primaryOnly ? primaryTrackerColumns(s) : database ? sortedColumns(s) : phantoms ? phantomColumns(s) : trackerColumns(s);
   // The column whose cell opens the entry: its Title, or (Primary Tracker, no Title column) the first.
   const openKey = primaryOnly ? cols[0]?.key : CORE.title;
   const canAttach = can(me.role, "item:edit");
   // Phantoms (and the Deliverables built from them) are an evergreen snapshot: only Tracker entries are edited.
   // (The Analytics Primary Tracker has no Source or Edit columns, request 42.)
-  const canEdit = canAttach && view === "tracker" && !primaryOnly;
+  const canEdit = canAttach && (view === "tracker" || database) && !primaryOnly;
   const canDelete = can(me.role, "item:delete");
-  // Alerts (request 36): tick to delete alerts.
-  const tickable = newsletter ? canCreateNewsletter(me) : (view === "tracker" || view === "phantoms" || view === "alerts") && canDelete;
+  const canGenerate = database && canCreateNewsletter(me);
+  // Alerts (request 36): tick to delete alerts. The Database page: to delete, or to generate a newsletter.
+  const tickable = newsletter ? canCreateNewsletter(me) : database ? canDelete || canGenerate : (view === "tracker" || view === "phantoms" || view === "alerts") && canDelete;
   const impactCol = getColumn(s, CORE.impact);
   const growthCol = getColumn(s, CORE.growth);
   const actionCol = getColumn(s, "action");
@@ -282,7 +325,7 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
     });
   const savedRow = savedOpen ? t?.rows.find((r) => r.id === savedOpen) : undefined;
   const docxRow = docxOpen ? t?.rows.find((r) => r.alertId === docxOpen) : undefined;
-  const docxNewsletter = docxOpen ? newsletters.data?.find((n) => n.id === docxOpen) : undefined;
+  const docxNewsletter = docxOpen ? (newsletters.data?.find((n) => n.id === docxOpen) ?? t?.rows.flatMap((r) => r.newsletters ?? []).find((n) => n.id === docxOpen)) : undefined;
   const titleOf = (r: Signal) => String(r.values[CORE.title] ?? r.code);
   /** Primary Tracker (request 39): a row opens its pop-up; beside Archived Responses when that source has earlier answers and they are open. */
   const openRow = (r: Signal) => {
@@ -304,6 +347,21 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
         : `Showing ${page * PAGE + 1}–${Math.min(t.total, page * PAGE + PAGE)} of ${t.total} · page ${page + 1} of ${pages}`
     : "Loading…";
 
+
+  /** The Database page: a newsletter from the ticked rows (for now, a .docx of their titles), attached to each of them. */
+  const generate = async () => {
+    setGenerating(true);
+    try {
+      const n = await api<Newsletter>("/api/newsletters/generate", { method: "POST", json: { itemIds: pickedRows.map((r) => r.id) } });
+      await inv("tracker", "newsletters");
+      setPicked(new Map());
+      toast(`Generated “${n.name}” from ${n.items.length} entries`);
+    } catch (e) {
+      toast(`Could not generate the newsletter · ${(e as ApiError).message}`, false);
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   const doExport = async (format: string) => {
     setExportOpen(false);
@@ -329,15 +387,21 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
     <>
       {primaryOnly ? (
         <PrimaryTrackerFilters title={title ?? "Primary Tracker"} schema={s} params={f.params} setParams={f.setParams} defaults={f.defaults} />
+      ) : database ? (
+        <DatabaseFilters schema={s} params={f.params} setParams={f.setParams} defaults={f.defaults} />
       ) : (
         <FilterHeader title={title ?? (phantoms ? "Phantoms Database" : "Signals Database")} schema={s} f={f} viewKind="tracker" />
       )}
       <div className="content">
         {above}
-        <div className="stream-bar">
-          {!primaryOnly && <StreamSwitch noun={NOUN[view]} value={stream} onChange={setStream} label={`${NOUN[view]} to show`} />}
+        {/* Request 43: the AI Summary of the open Full Discussion or KIQ Archive, above the table. */}
+        {primaryOnly && <DiscussionSummaryBox me={me} id={archId} mode={archMode} source={archSource} />}
+        <div className={`stream-bar${database ? " db-bar" : ""}`}>
+          {switcher ?? (!primaryOnly && <StreamSwitch noun={NOUN[view]} value={stream} onChange={setStream} label={`${NOUN[view]} to show`} />)}
           <span className="stream-note">
-            {primaryOnly
+            {database
+              ? `Every ${STREAM_LABEL[stream]} Tracker entry with all its fields, its saved page, Markdown, alert and newsletters`
+              : primaryOnly
               ? "Approved entries from the Primary Inbox · Full Discussion opens the earlier answers from the same source (Source Role and Source Company) · KIQ Archive only those with the same Insight Topic and Key Intelligence Question"
               : view === "alerts"
               ? `${STREAM_LABEL[stream]} Phantoms with High Impact · each gets a .docx alert automatically`
@@ -349,6 +413,12 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
                     : `Secondary Tracker entries with Impact ${settings.data?.phantoms.secondaryMinImpact ?? "Low"} or higher (set by admins) · open the Markdown from the MD icon`
                   : `Approved entries from the ${STREAM_LABEL[stream]} Inbox`}
           </span>
+          {canGenerate && pickedRows.length >= 2 && (
+            <button className="btn gen-newsletter" disabled={generating} onClick={() => void generate()} data-testid="generate-newsletter" title={`A newsletter from the ${pickedRows.length} ticked entries`}>
+              <NewspaperIcon />
+              <span>{generating ? "Generating…" : `Generate Newsletter (${pickedRows.length})`}</span>
+            </button>
+          )}
         </div>
         <div className={archId ? "arch-split" : undefined} data-testid={archId ? "arch-split" : undefined}>
         <section className={`card flush pop-host${primaryOnly ? " ptr-card" : ""}`} aria-label="Approved signals table">
@@ -363,7 +433,7 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
             ) : (
               <span className="info" aria-live="polite">
                 {info}
-                <DatesHint info={t?.outsideDates} f={f} />
+                {!database && <DatesHint info={t?.outsideDates} f={f} />}
               </span>
             )}
             <div className="table-actions">
@@ -386,9 +456,11 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
                   <button className="link-btn" onClick={() => setPicked(new Map())}>
                     Clear
                   </button>
-                  <button className="btn danger small" onClick={() => setConfirmDelete(true)}>
-                    Delete selected
-                  </button>
+                  {canDelete && (
+                    <button className="btn danger small" onClick={() => setConfirmDelete(true)}>
+                      Delete selected
+                    </button>
+                  )}
                 </div>
               )}
               <div style={{ position: "relative" }} ref={exportRef}>
@@ -427,7 +499,9 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
                       ))}
                     </div>
                     <div style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.45 }}>
-                      Includes the {cols.length} {STREAM_LABEL[stream]} {phantoms ? "Phantoms" : "Tracker"} columns plus signal ID, in the current sort order.
+                      {database
+                        ? `Includes every ${STREAM_LABEL[stream]} field (${cols.length}) plus signal ID, in the current sort order.`
+                        : `Includes the ${cols.length} ${STREAM_LABEL[stream]} ${phantoms ? "Phantoms" : "Tracker"} columns plus signal ID, in the current sort order.`}
                     </div>
                   </div>
                 )}
@@ -436,7 +510,7 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
           </div>
           {/* Request 36: the table scrolls inside its own box, sized to the screen, so its horizontal scrollbar is always in view. */}
           <div ref={fitRef} className={`table-wrap fit${showAll ? " all" : ""}`} tabIndex={0} role="region" aria-label={showAll ? "All entries (scrollable)" : "Entries (scrollable)"} data-testid="table-scroll">
-            <table className={`data${primaryOnly ? " ptr" : ""}`} style={{ minWidth: primaryOnly ? 1500 : Math.max(1100, cols.length * 125 + (phantoms ? 150 : 0) + (linkCol ? 60 : 0) + (view === "alerts" ? 70 : 0)) }}>
+            <table className={`data${primaryOnly ? " ptr" : ""}${database ? " db-table" : ""}`} style={{ minWidth: primaryOnly ? 1500 : Math.max(1100, cols.length * (database ? 150 : 125) + (phantoms ? 150 : 0) + (linkCol ? 60 : 0) + (view === "alerts" ? 70 : 0) + (database ? 300 : 0)) }}>
               <caption className="sr-only">Approved signals, sorted by {getColumn(s, sortKey)?.label ?? "Date"} {dir === "asc" ? "ascending" : "descending"}</caption>
               <thead>
                 <tr>
@@ -468,6 +542,19 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
                     <th scope="col" className="src-col">
                       <span>Source</span>
                     </th>
+                  )}
+                  {database && (
+                    <>
+                      <th scope="col" className="md-col">
+                        <span>Markdown</span>
+                      </th>
+                      <th scope="col" className="md-col">
+                        <span>Alert</span>
+                      </th>
+                      <th scope="col" className="md-col">
+                        <span>Newsletter</span>
+                      </th>
+                    </>
                   )}
                   {linkCol &&
                     (primaryOnly ? (
@@ -525,6 +612,33 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
                       </td>
                     )}
                     {!primaryOnly && <SourceCell s={r} canAttach={canAttach} onOpen={(pageId) => setParam({ saved: r.id, savedPage: pageId }, true)} />}
+                    {database && (
+                      <>
+                        <td className="md-col">
+                          {r.phantom ? (
+                            <button className="src-btn open md-open" onClick={() => setParam({ md: r.id }, true)} aria-label={`Open Markdown for ${titleOf(r)}`} title="Open the Phantom’s Markdown file">
+                              <MdIcon />
+                            </button>
+                          ) : (
+                            <span className="src-none" aria-label="Not in Phantoms" title="Not in Phantoms">
+                              —
+                            </span>
+                          )}
+                        </td>
+                        <td className="md-col">
+                          {r.alertId ? (
+                            <DocxButton label={`Open the alert for ${titleOf(r)}`} onClick={() => setParam({ docx: r.alertId ?? null }, true)} />
+                          ) : (
+                            <span className="src-none" aria-label={r.alertPending ? "Alert being written" : "No alert"} title={r.alertPending ? "Being written…" : "Alerts are written for High Impact Phantoms"}>
+                              {r.alertPending ? "…" : "—"}
+                            </span>
+                          )}
+                        </td>
+                        <td className="md-col">
+                          <NewsletterCell title={titleOf(r)} newsletters={r.newsletters ?? []} onOpen={(id) => setParam({ docx: id }, true)} />
+                        </td>
+                      </>
+                    )}
                     {linkCol && primaryOnly && (
                       <td className="arch-col">
                         {r.linkedEarlier ? (
@@ -716,10 +830,10 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
           }}
         />
       )}
-      {confirmDelete && pickedRows.length > 0 && (view === "tracker" || view === "phantoms") && (
+      {confirmDelete && pickedRows.length > 0 && (view === "tracker" || view === "phantoms" || database) && (
         <DeleteEntries
           modal
-          table={view}
+          table={database ? "tracker" : view === "phantoms" ? "phantoms" : "tracker"}
           entries={pickedRows.map((r) => ({ id: r.id, code: r.code, title: String(r.values[CORE.title] ?? "") }))}
           onCancel={() => setConfirmDelete(false)}
           onDone={(ids) => {
@@ -742,9 +856,9 @@ export function TrackerPage({ me, view = "tracker", title, above, primaryOnly = 
           id={selected}
           schema={s}
           me={me}
-          table={view === "tracker" || view === "phantoms" ? view : undefined}
+          table={database ? "tracker" : view === "tracker" || view === "phantoms" ? view : undefined}
           startEditing={canEdit && f.params.get("edit") === "1"}
-          editable={view === "tracker"}
+          editable={view === "tracker" || database}
           onClose={() => setParam({ signal: null, edit: null })}
           onOpen={(id) => setParam({ signal: id, edit: null }, true)}
         />

@@ -14,8 +14,8 @@ import {
   computePeriodStats,
   baselinePeriod,
   evaluateTrend,
-  filterableColumns,
   getColumn,
+  hasOptions,
   levelOf,
   sortedColumns,
   subtrendsOf,
@@ -110,7 +110,8 @@ export function buildWhere(schema: TrackerSchema, tenantId: string, f: FilterSta
     const needle = f.q.replace(/[A-Z]/g, (ch) => ch.toLowerCase());
     binds.push(needle, needle);
   }
-  for (const col of filterableColumns(schema)) {
+  // Any dropdown-style column of the stream (the Database page filters every field, request 43).
+  for (const col of sortedColumns(schema).filter(hasOptions)) {
     if (skip.includes(col.key)) continue;
     const v = f.values[col.key];
     if (!v || v === ALL) continue;
@@ -132,6 +133,18 @@ export function buildWhere(schema: TrackerSchema, tenantId: string, f: FilterSta
     parts.push(`instr(lower(COALESCE(${PHYSICAL[col.key] ? `i.${PHYSICAL[col.key]}` : "json_extract(i.extra_json, ?)"}, '')), ?) > 0`);
     if (!PHYSICAL[col.key]) binds.push(jsonPath(col.key));
     binds.push(v.replace(/[A-Z]/g, (ch) => ch.toLowerCase()));
+  }
+  // Other date columns (request 43): the value falls in the range (either end optional).
+  for (const [key, r] of Object.entries(f.dates ?? {})) {
+    const col = getColumn(schema, key);
+    if (!col || col.type !== "date" || col.key === CORE.date) continue;
+    const expr = PHYSICAL[col.key] ? `i.${PHYSICAL[col.key]}` : "json_extract(i.extra_json, ?)";
+    for (const [op, v] of [[">=", r.from], ["<=", r.to]] as const) {
+      if (!v) continue;
+      parts.push(`COALESCE(${expr}, '') <> '' AND ${expr} ${op} ?`);
+      if (!PHYSICAL[col.key]) binds.push(jsonPath(col.key), jsonPath(col.key));
+      binds.push(v);
+    }
   }
   return { sql: parts.join(" AND "), binds };
 }
@@ -489,6 +502,14 @@ export async function archivedResponses(env: Env, schema: TrackerSchema, tenantI
     .bind(tenantId, id)
     .all<SignalRow>();
   return { rows: (r.results ?? []).map((x) => toSignal(schema, x)) };
+}
+
+/** One approved Tracker entry as a row (request 43: the entry an AI Summary is about), or null. */
+export async function signalRow(env: Env, schema: TrackerSchema, tenantId: string, id: string): Promise<Signal | null> {
+  const r = await env.DB.prepare(`SELECT ${signalColumns()} FROM intelligence_items i WHERE i.tenant_id = ?1 AND i.id = ?2 AND i.status = 'approved' AND i.deleted_at IS NULL`)
+    .bind(tenantId, id)
+    .first<SignalRow>();
+  return r ? toSignal(schema, r) : null;
 }
 
 /**

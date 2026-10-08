@@ -86,7 +86,9 @@ test.describe("tab order", () => {
     await expect(card.getByRole("heading", { name: "Menu" })).toBeVisible();
     const groups = () => navOf(page).locator(".nav-group > .nav-parent > span:first-child").allInnerTexts();
     await expect.poll(groups).toEqual(["Inputs", "Analytics", "Databases", "Admin"]);
-    // Groups move; tabs move within their group.
+    // Groups move; tabs move within their group (Databases moves past the Database tab, then Analytics).
+    await card.getByRole("button", { name: "Move group Databases up" }).click();
+    await expect(page.locator(".toast").last()).toContainText("Moved");
     await card.getByRole("button", { name: "Move group Databases up" }).click();
     await expect.poll(groups).toEqual(["Inputs", "Databases", "Analytics", "Admin"]);
     await card.getByTestId("menu-group-trackers").getByRole("button", { name: "Move tab Databases: Phantoms Database up" }).click();
@@ -104,6 +106,7 @@ test.describe("tab order", () => {
       "Sources: Input, Eradigm Inbox, Client Inbox",
       "Databases: Phantom files, Signals Database, CI analyses",
       "Analytics: Megatrends Dashboard, Knowledge Graph, Primary Tracker",
+      "Database",
       "Admin: Deliverables, Administration",
     ]);
     await goTab(page, "Databases", "Phantom files");
@@ -113,7 +116,7 @@ test.describe("tab order", () => {
     const other = await ctx.newPage();
     await signInAs(other, "client");
     await other.goto("/dashboard");
-    expect(await menuOf(other)).toEqual(["Sources: Client Inbox", "Databases: Phantom files, Signals Database, CI analyses", "Analytics: Megatrends Dashboard, Knowledge Graph, Primary Tracker"]);
+    expect(await menuOf(other)).toEqual(["Sources: Client Inbox", "Databases: Phantom files, Signals Database, CI analyses", "Analytics: Megatrends Dashboard, Knowledge Graph, Primary Tracker", "Database"]);
     await ctx.close();
     // Restore.
     await page.goto("/admin");

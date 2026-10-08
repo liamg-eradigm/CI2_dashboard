@@ -585,9 +585,52 @@ analyst-entered information distinguishable; in the prototype every value is
   `ix_item_source_key` index) and `GET /api/signals/:id/archived?match=kiq`
   lists them; the page keeps the choice in the address as `am=kiq`. The
   Signals Database's Primary Tracker is unchanged.
+- **Request 43** (contract 1.25, migration 0021):
+  - **Database** (`/database`, `pages/DatabasePage.tsx`): a tab of its own
+    in the menu (a group with one page and no subtabs, `STANDALONE_GROUPS`;
+    admins can still move and rename it). It brings the databases and
+    Deliverables onto one page; the separate tabs stay for now. Its toggle
+    is Primary Tracker, Secondary Tracker (as on the other tables) and CI
+    Analysis (the CI analyses database, unchanged, with no filter menu).
+  - The Primary and Secondary tables (`TrackerPage` view `database`,
+    `GET /api/database`) show every field of the stream, shown in a table or
+    not, after the Source (saved page), Markdown (the Phantom's, for entries
+    in Phantoms), Alert (the .docx alert, written as on Deliverables → Alerts
+    for High Impact Phantoms whose alert was never deleted, so both pages
+    share it) and Newsletter columns. Editing, deleting and exports work as
+    on the Signals Database; exports include every field.
+  - Its filters (`components/DatabaseFilters.tsx`) cover every field: a
+    search, then dropdowns (`f.<column>`, any dropdown field), date ranges
+    (Event Date `from`/`to`; other date fields `df.<column>`/`dt.<column>`,
+    new in `FilterState.dates`) and "contains" text (`t.<column>`). They
+    live in the address under `db.` (never carried to other pages). One row
+    shows until "All filters".
+  - **Generate Newsletter**: with two or more rows ticked (kept across pages
+    and both streams), a button level with the toggle
+    (`POST /api/newsletters/generate`). For now the newsletter is a .docx
+    of the ticked entries' titles (`listDocx`), named "Newsletter · <date,
+    time>"; the AI-written newsletter replaces it later. It is attached to
+    every row it was built from (`Signal.newsletters`); the Newsletter cell
+    (newspaper icon) opens it, or a menu when the entry is in several.
+  - **Primary Tracker → AI Summary** (`components/DiscussionSummaryBox.tsx`):
+    a box between the filters and the table, in large type, summarising the
+    open Full Discussion or KIQ Archive (the entry and its earlier answers).
+    Stored per entry and mode in `discussion_summaries` with a fingerprint
+    of the answers it was written from. With the AI writer connected
+    (`LLM_PROVIDER`), `GET /api/signals/:id/summary[?match=kiq]` writes a
+    missing summary, or rewrites its own once the discussion changes,
+    following **Administration → Workspace settings → Primary Tracker · AI
+    Summary** (`discussionSummary.instructions`; the Claude model and
+    company are those of the Megatrends summaries). Admins write or edit it
+    by hand (`PUT`, never replaced automatically, flagged when out of date)
+    or ask the AI writer again (`POST …/summary/generate`).
+  - Settings: a partial `PATCH /api/settings` no longer resets the sections
+    it leaves out (Phantoms minimum Impact, competitor tiers, new-signal
+    days) to their defaults.
 - **Menu in groups** (request 28, contract 1.17; regrouped in request 31,
   contract 1.19; renamed in request 34; `packages/shared/src/menu.ts`): the
-  menu is four groups, each a button that opens its tabs: Inputs (Input,
+  menu is four groups (and, from request 43, the Database tab on its own),
+  each a button that opens its tabs: Inputs (Input,
   Eradigm Inbox, Client Inbox), Analytics (Megatrends Dashboard, Knowledge
   Graph, Primary Tracker), Databases (Signals Database, Phantoms Database,
   CI analyses) and Admin (Deliverables, Administration). Dashboard is also the

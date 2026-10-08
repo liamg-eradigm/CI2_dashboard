@@ -71,6 +71,11 @@ export async function menuOf(page: Page): Promise<string[]> {
   await expect(nav.locator(".nav-group").first()).toBeVisible();
   const out: string[] = [];
   for (const g of await nav.locator(".nav-group").all()) {
+    // A tab of its own (Database, request 43): just its name.
+    if (await g.locator(".nav-solo").count()) {
+      out.push((await g.locator(".nav-solo").innerText()).trim());
+      continue;
+    }
     const btn = g.locator(".nav-parent");
     if ((await btn.getAttribute("aria-expanded")) !== "true") await btn.click();
     const name = (await btn.locator("span").first().innerText()).trim();

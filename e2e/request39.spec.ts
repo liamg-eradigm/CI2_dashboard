@@ -66,9 +66,11 @@ test.describe("request 39", () => {
     const archived = page.getByTestId("answer-archived");
     await expect(archived).toContainText("Middle details.");
     await expect(primary).toContainText("Newest details.");
+    // Measured together (focusing the new pop-up may scroll the page; the AI Summary sits above, request 43).
     const a = (await archived.boundingBox())!;
-    expect(a.x).toBeGreaterThanOrEqual(p.x + p.width - 1);
-    expect(Math.abs(a.y - p.y)).toBeLessThan(4);
+    const p2 = (await primary.boundingBox())!;
+    expect(a.x).toBeGreaterThanOrEqual(p2.x + p2.width - 1);
+    expect(Math.abs(a.y - p2.y)).toBeLessThan(4);
     await expect(archived).toContainText("1 of 2");
     await expectAccessible(page, "Two pop-ups side by side");
     // Step to the older answer, then Esc closes the right pop-up, then the left one.

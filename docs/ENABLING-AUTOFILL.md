@@ -96,6 +96,15 @@ number of sentences, the company the summaries are written for, and the model
 analyst asks for it, and stored with the model, time frame and number of
 entries it was written from. The prompt is in `packages/llm/src/summaryPrompt.ts`.
 
+### Step 8 — Primary Tracker AI Summary (same connection)
+With the same connection, **Analytics → Primary Tracker** writes the **AI
+Summary** of each Full Discussion and KIQ Archive the first time it is
+opened, and again once one of its answers changes (a summary an admin wrote
+by hand is kept). Claude follows the instructions under **Administration →
+Workspace settings → Primary Tracker · AI Summary**, with the model and
+company set for the Megatrends summaries. Each summary is one short request
+(low reasoning effort) from the answers in that discussion, newest first.
+
 ## 3. Switching it off again (rollback)
 Set `LLM_PROVIDER` back to `"none"` and redeploy the API worker. New
 captures return to empty drafts. Drafts that already exist, approved items and

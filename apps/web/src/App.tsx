@@ -14,6 +14,7 @@ import { InputPage } from "./pages/InputPage";
 import { AdminPage } from "./pages/AdminPage";
 import { InvitePage, SignInPage } from "./pages/SignInPage";
 import { SourcePage } from "./pages/SourcePage";
+import { DatabasePage } from "./pages/DatabasePage";
 import { TrendAnalysesPage } from "./pages/TrendAnalysesPage";
 
 // Loaded on first visit: it carries the 3D graph (three.js).
@@ -83,6 +84,7 @@ function SignedIn() {
             <Route path="/phantoms" element={<TrackerPage key="phantoms" me={me.data} view="phantoms" />} />
             <Route path="/analytics/primary" element={<TrackerPage key="primary-tracker" me={me.data} view="tracker" title="Primary Tracker" primaryOnly />} />
             <Route path="/trend-analyses" element={<TrendAnalysesPage me={me.data} />} />
+            <Route path="/database" element={<DatabasePage me={me.data} />} />
             <Route path="/deliverables" element={only("deliverables", <DeliverablesPage me={me.data} />)} />
             <Route
               path="/megatrends"

@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Eradigm Competitive Intelligence API",
-    "version": "1.24.0",
+    "version": "1.25.0",
     "description": "Generated from packages/shared/src/api.ts. Every request is checked for both role and tenant server-side. Send X-Tenant-Id to select a tenant when the user belongs to more than one."
   },
   "components": {
@@ -6874,6 +6874,35 @@
                           "linkedLater": {
                             "nullable": true,
                             "type": "string"
+                          },
+                          "phantom": {
+                            "type": "boolean"
+                          },
+                          "alertPending": {
+                            "type": "boolean"
+                          },
+                          "newsletters": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "createdAt": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "name",
+                                "createdAt"
+                              ],
+                              "additionalProperties": false
+                            }
                           }
                         },
                         "required": [
@@ -7121,6 +7150,35 @@
                           "linkedLater": {
                             "nullable": true,
                             "type": "string"
+                          },
+                          "phantom": {
+                            "type": "boolean"
+                          },
+                          "alertPending": {
+                            "type": "boolean"
+                          },
+                          "newsletters": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "createdAt": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "name",
+                                "createdAt"
+                              ],
+                              "additionalProperties": false
+                            }
                           }
                         },
                         "required": [
@@ -7368,6 +7426,35 @@
                           "linkedLater": {
                             "nullable": true,
                             "type": "string"
+                          },
+                          "phantom": {
+                            "type": "boolean"
+                          },
+                          "alertPending": {
+                            "type": "boolean"
+                          },
+                          "newsletters": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "createdAt": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "name",
+                                "createdAt"
+                              ],
+                              "additionalProperties": false
+                            }
                           }
                         },
                         "required": [
@@ -7845,6 +7932,558 @@
                   "itemIds"
                 ],
                 "additionalProperties": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/newsletters/generate": {
+      "post": {
+        "summary": "Database page: Generate Newsletter from the ticked entries (either stream). For now the .docx lists their titles; it is attached to each of those rows",
+        "description": "Roles: admin, analyst",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "recordId": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "stream": {
+                            "type": "string",
+                            "enum": [
+                              "primary",
+                              "secondary"
+                            ]
+                          },
+                          "deleted": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "code",
+                          "recordId",
+                          "title",
+                          "stream",
+                          "deleted"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "createdAt",
+                    "createdBy",
+                    "items"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "itemIds": {
+                    "minItems": 1,
+                    "maxItems": 200,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    }
+                  }
+                },
+                "required": [
+                  "itemIds"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/database": {
+      "get": {
+        "summary": "Database page: a stream's Tracker entries with every field, whether each is in Phantoms, its alert (written automatically for High Impact Phantoms) and the newsletters it is in",
+        "description": "Roles: admin, analyst, client",
+        "parameters": [
+          {
+            "name": "stream",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "f.<column>",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "t.<column>",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "df.<column>",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "dt.<column>",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rows": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "stream": {
+                            "default": "primary",
+                            "type": "string",
+                            "enum": [
+                              "primary",
+                              "secondary"
+                            ]
+                          },
+                          "values": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                {
+                                  "type": "string",
+                                  "nullable": true,
+                                  "enum": [
+                                    null
+                                  ]
+                                }
+                              ]
+                            }
+                          },
+                          "text": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "rev": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "approvedAt": {
+                            "type": "string"
+                          },
+                          "approvedBy": {
+                            "type": "string"
+                          },
+                          "hasSnapshot": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "pages": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "alertId": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "linkedEarlier": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "kiqEarlier": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "linkedLater": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "phantom": {
+                            "type": "boolean"
+                          },
+                          "alertPending": {
+                            "type": "boolean"
+                          },
+                          "newsletters": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "createdAt": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "name",
+                                "createdAt"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "code",
+                          "stream",
+                          "values",
+                          "text",
+                          "url",
+                          "rev",
+                          "approvedAt",
+                          "approvedBy",
+                          "hasSnapshot",
+                          "pages"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "total": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "totalPublished": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "page": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "pageSize": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "outsideDates": {
+                      "type": "object",
+                      "properties": {
+                        "count": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "from": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "to": {
+                          "nullable": true,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "count",
+                        "from",
+                        "to"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "rows",
+                    "total",
+                    "totalPublished",
+                    "page",
+                    "pageSize"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
               }
             }
           }
@@ -10480,6 +11119,555 @@
         ]
       }
     },
+    "/api/signals/{id}/summary": {
+      "get": {
+        "summary": "Primary Tracker AI Summary of the entry's Full Discussion (or, with match=kiq, its KIQ Archive); written by the AI writer when it is connected and the summary is missing or out of date",
+        "description": "Roles: admin, analyst, client",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "match",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "itemId": {
+                      "type": "string"
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "source",
+                        "kiq"
+                      ]
+                    },
+                    "text": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "source": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "default",
+                        "manual",
+                        "ai"
+                      ]
+                    },
+                    "model": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "entries": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "updatedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "updatedBy": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "stale": {
+                      "type": "boolean"
+                    },
+                    "aiConnected": {
+                      "type": "boolean"
+                    },
+                    "error": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "itemId",
+                    "mode",
+                    "text",
+                    "source",
+                    "model",
+                    "entries",
+                    "updatedAt",
+                    "updatedBy",
+                    "stale",
+                    "aiConnected"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      },
+      "put": {
+        "summary": "Admins write the AI Summary by hand (empty text removes it)",
+        "description": "Roles: admin",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "itemId": {
+                      "type": "string"
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "source",
+                        "kiq"
+                      ]
+                    },
+                    "text": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "source": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "default",
+                        "manual",
+                        "ai"
+                      ]
+                    },
+                    "model": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "entries": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "updatedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "updatedBy": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "stale": {
+                      "type": "boolean"
+                    },
+                    "aiConnected": {
+                      "type": "boolean"
+                    },
+                    "error": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "itemId",
+                    "mode",
+                    "text",
+                    "source",
+                    "model",
+                    "entries",
+                    "updatedAt",
+                    "updatedBy",
+                    "stale",
+                    "aiConnected"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "source",
+                      "kiq"
+                    ]
+                  },
+                  "text": {
+                    "type": "string",
+                    "maxLength": 10000
+                  }
+                },
+                "required": [
+                  "mode",
+                  "text"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/signals/{id}/summary/generate": {
+      "post": {
+        "summary": "Admins have the AI writer write the AI Summary again (replacing a hand-written one)",
+        "description": "Roles: admin",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "itemId": {
+                      "type": "string"
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "source",
+                        "kiq"
+                      ]
+                    },
+                    "text": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "source": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "default",
+                        "manual",
+                        "ai"
+                      ]
+                    },
+                    "model": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "entries": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "updatedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "updatedBy": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "stale": {
+                      "type": "boolean"
+                    },
+                    "aiConnected": {
+                      "type": "boolean"
+                    },
+                    "error": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "itemId",
+                    "mode",
+                    "text",
+                    "source",
+                    "model",
+                    "entries",
+                    "updatedAt",
+                    "updatedBy",
+                    "stale",
+                    "aiConnected"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "source",
+                      "kiq"
+                    ]
+                  }
+                },
+                "required": [
+                  "mode"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
     "/api/signals/{id}/archived": {
       "get": {
         "summary": "Full Discussion: the earlier Primary entries from the same source (Source Role and Source Company) as this entry, newest first; with match=kiq (KIQ Archive), only those with the same Insight Topic and Key Intelligence Question too",
@@ -10595,6 +11783,35 @@
                           "linkedLater": {
                             "nullable": true,
                             "type": "string"
+                          },
+                          "phantom": {
+                            "type": "boolean"
+                          },
+                          "alertPending": {
+                            "type": "boolean"
+                          },
+                          "newsletters": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "createdAt": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "name",
+                                "createdAt"
+                              ],
+                              "additionalProperties": false
+                            }
                           }
                         },
                         "required": [
@@ -12255,6 +13472,35 @@
                           "linkedLater": {
                             "nullable": true,
                             "type": "string"
+                          },
+                          "phantom": {
+                            "type": "boolean"
+                          },
+                          "alertPending": {
+                            "type": "boolean"
+                          },
+                          "newsletters": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "createdAt": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "name",
+                                "createdAt"
+                              ],
+                              "additionalProperties": false
+                            }
                           }
                         },
                         "required": [
@@ -12654,6 +13900,35 @@
                     "linkedLater": {
                       "nullable": true,
                       "type": "string"
+                    },
+                    "phantom": {
+                      "type": "boolean"
+                    },
+                    "alertPending": {
+                      "type": "boolean"
+                    },
+                    "newsletters": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "createdAt"
+                        ],
+                        "additionalProperties": false
+                      }
                     },
                     "ciPerspective": {
                       "nullable": true,
@@ -13136,6 +14411,35 @@
                     "linkedLater": {
                       "nullable": true,
                       "type": "string"
+                    },
+                    "phantom": {
+                      "type": "boolean"
+                    },
+                    "alertPending": {
+                      "type": "boolean"
+                    },
+                    "newsletters": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "createdAt"
+                        ],
+                        "additionalProperties": false
+                      }
                     },
                     "ciPerspective": {
                       "nullable": true,
@@ -20853,6 +22157,14 @@
                             ]
                           },
                           {
+                            "key": "database",
+                            "items": [
+                              {
+                                "key": "database"
+                              }
+                            ]
+                          },
+                          {
                             "key": "trackers",
                             "items": [
                               {
@@ -20882,7 +22194,7 @@
                       "type": "object",
                       "properties": {
                         "groups": {
-                          "maxItems": 4,
+                          "maxItems": 5,
                           "type": "array",
                           "items": {
                             "type": "object",
@@ -20892,6 +22204,7 @@
                                 "enum": [
                                   "inputs",
                                   "analytics",
+                                  "database",
                                   "trackers",
                                   "admin"
                                 ]
@@ -20901,7 +22214,7 @@
                                 "maxLength": 80
                               },
                               "items": {
-                                "maxItems": 11,
+                                "maxItems": 12,
                                 "type": "array",
                                 "items": {
                                   "type": "object",
@@ -20915,6 +22228,7 @@
                                         "dashboard",
                                         "knowledge-graph",
                                         "primary-tracker",
+                                        "database",
                                         "tracker",
                                         "phantoms",
                                         "trend-analyses",
@@ -21067,6 +22381,23 @@
                         "days"
                       ],
                       "additionalProperties": false
+                    },
+                    "discussionSummary": {
+                      "default": {
+                        "instructions": "Summarise the total information from all the sources through an enterprise strategic lens. Use layman terms and avoid overly technical jargon. Prioritise information in order of recency, with the oldest sources having the lowest weight in the summary."
+                      },
+                      "type": "object",
+                      "properties": {
+                        "instructions": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 4000
+                        }
+                      },
+                      "required": [
+                        "instructions"
+                      ],
+                      "additionalProperties": false
                     }
                   },
                   "required": [
@@ -21079,7 +22410,8 @@
                     "menu",
                     "competitorTiers",
                     "megatrends",
-                    "newSignals"
+                    "newSignals",
+                    "discussionSummary"
                   ],
                   "additionalProperties": false
                 }
@@ -21345,6 +22677,14 @@
                             ]
                           },
                           {
+                            "key": "database",
+                            "items": [
+                              {
+                                "key": "database"
+                              }
+                            ]
+                          },
+                          {
                             "key": "trackers",
                             "items": [
                               {
@@ -21374,7 +22714,7 @@
                       "type": "object",
                       "properties": {
                         "groups": {
-                          "maxItems": 4,
+                          "maxItems": 5,
                           "type": "array",
                           "items": {
                             "type": "object",
@@ -21384,6 +22724,7 @@
                                 "enum": [
                                   "inputs",
                                   "analytics",
+                                  "database",
                                   "trackers",
                                   "admin"
                                 ]
@@ -21393,7 +22734,7 @@
                                 "maxLength": 80
                               },
                               "items": {
-                                "maxItems": 11,
+                                "maxItems": 12,
                                 "type": "array",
                                 "items": {
                                   "type": "object",
@@ -21407,6 +22748,7 @@
                                         "dashboard",
                                         "knowledge-graph",
                                         "primary-tracker",
+                                        "database",
                                         "tracker",
                                         "phantoms",
                                         "trend-analyses",
@@ -21559,6 +22901,23 @@
                         "days"
                       ],
                       "additionalProperties": false
+                    },
+                    "discussionSummary": {
+                      "default": {
+                        "instructions": "Summarise the total information from all the sources through an enterprise strategic lens. Use layman terms and avoid overly technical jargon. Prioritise information in order of recency, with the oldest sources having the lowest weight in the summary."
+                      },
+                      "type": "object",
+                      "properties": {
+                        "instructions": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 4000
+                        }
+                      },
+                      "required": [
+                        "instructions"
+                      ],
+                      "additionalProperties": false
                     }
                   },
                   "required": [
@@ -21571,7 +22930,8 @@
                     "menu",
                     "competitorTiers",
                     "megatrends",
-                    "newSignals"
+                    "newSignals",
+                    "discussionSummary"
                   ],
                   "additionalProperties": false
                 }
@@ -21747,9 +23107,6 @@
                     "additionalProperties": false
                   },
                   "phantoms": {
-                    "default": {
-                      "secondaryMinImpact": "Low"
-                    },
                     "type": "object",
                     "properties": {
                       "secondaryMinImpact": {
@@ -21786,7 +23143,7 @@
                     "type": "object",
                     "properties": {
                       "groups": {
-                        "maxItems": 4,
+                        "maxItems": 5,
                         "type": "array",
                         "items": {
                           "type": "object",
@@ -21796,6 +23153,7 @@
                               "enum": [
                                 "inputs",
                                 "analytics",
+                                "database",
                                 "trackers",
                                 "admin"
                               ]
@@ -21805,7 +23163,7 @@
                               "maxLength": 80
                             },
                             "items": {
-                              "maxItems": 11,
+                              "maxItems": 12,
                               "type": "array",
                               "items": {
                                 "type": "object",
@@ -21819,6 +23177,7 @@
                                       "dashboard",
                                       "knowledge-graph",
                                       "primary-tracker",
+                                      "database",
                                       "tracker",
                                       "phantoms",
                                       "trend-analyses",
@@ -21852,32 +23211,6 @@
                     "additionalProperties": false
                   },
                   "competitorTiers": {
-                    "default": {
-                      "tier1": [
-                        "Johnson & Johnson",
-                        "Roche",
-                        "Novartis",
-                        "Bristol Myers Squibb",
-                        "Eli Lilly",
-                        "AstraZeneca",
-                        "Sanofi",
-                        "Pfizer",
-                        "Takeda"
-                      ],
-                      "tier2": [
-                        "Amgen",
-                        "Salesforce",
-                        "Veeva Systems",
-                        "BeOne"
-                      ],
-                      "tier3": [
-                        "GSK",
-                        "NVIDIA",
-                        "GoodRx Holdings",
-                        "OpenEvidence",
-                        "Novo Nordisk"
-                      ]
-                    },
                     "type": "object",
                     "properties": {
                       "tier1": {
@@ -21944,9 +23277,6 @@
                     "additionalProperties": false
                   },
                   "newSignals": {
-                    "default": {
-                      "days": 14
-                    },
                     "type": "object",
                     "properties": {
                       "days": {
@@ -21957,6 +23287,20 @@
                     },
                     "required": [
                       "days"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "discussionSummary": {
+                    "type": "object",
+                    "properties": {
+                      "instructions": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4000
+                      }
+                    },
+                    "required": [
+                      "instructions"
                     ],
                     "additionalProperties": false
                   }

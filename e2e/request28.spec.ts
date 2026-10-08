@@ -14,7 +14,8 @@ test.describe("request 28", () => {
     await expect(nav.getByRole("button", { name: /^Inputs\b/ })).toHaveAttribute("aria-expanded", "true");
     await goTab(page, "Admin", "Administration");
     await expect(page).toHaveURL(/\/admin$/);
-    expect(await menuOf(page)).toHaveLength(4);
+    // Four groups and the Database tab (request 43).
+    expect(await menuOf(page)).toHaveLength(5);
     await expectAccessible(page, "Menu with every group open");
   });
 

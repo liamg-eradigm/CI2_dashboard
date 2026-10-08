@@ -20,6 +20,13 @@ const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD");
 const isoDateTime = z.string();
 /** Signals newer than this (days, by Event Date) are "new" by default (request 40). */
 export const DEFAULT_NEW_SIGNAL_DAYS = 14;
+/**
+ * Request 43: how the AI writer summarises a Primary Tracker discussion (Full
+ * Discussion or KIQ Archive) by default. Admins change it in Administration.
+ */
+export const DEFAULT_DISCUSSION_SUMMARY_INSTRUCTIONS =
+  "Summarise the total information from all the sources through an enterprise strategic lens. Use layman terms and avoid overly technical jargon. Prioritise information in order of recency, with the oldest sources having the lowest weight in the summary.";
+export const MAX_DISCUSSION_INSTRUCTIONS = 4000;
 
 export const FieldValueSchema = z.union([z.string(), z.array(z.string()), z.null()]);
 export const ItemValuesSchema = z.record(z.string(), FieldValueSchema);
@@ -332,6 +339,42 @@ export const NewsletterSchema = z.object({
   items: z.array(z.object({ id: z.string(), code: z.string().nullable(), recordId: z.string().nullable(), title: z.string(), stream: StreamSchema, deleted: z.boolean() })),
 });
 export type Newsletter = z.infer<typeof NewsletterSchema>;
+/** The Database page (request 43): Generate Newsletter from the ticked rows (any Tracker entries, either stream). */
+export const GenerateNewsletterRequest = z.object({
+  itemIds: z.array(z.string().min(1).max(64)).min(1, "Select at least one entry").max(200),
+});
+
+/**
+ * Request 43: the AI Summary of a Primary Tracker discussion: the entry and
+ * its earlier answers from the same source (Full Discussion) or, with
+ * mode "kiq", those with the same Insight Topic and KIQ too (KIQ Archive).
+ */
+export const DISCUSSION_MODES = ["source", "kiq"] as const;
+export const DiscussionSummarySchema = z.object({
+  itemId: z.string(),
+  mode: z.enum(DISCUSSION_MODES),
+  /** null: none written yet. */
+  text: z.string().nullable(),
+  source: z.enum(SUMMARY_SOURCES).nullable(),
+  model: z.string().nullable(),
+  /** How many entries it was written from (AI), or how many the discussion has now. */
+  entries: z.number().int(),
+  updatedAt: isoDateTime.nullable(),
+  updatedBy: z.string().nullable(),
+  /** The discussion changed since it was written (a hand-written summary is never replaced automatically). */
+  stale: z.boolean(),
+  /** Whether the AI writer is connected (summaries are then written automatically). */
+  aiConnected: z.boolean(),
+  /** Why the AI writer could not write it this time (shown to admins), if it tried. */
+  error: z.string().nullable().optional(),
+});
+export type DiscussionSummary = z.infer<typeof DiscussionSummarySchema>;
+export const UpdateDiscussionSummaryRequest = z.object({
+  mode: z.enum(DISCUSSION_MODES),
+  /** Empty: remove it (the AI writer, when connected, writes a new one). */
+  text: z.string().trim().max(MAX_SUMMARY_LENGTH),
+});
+export const GenerateDiscussionSummaryRequest = z.object({ mode: z.enum(DISCUSSION_MODES) });
 
 /** Megatrends (contract 1.10): a Macrotrend / Subtrend summary. */
 export const TrendSummarySchema = z.object({
@@ -513,6 +556,15 @@ export const SignalSchema = z.object({
   /** KIQ Archive (request 42): an earlier entry from the same source with the same Insight Topic and Key Intelligence Question. */
   kiqEarlier: z.string().nullable().optional(),
   linkedLater: z.string().nullable().optional(),
+  /**
+   * The Database page (request 43, contract 1.25): whether the entry is in
+   * Phantoms (its Markdown opens from the row), whether an alert is due but
+   * not written yet (the next listing writes it), and the newsletters it was
+   * used in, newest first.
+   */
+  phantom: z.boolean().optional(),
+  alertPending: z.boolean().optional(),
+  newsletters: z.array(z.object({ id: z.string(), name: z.string(), createdAt: isoDateTime })).optional(),
 });
 
 /** An approved Primary entry with a source (Source Role + Source Company), for "prior primary information" while entering one. Contract 1.16. */
@@ -745,11 +797,23 @@ export const TenantSettingsSchema = z.object({
    * signals lists).
    */
   newSignals: z.object({ days: z.number().int().min(1).max(365) }).default({ days: DEFAULT_NEW_SIGNAL_DAYS }),
+  /** Request 43: the instructions the AI writer follows for the Primary Tracker's AI Summary. */
+  discussionSummary: z
+    .object({ instructions: z.string().trim().min(1, "Write the instructions").max(MAX_DISCUSSION_INSTRUCTIONS) })
+    .default({ instructions: DEFAULT_DISCUSSION_SUMMARY_INSTRUCTIONS }),
 });
+/**
+ * Only the sections sent are changed. Sections with a default are unwrapped,
+ * so a section left out is not filled with its default (which would reset it).
+ */
 export const UpdateSettingsRequest = TenantSettingsSchema.partial().extend({
+  phantoms: TenantSettingsSchema.shape.phantoms.unwrap().optional(),
   navOrder: TenantSettingsSchema.shape.navOrder.unwrap().optional(),
   menu: TenantSettingsSchema.shape.menu.unwrap().optional(),
+  competitorTiers: TenantSettingsSchema.shape.competitorTiers.unwrap().optional(),
   megatrends: TenantSettingsSchema.shape.megatrends.unwrap().partial().optional(),
+  newSignals: TenantSettingsSchema.shape.newSignals.unwrap().optional(),
+  discussionSummary: TenantSettingsSchema.shape.discussionSummary.unwrap().optional(),
 });
 
 export const AuditEventSchema = z.object({
@@ -888,6 +952,8 @@ export const ENDPOINTS: EndpointDef[] = [
   { method: "get", path: "/api/deliverables/newsletter", summary: "Deliverables → Newsletter: Phantoms with High or Medium Impact, to build newsletters from", roles: ALL_ROLES, response: TrackerPageSchema },
   { method: "get", path: "/api/newsletters", summary: "Newsletters created so far, newest first", roles: ALL_ROLES, response: z.array(NewsletterSchema) },
   { method: "post", path: "/api/newsletters", summary: "Create a newsletter (.docx) from selected Newsletter entries", roles: STAFF, request: CreateNewsletterRequest, response: NewsletterSchema },
+  { method: "post", path: "/api/newsletters/generate", summary: "Database page: Generate Newsletter from the ticked entries (either stream). For now the .docx lists their titles; it is attached to each of those rows", roles: STAFF, request: GenerateNewsletterRequest, response: NewsletterSchema },
+  { method: "get", path: "/api/database", summary: "Database page: a stream's Tracker entries with every field, whether each is in Phantoms, its alert (written automatically for High Impact Phantoms) and the newsletters it is in", roles: ALL_ROLES, query: ["stream", "q", "from", "to", "f.<column>", "t.<column>", "df.<column>", "dt.<column>", "sort", "dir", "page", "pageSize"], response: TrackerPageSchema },
   { method: "delete", path: "/api/deliverables/{id}", summary: "Delete an alert (its entry leaves Deliverables → Alerts and gets no new alert; the Phantom stays) or a newsletter", roles: STAFF, response: z.object({ ok: z.literal(true), kind: z.enum(["alert", "newsletter"]), name: z.string() }) },
   { method: "get", path: "/api/deliverables/{id}/docx", summary: "A stored alert or newsletter .docx (inline for the viewer, ?download=1 as a file)", roles: ALL_ROLES },
   { method: "get", path: "/api/megatrends", summary: "Megatrends: Tracker entries per Macrotrend and Subtrend (query: stream all|primary|secondary, from, to), their summaries, and the entries for the timeline", roles: ALL_ROLES, query: ["stream", "from", "to"], response: MegatrendsSchema },
@@ -903,6 +969,9 @@ export const ENDPOINTS: EndpointDef[] = [
   { method: "post", path: "/api/trend-analyses/import", summary: "Import trend analyses from a spreadsheet (columns: Macrotrend or Competitor; Competitor, Macrotrend, or Subtrend; Name; Trend analysis). At most 200 rows for a dry run, 8 otherwise", roles: STAFF, request: ImportTrendAnalysesRequest, response: ImportTrendAnalysesResponse },
   { method: "get", path: "/api/trend-analyses/{id}/markdown", summary: "A submitted trend analysis as Markdown (inline, or ?download=1 as a file)", roles: ALL_ROLES, raw: "text/markdown" },
   { method: "delete", path: "/api/trend-analyses/{id}", summary: "Remove a submission from Trend Analyses (the trend keeps its current analysis)", roles: STAFF, response: z.object({ ok: z.literal(true) }) },
+  { method: "get", path: "/api/signals/{id}/summary", summary: "Primary Tracker AI Summary of the entry's Full Discussion (or, with match=kiq, its KIQ Archive); written by the AI writer when it is connected and the summary is missing or out of date", roles: ALL_ROLES, query: ["match"], response: DiscussionSummarySchema },
+  { method: "put", path: "/api/signals/{id}/summary", summary: "Admins write the AI Summary by hand (empty text removes it)", roles: ADMIN, request: UpdateDiscussionSummaryRequest, response: DiscussionSummarySchema },
+  { method: "post", path: "/api/signals/{id}/summary/generate", summary: "Admins have the AI writer write the AI Summary again (replacing a hand-written one)", roles: ADMIN, request: GenerateDiscussionSummaryRequest, response: DiscussionSummarySchema },
   { method: "get", path: "/api/signals/{id}/archived", summary: "Full Discussion: the earlier Primary entries from the same source (Source Role and Source Company) as this entry, newest first; with match=kiq (KIQ Archive), only those with the same Insight Topic and Key Intelligence Question too", roles: ALL_ROLES, query: ["match"], response: ArchivedResponsesSchema },
   { method: "get", path: "/api/signals/{id}/markdown", summary: "Markdown for a tracker entry (text/markdown; ?download=1 for an attachment)", roles: ALL_ROLES, raw: "text/markdown" },
   { method: "put", path: "/api/schema/columns/order", summary: "Change the column order of the Inbox, Tracker or Phantoms table", roles: STAFF, request: ReorderColumnsRequest, response: TrackerSchemaSchema },
