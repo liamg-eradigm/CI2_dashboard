@@ -43,6 +43,7 @@ test.describe("request 34", () => {
     expect(await menuOf(page)).toEqual([
       "Inputs: Input, Eradigm Inbox, Client Inbox",
       "Analytics: Megatrends Dashboard, Knowledge Graph, Primary Tracker",
+      "Database",
       "Databases: Signals Database, Phantoms Database, CI analyses",
       "Admin: Deliverables, Administration",
     ]);
