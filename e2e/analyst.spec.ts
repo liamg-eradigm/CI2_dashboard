@@ -886,7 +886,7 @@ test.describe("Eradigm staff (admin)", () => {
     const drawer = page.getByRole("dialog");
     await expect(drawer.getByText("Edit entry")).toBeVisible();
     // A field of the edit form by its label (a textarea's accessible name also contains its text).
-    const field = (label: string) => drawer.locator(".edit-form label.field").filter({ has: page.getByText(label, { exact: true }) }).locator("input, textarea").first();
+    const field = (label: string) => drawer.locator(".edit-form .field").filter({ has: page.getByText(label, { exact: true }) }).locator("input, textarea").first();
     const newTitle = `${title} (edited ${uid()})`;
     await field("Title *").fill(newTitle);
     // The approval checks run again: a cleared required field is flagged next to it.
