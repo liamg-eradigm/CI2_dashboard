@@ -941,23 +941,36 @@ tr.arch-row.open td { background: #d9eff1; }
 .nav-group.solo > a { color: var(--on-dark); }
 .nav-group.solo.within > a { color: #fff; }
 
-/* Request 43: the Primary Tracker's AI Summary, above the table, in large type. */
-.ai-summary { display: flex; flex-direction: column; gap: 10px; border-left: 4px solid var(--teal); margin-bottom: 4px; }
+/* Request 43: the Primary Tracker's AI Summary, in large type. Request 44: bigger, attached to the bottom
+   of the sticky filter bar (its top is set to the bar's height), with line breaks and nested bullets. */
+.ai-summary { position: sticky; z-index: 4; display: flex; flex-direction: column; gap: 10px; background: var(--tint-3); border-bottom: 1px solid var(--border); border-left: 6px solid var(--teal); padding: 18px 32px 20px 26px; box-shadow: 0 8px 16px -12px rgba(7, 40, 56, 0.35); }
+.ai-summary.idle { border-left-color: var(--border); }
 .ai-summary-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
-.ai-summary .card-title { color: var(--teal-press); }
+.ai-summary .card-title { color: var(--teal-press); font-size: 15px; }
 .ai-spark { color: var(--teal); }
 .ai-summary-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.ai-summary-text { font-size: 19px; line-height: 1.6; color: var(--ink); max-height: 34vh; overflow-y: auto; }
-.ai-summary-text p { margin: 0 0 10px; }
-.ai-summary-text p:last-child { margin-bottom: 0; }
-.ai-summary-text.muted, p.ai-summary-text.muted { color: var(--muted); font-size: 17px; margin: 0; }
-.ai-summary.idle { border-left-color: var(--border); }
+.ai-summary-text { font-size: 21px; line-height: 1.6; color: var(--ink); max-height: 30vh; min-height: 3.2em; overflow-y: auto; }
+.ai-summary-text p { margin: 0 0 12px; }
+.ai-summary-text p:last-child, .ai-summary-text > :last-child { margin-bottom: 0; }
+.ai-summary-text ul, .ai-summary-text ol { margin: 0 0 12px; padding-left: 1.4em; }
+.ai-summary-text li { margin: 2px 0; }
+.ai-summary-text li > ul, .ai-summary-text li > ol { margin: 2px 0 4px; }
+.ai-summary-text ul ul { list-style-type: circle; }
+.ai-summary-text ul ul ul { list-style-type: square; }
+.ai-summary-text.muted, p.ai-summary-text.muted { color: var(--muted); font-size: 19px; margin: 0; min-height: 0; }
 .ai-summary-stale { margin: 0; font-size: 13px; color: #8a5300; background: #fff6e8; border: 1px solid #f3d3a3; border-radius: 7px; padding: 6px 10px; }
 .ai-summary-edit { display: flex; flex-direction: column; gap: 8px; }
-.ai-summary-edit textarea { height: 150px; padding: 10px; font-size: 17px; line-height: 1.55; resize: vertical; }
+.ai-summary-edit textarea { height: 28vh; min-height: 160px; padding: 12px; font-size: 19px; line-height: 1.55; resize: vertical; white-space: pre-wrap; }
+/* The table's pop-ups pass under the stuck AI Summary. */
+.content.ptr-content { position: relative; z-index: 0; }
+@media (max-width: 760px) { .ai-summary { position: relative; top: auto !important; padding: 16px; } }
 .link-btn.danger { color: var(--error); }
 /* The Database page: Generate Newsletter stays level with the toggle (the note gives way). */
 .stream-bar.db-bar { flex-wrap: nowrap; min-height: 44px; }
 .stream-bar.db-bar .stream-note { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .stream-bar.db-bar .gen-newsletter { flex: none; }
 @media (max-width: 900px) { .stream-bar.db-bar { flex-wrap: wrap; } .stream-bar.db-bar .stream-note { white-space: normal; } }
+/* Request 44: the Database page's Source, Markdown, Alert and Newsletter columns: one width, icons centred. */
+.data th.doc-col, .data td.doc-col { width: 112px; min-width: 112px; max-width: 112px; text-align: center; padding-left: 6px; padding-right: 6px; }
+.data th.doc-col > span { display: block; text-align: center; }
+.data td.doc-col > .nl-cell { justify-content: center; }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildExtractionInput, defaultSchema } from "@eradigm/shared";
-import { createLlmProvider, LlmError, PROMPT_VERSION, SUMMARY_PROMPT_VERSION, SYSTEM_PROMPT, buildSummaryMessage, buildUserMessage, type SummaryInput } from "../src/index.js";
+import { createLlmProvider, LlmError, PROMPT_VERSION, SUMMARY_PROMPT_VERSION, SYSTEM_PROMPT, buildSummaryMessage, buildUserMessage, summarySystemPrompt, type SummaryInput } from "../src/index.js";
+import { keepLines } from "../src/providers/claude.js";
 
 const schema = defaultSchema();
 const input = buildExtractionInput(schema, {
@@ -165,5 +166,16 @@ describe("mock provider", () => {
     expect(output.fields.date?.value).toBe("2026-09-24");
     expect(output.fields.growth?.value).toBe("Strong Increase");
     expect(output.warnings[0]).toMatch(/Mock/);
+  });
+});
+
+describe("discussion summaries keep their lines (request 44)", () => {
+  it("keeps line breaks and bullet indentation, dropping trailing spaces and extra blank lines", () => {
+    expect(keepLines("First line.  \r\nSecond line.\n\n\n\n- Pricing\n  - Rejections fell\n    - New evidence\n- Uptake\n")).toBe(
+      "First line.\nSecond line.\n\n- Pricing\n  - Rejections fell\n    - New evidence\n- Uptake",
+    );
+  });
+  it("allows nested bullets in the discussion prompt", () => {
+    expect(summarySystemPrompt({ level: "discussion", sentences: 6, perspective: "AbbVie", instructions: "Be brief." })).toContain('lines starting with "- ", nested by two spaces per level');
   });
 });

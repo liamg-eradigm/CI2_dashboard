@@ -1,10 +1,34 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { can, type DiscussionSummary, type Me } from "@eradigm/shared";
 import { api, type ApiError } from "../api/client";
 import { useDiscussionSummary } from "../api/hooks";
 import { localDateTime } from "../lib/format";
 import { useToast } from "../state/toast";
+import { BulletText } from "./BulletText";
+import { LIST_HINT, ListTextarea } from "./ListTextarea";
+
+/** Request 44: keep the box stuck to the bottom of the sticky filter bar, whatever its height. */
+function useStickUnderFilters() {
+  const ref = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    const bar = document.querySelector<HTMLElement>(".filterbar");
+    const el = ref.current;
+    if (!bar || !el) return;
+    const place = () => {
+      el.style.top = `${Math.round(bar.getBoundingClientRect().height)}px`;
+    };
+    place();
+    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(place);
+    ro?.observe(bar);
+    window.addEventListener("resize", place);
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener("resize", place);
+    };
+  }, []);
+  return ref;
+}
 
 const NAME = { source: "Full Discussion", kiq: "KIQ Archive" } as const;
 
@@ -13,6 +37,8 @@ const NAME = { source: "Full Discussion", kiq: "KIQ Archive" } as const;
  * summary of the open Full Discussion or KIQ Archive, in large type. Written
  * by the AI writer once the Claude API is connected (following the
  * instructions in Administration); admins can write or change it by hand.
+ * Request 44: it stays attached to the bottom of the sticky filter bar, and
+ * keeps line breaks and nested bullets (Tab / Shift+Tab while editing).
  */
 export function DiscussionSummaryBox({ me, id, mode, source }: { me: Me; id: string | null; mode: "source" | "kiq"; source?: string }) {
   const q = useDiscussionSummary(id, mode);
@@ -24,6 +50,7 @@ export function DiscussionSummaryBox({ me, id, mode, source }: { me: Me; id: str
   const [busy, setBusy] = useState(false);
   useEffect(() => setEditing(false), [id, mode]);
   const s = q.data;
+  const stick = useStickUnderFilters();
 
   const save = async (text: string) => {
     if (!id) return;
@@ -60,7 +87,7 @@ export function DiscussionSummaryBox({ me, id, mode, source }: { me: Me; id: str
       : `Written by ${s.updatedBy ?? "an admin"} · ${localDateTime(s.updatedAt)}`;
 
   return (
-    <section className={`card ai-summary${id ? "" : " idle"}`} aria-labelledby="ai-summary-title" data-testid="ai-summary">
+    <section className={`ai-summary${id ? "" : " idle"}`} aria-labelledby="ai-summary-title" data-testid="ai-summary" data-sticky-under="" ref={stick}>
       <div className="ai-summary-head">
         <div>
           <h2 className="card-title" id="ai-summary-title">
@@ -102,7 +129,10 @@ export function DiscussionSummaryBox({ me, id, mode, source }: { me: Me; id: str
           <label className="sr-only" htmlFor="ai-summary-draft">
             AI Summary of this {NAME[mode]}
           </label>
-          <textarea id="ai-summary-draft" className="control" value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={10_000} autoFocus />
+          <ListTextarea id="ai-summary-draft" className="control" value={draft} onValueChange={setDraft} maxLength={10_000} autoFocus aria-describedby="ai-summary-hint" />
+          <span className="list-hint" id="ai-summary-hint">
+            {LIST_HINT} · Enter starts a new line
+          </span>
           <div className="ai-summary-actions">
             <button className="btn small" disabled={busy || !draft.trim()} onClick={() => void save(draft.trim())}>
               Save
@@ -132,11 +162,7 @@ export function DiscussionSummaryBox({ me, id, mode, source }: { me: Me; id: str
               The discussion has changed since this summary was written.{admin && s.aiConnected ? " Write it again with AI, or edit it." : admin ? " Edit it to bring it up to date." : ""}
             </p>
           )}
-          <div className="ai-summary-text" data-testid="ai-summary-text">
-            {s.text.split(/\n\s*\n/).map((p, i) => (
-              <p key={i}>{p}</p>
-            ))}
-          </div>
+          <BulletText className="ai-summary-text" testId="ai-summary-text" text={s.text} />
         </>
       ) : (
         <p className="ai-summary-text muted">

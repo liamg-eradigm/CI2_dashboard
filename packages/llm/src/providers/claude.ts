@@ -102,6 +102,16 @@ const SUMMARY_SCHEMA = {
   additionalProperties: false,
 } as const;
 
+/** Line breaks and bullet indentation kept; trailing spaces and runs of blank lines removed. */
+export const keepLines = (text: string) =>
+  text
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map((l) => l.replace(/\s+$/, ""))
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
 export async function summarizeWith(
   client: Anthropic,
   model: string,
@@ -142,8 +152,8 @@ export async function summarizeWith(
   }
   if (typeof text !== "string" || !text.trim()) throw new LlmError("INVALID_OUTPUT", "The model returned an empty summary");
   return {
-    // Discussions keep their paragraphs (request 43); the others are one paragraph.
-    text: input.level === "discussion" ? text.trim().split(/\n\s*\n/).map((para) => para.replace(/\s+/g, " ").trim()).filter(Boolean).join("\n\n") : text.trim().replace(/\s+/g, " "),
+    // Discussions keep their line breaks and nested bullets (requests 43 and 44); the others are one paragraph.
+    text: input.level === "discussion" ? keepLines(text) : text.trim().replace(/\s+/g, " "),
     meta: {
       provider: "anthropic",
       model: response.model || model,

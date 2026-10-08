@@ -627,6 +627,23 @@ analyst-entered information distinguishable; in the prototype every value is
   - Settings: a partial `PATCH /api/settings` no longer resets the sections
     it leaves out (Phantoms minimum Impact, competitor tiers, new-signal
     days) to their defaults.
+- **Request 44** (no contract change, no migration):
+  - Database: the Source, Markdown, Alert and Newsletter columns share one
+    width (`.doc-col`, 112 px) with their icons centred, so the icons are
+    evenly spaced whatever the length of the column names.
+  - The Database and Analytics → Primary Tracker tables (and the Full
+    Discussion / KIQ Archive table beside it) take 80% of the room below
+    the sticky filters (`useFitToScreen(min, ratio)`), so the page fits the
+    screen.
+  - Primary Tracker → AI Summary: a full-width strip attached to the bottom
+    of the sticky filter bar and stuck there while the page scrolls (its
+    `top` follows the bar's height; `[data-sticky-under]` makes the tables
+    fit below it too), in larger type (21 px). It is edited with the same
+    bullet editor as long-text fields (`ListTextarea`: Enter for a new line
+    or the next bullet, Tab / Shift+Tab to nest bullets "- " by two spaces)
+    and shown as typed (`components/BulletText.tsx`: line breaks,
+    paragraphs, nested lists). The AI writer may use the same bullets; its
+    line breaks and indentation are kept (`keepLines`).
 - **Menu in groups** (request 28, contract 1.17; regrouped in request 31,
   contract 1.19; renamed in request 34; `packages/shared/src/menu.ts`): the
   menu is four groups (and, from request 43, the Database tab on its own),
