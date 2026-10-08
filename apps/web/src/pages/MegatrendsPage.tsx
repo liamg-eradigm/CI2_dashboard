@@ -10,8 +10,8 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import type { MegatrendEntry, Me } from "@eradigm/shared";
-import { useMegatrends } from "../api/hooks";
+import type { MegatrendEntry, MegatrendNode, Megatrends, Me } from "@eradigm/shared";
+import { useCompetitors, useMegatrends } from "../api/hooks";
 import { EntrySheet, useSourcesList } from "../components/megatrends/EntrySheet";
 import { GraphShell } from "../components/megatrends/GraphShell";
 import type { GraphSpec } from "../components/megatrends/Graph3D";
@@ -32,14 +32,24 @@ const subR = (n: number) => Math.min(15, 3 + 1.9 * Math.sqrt(n));
  * `focusMacro` (request 34): only that Macrotrend's globe, its Subtrends and
  * their signals, embedded in its dashboard (Explore Signals); `s` and `e` stay
  * in the URL, `m` is the dashboard's own.
+ *
+ * `focusCompetitor` (request 48): the same graph of only the signals naming
+ * that competitor (its Macrotrends, their Subtrends and its signals in them),
+ * embedded in the competitor's page (Explore Signals); `m`, `s` and `e` in
+ * the URL as on the full page.
  */
-export function MegatrendsPage({ focusMacro }: { me?: Me; focusMacro?: string }) {
+export function MegatrendsPage({ focusMacro, focusCompetitor }: { me?: Me; focusMacro?: string; focusCompetitor?: string }) {
   const [params, setParams] = useSearchParams();
   // Both trackers, all dates (the page has no filters: the graph and timeline get the space).
   const from: string | null = null;
   const to: string | null = null;
   const q = useMegatrends("all", from, to);
   const data = q.data;
+  const cq = useCompetitors(!!focusCompetitor);
+  const focusEntries = useMemo(
+    () => (focusCompetitor ? (cq.data?.entries ?? []).filter((e) => e.competitors.includes(focusCompetitor)) : null),
+    [cq.data, focusCompetitor],
+  );
   const sel: Selection = useMemo(
     () => (focusMacro ? { macro: focusMacro, sub: params.get("s") } : { macro: params.get("m"), sub: params.get("m") ? params.get("s") : null }),
     [params, focusMacro],
@@ -67,22 +77,24 @@ export function MegatrendsPage({ focusMacro }: { me?: Me; focusMacro?: string })
   // With a focus Macrotrend, only its Subtrend changes (the dashboard keeps its own `m`).
   const select = useCallback((s: Selection) => (focusMacro ? set({ s: s.sub }) : set({ m: s.macro, s: s.sub })), [set, focusMacro]);
 
-  const macros = useMemo(() => data?.macrotrends ?? [], [data]);
+  // A competitor's graph: the Macrotrends and Subtrends counted over its own signals only.
+  const macros = useMemo(() => (focusEntries ? recount(data?.macrotrends ?? [], focusEntries) : (data?.macrotrends ?? [])), [data, focusEntries]);
+  const embedded = !!focusMacro || !!focusCompetitor;
   const isNew = useIsNewSignal();
   const palette = useMemo(() => paletteOf(macros), [macros]);
-  const entries = useMemo(() => data?.entries ?? [], [data]);
+  const entries = useMemo(() => focusEntries ?? data?.entries ?? [], [data, focusEntries]);
   const visible = macros.filter((m) => m.count > 0 && (!focusMacro || m.name === focusMacro));
   const total = visible.reduce((n, m) => n + m.count, 0);
   const macro = sel.macro ? macros.find((m) => m.name === sel.macro) : undefined;
 
   // A selection that no longer exists (other tracker or period) falls back.
   useEffect(() => {
-    if (!data || !sel.macro) return;
-    const m = data.macrotrends.find((x) => x.name === sel.macro);
+    if (!data || !sel.macro || (focusCompetitor && !cq.data)) return;
+    const m = macros.find((x) => x.name === sel.macro);
     if (!m || m.count < 1) {
       if (!focusMacro) set({ m: null, s: null }, false);
     } else if (sel.sub && !m.subtrends.some((s) => s.name === sel.sub && s.count > 0)) set({ s: null }, false);
-  }, [data, sel, set, focusMacro]);
+  }, [data, macros, sel, set, focusMacro, focusCompetitor, cq.data]);
   // Timeline: the selection's entries; the legend is the level above it.
   const trendItems = useMemo(() => timelineEntries(entries, sel, palette), [entries, sel, palette]);
   const impacts = useMemo(() => impactOrder(trendItems.map((i) => i.entry.impact)), [trendItems]);
@@ -199,7 +211,13 @@ export function MegatrendsPage({ focusMacro }: { me?: Me; focusMacro?: string })
 
   const crumbs = (
     <nav className="mg-crumbs" aria-label="Graph level">
-      {!focusMacro && <GraphToggle current="megatrends" onAll={() => select({ macro: null, sub: null })} />}
+      {focusCompetitor ? (
+        <button onClick={() => select({ macro: null, sub: null })} aria-current={!sel.macro ? "page" : undefined}>
+          {focusCompetitor}
+        </button>
+      ) : (
+        !focusMacro && <GraphToggle current="megatrends" onAll={() => select({ macro: null, sub: null })} />
+      )}
       {sel.macro && (
         <>
           {!focusMacro && <span aria-hidden="true">›</span>}
@@ -221,10 +239,10 @@ export function MegatrendsPage({ focusMacro }: { me?: Me; focusMacro?: string })
 
   return (
     <GraphShell
-      storageKey={focusMacro ? "megatrends-focus" : "megatrends"}
-      stageLabel={focusMacro ? `${focusMacro}: knowledge graph` : "Megatrends knowledge graph"}
+      storageKey={focusMacro ? "megatrends-focus" : focusCompetitor ? "competitor-focus" : "megatrends"}
+      stageLabel={focusMacro ? `${focusMacro}: knowledge graph` : focusCompetitor ? `${focusCompetitor}: knowledge graph of its signals` : "Megatrends knowledge graph"}
       spec={spec}
-      embedded={!!focusMacro}
+      embedded={embedded}
       graph={{ onHub, onCore: () => select({ macro: focusMacro ?? null, sub: null }), onFocus: () => undefined, onEntry: (id) => set({ e: id }, false) }}
       crumbs={crumbs}
       keyNav={
@@ -258,7 +276,7 @@ export function MegatrendsPage({ focusMacro }: { me?: Me; focusMacro?: string })
         />
       }
       timeline={
-        focusMacro ? undefined : (
+        embedded ? undefined : (
           <Timeline
             items={items}
             legend={legend}
@@ -299,4 +317,15 @@ export function MegatrendsPage({ focusMacro }: { me?: Me; focusMacro?: string })
       }
     />
   );
+}
+
+/** The Macrotrends and their Subtrends, counted over `entries` only (none left out of the list; empty ones have 0). */
+function recount(macros: Megatrends["macrotrends"], entries: MegatrendEntry[]): Megatrends["macrotrends"] {
+  const n = new Map<string, number>();
+  const ns = new Map<string, number>();
+  for (const e of entries) {
+    n.set(e.macrotrend, (n.get(e.macrotrend) ?? 0) + 1);
+    if (e.subtrend) ns.set(`${e.macrotrend}${SEP}${e.subtrend}`, (ns.get(`${e.macrotrend}${SEP}${e.subtrend}`) ?? 0) + 1);
+  }
+  return macros.map((m) => ({ ...m, count: n.get(m.name) ?? 0, subtrends: m.subtrends.map((s: MegatrendNode) => ({ ...s, count: ns.get(`${m.name}${SEP}${s.name}`) ?? 0 })) }));
 }

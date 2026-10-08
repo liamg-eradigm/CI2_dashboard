@@ -1,28 +1,37 @@
 /**
  * Request 47: the Primary Tracker's and the Database page's filters can be
  * closed to give the table more room. Remembered per page in this browser
- * (a convenience only: without storage they start open).
+ * (a convenience only: without storage each page starts as it does by
+ * default). Request 48: the Database page starts with them closed.
  */
 import { useCallback, useState } from "react";
 
-const key = (page: string) => `eradigm.filters.${page}.closed`;
+type Page = "ptr" | "db";
+const OPEN_BY_DEFAULT: Record<Page, boolean> = { ptr: true, db: false };
+const key = (page: Page) => `eradigm.filters.${page}`;
+/** Before request 48 only a closed Primary Tracker was remembered. */
+const legacyKey = (page: Page) => `eradigm.filters.${page}.closed`;
 
-function read(page: string): boolean {
+function read(page: Page): boolean {
   try {
-    return window.localStorage.getItem(key(page)) !== "1";
+    const v = window.localStorage.getItem(key(page));
+    if (v === "open") return true;
+    if (v === "closed") return false;
+    if (page === "ptr" && window.localStorage.getItem(legacyKey(page)) === "1") return false;
   } catch {
-    return true;
+    /* storage unavailable */
   }
+  return OPEN_BY_DEFAULT[page];
 }
 
-export function useFiltersOpen(page: "ptr" | "db"): [boolean, (open: boolean) => void] {
+export function useFiltersOpen(page: Page): [boolean, (open: boolean) => void] {
   const [open, setOpen] = useState(() => read(page));
   const set = useCallback(
     (o: boolean) => {
       setOpen(o);
       try {
-        if (o) window.localStorage.removeItem(key(page));
-        else window.localStorage.setItem(key(page), "1");
+        window.localStorage.setItem(key(page), o ? "open" : "closed");
+        window.localStorage.removeItem(legacyKey(page));
       } catch {
         /* storage unavailable: lasts for this visit */
       }

@@ -24,7 +24,7 @@ describe("request 34", () => {
       "analytics:dashboard,knowledge-graph,primary-tracker",
       // Request 43: the Database tab, on its own.
       "database:database",
-      "trackers:tracker,phantoms,trend-analyses",
+      // Request 48: the Databases group is gone (the Database tab has them all).
     ]);
   });
 

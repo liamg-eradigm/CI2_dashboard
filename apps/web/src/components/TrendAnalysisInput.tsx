@@ -162,8 +162,8 @@ export function TrendAnalysisInput() {
           </h2>
           <span className="card-sub">
             {category === "macrotrend"
-              ? "Fills the text of the Macrotrend's dashboard (Analytics → Megatrends Dashboard → Megatrends), section by section; kept in Databases → CI analyses as a Markdown file"
-              : "Becomes the competitor's analysis on its Trends Analysis page, and is kept in Databases → CI analyses as a Markdown file"}
+              ? "Fills the text of the Macrotrend's dashboard (Analytics → Megatrends Dashboard → Megatrends), section by section; kept in Database → CI Analysis as a Markdown file"
+              : "Becomes the Company Profile at the top of the competitor's page (Megatrends Dashboard → Competitors), and is kept in Database → CI Analysis as a Markdown file"}
           </span>
         </div>
         <div className="seg" role="group" aria-label="Trend analysis of a">
@@ -197,23 +197,24 @@ export function TrendAnalysisInput() {
 
           {current && current.source !== "default" && current.text && (
             <details className="tai-current">
-              <summary>Current analysis of {target?.name}</summary>
+              <summary>Current Company Profile of {target?.name}</summary>
               <RichText text={current.text} />
             </details>
           )}
 
           <label className="field">
             <span>
-              Trend analysis
-              {target ? ` · ${TREND_LEVEL_LABEL[target.level]} ${target.name}` : ""}
+              {/* Request 48: a competitor's analysis is its Company Profile. */}
+              Company Profile
+              {target ? ` · ${target.name}` : ""}
             </span>
             <RichTextField
               className="control tai-text"
               value={text}
               rows={8}
               onValueChange={setText}
-              placeholder={target ? `Write the analysis of ${target.name}…` : "Choose the competitor, then write its analysis here…"}
-              aria-label={`Trend analysis${target ? ` of ${target.name}` : ""}`}
+              placeholder={target ? `Write the Company Profile of ${target.name}…` : "Choose the competitor, then write its Company Profile here…"}
+              aria-label={`Company Profile${target ? ` of ${target.name}` : ""}`}
               aria-describedby="tai-count"
               testId="tai-text"
             />
@@ -223,7 +224,7 @@ export function TrendAnalysisInput() {
               {text.length.toLocaleString("en-GB")} / {MAX_SUMMARY_LENGTH.toLocaleString("en-GB")} characters
             </span>
             <button className="btn" onClick={() => void submit()} disabled={!target || !text.trim() || saving} data-testid="tai-submit">
-              {saving ? "Submitting…" : "Submit trend analysis"}
+              {saving ? "Submitting…" : "Submit Company Profile"}
             </button>
           </div>
           {err && (
@@ -234,10 +235,10 @@ export function TrendAnalysisInput() {
           {saved && (
             <div className="import-done" role="status" data-testid="tai-saved">
               <b>
-                ✓ Saved as the analysis of the {TREND_LEVEL_LABEL[saved.level]} {saved.name}
+                ✓ Saved as the {saved.level === "competitor" ? "Company Profile of" : `analysis of the ${TREND_LEVEL_LABEL[saved.level]}`} {saved.name}
               </b>
               <span>
-                <Link to={analysisLink(saved)}>Open its trend analysis →</Link> · <Link to="/trend-analyses">CI analyses →</Link>
+                <Link to={analysisLink(saved)}>{saved.level === "competitor" ? "Open its Company Profile →" : "Open its trend analysis →"}</Link> · <Link to="/database?db=ci">Database · CI Analysis →</Link>
               </span>
             </div>
           )}
@@ -502,7 +503,7 @@ function TrendAnalysisImport({ onDone, kind = TREND_IMPORT }: { onDone: () => vo
             ✓ Imported {done} {done === 1 ? kind.noun[0] : kind.noun[1]}
           </b>
           <span>
-            Each is now the analysis of its trend. <Link to="/trend-analyses">Open Trend Analyses →</Link>
+            Each is now the analysis of its trend. <Link to="/database?db=ci">Database · CI Analysis →</Link>
           </span>
         </div>
       )}
@@ -590,7 +591,7 @@ function MacroSectionsForm({ macros, onSaved }: { macros: string[]; onSaved: () 
             ✓ Saved {Object.keys(saved.sections ?? {}).length} section{Object.keys(saved.sections ?? {}).length === 1 ? "" : "s"} of the Macrotrend {saved.name}
           </b>
           <span>
-            <Link to={`/analytics/megatrends?${new URLSearchParams({ m: saved.name })}`}>Open its dashboard →</Link> · <Link to="/trend-analyses">CI analyses →</Link>
+            <Link to={`/analytics/megatrends?${new URLSearchParams({ m: saved.name })}`}>Open its dashboard →</Link> · <Link to="/database?db=ci">Database · CI Analysis →</Link>
           </span>
         </div>
       )}
