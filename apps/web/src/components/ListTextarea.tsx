@@ -1,4 +1,4 @@
-import { useRef, type KeyboardEvent, type TextareaHTMLAttributes } from "react";
+import { useLayoutEffect, useRef, type KeyboardEvent, type TextareaHTMLAttributes } from "react";
 import { indent, newline, outdent, type TextState } from "../lib/listEditing";
 
 /** Shown under long-text fields (and read out with them). */
@@ -18,12 +18,19 @@ export function ListTextarea({
 }: Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "value" | "onChange"> & { value: string; onValueChange: (v: string) => void }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const released = useRef(false);
+  const caret = useRef<[number, number] | null>(null);
+  // Put the caret back as soon as React has rendered the new value, before the next key is handled
+  // (a frame later, fast typing could land at the end of the text instead).
+  useLayoutEffect(() => {
+    if (!caret.current || !ref.current) return;
+    ref.current.setSelectionRange(...caret.current);
+    caret.current = null;
+  }, [value]);
   const apply = (next: TextState | null, e: KeyboardEvent) => {
     if (!next) return;
     e.preventDefault();
+    caret.current = [next.start, next.end];
     onValueChange(next.value);
-    // Put the caret back once React has rendered the new value.
-    requestAnimationFrame(() => ref.current?.setSelectionRange(next.start, next.end));
   };
   return (
     <textarea

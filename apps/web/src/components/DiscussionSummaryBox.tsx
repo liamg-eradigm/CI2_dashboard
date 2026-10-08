@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { can, type DiscussionSummary, type Me } from "@eradigm/shared";
 import { api, type ApiError } from "../api/client";
@@ -30,6 +30,78 @@ function useStickUnderFilters() {
   return ref;
 }
 
+/** Remembered per viewer (a convenience only: without storage it starts at its natural height). */
+const HEIGHT_KEY = "eradigm.ptr.aiSummaryHeight";
+const MIN_HEIGHT = 96;
+/** Room the table keeps below the summary when it is dragged taller. */
+const TABLE_ROOM = 180;
+const readHeight = () => {
+  try {
+    const v = Number(window.localStorage.getItem(HEIGHT_KEY));
+    return Number.isFinite(v) && v >= MIN_HEIGHT ? v : null;
+  } catch {
+    return null;
+  }
+};
+const storeHeight = (h: number | null) => {
+  try {
+    if (h == null) window.localStorage.removeItem(HEIGHT_KEY);
+    else window.localStorage.setItem(HEIGHT_KEY, String(Math.round(h)));
+  } catch {
+    /* storage unavailable: the height lasts for this visit */
+  }
+};
+
+/**
+ * Request 45: drag the bottom edge of the AI Summary (or use the arrow keys on
+ * it) to make it taller or shorter; the table below takes the rest of the
+ * window. Double-click goes back to its natural height.
+ */
+function useResizableHeight(box: RefObject<HTMLElement | null>) {
+  const [height, setHeight] = useState<number | null>(readHeight);
+  const max = () => {
+    const bar = document.querySelector<HTMLElement>(".filterbar");
+    const top = bar ? bar.getBoundingClientRect().height : 0;
+    return Math.max(MIN_HEIGHT, window.innerHeight - top - TABLE_ROOM);
+  };
+  const clamp = (h: number) => Math.round(Math.min(max(), Math.max(MIN_HEIGHT, h)));
+  const set = (h: number | null) => {
+    const v = h == null ? null : clamp(h);
+    setHeight(v);
+    storeHeight(v);
+  };
+  const onPointerDown = (e: ReactPointerEvent<HTMLElement>) => {
+    if (e.button !== 0 || !box.current) return;
+    e.preventDefault();
+    const startY = e.clientY;
+    const start = box.current.getBoundingClientRect().height;
+    const grip = e.currentTarget;
+    grip.setPointerCapture(e.pointerId);
+    document.body.classList.add("resizing-rows");
+    const move = (ev: PointerEvent) => setHeight(clamp(start + ev.clientY - startY));
+    const up = (ev: PointerEvent) => {
+      grip.releasePointerCapture(ev.pointerId);
+      grip.removeEventListener("pointermove", move);
+      grip.removeEventListener("pointerup", up);
+      grip.removeEventListener("pointercancel", up);
+      document.body.classList.remove("resizing-rows");
+      storeHeight(clamp(start + ev.clientY - startY));
+    };
+    grip.addEventListener("pointermove", move);
+    grip.addEventListener("pointerup", up);
+    grip.addEventListener("pointercancel", up);
+  };
+  const onKeyDown = (e: ReactKeyboardEvent<HTMLElement>) => {
+    const cur = height ?? box.current?.getBoundingClientRect().height ?? MIN_HEIGHT;
+    const step = e.shiftKey ? 96 : 24;
+    const next = e.key === "ArrowUp" ? cur - step : e.key === "ArrowDown" ? cur + step : e.key === "Home" ? MIN_HEIGHT : e.key === "End" ? max() : null;
+    if (next == null) return;
+    e.preventDefault();
+    set(next);
+  };
+  return { height, reset: () => set(null), onPointerDown, onKeyDown, max };
+}
+
 const NAME = { source: "Full Discussion", kiq: "KIQ Archive" } as const;
 
 /**
@@ -39,6 +111,8 @@ const NAME = { source: "Full Discussion", kiq: "KIQ Archive" } as const;
  * instructions in Administration); admins can write or change it by hand.
  * Request 44: it stays attached to the bottom of the sticky filter bar, and
  * keeps line breaks and nested bullets (Tab / Shift+Tab while editing).
+ * Request 45: the table is attached to its bottom edge, which is dragged to
+ * resize it (the table takes the rest of the window).
  */
 export function DiscussionSummaryBox({ me, id, mode, source }: { me: Me; id: string | null; mode: "source" | "kiq"; source?: string }) {
   const q = useDiscussionSummary(id, mode);
@@ -51,6 +125,7 @@ export function DiscussionSummaryBox({ me, id, mode, source }: { me: Me; id: str
   useEffect(() => setEditing(false), [id, mode]);
   const s = q.data;
   const stick = useStickUnderFilters();
+  const size = useResizableHeight(stick);
 
   const save = async (text: string) => {
     if (!id) return;
@@ -87,7 +162,14 @@ export function DiscussionSummaryBox({ me, id, mode, source }: { me: Me; id: str
       : `Written by ${s.updatedBy ?? "an admin"} · ${localDateTime(s.updatedAt)}`;
 
   return (
-    <section className={`ai-summary${id ? "" : " idle"}`} aria-labelledby="ai-summary-title" data-testid="ai-summary" data-sticky-under="" ref={stick}>
+    <section
+      className={`ai-summary${id ? "" : " idle"}${size.height != null ? " sized" : ""}`}
+      aria-labelledby="ai-summary-title"
+      data-testid="ai-summary"
+      data-sticky-under=""
+      ref={stick}
+      style={size.height != null ? { height: size.height } : undefined}
+    >
       <div className="ai-summary-head">
         <div>
           <h2 className="card-title" id="ai-summary-title">
@@ -175,6 +257,23 @@ export function DiscussionSummaryBox({ me, id, mode, source }: { me: Me; id: str
               : `No summary yet. Once the Claude API is connected, the AI writer summarises each ${NAME[mode]} here automatically.${admin ? " Until then, an admin can write it by hand." : ""}`}
         </p>
       )}
+      <div
+        className="ai-summary-grip"
+        role="separator"
+        aria-orientation="horizontal"
+        aria-label="Resize the AI Summary (drag, or use the arrow keys; double-click for its natural height)"
+        aria-valuemin={MIN_HEIGHT}
+        aria-valuemax={Math.round(size.max())}
+        aria-valuenow={Math.round(size.height ?? stick.current?.getBoundingClientRect().height ?? MIN_HEIGHT)}
+        tabIndex={0}
+        onPointerDown={size.onPointerDown}
+        onKeyDown={size.onKeyDown}
+        onDoubleClick={size.reset}
+        data-testid="ai-summary-grip"
+        title="Drag to resize · double-click for the natural height"
+      >
+        <span aria-hidden="true" />
+      </div>
     </section>
   );
 }

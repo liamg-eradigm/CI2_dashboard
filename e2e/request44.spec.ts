@@ -58,7 +58,8 @@ test.describe("request 44", () => {
     const table = page.getByTestId("table-scroll").locator("table");
     await expect(table.locator("tbody tr")).toHaveCount(10);
     const heads = table.locator("thead th.doc-col");
-    await expect(heads).toHaveText(["Source", "Markdown", "Alert", "Newsletter"]);
+    // Request 45: Edit is one of them too.
+    await expect(heads).toHaveText(["Source", "Markdown", "Alert", "Newsletter", "Edit"]);
     const widths = await heads.evaluateAll((ths) => ths.map((t) => t.getBoundingClientRect().width));
     for (const w of widths) expect(Math.abs(w - widths[0]!)).toBeLessThan(1);
     // Each icon sits in the middle of its column, so the icons are evenly spaced.
@@ -74,7 +75,7 @@ test.describe("request 44", () => {
     await expectEightyPercent(page);
   });
 
-  test("Primary Tracker: the AI Summary is stuck under the filters, keeps lines and nested bullets; the table takes 80% of the room", async ({ page }) => {
+  test("Primary Tracker: the AI Summary keeps lines and nested bullets, attached under the filters", async ({ page }) => {
     await signInAs(page, "admin");
     await page.setViewportSize({ width: 1536, height: 864 });
     await page.goto("/dashboard");
@@ -83,7 +84,6 @@ test.describe("request 44", () => {
     await page.goto(`/analytics/primary?${new URLSearchParams({ "pt.source_company": `Clinic ${tag}` })}`);
     const table = page.getByTestId("table-scroll");
     await expect(table.locator("tbody tr")).toHaveCount(10);
-    await expectEightyPercent(page);
 
     await table.getByRole("row", { name: new RegExp(`Answer 8 ${tag}`) }).getByTestId("archived-cell").click();
     const box = page.getByTestId("ai-summary");
@@ -121,13 +121,10 @@ test.describe("request 44", () => {
     await expect(page.getByTestId("ai-summary-text").locator("> ul > li > ul > li > ul > li")).toHaveText("New evidence");
     await expectAccessible(page, "AI Summary with nested bullets");
 
-    // Scrolled: still attached to the bottom of the sticky filters.
-    await page.mouse.move(700, 700);
-    await page.mouse.wheel(0, 800);
-    await page.waitForTimeout(300);
+    // Attached to the bottom of the filters (sticky; request 45 makes the page fit the window, so it rarely scrolls).
     const bar = (await page.locator(".filterbar").boundingBox())!;
     const b = (await page.getByTestId("ai-summary").boundingBox())!;
-    expect(bar.y).toBeLessThanOrEqual(1);
     expect(Math.abs(b.y - (bar.y + bar.height))).toBeLessThan(2);
+    expect(await page.getByTestId("ai-summary").evaluate((el) => getComputedStyle(el).position)).toBe("sticky");
   });
 });
