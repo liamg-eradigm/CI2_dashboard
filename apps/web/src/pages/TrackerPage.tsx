@@ -206,8 +206,9 @@ export function TrackerPage({
   const [exportOpen, setExportOpen] = useState(false);
   const [scope, setScope] = useState<"filtered" | "all">("filtered");
   const exportRef = useRef<HTMLDivElement>(null);
-  // The Database and Primary Tracker tables take 80% of the space below the filters (request 44), so their page fits the screen.
-  const fitRef = useFitToScreen(260, database || primaryOnly ? 0.8 : 1);
+  // The Database table takes 80% of the space below the filters (request 44); the Primary Tracker's runs to the
+  // bottom of the window, under the AI Summary (request 45), so each page fits the screen.
+  const fitRef = useFitToScreen(primaryOnly ? 160 : 260, database ? 0.8 : 1, primaryOnly);
   const selected = f.params.get("signal");
   const mdOpen = f.params.get("md");
   const archId = primaryOnly ? f.params.get("arch") : null;
@@ -399,30 +400,31 @@ export function TrackerPage({
       )}
       <div className={`content${primaryOnly ? " ptr-content" : ""}`}>
         {above}
-        <div className={`stream-bar${database ? " db-bar" : ""}`}>
-          {switcher ?? (!primaryOnly && <StreamSwitch noun={NOUN[view]} value={stream} onChange={setStream} label={`${NOUN[view]} to show`} />)}
-          <span className="stream-note">
-            {database
-              ? `Every ${STREAM_LABEL[stream]} Tracker entry with all its fields, its saved page, Markdown, alert and newsletters`
-              : primaryOnly
-              ? "Approved entries from the Primary Inbox · Full Discussion opens the earlier answers from the same source (Source Role and Source Company) · KIQ Archive only those with the same Insight Topic and Key Intelligence Question"
-              : view === "alerts"
-              ? `${STREAM_LABEL[stream]} Phantoms with High Impact · each gets a .docx alert automatically`
-              : newsletter
-                ? `${STREAM_LABEL[stream]} Phantoms with High or Medium Impact · tick entries from either stream, then Create Newsletter`
-                : phantoms
-                  ? stream === "primary"
-                    ? "Every Primary Tracker entry · open the Markdown from the MD icon"
-                    : `Secondary Tracker entries with Impact ${settings.data?.phantoms.secondaryMinImpact ?? "Low"} or higher (set by admins) · open the Markdown from the MD icon`
-                  : `Approved entries from the ${STREAM_LABEL[stream]} Inbox`}
-          </span>
-          {canGenerate && pickedRows.length >= 2 && (
-            <button className="btn gen-newsletter" disabled={generating} onClick={() => void generate()} data-testid="generate-newsletter" title={`A newsletter from the ${pickedRows.length} ticked entries`}>
-              <NewspaperIcon />
-              <span>{generating ? "Generating…" : `Generate Newsletter (${pickedRows.length})`}</span>
-            </button>
-          )}
-        </div>
+        {/* Analytics → Primary Tracker: no switch or note; the table sits right under the AI Summary (request 45). */}
+        {!primaryOnly && (
+          <div className={`stream-bar${database ? " db-bar" : ""}`}>
+            {switcher ?? <StreamSwitch noun={NOUN[view]} value={stream} onChange={setStream} label={`${NOUN[view]} to show`} />}
+            <span className="stream-note">
+              {database
+                ? `Every ${STREAM_LABEL[stream]} Tracker entry with all its fields, its saved page, Markdown, alert and newsletters`
+                : view === "alerts"
+                ? `${STREAM_LABEL[stream]} Phantoms with High Impact · each gets a .docx alert automatically`
+                : newsletter
+                  ? `${STREAM_LABEL[stream]} Phantoms with High or Medium Impact · tick entries from either stream, then Create Newsletter`
+                  : phantoms
+                    ? stream === "primary"
+                      ? "Every Primary Tracker entry · open the Markdown from the MD icon"
+                      : `Secondary Tracker entries with Impact ${settings.data?.phantoms.secondaryMinImpact ?? "Low"} or higher (set by admins) · open the Markdown from the MD icon`
+                    : `Approved entries from the ${STREAM_LABEL[stream]} Inbox`}
+            </span>
+            {canGenerate && pickedRows.length >= 2 && (
+              <button className="btn gen-newsletter" disabled={generating} onClick={() => void generate()} data-testid="generate-newsletter" title={`A newsletter from the ${pickedRows.length} ticked entries`}>
+                <NewspaperIcon />
+                <span>{generating ? "Generating…" : `Generate Newsletter (${pickedRows.length})`}</span>
+              </button>
+            )}
+          </div>
+        )}
         <div className={archId ? "arch-split" : undefined} data-testid={archId ? "arch-split" : undefined}>
         <section className={`card flush pop-host${primaryOnly ? " ptr-card" : ""}`} aria-label="Approved signals table">
           <div className="table-top">
@@ -577,7 +579,7 @@ export function TrackerPage({
                       </th>
                     ))}
                   {canEdit && (
-                    <th scope="col" className="src-col">
+                    <th scope="col" className={database ? "doc-col" : "src-col"}>
                       <span>Edit</span>
                     </th>
                   )}
@@ -701,7 +703,7 @@ export function TrackerPage({
                       </td>
                     )}
                     {canEdit && (
-                      <td className="src-col">
+                      <td className={database ? "doc-col" : "src-col"}>
                         <button className="src-btn open edit-btn" onClick={() => setParam({ signal: r.id, edit: "1" }, true)} aria-label={`Edit ${titleOf(r)}`} title="Edit, then approve again">
                           <svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true">
                             <path d="M13.6 3.2l3.2 3.2-9.4 9.4-3.9.7.7-3.9 9.4-9.4Z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
@@ -903,8 +905,8 @@ function ArchivedPanel({
   const growthCol = getColumn(schema, CORE.growth);
   const actionCol = getColumn(schema, "action");
   const rows = q.data?.rows ?? [];
-  // Level with the Primary Tracker beside it (80% of the space, request 44).
-  const fitRef = useFitToScreen(200, 0.8);
+  // Level with the Primary Tracker beside it: to the bottom of the window (request 45).
+  const fitRef = useFitToScreen(160, 1, true);
   const role = String(cur.data?.values[FIELDS.sourceRole] ?? "");
   const company = String(cur.data?.values[FIELDS.sourceCompany] ?? "");
   return (
@@ -1033,7 +1035,7 @@ function AnswerCard({
           </div>
         ))}
       </dl>
-      <div className="arch-pop-body">
+      <div className="arch-pop-body" tabIndex={0} role="region" aria-label={`${label}: details`}>
         {cols.slice(3).map((c) => (
           <section key={c.key}>
             <h3>{c.label}</h3>

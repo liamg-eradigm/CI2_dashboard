@@ -943,7 +943,7 @@ tr.arch-row.open td { background: #d9eff1; }
 
 /* Request 43: the Primary Tracker's AI Summary, in large type. Request 44: bigger, attached to the bottom
    of the sticky filter bar (its top is set to the bar's height), with line breaks and nested bullets. */
-.ai-summary { position: sticky; z-index: 4; display: flex; flex-direction: column; gap: 10px; background: var(--tint-3); border-bottom: 1px solid var(--border); border-left: 6px solid var(--teal); padding: 18px 32px 20px 26px; box-shadow: 0 8px 16px -12px rgba(7, 40, 56, 0.35); }
+.ai-summary { position: sticky; z-index: 4; display: flex; flex-direction: column; gap: 10px; background: var(--tint-3); border-bottom: 1px solid var(--border); border-left: 6px solid var(--teal); padding: 18px 32px 20px 26px; }
 .ai-summary.idle { border-left-color: var(--border); }
 .ai-summary-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
 .ai-summary .card-title { color: var(--teal-press); font-size: 15px; }
@@ -961,8 +961,23 @@ tr.arch-row.open td { background: #d9eff1; }
 .ai-summary-stale { margin: 0; font-size: 13px; color: #8a5300; background: #fff6e8; border: 1px solid #f3d3a3; border-radius: 7px; padding: 6px 10px; }
 .ai-summary-edit { display: flex; flex-direction: column; gap: 8px; }
 .ai-summary-edit textarea { height: 28vh; min-height: 160px; padding: 12px; font-size: 19px; line-height: 1.55; resize: vertical; white-space: pre-wrap; }
-/* The table's pop-ups pass under the stuck AI Summary. */
-.content.ptr-content { position: relative; z-index: 0; }
+/* The table's pop-ups pass under the stuck AI Summary. Request 45: the table is attached to the bottom of the
+   AI Summary, edge to edge, and runs to the bottom of the window (no note, no gaps). */
+.content.ptr-content { position: relative; z-index: 0; padding: 0; gap: 0; }
+.ptr-content .card { border-radius: 0; border-top: 0; border-right: 0; border-bottom: 0; }
+.ptr-content .arch-split { gap: 0; }
+.ptr-content .arch-pane { height: 100%; border-radius: 0; }
+.ptr-content .empty { padding: 16px 20px; }
+/* Request 45: the AI Summary's bottom edge is dragged to resize it; once sized, its text scrolls inside it. */
+.ai-summary.sized { overflow: hidden; }
+.ai-summary.sized .ai-summary-text { flex: 1 1 auto; min-height: 0; max-height: none; }
+.ai-summary.sized .ai-summary-edit { flex: 1 1 auto; min-height: 0; }
+.ai-summary.sized .ai-summary-edit textarea { flex: 1 1 auto; height: auto; min-height: 48px; resize: none; }
+.ai-summary-grip { position: absolute; left: 0; right: 0; bottom: 0; height: 12px; display: flex; align-items: center; justify-content: center; cursor: row-resize; touch-action: none; z-index: 1; }
+.ai-summary-grip > span { width: 56px; height: 5px; border-radius: 3px; background: var(--axis); transition: background 0.15s, width 0.15s; }
+.ai-summary-grip:hover > span, .ai-summary-grip:focus-visible > span { background: var(--teal); width: 84px; }
+.ai-summary-grip:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+body.resizing-rows, body.resizing-rows * { cursor: row-resize !important; user-select: none; }
 @media (max-width: 760px) { .ai-summary { position: relative; top: auto !important; padding: 16px; } }
 .link-btn.danger { color: var(--error); }
 /* The Database page: Generate Newsletter stays level with the toggle (the note gives way). */
@@ -970,7 +985,8 @@ tr.arch-row.open td { background: #d9eff1; }
 .stream-bar.db-bar .stream-note { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .stream-bar.db-bar .gen-newsletter { flex: none; }
 @media (max-width: 900px) { .stream-bar.db-bar { flex-wrap: wrap; } .stream-bar.db-bar .stream-note { white-space: normal; } }
-/* Request 44: the Database page's Source, Markdown, Alert and Newsletter columns: one width, icons centred. */
-.data th.doc-col, .data td.doc-col { width: 112px; min-width: 112px; max-width: 112px; text-align: center; padding-left: 6px; padding-right: 6px; }
+/* Request 44: the Database page's Source, Markdown, Alert, Newsletter (and, request 45, Edit) columns: one width,
+   just wider than the longest name, with their icons centred, so they are evenly spaced and close together. */
+.data th.doc-col, .data td.doc-col { width: 86px; min-width: 86px; max-width: 86px; text-align: center; padding-left: 2px; padding-right: 2px; }
 .data th.doc-col > span { display: block; text-align: center; }
 .data td.doc-col > .nl-cell { justify-content: center; }

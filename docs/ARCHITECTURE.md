@@ -644,6 +644,23 @@ analyst-entered information distinguishable; in the prototype every value is
     and shown as typed (`components/BulletText.tsx`: line breaks,
     paragraphs, nested lists). The AI writer may use the same bullets; its
     line breaks and indentation are kept (`keepLines`).
+- **Request 45** (no contract change, no migration):
+  - Database: Edit joins Source, Markdown, Alert and Newsletter as one of
+    five equal columns (`.doc-col`, 86 px, just wider than the longest
+    name), so the five icons are evenly spaced and close together.
+  - Analytics → Primary Tracker fills the window with no gaps: no note
+    above the table; the table (and the Full Discussion / KIQ Archive table
+    beside it) is attached, edge to edge, to the bottom of the AI Summary
+    and runs to the bottom of the window (`useFitToScreen(min, 1, true)`:
+    sized from where the box sits on the page).
+  - The AI Summary's bottom edge is a resize handle (`role="separator"`):
+    drag it, or focus it and use ↑ / ↓ (Shift for bigger steps, Home / End),
+    to make the summary shorter or taller; the table takes the rest of the
+    window (at least 180 px stays for it). Double-click returns it to its
+    natural height. The height is remembered per browser (local storage,
+    a convenience only).
+  - The bullet editor (`ListTextarea`) puts the caret back as soon as the
+    new text renders, so fast typing after Tab / Enter lands in place.
 - **Menu in groups** (request 28, contract 1.17; regrouped in request 31,
   contract 1.19; renamed in request 34; `packages/shared/src/menu.ts`): the
   menu is four groups (and, from request 43, the Database tab on its own),

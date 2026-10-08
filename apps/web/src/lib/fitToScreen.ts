@@ -6,10 +6,12 @@ import { useLayoutEffect, useState } from "react";
  * under it, `[data-sticky-under]`: the Primary Tracker's AI Summary). The
  * table then scrolls inside the box, down and across, with its horizontal
  * scrollbar always on screen once the card is scrolled into view. `ratio`
- * (request 44): the share of that space the card takes. Returns the ref for
- * the box.
+ * (request 44): the share of that space the card takes. With `fill`
+ * (request 45, Analytics → Primary Tracker) the box is sized instead so its
+ * card runs exactly to the bottom of the window from where it sits (the page
+ * then needs no scrolling). Returns the ref for the box.
  */
-export function useFitToScreen(min = 260, ratio = 1): (el: HTMLElement | null) => void {
+export function useFitToScreen(min = 260, ratio = 1, fill = false): (el: HTMLElement | null) => void {
   const [el, setEl] = useState<HTMLElement | null>(null);
   useLayoutEffect(() => {
     if (!el) return;
@@ -18,6 +20,17 @@ export function useFitToScreen(min = 260, ratio = 1): (el: HTMLElement | null) =
     const measure = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
+        if (fill) {
+          // From the box's place on the page (not the screen), to the bottom of the window, less what follows it in the card.
+          const box = el.getBoundingClientRect();
+          const after = card ? card.getBoundingClientRect().bottom - box.bottom : 0;
+          const h = Math.max(min, Math.floor(window.innerHeight - (box.top + window.scrollY) - after));
+          if (el.style.height !== `${h}px`) {
+            el.style.height = `${h}px`;
+            el.style.maxHeight = `${h}px`;
+          }
+          return;
+        }
         const bar = document.querySelector<HTMLElement>(".filterbar");
         const stuck = [...document.querySelectorAll<HTMLElement>("[data-sticky-under]")].reduce((h, x) => h + x.getBoundingClientRect().height, 0);
         const top = (bar && getComputedStyle(bar).position === "sticky" ? bar.getBoundingClientRect().height : 0) + stuck;
@@ -43,6 +56,6 @@ export function useFitToScreen(min = 260, ratio = 1): (el: HTMLElement | null) =
       window.removeEventListener("resize", measure);
       ro?.disconnect();
     };
-  }, [el, min, ratio]);
+  }, [el, min, ratio, fill]);
   return setEl;
 }
