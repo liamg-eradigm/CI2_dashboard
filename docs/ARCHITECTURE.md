@@ -811,6 +811,19 @@ analyst-entered information distinguishable; in the prototype every value is
   scroll. Analytics → Knowledge Graph is gone from the menu (a saved menu drops
   it); `/megatrends` and `/competitors` still open the full-page graphs and
   count as the Megatrends Dashboard tab.
+- **Request 54** (no contract change, no migration):
+  - Generate Newsletter: the section chosen for each signal glows in the
+    platform's cyan (`.nl-sec-seg [aria-checked="true"]`), and a placed row is
+    tinted.
+  - A Macrotrend's knowledge graph (its dashboard's Explore Signals) says
+    "Select a Subtrend to explore signals in this space" in the box with its
+    name, just below it (`.mg-crumbs.with-hint`). The Competitors' graphs have
+    no such line.
+  - Database: rows turn blue on hover like the Primary Tracker's; clicking a
+    row (not one of its buttons or its tick box) opens `EntryFields` from the
+    right (`?row=<id>`): every field of the entry in the table's order, one per
+    row, long text through `RichText` so lines and bullets (nested too) are
+    kept. "Open record" goes on to the full record.
 - **Menu in groups** (request 28, contract 1.17; regrouped in request 31,
   contract 1.19; renamed in request 34; `packages/shared/src/menu.ts`): the
   menu is four groups (and, from request 43, the Database tab on its own),

@@ -93,6 +93,9 @@
 .mg-crumbs button, .mg-crumbs .here { border: 0; background: none; color: var(--mg-ink-2); font: 700 12.5px var(--sans); padding: 3px 8px; border-radius: 999px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mg-crumbs button:hover { color: #fff; background: rgba(127, 211, 216, 0.12); }
 .mg-crumbs [aria-current="page"] { color: #fff; }
+/* Request 54: a Macrotrend's graph says how to use it, under its name in the same box. */
+.mg-crumbs.with-hint { flex-wrap: wrap; row-gap: 2px; border-radius: 14px; padding: 6px 10px 8px; }
+.mg-hint { flex: 1 0 100%; margin: 0; padding: 0 8px; font-size: 13px; line-height: 1.4; color: var(--mg-ink-2); white-space: normal; }
 
 .mg-rail { min-height: 64px; border-radius: 14px; padding: 12px 8px 10px; overflow: auto; }
 .mg-rail-title { font: 700 10.5px var(--sans); letter-spacing: 0.14em; text-transform: uppercase; color: var(--cyan-2); padding: 0 8px 8px; }

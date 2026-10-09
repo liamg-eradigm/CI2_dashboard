@@ -407,7 +407,7 @@ export function NewsletterSections({ entries, onCancel, onDone }: { entries: New
         <p>Put each signal in a section of the newsletter. Several can share a section; they follow one another in it.</p>
         <ul className="nl-sec-list">
           {entries.map((e, i) => (
-            <li key={e.id}>
+            <li key={e.id} className={sections[e.id] ? "placed" : undefined}>
               <span className="nl-sec-title">
                 {e.code && <span className="mono">{e.code}</span>} {e.label}
               </span>
