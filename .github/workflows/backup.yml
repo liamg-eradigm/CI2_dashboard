@@ -48,7 +48,7 @@ jobs:
           test -n "$BACKUP_PASSPHRASE" || { echo "::error::BACKUP_PASSPHRASE not set"; exit 1; }
           for f in backups/*.sql; do gpg --batch --yes --symmetric --cipher-algo AES256 --passphrase "$BACKUP_PASSPHRASE" -o "$f.gpg" "$f" && rm "$f"; done
       - if: steps.gate.outputs.go == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: d1-production-${{ github.run_id }}
           path: backups/
