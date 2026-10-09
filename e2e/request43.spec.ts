@@ -120,10 +120,11 @@ test.describe("request 43", () => {
     await expect(generate).toHaveCount(0);
     await row(`Second ${tag}`).getByRole("checkbox").check();
     await expect(generate).toBeVisible();
-    // Level with the Primary / Secondary toggle.
+    // Request 53: in the table's top bar, beside Export.
     const g = (await generate.boundingBox())!;
-    const s = (await page.getByTestId("stream-secondary").boundingBox())!;
+    const s = (await page.getByRole("button", { name: "Export" }).boundingBox())!;
     expect(Math.abs(g.y + g.height / 2 - (s.y + s.height / 2))).toBeLessThan(6);
+    expect(g.x).toBeLessThan(s.x);
     await generate.click();
     await placeAll(page);
     await expect(page.getByText(/Generated “Newsletter · .*” from 2 entries/).first()).toBeVisible();

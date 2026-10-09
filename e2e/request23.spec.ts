@@ -1,7 +1,7 @@
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { expect, expectAccessible, signInAs, test, goTab } from "./fixtures";
+import { expect, expectAccessible, signInAs, test } from "./fixtures";
 import type { Page } from "@playwright/test";
 
 const ADMIN = { "x-dev-user": "admin@example.com" };
@@ -85,7 +85,7 @@ test.describe("request 23", () => {
       { title: `Lilly and Novo cut prices ${tag}`, competitors: ["Eli Lilly", "Novo Nordisk"], impact: "Medium" },
       { title: `Metsera bidding war ${tag}`, competitors: ["Pfizer", "Metsera", "Novo Nordisk"], impact: "High" },
     ]);
-    await goTab(page, "Analytics", "Knowledge Graph");
+    await page.goto("/megatrends");
     await page.getByTestId("kg-competitors").click();
     await expect(page).toHaveURL(/\/competitors$/);
     await expect(page.locator(".mg-panel, .mg-rail")).toHaveCount(0);

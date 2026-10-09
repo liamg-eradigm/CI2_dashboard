@@ -10,6 +10,7 @@ import type { Role } from "./permissions.js";
 export const MENU_GROUPS = ["inputs", "analytics", "database", "admin"] as const;
 export type MenuGroupKey = (typeof MENU_GROUPS)[number];
 
+/** Request 53: "knowledge-graph" is in no group any more (the graphs are in the Megatrends Dashboard); kept so menus saved with it still read. */
 export const MENU_ITEMS = ["input", "inbox", "clientinbox", "dashboard", "knowledge-graph", "primary-tracker", "database", "admin"] as const;
 export type MenuItemKey = (typeof MENU_ITEMS)[number];
 
@@ -24,11 +25,13 @@ export type MenuItemKey = (typeof MENU_ITEMS)[number];
  * and Deliverables onto one page. Request 48: the Databases group (Signals
  * Database, Phantoms Database, CI analyses) is gone; Database has them all.
  * Request 52: Admin → Deliverables is gone (its newsletters are on the
- * Database page), so Admin is a tab of its own, as Database is.
+ * Database page), so Admin is a tab of its own, as Database is. Request 53:
+ * Analytics → Knowledge Graph is gone (the knowledge graphs are part of the
+ * Megatrends Dashboard); a menu saved with it drops it.
  */
 export const MENU_GROUP_ITEMS: Record<MenuGroupKey, readonly MenuItemKey[]> = {
   inputs: ["input", "inbox", "clientinbox"],
-  analytics: ["dashboard", "knowledge-graph", "primary-tracker"],
+  analytics: ["dashboard", "primary-tracker"],
   database: ["database"],
   admin: ["admin"],
 };
@@ -66,10 +69,9 @@ export const MENU_ITEM_PATH: Record<MenuItemKey, string> = {
 export const STANDALONE_GROUPS: readonly MenuGroupKey[] = ["database", "admin"];
 export const isStandaloneGroup = (key: MenuGroupKey) => STANDALONE_GROUPS.includes(key);
 
-/** Other pages a subtab is current on: the Trends Analysis pages (Dashboard) and the Competitors graph (Knowledge Graph). */
+/** Other pages a subtab is current on: the Trends Analysis pages and (request 53) the full-page knowledge graphs, all part of the Megatrends Dashboard. */
 export const MENU_ITEM_ALSO: Partial<Record<MenuItemKey, readonly string[]>> = {
-  dashboard: ["/analytics/megatrends", "/analytics/competitors"],
-  "knowledge-graph": ["/competitors"],
+  dashboard: ["/analytics/megatrends", "/analytics/competitors", "/megatrends", "/competitors"],
 };
 
 /** Whether a subtab is the current page. */

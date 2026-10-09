@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
+import { useEffect, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { can, type DiscussionSummary, type Me } from "@eradigm/shared";
 import { api, type ApiError } from "../api/client";
@@ -8,28 +8,7 @@ import { useToast } from "../state/toast";
 import { BulletText } from "./BulletText";
 import { RICH_HINT, RichTextField } from "./RichTextField";
 import { SizedHeading } from "./TextSize";
-
-/** Request 44: keep the box stuck to the bottom of the sticky filter bar, whatever its height. */
-function useStickUnderFilters() {
-  const ref = useRef<HTMLElement>(null);
-  useLayoutEffect(() => {
-    const bar = document.querySelector<HTMLElement>(".filterbar");
-    const el = ref.current;
-    if (!bar || !el) return;
-    const place = () => {
-      el.style.top = `${Math.round(bar.getBoundingClientRect().height)}px`;
-    };
-    place();
-    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(place);
-    ro?.observe(bar);
-    window.addEventListener("resize", place);
-    return () => {
-      ro?.disconnect();
-      window.removeEventListener("resize", place);
-    };
-  }, []);
-  return ref;
-}
+import { useStickUnderFilters } from "../lib/stickUnderFilters";
 
 /** Remembered per viewer (a convenience only: without storage it starts at its natural height). */
 const HEIGHT_KEY = "eradigm.ptr.aiSummaryHeight";

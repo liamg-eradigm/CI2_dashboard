@@ -798,6 +798,19 @@ analyst-entered information distinguishable; in the prototype every value is
     Database's Alert column (`GET /api/deliverables/{id}/docx`); newsletters
     are listed by `GET /api/newsletters`, made by `POST
     /api/newsletters/generate` and deleted by `DELETE /api/deliverables/{id}`.
+- **Request 53** (no contract change, no migration): the Database page looks
+  like the Primary Tracker. Under the filters, where the Primary Tracker has
+  its AI Summary, a strip (`DatabaseTabs`, `.db-tabs`, stuck under the sticky
+  filters with `useStickUnderFilters`) holds the table toggle (Primary Tracker,
+  Secondary Tracker, CI Analysis, Newsletter) and a note on the table shown.
+  Below it the table's card runs the full width to the bottom of the window
+  (`useFitToScreen(160, 1, true)`, `.ptr-content` / `.ptr-card`), headed with
+  the table's name (resizable, `heading:database-table`); Generate Newsletter
+  sits beside Export. Hidden helpers in a scrolling table (`.sr-only`, such as
+  a row's file picker) are pinned to the window so they never make the page
+  scroll. Analytics → Knowledge Graph is gone from the menu (a saved menu drops
+  it); `/megatrends` and `/competitors` still open the full-page graphs and
+  count as the Megatrends Dashboard tab.
 - **Menu in groups** (request 28, contract 1.17; regrouped in request 31,
   contract 1.19; renamed in request 34; `packages/shared/src/menu.ts`): the
   menu is four groups (and, from request 43, the Database tab on its own),

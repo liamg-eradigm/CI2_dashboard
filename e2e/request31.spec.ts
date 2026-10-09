@@ -1,4 +1,4 @@
-import { expect, expectAccessible, goTab, menuOf, navLink, navOf, signInAs, test } from "./fixtures";
+import { expect, expectAccessible, menuOf, navLink, navOf, signInAs, test } from "./fixtures";
 
 const R_AND_D = "AI Investment in R&D";
 
@@ -8,18 +8,16 @@ test.describe("request 31", () => {
     await page.goto("/dashboard");
     expect(await menuOf(page)).toEqual([
       "Inputs: Input, Eradigm Inbox, Client Inbox",
-      "Analytics: Megatrends Dashboard, Knowledge Graph, Primary Tracker",
+      "Analytics: Megatrends Dashboard, Primary Tracker",
       "Database",
       "Admin",
     ]);
     await expect(navOf(page).getByRole("link", { name: /Trend analysis$/ })).toHaveCount(0);
   });
 
-  test("Knowledge Graph: one tab with a Megatrends / Competitors toggle at the top left", async ({ page }) => {
+  test("Knowledge Graph: one page with a Megatrends / Competitors toggle at the top left (part of the Megatrends Dashboard since request 53)", async ({ page }) => {
     await signInAs(page, "analyst");
-    await page.goto("/dashboard");
-    await goTab(page, "Analytics", "Knowledge Graph");
-    await expect(page).toHaveURL(/\/megatrends$/);
+    await page.goto("/megatrends");
     const toggle = page.getByRole("group", { name: "Knowledge graph of" });
     await expect(toggle.getByRole("button", { name: "Megatrends" })).toHaveAttribute("aria-pressed", "true");
     // Top left of the graph.
@@ -29,8 +27,8 @@ test.describe("request 31", () => {
     await toggle.getByRole("button", { name: "Competitors" }).click();
     await expect(page).toHaveURL(/\/competitors$/);
     await expect(toggle.getByRole("button", { name: "Competitors" })).toHaveAttribute("aria-pressed", "true");
-    // Still the Knowledge Graph tab.
-    await expect(navLink(page, "Analytics", "Knowledge Graph")).toHaveAttribute("aria-current", "page");
+    // Request 53: the Megatrends Dashboard tab (the Knowledge Graph tab is gone).
+    await expect(navLink(page, "Analytics", "Megatrends Dashboard")).toHaveAttribute("aria-current", "page");
     await expectAccessible(page, "Knowledge Graph on Competitors");
     await toggle.getByRole("button", { name: "Megatrends" }).click();
     await expect(page).toHaveURL(/\/megatrends$/);

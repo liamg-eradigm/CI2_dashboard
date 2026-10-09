@@ -7,7 +7,7 @@ test.describe("client role", () => {
     await page.goto("/dashboard");
     await expect(page.getByRole("heading", { name: "Megatrends Dashboard" })).toBeVisible();
     // Requests 28 and 31: tabs in groups; a client's Inputs group has only the Client Inbox, and there is no Admin group.
-    expect(await menuOf(page)).toEqual(["Inputs: Client Inbox", "Analytics: Megatrends Dashboard, Knowledge Graph, Primary Tracker", "Database"]);
+    expect(await menuOf(page)).toEqual(["Inputs: Client Inbox", "Analytics: Megatrends Dashboard, Primary Tracker", "Database"]);
     const nav = navOf(page);
     // The Inbox and Input pages do not exist for clients: direct links go to the dashboard.
     for (const path of ["/input", "/inbox", "/admin"]) {
@@ -193,9 +193,9 @@ test.describe("client role", () => {
     const box = (await json.boundingBox())!;
     const hit = await page.evaluate(([x, y]) => document.elementFromPoint(x!, y!)?.closest("button")?.textContent ?? "", [box.x + box.width / 2, box.y + box.height / 2]);
     expect(hit).toContain("JSON");
-    const card = (await page.locator("section.card.pop-host").boundingBox())!;
+    // And the whole menu is on screen (request 53: the table's card fills the window, so the menu sits within it).
     const menuBox = (await menu.boundingBox())!;
-    expect(menuBox.y + menuBox.height).toBeGreaterThan(card.y + card.height);
+    expect(menuBox.y + menuBox.height).toBeLessThanOrEqual(page.viewportSize()!.height);
   });
 
   test("pages pass automated accessibility checks", async ({ page }) => {

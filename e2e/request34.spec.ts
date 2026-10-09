@@ -42,7 +42,7 @@ test.describe("request 34", () => {
     await page.goto("/dashboard");
     expect(await menuOf(page)).toEqual([
       "Inputs: Input, Eradigm Inbox, Client Inbox",
-      "Analytics: Megatrends Dashboard, Knowledge Graph, Primary Tracker",
+      "Analytics: Megatrends Dashboard, Primary Tracker",
       "Database",
       "Admin",
     ]);
