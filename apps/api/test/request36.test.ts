@@ -18,34 +18,34 @@ type Row = { id: string; alertId?: string | null };
 const rows = async (path: string, who = w.a.client) => (await json(call(who, "GET", `${path}?stream=primary&${RANGE}`))).rows as Row[];
 
 describe("request 36: deleting deliverables", () => {
-  it("deletes an alert: its entry leaves the Alerts table for good, and its Phantom stays", async () => {
+  it("deletes an alert: its entry keeps no alert for good, and its Phantom stays", async () => {
     const id = await entry("primary", "An alert to delete", "High");
     const keep = await entry("primary", "An alert to keep", "High");
-    const before = await rows("/api/deliverables/alerts");
+    // Request 52: alerts are on the Database page (Admin → Deliverables is gone).
+    const before = await rows("/api/database");
     const alertId = before.find((r) => r.id === id)!.alertId!;
     expect(alertId).toBeTruthy();
     // Clients cannot delete; another tenant cannot see it.
     expect((await call(w.a.client, "DELETE", `/api/deliverables/${alertId}`)).status).toBe(403);
     expect((await call(w.b.analyst, "DELETE", `/api/deliverables/${alertId}`)).status).toBe(404);
     expect(await json(call(w.a.analyst, "DELETE", `/api/deliverables/${alertId}`))).toMatchObject({ ok: true, kind: "alert" });
-    // Gone from the table (and not made again on the next listings), the .docx no longer served.
+    // No alert any more (and none made again on the next listings), the .docx no longer served.
     for (let i = 0; i < 2; i++) {
-      const after = await rows("/api/deliverables/alerts");
-      expect(after.map((r) => r.id)).not.toContain(id);
-      expect(after.map((r) => r.id)).toContain(keep);
+      const after = await rows("/api/database");
+      expect(after.find((r) => r.id === id)?.alertId).toBeNull();
+      expect(after.find((r) => r.id === keep)?.alertId).toBeTruthy();
     }
     expect((await call(w.a.client, "GET", `/api/deliverables/${alertId}/docx`)).status).toBe(404);
     expect((await call(w.a.analyst, "DELETE", `/api/deliverables/${alertId}`)).status).toBe(404);
-    // The Phantom and the Newsletter entry stay.
+    // The Phantom stays.
     expect((await rows("/api/phantoms")).map((r) => r.id)).toContain(id);
-    expect((await rows("/api/deliverables/newsletter")).map((r) => r.id)).toContain(id);
   });
 
   it("deletes a newsletter", async () => {
     const id = await entry("primary", "For a newsletter", "Medium");
-    const n = await json(call(w.a.analyst, "POST", "/api/newsletters", { body: { name: "October", itemIds: [id] } }));
+    const n = await json(call(w.a.analyst, "POST", "/api/newsletters/generate", { body: { itemIds: [id], sections: { [id]: "technology" } } }));
     expect((await json(call(w.a.client, "GET", "/api/newsletters"))).map((x: { id: string }) => x.id)).toContain(n.id);
-    expect(await json(call(w.a.admin, "DELETE", `/api/deliverables/${n.id}`))).toMatchObject({ ok: true, kind: "newsletter", name: "October" });
+    expect(await json(call(w.a.admin, "DELETE", `/api/deliverables/${n.id}`))).toMatchObject({ ok: true, kind: "newsletter", name: n.name });
     expect((await json(call(w.a.client, "GET", "/api/newsletters"))).map((x: { id: string }) => x.id)).not.toContain(n.id);
     expect((await call(w.a.client, "GET", `/api/deliverables/${n.id}/docx`)).status).toBe(404);
   });

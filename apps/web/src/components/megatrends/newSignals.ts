@@ -12,7 +12,7 @@ const today = () => {
 
 /**
  * Request 40: a signal is new while its Event Date is less than `days` days
- * ago (Administration → Knowledge graphs · New signals; 14 by default).
+ * ago (Admin → Knowledge graphs · New signals; 14 by default).
  */
 export function isNewSignal(date: string | null | undefined, days: number, now = today()): boolean {
   if (!date) return false;

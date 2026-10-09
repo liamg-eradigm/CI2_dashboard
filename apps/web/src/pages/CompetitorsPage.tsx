@@ -27,7 +27,7 @@ import "../styles/megatrends.css";
 import { useIsNewSignal } from "../components/megatrends/newSignals";
 
 /**
- * Tiers (Administration → Competitor tiers) colour the spheres: Tier 1 red,
+ * Tiers (Admin → Competitor tiers) colour the spheres: Tier 1 red,
  * Tier 2 orange-yellow, Tier 3 green, Tier 4 (everyone else) grey. Every
  * competitor sits on the same orbit around the centre, with the Megatrends
  * look. Impact colours the entries inside each sphere.

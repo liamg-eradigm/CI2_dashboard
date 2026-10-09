@@ -41,7 +41,7 @@ export function AdminPage({ me }: { me: Me }) {
         <div className="band-row">
           <div>
             <span className="eyebrow">{me.tenant.name}</span>
-            <h1 id="page-title">Administration</h1>
+            <h1 id="page-title">Admin</h1>
           </div>
           <div className="band-copy">Accounts, roles, invite links, retention and data policy, extraction quality and the tamper-evident audit record. People sign in with their organisation’s Microsoft work account, so passwords, MFA and account recovery stay with their organisation.</div>
         </div>
@@ -444,7 +444,7 @@ function MenuEditor() {
                     onCommit={(label) => void save(withGroup(g.key, (x) => ({ ...x, label })), label ? `Group renamed to “${label}”` : `Group named “${MENU_GROUP_LABEL[g.key]}” again`)}
                   />
                 </div>
-                {/* A tab of its own (Database): no tabs inside to order or name. */}
+                {/* A tab of its own (Database, Admin): no tabs inside to order or name. */}
                 {!isStandaloneGroup(g.key) && (
                 <div className="menu-items">
                   <ReorderList

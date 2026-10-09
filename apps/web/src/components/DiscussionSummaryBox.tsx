@@ -119,7 +119,7 @@ const NAME = { source: "Full Discussion", kiq: "KIQ Archive" } as const;
  * Analytics → Primary Tracker's AI Summary (request 43), above the table: the
  * summary of the open Full Discussion or KIQ Archive, in large type. Written
  * by the AI writer once the Claude API is connected (following the
- * instructions in Administration); admins can write or change it by hand.
+ * instructions in Admin); admins can write or change it by hand.
  * Request 44: it stays attached to the bottom of the sticky filter bar, and
  * keeps line breaks and nested bullets (Tab / Shift+Tab while editing).
  * Request 45: the table is attached to its bottom edge, which is dragged to

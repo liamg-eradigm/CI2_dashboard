@@ -1,7 +1,7 @@
 /**
  * The menu (request 28, contract 1.17; regrouped in request 31, contract 1.19):
  * tabs in groups, each group a button that opens its subtabs. Admins reorder the groups and the subtabs within
- * each group, and rename both (Administration → Menu). People only see the
+ * each group, and rename both (Admin → Menu). People only see the
  * subtabs their role allows; a group with none is hidden.
  */
 import { canSeeTab, type NavTab } from "./megatrends.js";
@@ -10,7 +10,7 @@ import type { Role } from "./permissions.js";
 export const MENU_GROUPS = ["inputs", "analytics", "database", "admin"] as const;
 export type MenuGroupKey = (typeof MENU_GROUPS)[number];
 
-export const MENU_ITEMS = ["input", "inbox", "clientinbox", "dashboard", "knowledge-graph", "primary-tracker", "database", "deliverables", "admin"] as const;
+export const MENU_ITEMS = ["input", "inbox", "clientinbox", "dashboard", "knowledge-graph", "primary-tracker", "database", "admin"] as const;
 export type MenuItemKey = (typeof MENU_ITEMS)[number];
 
 /**
@@ -23,12 +23,14 @@ export type MenuItemKey = (typeof MENU_ITEMS)[number];
  * Request 43: Database, a tab of its own (no subtabs) bringing the databases
  * and Deliverables onto one page. Request 48: the Databases group (Signals
  * Database, Phantoms Database, CI analyses) is gone; Database has them all.
+ * Request 52: Admin → Deliverables is gone (its newsletters are on the
+ * Database page), so Admin is a tab of its own, as Database is.
  */
 export const MENU_GROUP_ITEMS: Record<MenuGroupKey, readonly MenuItemKey[]> = {
   inputs: ["input", "inbox", "clientinbox"],
   analytics: ["dashboard", "knowledge-graph", "primary-tracker"],
   database: ["database"],
-  admin: ["deliverables", "admin"],
+  admin: ["admin"],
 };
 
 export const MENU_GROUP_LABEL: Record<MenuGroupKey, string> = {
@@ -46,8 +48,7 @@ export const MENU_ITEM_LABEL: Record<MenuItemKey, string> = {
   "knowledge-graph": "Knowledge Graph",
   "primary-tracker": "Primary Tracker",
   database: "Database",
-  deliverables: "Deliverables",
-  admin: "Administration",
+  admin: "Admin",
 };
 
 export const MENU_ITEM_PATH: Record<MenuItemKey, string> = {
@@ -58,12 +59,11 @@ export const MENU_ITEM_PATH: Record<MenuItemKey, string> = {
   "knowledge-graph": "/megatrends",
   "primary-tracker": "/analytics/primary",
   database: "/database",
-  deliverables: "/deliverables",
   admin: "/admin",
 };
 
 /** Groups that are a tab of their own: a link straight to their one page, with no subtabs (request 43). */
-export const STANDALONE_GROUPS: readonly MenuGroupKey[] = ["database"];
+export const STANDALONE_GROUPS: readonly MenuGroupKey[] = ["database", "admin"];
 export const isStandaloneGroup = (key: MenuGroupKey) => STANDALONE_GROUPS.includes(key);
 
 /** Other pages a subtab is current on: the Trends Analysis pages (Dashboard) and the Competitors graph (Knowledge Graph). */
@@ -84,7 +84,6 @@ export const MENU_ITEM_TAB: Record<MenuItemKey, NavTab> = {
   "knowledge-graph": "megatrends",
   "primary-tracker": "tracker",
   database: "tracker",
-  deliverables: "deliverables",
   admin: "admin",
 };
 

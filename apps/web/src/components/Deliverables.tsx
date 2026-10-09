@@ -272,7 +272,7 @@ export function DeleteDeliverables({ kind, items, onCancel, onDone }: { kind: "a
   );
 }
 
-/** The newsletters created so far (Deliverables → Newsletter), above the entries they are built from. */
+/** The newsletters created so far (Database → Newsletter, request 52), each with the entries it is built from. */
 export function NewslettersCard({ me }: { me?: Me }) {
   const q = useNewsletters();
   const canDelete = !!me && can(me.role, "item:delete");
@@ -296,7 +296,7 @@ export function NewslettersCard({ me }: { me?: Me }) {
           <h2 className="card-title" id="nl-title">
             Newsletters
           </h2>
-          <span className="card-sub">{q.data ? `${list.length} created · each built from the Phantoms listed` : "Loading…"}</span>
+          <span className="card-sub">{q.data ? `${list.length} created · each built from the entries listed` : "Loading…"}</span>
         </div>
       </div>
       <div ref={fitRef} className="table-wrap fit" tabIndex={0} role="region" aria-label="Newsletters (scrollable)">
@@ -311,7 +311,7 @@ export function NewslettersCard({ me }: { me?: Me }) {
                 <span>Name</span>
               </th>
               <th scope="col">
-                <span>Phantoms used</span>
+                <span>Entries used</span>
               </th>
               {canDelete && (
                 <th scope="col" className="nl-del-col">
@@ -354,7 +354,7 @@ export function NewslettersCard({ me }: { me?: Me }) {
           </tbody>
         </table>
       </div>
-      {q.data && !list.length && <div className="empty">No newsletters yet. Tick entries below and choose Create Newsletter.</div>}
+      {q.data && !list.length && <div className="empty">No newsletters yet. On the Primary or Secondary Tracker, tick two or more entries and choose Generate Newsletter.</div>}
       {deleting && <DeleteDeliverables kind="newsletter" items={[{ id: deleting.id, label: deleting.name }]} onCancel={() => setDeleting(null)} onDone={() => setDeleting(null)} />}
     </section>
   );
@@ -364,73 +364,6 @@ export interface NewsletterPick {
   id: string;
   code: string;
   label: string;
-}
-
-/** Name and create a newsletter from the ticked entries. */
-export function NewsletterCreate({ entries, onCancel, onCreated }: { entries: NewsletterPick[]; onCancel: () => void; onCreated: (n: Newsletter) => void }) {
-  const [name, setName] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const ref = useFocusTrap(true, busy ? () => undefined : onCancel);
-  const toast = useToast();
-  const inv = useInvalidate();
-  const submit = async () => {
-    if (!name.trim()) return setErr("Name the newsletter first.");
-    setBusy(true);
-    setErr(null);
-    try {
-      const n = await api<Newsletter>("/api/newsletters", { method: "POST", json: { name: name.trim(), itemIds: entries.map((e) => e.id) } });
-      await inv("newsletters");
-      toast(`Created newsletter “${n.name}”`);
-      onCreated(n);
-    } catch (e) {
-      setErr((e as ApiError).message);
-      setBusy(false);
-    }
-  };
-  return (
-    <>
-      <div className="scrim" onClick={busy ? undefined : onCancel} aria-hidden="true" />
-      <div className="modal nl-create" role="dialog" aria-modal="true" aria-labelledby="nl-create-title" ref={ref}>
-        <b id="nl-create-title">Create newsletter</b>
-        <p>
-          From {entries.length} {entries.length === 1 ? "entry" : "entries"}. The .docx is stored in the Newsletters table.
-        </p>
-        <ul className="bulk-del-list">
-          {entries.map((e) => (
-            <li key={e.id}>
-              <span className="mono">{e.code}</span> {e.label}
-            </li>
-          ))}
-        </ul>
-        <label className="field">
-          <span>Newsletter name</span>
-          <input
-            className="control"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && void submit()}
-            maxLength={120}
-            placeholder="e.g. AI in pharma · October 2026"
-            data-autofocus
-          />
-        </label>
-        {err && (
-          <div className="err-msg" role="alert">
-            ✕ {err}
-          </div>
-        )}
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button className="btn secondary" disabled={busy} onClick={onCancel}>
-            Cancel
-          </button>
-          <button className="btn" disabled={busy} onClick={() => void submit()}>
-            {busy ? "Creating…" : "Create"}
-          </button>
-        </div>
-      </div>
-    </>
-  );
 }
 
 /** Who can build newsletters (analysts and admins; everyone can view and download). */

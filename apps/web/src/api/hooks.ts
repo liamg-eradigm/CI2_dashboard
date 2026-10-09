@@ -54,10 +54,9 @@ const qs = (f: FilterState, extra: Record<string, string | number> = {}) => {
 export const useDashboard = (f: FilterState, enabled = true) =>
   useQuery({ queryKey: ["dashboard", f], queryFn: () => api<DashboardData>(`/api/dashboard?${qs(f)}`), placeholderData: keepPreviousData, enabled });
 
-/** The Tracker, Phantoms and the two Deliverables tables (built from Phantoms). */
-/** database: the Database page (request 43). */
-export type TableView = "tracker" | "phantoms" | "alerts" | "newsletter" | "database";
-const TABLE_PATH: Record<TableView, string> = { tracker: "/api/tracker", phantoms: "/api/phantoms", alerts: "/api/deliverables/alerts", newsletter: "/api/deliverables/newsletter", database: "/api/database" };
+/** The Tracker and Phantoms tables; database: the Database page (request 43). */
+export type TableView = "tracker" | "phantoms" | "database";
+const TABLE_PATH: Record<TableView, string> = { tracker: "/api/tracker", phantoms: "/api/phantoms", database: "/api/database" };
 
 export const useTracker = (f: FilterState, sort: { key: string; dir: "asc" | "desc" }, page: number, pageSize = 10, stream: Stream = "primary", view: TableView = "tracker", enabled = true) =>
   useQuery({
@@ -70,7 +69,6 @@ export const useTracker = (f: FilterState, sort: { key: string; dir: "asc" | "de
 export const exportUrl = (f: FilterState, sort: { key: string; dir: string }, scope: "filtered" | "all", format: string, stream: Stream = "primary", view: TableView = "tracker") =>
   `/api/tracker/export?${qs(f, { sort: sort.key, dir: sort.dir, scope, format, stream, view })}`;
 
-/** Newsletters created on Deliverables → Newsletter, newest first. */
 export const useMegatrends = (stream: Stream | "all", from: string | null, to: string | null) =>
   useQuery({
     queryKey: ["megatrends", stream, from, to],
@@ -86,6 +84,7 @@ export const useTrackerValues = (stream: Stream, keys: string[]) =>
     queryFn: () => api<Record<string, string[]>>(`/api/tracker/values?${new URLSearchParams([["stream", stream], ...keys.map((k) => ["key", k])])}`),
     enabled: keys.length > 0,
   });
+/** Newsletters (Database → Newsletter, request 52), newest first. */
 export const useNewsletters = (enabled = true) => useQuery({ queryKey: ["newsletters"], queryFn: () => api<Newsletter[]>("/api/newsletters"), enabled });
 
 /** The Phantoms Markdown of an entry (text). */

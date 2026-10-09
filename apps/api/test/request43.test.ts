@@ -44,9 +44,6 @@ describe("request 43: the Database page", () => {
     expect(h.alertId).toBeTruthy();
     expect(l.alertId).toBeTruthy();
     expect(h.alertPending).toBe(false);
-    // The same alert as Deliverables → Alerts.
-    const alerts = (await json(call(w.a.client, "GET", `/api/deliverables/alerts?stream=secondary&${RANGE}`))).rows as Row[];
-    expect(alerts.find((r) => r.id === high)?.alertId).toBe(h.alertId);
     expect((await call(w.a.client, "GET", `/api/deliverables/${h.alertId}/docx`)).status).toBe(200);
 
     // Filters on any field: a dropdown that is not a Tracker column (Source Tier) and another date column (Review Date).

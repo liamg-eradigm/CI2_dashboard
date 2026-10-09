@@ -55,17 +55,20 @@ test.describe("client role", () => {
     await expectAccessible(page, "/database (client)");
   });
 
-  test("has no Deliverables or Eradigm Inbox tab: those pages redirect to the Dashboard", async ({ page }) => {
+  test("has no Admin or Eradigm Inbox tab: those pages redirect to the Dashboard", async ({ page }) => {
     await page.goto("/dashboard");
     const nav = navOf(page);
-    await expect(nav.getByRole("link", { name: /Deliverables/ })).toHaveCount(0);
+    await expect(nav.getByRole("link", { name: /Deliverables|Admin/ })).toHaveCount(0);
     await expect(nav.getByRole("button", { name: /^Admin\b/ })).toHaveCount(0);
     await nav.getByRole("button", { name: /^Inputs\b/ }).click();
     await expect(navLink(page, "Inputs", "Client Inbox")).toBeVisible();
-    for (const path of ["/deliverables", "/inbox", "/input", "/admin"]) {
+    for (const path of ["/inbox", "/input", "/admin"]) {
       await page.goto(path);
       await expect(page).toHaveURL(/\/dashboard/);
     }
+    // Request 52: the old Deliverables page is the Database's Newsletter view.
+    await page.goto("/deliverables");
+    await expect(page).toHaveURL(/\/database\?db=newsletters$/);
   });
 
   test("sees the saved-page icon but cannot attach pages", async ({ page }) => {
