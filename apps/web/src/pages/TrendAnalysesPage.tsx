@@ -28,11 +28,12 @@ function MdIcon() {
  * the Input page, newest first, each kept as a Markdown file (the four
  * spreadsheet columns as rows, and the date of submission).
  */
-export function TrendAnalysesPage({ me, title = "CI analyses", eyebrow = "Databases", above }: { me: Me | undefined; title?: string; eyebrow?: string; above?: ReactNode }) {
+export function TrendAnalysesPage({ me, title = "CI analyses", eyebrow = "Databases", strip }: { me: Me | undefined; title?: string; eyebrow?: string; strip?: ReactNode }) {
   const q = useTrendAnalyses();
   const [params, setParams] = useSearchParams();
   const [find, setFind] = useState("");
-  const fitRef = useFitToScreen(200);
+  // Request 53: the table fills the page below the Database's tables strip, as the Primary Tracker's does.
+  const fitRef = useFitToScreen(160, 1, true);
   const [cat, setCat] = useState<TrendAnalysisCategory | "all">("all");
   const inv = useInvalidate();
   const toast = useToast();
@@ -75,16 +76,11 @@ export function TrendAnalysesPage({ me, title = "CI analyses", eyebrow = "Databa
             <span className="eyebrow">{eyebrow}</span>
             <h1 id="page-title">{title}</h1>
           </div>
-          <div className="band-copy">
-            Every trend analysis submitted on the Input page, newest first. Each is a Markdown file with the columns {TREND_ANALYSIS_COLUMNS.category}, {TREND_ANALYSIS_COLUMNS.level},{" "}
-            {TREND_ANALYSIS_COLUMNS.name} and {TREND_ANALYSIS_COLUMNS.text}, and the date of submission. The latest for a trend is the analysis shown on its Trend analysis subtab and in the knowledge
-            graph.
-          </div>
         </div>
       </section>
-      <div className="content">
-        {above}
-        <section className="card flush" aria-labelledby="ta-list-title">
+      {strip}
+      <div className="content ptr-content">
+        <section className="card flush ptr-card" aria-labelledby="ta-list-title">
           <div className="table-top">
             <div>
               <h2 className="card-title" id="ta-list-title">
@@ -147,6 +143,14 @@ export function TrendAnalysesPage({ me, title = "CI analyses", eyebrow = "Databa
                 </tr>
               </thead>
               <tbody>
+                {/* Request 53: said under the column headings (the table fills the page). */}
+                {q.data && !list.length && (
+                  <tr>
+                    <td colSpan={99} className="empty">
+                      {q.data.length ? "No trend analysis matches." : "No trend analyses yet. Submit one on the Input page (Input Trend Analysis)."}
+                    </td>
+                  </tr>
+                )}
                 {list.map((a) => (
                   <tr key={a.id}>
                     <td className="md-col">
@@ -185,7 +189,6 @@ export function TrendAnalysesPage({ me, title = "CI analyses", eyebrow = "Databa
               </tbody>
             </table>
           </div>
-          {q.data && !list.length && <div className="empty">{q.data.length ? "No trend analysis matches." : "No trend analyses yet. Submit one on the Input page (Input Trend Analysis)."}</div>}
         </section>
       </div>
       {opened && <TrendAnalysisMarkdownPane a={opened} onClose={() => setMd(null)} />}

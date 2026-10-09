@@ -6,8 +6,8 @@ test.describe("Megatrends", () => {
   test("client: explores Macrotrends and Subtrends, filters the timeline and opens an entry's row", async ({ page }) => {
     await signInAs(page, "client");
     await page.goto("/dashboard");
-    // Analytics → Knowledge Graph (request 31) opens on Megatrends; no left-hand menus (request 34).
-    await goTab(page, "Analytics", "Knowledge Graph");
+    // The full-page knowledge graph opens on Megatrends (request 53: no menu tab, it is part of the Megatrends Dashboard); no left-hand menus (request 34).
+    await page.goto("/megatrends");
     await expect(page.locator(".mg-stage")).toBeVisible();
     await expect(page.locator(".mg-panel, .mg-rail")).toHaveCount(0);
     const legend = page.getByRole("list", { name: "Legend" });
@@ -106,7 +106,7 @@ test.describe("tab order", () => {
     expect(await menuOf(page)).toEqual([
       "Sources: Input, Eradigm Inbox, Client Inbox",
       "Admin",
-      "Analytics: Megatrends Dashboard, Interviews, Knowledge Graph",
+      "Analytics: Interviews, Megatrends Dashboard",
       "Database",
     ]);
     await goTab(page, "Analytics", "Interviews");
@@ -116,7 +116,7 @@ test.describe("tab order", () => {
     const other = await ctx.newPage();
     await signInAs(other, "client");
     await other.goto("/dashboard");
-    expect(await menuOf(other)).toEqual(["Sources: Client Inbox", "Analytics: Megatrends Dashboard, Interviews, Knowledge Graph", "Database"]);
+    expect(await menuOf(other)).toEqual(["Sources: Client Inbox", "Analytics: Interviews, Megatrends Dashboard", "Database"]);
     await ctx.close();
     // Restore.
     await page.goto("/admin");

@@ -277,7 +277,8 @@ export function NewslettersCard({ me }: { me?: Me }) {
   const q = useNewsletters();
   const canDelete = !!me && can(me.role, "item:delete");
   const [deleting, setDeleting] = useState<Newsletter | null>(null);
-  const fitRef = useFitToScreen(200);
+  // Request 53: the table fills the page below the Database's tables strip.
+  const fitRef = useFitToScreen(160, 1, true);
   const [, setParams] = useSearchParams();
   const open = (id: string) =>
     setParams(
@@ -290,7 +291,7 @@ export function NewslettersCard({ me }: { me?: Me }) {
     );
   const list = q.data ?? [];
   return (
-    <section className="card flush" aria-labelledby="nl-title" data-testid="newsletters">
+    <section className="card flush ptr-card" aria-labelledby="nl-title" data-testid="newsletters">
       <div className="table-top">
         <div>
           <h2 className="card-title" id="nl-title">
@@ -321,6 +322,13 @@ export function NewslettersCard({ me }: { me?: Me }) {
             </tr>
           </thead>
           <tbody>
+            {q.data && !list.length && (
+              <tr>
+                <td colSpan={99} className="empty">
+                  No newsletters yet. On the Primary or Secondary Tracker, tick two or more entries and choose Generate Newsletter.
+                </td>
+              </tr>
+            )}
             {list.map((n) => (
               <tr key={n.id}>
                 <td className="src-col">
@@ -354,7 +362,6 @@ export function NewslettersCard({ me }: { me?: Me }) {
           </tbody>
         </table>
       </div>
-      {q.data && !list.length && <div className="empty">No newsletters yet. On the Primary or Secondary Tracker, tick two or more entries and choose Generate Newsletter.</div>}
       {deleting && <DeleteDeliverables kind="newsletter" items={[{ id: deleting.id, label: deleting.name }]} onCancel={() => setDeleting(null)} onDone={() => setDeleting(null)} />}
     </section>
   );

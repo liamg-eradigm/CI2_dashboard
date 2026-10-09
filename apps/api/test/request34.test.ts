@@ -21,7 +21,7 @@ describe("request 34", () => {
   it("renames the menu: Databases (Signals Database, Phantoms Database, CI analyses), Megatrends Dashboard, and adds Analytics → Primary Tracker", () => {
     expect(visibleMenu(DEFAULT_MENU, "client").map((g) => `${g.key}:${g.items.map((i) => i.key).join(",")}`)).toEqual([
       "inputs:clientinbox",
-      "analytics:dashboard,knowledge-graph,primary-tracker",
+      "analytics:dashboard,primary-tracker",
       // Request 43: the Database tab, on its own.
       "database:database",
       // Request 48: the Databases group is gone (the Database tab has them all).

@@ -204,9 +204,10 @@ export function TrackerPage({
   const [exportOpen, setExportOpen] = useState(false);
   const [scope, setScope] = useState<"filtered" | "all">("filtered");
   const exportRef = useRef<HTMLDivElement>(null);
-  // The Database table takes 80% of the space below the filters (request 44); the Primary Tracker's runs to the
-  // bottom of the window, under the AI Summary (request 45), so each page fits the screen.
-  const fitRef = useFitToScreen(primaryOnly ? 160 : 260, database ? 0.8 : 1, primaryOnly);
+  // The Primary Tracker's table runs to the bottom of the window, under the AI Summary (request 45), and so does
+  // the Database's, under its tables strip (request 53), so each page fits the screen.
+  const fills = primaryOnly || database;
+  const fitRef = useFitToScreen(fills ? 160 : 260, 1, fills);
   const selected = f.params.get("signal");
   const mdOpen = f.params.get("md");
   const archId = primaryOnly ? f.params.get("arch") : null;
@@ -384,41 +385,43 @@ export function TrackerPage({
           <DiscussionSummaryBox me={me} id={archId} mode={archMode} source={archSource} />
         </>
       ) : database ? (
-        <DatabaseFilters schema={s} params={f.params} setParams={f.setParams} defaults={f.defaults} />
+        <>
+          <DatabaseFilters schema={s} params={f.params} setParams={f.setParams} defaults={f.defaults} />
+          {/* Request 53: the tables strip, where the Primary Tracker has its AI Summary. */}
+          {switcher}
+        </>
       ) : (
         <FilterHeader title={title ?? (phantoms ? "Phantoms Database" : "Signals Database")} schema={s} f={f} viewKind="tracker" />
       )}
-      <div className={`content${primaryOnly ? " ptr-content" : ""}`}>
+      <div className={`content${fills ? " ptr-content" : ""}`}>
         {above}
-        {/* Analytics → Primary Tracker: no switch or note; the table sits right under the AI Summary (request 45). */}
-        {!primaryOnly && (
-          <div className={`stream-bar${database ? " db-bar" : ""}`}>
+        {/* Analytics → Primary Tracker: no switch or note; the table sits right under the AI Summary (request 45), and the Database's under its tables strip (request 53). */}
+        {!fills && (
+          <div className="stream-bar">
             {switcher ?? <StreamSwitch noun={NOUN[view]} value={stream} onChange={setStream} label={`${NOUN[view]} to show`} />}
             <span className="stream-note">
-              {database
-                ? `Every ${STREAM_LABEL[stream]} Tracker entry with all its fields, its saved page, Markdown, alert and newsletters`
-                : phantoms
-                    ? stream === "primary"
-                      ? "Every Primary Tracker entry · open the Markdown from the MD icon"
-                      : `Secondary Tracker entries with Impact ${settings.data?.phantoms.secondaryMinImpact ?? "Low"} or higher (set by admins) · open the Markdown from the MD icon`
-                    : `Approved entries from the ${STREAM_LABEL[stream]} Inbox`}
+              {phantoms
+                ? stream === "primary"
+                  ? "Every Primary Tracker entry · open the Markdown from the MD icon"
+                  : `Secondary Tracker entries with Impact ${settings.data?.phantoms.secondaryMinImpact ?? "Low"} or higher (set by admins) · open the Markdown from the MD icon`
+                : `Approved entries from the ${STREAM_LABEL[stream]} Inbox`}
             </span>
-            {canGenerate && pickedRows.length >= 2 && (
-              <button className="btn gen-newsletter" disabled={generating} onClick={() => setGenerating(true)} data-testid="generate-newsletter" title={`A newsletter from the ${pickedRows.length} ticked entries`}>
-                <NewspaperIcon />
-                <span>{`Generate Newsletter (${pickedRows.length})`}</span>
-              </button>
-            )}
           </div>
         )}
         <div className={archId ? "arch-split" : undefined} data-testid={archId ? "arch-split" : undefined}>
-        <section className={`card flush pop-host${primaryOnly ? " ptr-card" : ""}`} aria-label="Approved signals table">
+        <section className={`card flush pop-host${fills ? " ptr-card" : ""}`} aria-label="Approved signals table">
           <div className="table-top">
-            {primaryOnly ? (
+            {fills ? (
               <div className="ptr-head">
-                <SizedHeading className="card-title" sizeKey="heading:primary-signals" label="Primary Signals heading">
-                  Primary Signals
-                </SizedHeading>
+                {primaryOnly ? (
+                  <SizedHeading className="card-title" sizeKey="heading:primary-signals" label="Primary Signals heading">
+                    Primary Signals
+                  </SizedHeading>
+                ) : (
+                  <SizedHeading className="card-title" sizeKey="heading:database-table" label="Database table heading">
+                    {`${STREAM_LABEL[stream]} Tracker`}
+                  </SizedHeading>
+                )}
                 <span className="card-sub info" aria-live="polite">
                   {info}
                 </span>
@@ -430,6 +433,12 @@ export function TrackerPage({
               </span>
             )}
             <div className="table-actions">
+              {database && canGenerate && pickedRows.length >= 2 && (
+                <button className="btn gen-newsletter" disabled={generating} onClick={() => setGenerating(true)} data-testid="generate-newsletter" title={`A newsletter from the ${pickedRows.length} ticked entries`}>
+                  <NewspaperIcon />
+                  <span>{`Generate Newsletter (${pickedRows.length})`}</span>
+                </button>
+              )}
               {tickable && pickedRows.length > 0 && (
                 <div className="pick-bar" role="group" aria-label="Selected entries">
                   <span>{pickedRows.length} selected</span>

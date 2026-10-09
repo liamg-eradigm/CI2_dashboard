@@ -36,20 +36,19 @@ async function push(page: Page, tag: string, n: number) {
   );
 }
 
-/** The table's card is at most 80% of the window below the sticky filters (and anything stuck under them). */
-async function expectEightyPercent(page: Page) {
+/** Request 53: the table's card runs to the bottom of the window (as the Primary Tracker's does), so the page does not scroll. */
+async function expectFillsPage(page: Page) {
   await page.waitForTimeout(300);
-  const { card, room } = await page.getByTestId("table-scroll").evaluate((el) => {
-    const bar = document.querySelector(".filterbar")!.getBoundingClientRect().height;
-    const stuck = [...document.querySelectorAll("[data-sticky-under]")].reduce((h, x) => h + x.getBoundingClientRect().height, 0);
-    return { card: el.closest(".card")!.getBoundingClientRect().height, room: window.innerHeight - bar - stuck - 24 };
-  });
-  expect(card).toBeLessThanOrEqual(room * 0.8 + 2);
-  expect(card).toBeGreaterThan(room * 0.7);
+  const { bottom, scroll } = await page.getByTestId("table-scroll").evaluate((el) => ({
+    bottom: window.innerHeight - el.closest(".card")!.getBoundingClientRect().bottom,
+    scroll: document.documentElement.scrollHeight - window.innerHeight,
+  }));
+  expect(Math.abs(bottom)).toBeLessThanOrEqual(2);
+  expect(scroll).toBeLessThanOrEqual(1);
 }
 
 test.describe("request 44", () => {
-  test("Database: the four document columns are equal and their icons centred; the table takes 80% of the room", async ({ page }) => {
+  test("Database: the four document columns are equal and their icons centred; the table fills the page (request 53)", async ({ page }) => {
     await signInAs(page, "admin");
     await page.setViewportSize({ width: 1536, height: 864 });
     await page.goto("/dashboard");
@@ -73,7 +72,7 @@ test.describe("request 44", () => {
       }),
     );
     for (const c of centres) expect(Math.abs(c.cell - c.icon)).toBeLessThan(2);
-    await expectEightyPercent(page);
+    await expectFillsPage(page);
   });
 
   test("Primary Tracker: the AI Summary keeps lines and nested bullets, attached under the filters", async ({ page }) => {
