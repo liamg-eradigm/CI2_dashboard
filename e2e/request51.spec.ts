@@ -84,7 +84,8 @@ test.describe("request 51", () => {
     // Reset shows it as generated again.
     await bar.getByRole("button", { name: "Reset" }).click();
     await expect(doc).toContainText("Raises the bar for peers.");
-    expect(await doc.getByText("Raises the bar for peers.").evaluate((el) => parseFloat(getComputedStyle(el).fontSize))).toBeCloseTo(before, 0);
+    // (The view is drawn again: wait for the new text.)
+    await expect.poll(() => doc.getByText("Raises the bar for peers.").evaluate((el) => parseFloat(getComputedStyle(el).fontSize))).toBeCloseTo(before, 0);
   });
 
   test("Generate Newsletter: put each ticked signal in Technology, People or Process, then Confirm", async ({ page }) => {

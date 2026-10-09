@@ -7,7 +7,6 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Sidebar } from "./components/Sidebar";
 import { DashboardPage } from "./pages/DashboardPage";
 import { TrackerPage } from "./pages/TrackerPage";
-import { DeliverablesPage } from "./pages/DeliverablesPage";
 import { InboxPage } from "./pages/InboxPage";
 import { ClientInboxPage } from "./pages/ClientInboxPage";
 import { InputPage } from "./pages/InputPage";
@@ -22,7 +21,7 @@ const MegatrendsPage = lazy(() => import("./pages/MegatrendsPage").then((m) => (
 const CompetitorsPage = lazy(() => import("./pages/CompetitorsPage").then((m) => ({ default: m.CompetitorsPage })));
 const TrendAnalysisPage = lazy(() => import("./pages/TrendAnalysisPage").then((m) => ({ default: m.TrendAnalysisPage })));
 
-const TITLES: Record<string, string> = { "/dashboard": "Megatrends Dashboard", "/database": "Database", "/analytics/primary": "Primary Tracker", "/deliverables": "Deliverables", "/megatrends": "Knowledge Graph · Megatrends", "/competitors": "Knowledge Graph · Competitors", "/analytics/megatrends": "Trends Analysis · Megatrends", "/analytics/competitors": "Trends Analysis · Competitors", "/inbox": "Eradigm Inbox", "/client-inbox": "Client Inbox", "/input": "Input", "/admin": "Administration" };
+const TITLES: Record<string, string> = { "/dashboard": "Megatrends Dashboard", "/database": "Database", "/analytics/primary": "Primary Tracker", "/megatrends": "Knowledge Graph · Megatrends", "/competitors": "Knowledge Graph · Competitors", "/analytics/megatrends": "Trends Analysis · Megatrends", "/analytics/competitors": "Trends Analysis · Competitors", "/inbox": "Eradigm Inbox", "/client-inbox": "Client Inbox", "/input": "Input", "/admin": "Admin" };
 
 export function App() {
   const loc = useLocation();
@@ -86,7 +85,8 @@ function SignedIn() {
             <Route path="/analytics/primary" element={<TrackerPage key="primary-tracker" me={me.data} view="tracker" title="Primary Tracker" primaryOnly />} />
             <Route path="/trend-analyses" element={<ToDatabase ci />} />
             <Route path="/database" element={<DatabasePage me={me.data} />} />
-            <Route path="/deliverables" element={only("deliverables", <DeliverablesPage me={me.data} />)} />
+            {/* Request 52: Admin → Deliverables is gone; its newsletters are on the Database page. */}
+            <Route path="/deliverables" element={<Navigate to="/database?db=newsletters" replace />} />
             <Route
               path="/megatrends"
               element={

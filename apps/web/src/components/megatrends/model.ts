@@ -134,5 +134,5 @@ export function bySourceOrder<E extends { impact: string | null; date: string; t
   return [...list].sort((a, b) => rank(a.impact) - rank(b.impact) || b.date.localeCompare(a.date) || a.title.localeCompare(b.title));
 }
 
-/** Competitor tier colours (Administration → Competitor tiers): Tier 1 red, 2 orange-yellow, 3 green, 4 (all others) grey. */
+/** Competitor tier colours (Admin → Competitor tiers): Tier 1 red, 2 orange-yellow, 3 green, 4 (all others) grey. */
 export const TIER_COLOUR: Record<1 | 2 | 3 | 4, string> = { 1: "#e5534b", 2: "#e8a33d", 3: "#3fb37f", 4: "#8b9aa6" };

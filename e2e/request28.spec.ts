@@ -12,9 +12,9 @@ test.describe("request 28", () => {
     await goTab(page, "Inputs", "Input");
     await expect(page).toHaveURL(/\/input$/);
     await expect(nav.getByRole("button", { name: /^Inputs\b/ })).toHaveAttribute("aria-expanded", "true");
-    await goTab(page, "Admin", "Administration");
+    await navOf(page).getByRole("link", { name: "Admin", exact: true }).click();
     await expect(page).toHaveURL(/\/admin$/);
-    // Three groups and the Database tab (request 43; the Databases group went in request 48).
+    // Two groups and the Database and Admin tabs (request 43; the Databases group went in request 48; Admin is one tab since request 52).
     expect(await menuOf(page)).toHaveLength(4);
     await expectAccessible(page, "Menu with every group open");
   });

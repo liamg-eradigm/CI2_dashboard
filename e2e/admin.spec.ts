@@ -5,7 +5,7 @@ test.describe("admin role", () => {
 
   test("manages users (the audit log is no longer shown here)", async ({ page }) => {
     await page.goto("/admin");
-    await expect(page.getByRole("heading", { name: "Administration" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Admin", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Deployment status" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Verify integrity" })).toHaveCount(0);
 

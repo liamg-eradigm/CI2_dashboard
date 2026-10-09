@@ -22,7 +22,7 @@ const isoDateTime = z.string();
 export const DEFAULT_NEW_SIGNAL_DAYS = 14;
 /**
  * Request 43: how the AI writer summarises a Primary Tracker discussion (Full
- * Discussion or KIQ Archive) by default. Admins change it in Administration.
+ * Discussion or KIQ Archive) by default. Admins change it in Admin.
  */
 export const DEFAULT_DISCUSSION_SUMMARY_INSTRUCTIONS =
   "Summarise the total information from all the sources through an enterprise strategic lens. Use layman terms and avoid overly technical jargon. Prioritise information in order of recency, with the oldest sources having the lowest weight in the summary.";
@@ -341,12 +341,6 @@ export const ReviseRequest = z.object({ values: ItemValuesSchema, note: z.string
 export const CreateSubmissionRequest = z.object({ url: z.string().min(1).max(2048), stream: StreamSchema.default("primary") });
 /** A blank Inbox entry, typed in by an analyst in its entirety (no source file). */
 export const CreateManualRequest = z.object({ stream: StreamSchema.default("primary") });
-/** Deliverables → Newsletter: build a newsletter from selected Newsletter entries (High / Medium impact Phantoms). */
-export const MAX_NEWSLETTER_NAME = 120;
-export const CreateNewsletterRequest = z.object({
-  name: z.string().trim().min(1, "Name the newsletter").max(MAX_NEWSLETTER_NAME),
-  itemIds: z.array(z.string().min(1).max(64)).min(1, "Select at least one entry").max(200),
-});
 export const NewsletterSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -569,7 +563,7 @@ export const SignalSchema = z.object({
   hasSnapshot: z.boolean().default(false),
   /** Saved HTML pages of the entry (1 = just its first page; more → a list to pick from). Added in contract 1.11. */
   pages: z.number().int().default(0),
-  /** Deliverables → Alerts rows only: the stored .docx alert. Added in contract 1.7. */
+  /** The entry's .docx alert (Database rows; request 52). Added in contract 1.7. */
   alertId: z.string().nullable().optional(),
   /**
    * Primary entries from the same source (Source Role + Source Company): the
@@ -983,13 +977,10 @@ export const ENDPOINTS: EndpointDef[] = [
   { method: "get", path: "/api/tracker/values", summary: "The distinct values of text columns among a stream's Tracker entries (query: stream, key repeated; at most 500 per column), for filter dropdowns", roles: ALL_ROLES, query: ["stream", "key"], response: z.record(z.string(), z.array(z.string())) },
   { method: "get", path: "/api/primary-sources", summary: "Approved Primary entries with a Source Role and Source Company (newest first), to flag “This Source Has Prior Primary Information” while one is entered", roles: ALL_ROLES, response: z.array(PrimarySourceSchema) },
   { method: "get", path: "/api/phantoms", summary: "Phantoms table (query: stream, filters, sort, page): every Primary entry, and Secondary entries at or above the admin-set Impact", roles: ALL_ROLES, response: TrackerPageSchema },
-  { method: "get", path: "/api/deliverables/alerts", summary: "Deliverables → Alerts: Phantoms with the highest Impact (High), each with its stored .docx alert (generated automatically)", roles: ALL_ROLES, response: TrackerPageSchema },
-  { method: "get", path: "/api/deliverables/newsletter", summary: "Deliverables → Newsletter: Phantoms with High or Medium Impact, to build newsletters from", roles: ALL_ROLES, response: TrackerPageSchema },
   { method: "get", path: "/api/newsletters", summary: "Newsletters created so far, newest first", roles: ALL_ROLES, response: z.array(NewsletterSchema) },
-  { method: "post", path: "/api/newsletters", summary: "Create a newsletter (.docx) from selected Newsletter entries", roles: STAFF, request: CreateNewsletterRequest, response: NewsletterSchema },
   { method: "post", path: "/api/newsletters/generate", summary: "Database page: Generate Newsletter from the ticked entries (either stream), each in the section it is assigned to (Technology, People or Process), written into the newsletter template; it is attached to each of those rows", roles: STAFF, request: GenerateNewsletterRequest, response: NewsletterSchema },
   { method: "get", path: "/api/database", summary: "Database page: a stream's Tracker entries with every field, whether each is in Phantoms, its alert (request 51: every entry has one, written into the alert template) and the newsletters it is in", roles: ALL_ROLES, query: ["stream", "q", "from", "to", "f.<column>", "t.<column>", "df.<column>", "dt.<column>", "sort", "dir", "page", "pageSize"], response: TrackerPageSchema },
-  { method: "delete", path: "/api/deliverables/{id}", summary: "Delete an alert (its entry leaves Deliverables → Alerts and gets no new alert; the Phantom stays) or a newsletter", roles: STAFF, response: z.object({ ok: z.literal(true), kind: z.enum(["alert", "newsletter"]), name: z.string() }) },
+  { method: "delete", path: "/api/deliverables/{id}", summary: "Delete an alert (its entry gets no new alert) or a newsletter", roles: STAFF, response: z.object({ ok: z.literal(true), kind: z.enum(["alert", "newsletter"]), name: z.string() }) },
   { method: "get", path: "/api/deliverables/{id}/docx", summary: "A stored alert or newsletter .docx (inline for the viewer, ?download=1 as a file)", roles: ALL_ROLES },
   { method: "get", path: "/api/megatrends", summary: "Megatrends: Tracker entries per Macrotrend and Subtrend (query: stream all|primary|secondary, from, to), their summaries, and the entries for the timeline", roles: ALL_ROLES, query: ["stream", "from", "to"], response: MegatrendsSchema },
   { method: "get", path: "/api/competitors", summary: "Competitors: Tracker entries per competitor named, co-occurring competitors, their summaries and the entries for the timeline (query: stream all|primary|secondary)", roles: ALL_ROLES, query: ["stream"], response: CompetitorsSchema },

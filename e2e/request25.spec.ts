@@ -12,7 +12,7 @@ test.describe("request 25", () => {
       await route.fulfill({ response: res, json: body });
     });
     await page.goto("/admin");
-    await expect(page.getByRole("heading", { name: "Administration" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Admin", exact: true })).toBeVisible();
     await expect(page.getByTestId("error-boundary")).toHaveCount(0);
     const card = page.getByTestId("competitor-tiers");
     await expect(card.getByLabel("Tier 1 competitors, one per line")).toHaveValue(/Pfizer/);
@@ -54,7 +54,7 @@ test.describe("request 25", () => {
       await route.fulfill({ response: res, json: body });
     });
     await page.goto("/admin");
-    await expect(page.getByRole("heading", { name: "Administration" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Admin", exact: true })).toBeVisible();
     await expect(page.getByRole("navigation", { name: "COMPETITIVE INTELLIGENCE" })).toBeVisible();
     await expect(page.getByTestId("error-boundary").first()).toContainText("could not be shown");
     await expect(page.getByRole("heading", { name: "Users" })).toBeVisible();

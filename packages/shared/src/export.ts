@@ -26,7 +26,7 @@ export interface ExportRow {
 }
 
 /** e.g. eradigm-tracker-filtered-2026-09-24.csv, eradigm-secondary-phantoms-all-2026-09-24.xlsx */
-export function exportFilename(scope: "filtered" | "all", format: ExportFormat, today: string, view: { stream?: string; name?: "tracker" | "phantoms" | "alerts" | "newsletter" | "database" } = {}): string {
+export function exportFilename(scope: "filtered" | "all", format: ExportFormat, today: string, view: { stream?: string; name?: "tracker" | "phantoms" | "database" } = {}): string {
   const prefix = view.stream && view.stream !== "primary" ? `${view.stream}-` : "";
   return `eradigm-${prefix}${view.name ?? "tracker"}-${scope}-${today}.${format}`;
 }

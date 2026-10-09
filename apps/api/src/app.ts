@@ -16,7 +16,6 @@ import {
   ReorderColumnsRequest,
   ReorderOptionsRequest,
   CreateManualRequest,
-  CreateNewsletterRequest,
   GenerateDiscussionSummaryRequest,
   GenerateNewsletterRequest,
   UpdateDiscussionSummaryRequest,
@@ -124,7 +123,7 @@ import {
 } from "./services/trendAnalyses.js";
 import { listPages, pageSnapshotId } from "./services/pages.js";
 import { addComment, backToEradigm, clientPush, listComments, sendToClient, updateComment } from "./services/clientInbox.js";
-import { createNewsletter, databaseExtras, deleteDeliverable, ensureAlerts, generateNewsletter, listNewsletters, readDeliverable } from "./services/deliverables.js";
+import { databaseExtras, deleteDeliverable, generateNewsletter, listNewsletters, readDeliverable } from "./services/deliverables.js";
 import { getDiscussionSummary, regenerateDiscussionSummary, writeDiscussionSummary } from "./services/discussionSummaries.js";
 import { createInvite, createUser, listUsers, revokeSessions, updateUser } from "./services/users.js";
 
@@ -326,23 +325,11 @@ async function phantomScope(c: C, stream: Stream, schema: TrackerSchema): Promis
 }
 
 /** database: the Database page (request 43), every Tracker entry of a stream with every field. */
-type TableView = "tracker" | "phantoms" | "alerts" | "newsletter" | "database";
-const TABLE_VIEWS: readonly TableView[] = ["tracker", "phantoms", "alerts", "newsletter", "database"];
-
-/**
- * Deliverables are built from Phantoms: Alerts from those with the highest
- * Impact (High), the Newsletter from the two highest (High, Medium).
- */
-async function deliverableScope(c: C, stream: Stream, schema: TrackerSchema, kind: "alerts" | "newsletter"): Promise<Scope> {
-  const sc = await phantomScope(c, stream, schema);
-  const opts = getColumn(schema, CORE.impact)?.options ?? [];
-  const want = opts.slice(kind === "alerts" ? -1 : -2);
-  return { ...sc, impacts: sc.impacts ? sc.impacts.filter((i) => want.includes(i)) : want, ...(kind === "alerts" ? { withoutDeletedAlerts: true } : {}) };
-}
+type TableView = "tracker" | "phantoms" | "database";
+const TABLE_VIEWS: readonly TableView[] = ["tracker", "phantoms", "database"];
 
 async function scopeFor(c: C, view: TableView, stream: Stream, schema: TrackerSchema): Promise<Scope> {
   if (view === "phantoms") return phantomScope(c, stream, schema);
-  if (view === "alerts" || view === "newsletter") return deliverableScope(c, stream, schema, view);
   return { stream };
 }
 
@@ -493,12 +480,6 @@ async function tablePage(c: C, view: TableView) {
   const page = Math.max(0, Number.parseInt(c.req.query("page") ?? "0", 10) || 0);
   // "Display all" asks for up to TABLE_ALL_MAX rows on one page.
   const pageSize = Math.min(TABLE_ALL_MAX, Math.max(1, Number.parseInt(c.req.query("pageSize") ?? "10", 10) || 10));
-  // Each alert row carries its .docx, created (or refreshed after a revision) on first sight (a write: never cached).
-  if (view === "alerts") {
-    const result = await trackerPage(c.env, schema, P(c).tenantId, f, sortOf(c, schema), page, pageSize, scope);
-    result.rows = await ensureAlerts(c.env, P(c).tenantId, result.rows);
-    return c.json(result);
-  }
   // The Database page: each row also says whether it is in Phantoms, carries its alert (request 51: every
   // entry has one) and the newsletters it is in (creates alerts: never cached).
   if (view === "database") {
@@ -530,9 +511,7 @@ app.get("/api/tracker/values", async (c) => {
   const schema = await schemaFor(c, stream);
   return cachedJson(c, () => distinctTextValues(c.env, schema, P(c).tenantId, stream, keys));
 });
-app.get("/api/deliverables/alerts", (c) => tablePage(c, "alerts"));
 app.get("/api/database", (c) => tablePage(c, "database"));
-app.get("/api/deliverables/newsletter", (c) => tablePage(c, "newsletter"));
 
 // ---------------------------------------------------------------------------
 // Megatrends: entries per Macrotrend / Subtrend, their summaries, the timeline
@@ -654,19 +633,6 @@ app.get("/api/newsletters", async (c) => {
   return c.json(await listNewsletters(c.env, P(c).tenantId));
 });
 
-app.post("/api/newsletters", async (c) => {
-  const p = P(c);
-  requirePermission(p, "item:edit");
-  const b = await body(c, CreateNewsletterRequest);
-  const schemas = await schemasFor(c);
-  const scopes: Partial<Record<Stream, Scope>> = {};
-  const n = await createNewsletter(c.env, p, b.name, b.itemIds, async (stream, impact) => {
-    scopes[stream] ??= await deliverableScope(c, stream, schemas[stream], "newsletter");
-    return !!impact && (scopes[stream]?.impacts ?? []).includes(impact);
-  });
-  return c.json(n, 201);
-});
-
 /** The Database page's Generate Newsletter (request 43): any Tracker entries, either stream. */
 app.post("/api/newsletters/generate", async (c) => {
   const p = P(c);
@@ -713,7 +679,7 @@ app.get("/api/tracker/export", async (c) => {
   const today = await todayFor(c);
   const f = scope === "all" ? null : await filtersOf(c, schema, today);
   const rows = await exportRows(c.env, schema, p.tenantId, f, sortOf(c, schema), rowScope);
-  // Deliverables tables show the Phantoms columns; the Database page every field.
+  // Phantoms show the Phantoms columns; the Database page every field.
   const cols = view === "database" ? sortedColumns(schema) : view === "tracker" ? trackerColumns(schema) : phantomColumns(schema);
   const table = toTable(schema, rows, cols);
   const content: string | Uint8Array =

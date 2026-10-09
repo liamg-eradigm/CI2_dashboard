@@ -1,5 +1,5 @@
 /**
- * The Primary / Secondary switch on the Tracker, Phantoms and Deliverables
+ * The Primary / Secondary switch on the Database (and the Tracker and Phantoms)
  * tabs, kept in the URL (?stream=primary) so links and reloads keep it.
  * Secondary is the default.
  */

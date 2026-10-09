@@ -780,9 +780,24 @@ analyst-entered information distinguishable; in the prototype every value is
     each section repeats its alert block per entry (Title, Publisher linked,
     Event Date "September 1st, 2026", Macrotrend (Subtrend), CI Perspective,
     Key Details). An empty section reads "N/A". The .docx is stored with the
-    newsletter. Deliverables → Newsletter still makes its title-only file.
+    newsletter. (Deliverables → Newsletter's title-only file went in request 52.)
   - The document view (`DocxPane`) has B / A− / A+ for selected text (and
     Reset). These change the view only; Download gives the generated file.
+- **Request 52** (contract 2.0.0, no migration): Admin → Deliverables is
+  gone, and Admin is a tab of its own (like Database) that opens the Admin
+  page (formerly "Administration"; `STANDALONE_GROUPS` = database, admin).
+  - The Database page has a fourth toggle, Newsletter (`/database?db=newsletters`,
+    after CI Analysis). It lists every newsletter made with Generate
+    Newsletter, newest first, with the entries each uses; each opens as a side
+    pane (download there) and staff delete them. `/deliverables` redirects there.
+  - Removed: the Deliverables Alerts and Newsletter tables
+    (`GET /api/deliverables/alerts`, `GET /api/deliverables/newsletter`), the
+    named title-only newsletter (`POST /api/newsletters`, `CreateNewsletterRequest`),
+    the `alerts` / `newsletter` export views and the "deleted alerts" table
+    scope. Hence the major contract version. Alerts still open from the
+    Database's Alert column (`GET /api/deliverables/{id}/docx`); newsletters
+    are listed by `GET /api/newsletters`, made by `POST
+    /api/newsletters/generate` and deleted by `DELETE /api/deliverables/{id}`.
 - **Menu in groups** (request 28, contract 1.17; regrouped in request 31,
   contract 1.19; renamed in request 34; `packages/shared/src/menu.ts`): the
   menu is four groups (and, from request 43, the Database tab on its own),

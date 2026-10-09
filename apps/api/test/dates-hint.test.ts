@@ -44,7 +44,7 @@ describe("entries outside the date range", () => {
     const row = all.rows.find((r: { id: string }) => r.id === item.id);
     expect(row.values.key_details).toBe(long.replace(/[ \t\u00a0]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim());
     expect(all.outsideDates.count).toBe(0);
-    for (const p of ["/api/phantoms", "/api/deliverables/alerts", "/api/deliverables/newsletter"]) {
+    for (const p of ["/api/phantoms", "/api/database"]) {
       const d = await json(call(w.a.client, "GET", `${p}?stream=secondary&from=2024-01-01&to=2024-01-31`));
       expect(d.rows.map((r: { id: string }) => r.id)).toContain(item.id);
     }

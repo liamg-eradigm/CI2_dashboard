@@ -7,7 +7,7 @@ import { MarkdownPanel } from "../components/MarkdownPanel";
 import { DeleteEntries } from "../components/DeleteEntries";
 import { DatesHint } from "../components/DatesHint";
 import { RecordDrawer, useFocusTrap } from "../components/RecordDrawer";
-import { DeleteDeliverables, DocxButton, DocxPane, NewsletterCreate, NewsletterSections, canCreateNewsletter } from "../components/Deliverables";
+import { DocxButton, DocxPane, NewsletterSections, canCreateNewsletter } from "../components/Deliverables";
 import { SourceDrawer } from "../components/SnapshotFrame";
 import { SavedPagesButton, useAttachPage } from "../components/SavedPages";
 import { StreamSwitch } from "../components/StreamSwitch";
@@ -141,7 +141,7 @@ function SourceCell({ s, canAttach, onOpen, cls = "src-col" }: { s: Signal; canA
   );
 }
 
-const NOUN: Record<TableView, string> = { tracker: "Tracker", phantoms: "Phantoms", alerts: "Phantoms", newsletter: "Phantoms", database: "Tracker" };
+const NOUN: Record<TableView, string> = { tracker: "Tracker", phantoms: "Phantoms", database: "Tracker" };
 
 /** The Markdown icon (Phantoms). */
 function MdIcon() {
@@ -155,10 +155,8 @@ function MdIcon() {
 }
 
 /**
- * The Tracker and Phantoms tabs, and the two Deliverables tables (Alerts and
- * Newsletter, built from Phantoms): the same filterable table, per stream.
- * Phantoms-based tables add the Markdown; Alerts add the .docx alert; the
- * Newsletter table's tick boxes build a newsletter.
+ * The Tracker and Phantoms tables: the same filterable table, per stream;
+ * Phantoms add the Markdown. (Request 52: the Deliverables tables are gone.)
  *
  * The Database page (request 43, view "database"): a stream's Tracker
  * entries with every field, their saved page, Markdown (Phantoms), alert and
@@ -181,9 +179,7 @@ export function TrackerPage({
   switcher?: ReactNode;
 }) {
   const database = view === "database";
-  // Phantoms and the Deliverables tables share the Phantoms columns, Markdown and rules.
-  const phantoms = view !== "tracker" && !database;
-  const newsletter = view === "newsletter";
+  const phantoms = view === "phantoms";
   const [streamParam, setStream] = useStreamParam();
   // Analytics → Primary Tracker (request 34): the Primary Tracker only, with Archived Responses.
   const stream = primaryOnly ? "primary" : streamParam;
@@ -225,18 +221,17 @@ export function TrackerPage({
   const archSource = archSignal.data ? [archSignal.data.values[FIELDS.sourceRole], archSignal.data.values[FIELDS.sourceCompany]].filter(Boolean).join(" · ") : undefined;
   const savedOpen = f.params.get("saved");
   const docxOpen = f.params.get("docx");
-  const newsletters = useNewsletters(newsletter);
+  const newsletters = useNewsletters(database);
   // Ticked rows: for deletion (Tracker/Phantoms, cleared when the page of rows
-  // changes) or, on the Newsletter table, the entries of the next newsletter
+  // changes) or, on the Database page, the entries of the next newsletter
   // (kept across pages and both streams).
   const [picked, setPicked] = useState<Map<string, Signal>>(() => new Map());
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [creating, setCreating] = useState(false);
   const [generating, setGenerating] = useState(false);
   const inv = useInvalidate();
   const rowKey = tracker.data?.rows.map((r) => r.id).join(",") ?? "";
   // The Database page keeps its ticks across pages and both streams, to build a newsletter from.
-  const keepPicks = newsletter || database;
+  const keepPicks = database;
   useEffect(() => {
     if (!keepPicks) setPicked(new Map());
   }, [rowKey, stream, view, keepPicks]);
@@ -282,7 +277,7 @@ export function TrackerPage({
   }, [exportOpen]);
 
   // Alerts on a long page are written a batch at a time: fetch again until every row has one.
-  const missingAlerts = (view === "alerts" && !!tracker.data?.rows.some((r) => !r.alertId)) || (database && !!tracker.data?.rows.some((r) => r.alertPending));
+  const missingAlerts = database && !!tracker.data?.rows.some((r) => r.alertPending);
   useEffect(() => {
     if (!missingAlerts) return;
     const id = setTimeout(() => void tracker.refetch(), 1200);
@@ -296,13 +291,13 @@ export function TrackerPage({
   // The column whose cell opens the entry: its Title, or (Primary Tracker, no Title column) the first.
   const openKey = primaryOnly ? cols[0]?.key : CORE.title;
   const canAttach = can(me.role, "item:edit");
-  // Phantoms (and the Deliverables built from them) are an evergreen snapshot: only Tracker entries are edited.
+  // Phantoms are an evergreen snapshot: only Tracker entries are edited.
   // (The Analytics Primary Tracker has no Source or Edit columns, request 42.)
   const canEdit = canAttach && (view === "tracker" || database) && !primaryOnly;
   const canDelete = can(me.role, "item:delete");
   const canGenerate = database && canCreateNewsletter(me);
-  // Alerts (request 36): tick to delete alerts. The Database page: to delete, or to generate a newsletter.
-  const tickable = newsletter ? canCreateNewsletter(me) : database ? canDelete || canGenerate : (view === "tracker" || view === "phantoms" || view === "alerts") && canDelete;
+  // Tick to delete; on the Database page also to generate a newsletter.
+  const tickable = database ? canDelete || canGenerate : canDelete;
   const impactCol = getColumn(s, CORE.impact);
   const growthCol = getColumn(s, CORE.growth);
   const actionCol = getColumn(s, "action");
@@ -402,11 +397,7 @@ export function TrackerPage({
             <span className="stream-note">
               {database
                 ? `Every ${STREAM_LABEL[stream]} Tracker entry with all its fields, its saved page, Markdown, alert and newsletters`
-                : view === "alerts"
-                ? `${STREAM_LABEL[stream]} Phantoms with High Impact · each gets a .docx alert automatically`
-                : newsletter
-                  ? `${STREAM_LABEL[stream]} Phantoms with High or Medium Impact · tick entries from either stream, then Create Newsletter`
-                  : phantoms
+                : phantoms
                     ? stream === "primary"
                       ? "Every Primary Tracker entry · open the Markdown from the MD icon"
                       : `Secondary Tracker entries with Impact ${settings.data?.phantoms.secondaryMinImpact ?? "Low"} or higher (set by admins) · open the Markdown from the MD icon`
@@ -439,20 +430,7 @@ export function TrackerPage({
               </span>
             )}
             <div className="table-actions">
-              {newsletter && tickable && (
-                <div className="pick-bar" role="group" aria-label="Selected entries">
-                  <span>{pickedRows.length} selected</span>
-                  {pickedRows.length > 0 && (
-                    <button className="link-btn" onClick={() => setPicked(new Map())}>
-                      Clear
-                    </button>
-                  )}
-                  <button className="btn small" disabled={!pickedRows.length} onClick={() => setCreating(true)} title={pickedRows.length ? undefined : "Tick one or more entries first"}>
-                    Create Newsletter
-                  </button>
-                </div>
-              )}
-              {!newsletter && tickable && pickedRows.length > 0 && (
+              {tickable && pickedRows.length > 0 && (
                 <div className="pick-bar" role="group" aria-label="Selected entries">
                   <span>{pickedRows.length} selected</span>
                   <button className="link-btn" onClick={() => setPicked(new Map())}>
@@ -512,7 +490,7 @@ export function TrackerPage({
           </div>
           {/* Request 36: the table scrolls inside its own box, sized to the screen, so its horizontal scrollbar is always in view. */}
           <div ref={fitRef} className={`table-wrap fit${showAll ? " all" : ""}`} tabIndex={0} role="region" aria-label={showAll ? "All entries (scrollable)" : "Entries (scrollable)"} data-testid="table-scroll">
-            <table className={`data${primaryOnly ? " ptr" : ""}${database ? " db-table" : ""}`} style={{ minWidth: primaryOnly ? 1500 : Math.max(1100, cols.length * (database ? 150 : 125) + (phantoms ? 150 : 0) + (linkCol ? 60 : 0) + (view === "alerts" ? 70 : 0) + (database ? 300 : 0)) }}>
+            <table className={`data${primaryOnly ? " ptr" : ""}${database ? " db-table" : ""}`} style={{ minWidth: primaryOnly ? 1500 : Math.max(1100, cols.length * (database ? 150 : 125) + (phantoms ? 150 : 0) + (linkCol ? 60 : 0) + (database ? 300 : 0)) }}>
               <caption className="sr-only">Approved signals, sorted by {getColumn(s, sortKey)?.label ?? "Date"} {dir === "asc" ? "ascending" : "descending"}</caption>
               <thead>
                 <tr>
@@ -528,11 +506,6 @@ export function TrackerPage({
                         onChange={togglePage}
                         aria-label="Select every entry on this page"
                       />
-                    </th>
-                  )}
-                  {view === "alerts" && (
-                    <th scope="col" className="md-col">
-                      <span>Alert</span>
                     </th>
                   )}
                   {phantoms && (
@@ -599,9 +572,6 @@ export function TrackerPage({
                       <td className="pick-col">
                         <input type="checkbox" checked={picked.has(r.id)} onChange={() => toggle(r)} aria-label={`Select ${titleOf(r)}`} />
                       </td>
-                    )}
-                    {view === "alerts" && (
-                      <td className="md-col">{r.alertId ? <DocxButton label={`Open the alert for ${titleOf(r)}`} onClick={() => setParam({ docx: r.alertId ?? null }, true)} /> : <span className="src-none">—</span>}</td>
                     )}
                     {phantoms && (
                       <td className="md-col">
@@ -810,27 +780,6 @@ export function TrackerPage({
           kind={docxNewsletter ? "Newsletter" : "Alert"}
           title={docxNewsletter?.name ?? (docxRow ? titleOf(docxRow) : "Document")}
           onClose={() => setParam({ docx: null })}
-        />
-      )}
-      {creating && pickedRows.length > 0 && (
-        <NewsletterCreate
-          entries={pickedRows.map((r) => ({ id: r.id, code: String(r.values[FIELDS.id] ?? "") || r.code, label: titleOf(r) }))}
-          onCancel={() => setCreating(false)}
-          onCreated={() => {
-            setCreating(false);
-            setPicked(new Map());
-          }}
-        />
-      )}
-      {confirmDelete && pickedRows.some((r) => r.alertId) && view === "alerts" && (
-        <DeleteDeliverables
-          kind="alert"
-          items={pickedRows.filter((r) => r.alertId).map((r) => ({ id: r.alertId!, code: String(r.values[FIELDS.id] ?? "") || r.code, label: titleOf(r) }))}
-          onCancel={() => setConfirmDelete(false)}
-          onDone={(ids) => {
-            setPicked((p) => new Map([...p].filter(([, r]) => !r.alertId || !ids.includes(r.alertId))));
-            setConfirmDelete(false);
-          }}
         />
       )}
       {generating && database && pickedRows.length >= 2 && (

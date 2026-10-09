@@ -183,8 +183,8 @@ export function SummaryPanel({
                 title={
                   aiConnected
                     ? node.level === "competitor"
-                      ? "Write this summary with Claude from the competitor's entries, high-impact and recent first (Administration → Megatrends sets the length)"
-                      : "Write this summary with Claude from the recent entries (Administration → Megatrends sets the time frame and length)"
+                      ? "Write this summary with Claude from the competitor's entries, high-impact and recent first (Admin → Megatrends sets the length)"
+                      : "Write this summary with Claude from the recent entries (Admin → Megatrends sets the time frame and length)"
                     : "Connect the Claude API to write summaries with AI"
                 }
                 onClick={() => void run("ai", ref)}

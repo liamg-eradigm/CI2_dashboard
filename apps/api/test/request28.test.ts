@@ -19,8 +19,8 @@ describe("request 28: the menu in groups", () => {
     // Inputs leads by default (first); Analytics goes after the group it follows by default (Inputs), then Database (request 43).
     // Request 48: the Databases group ("trackers") is gone, so a saved one is dropped.
     expect(m.groups.map((g) => g.key)).toEqual(["inputs", "analytics", "database", "admin"]);
-    // Deliverables was missing: it leads the group by default, so it goes first.
-    expect(m.groups[3]).toEqual({ key: "admin", label: "Back office", items: [{ key: "deliverables" }, { key: "admin", label: "Settings" }] });
+    // Request 52: Admin is a tab of its own (Deliverables is gone).
+    expect(m.groups[3]).toEqual({ key: "admin", label: "Back office", items: [{ key: "admin", label: "Settings" }] });
     expect(normaliseMenu(undefined)).toEqual(DEFAULT_MENU);
     // A client sees no Admin group and only the Client Inbox in Inputs.
     expect(visibleMenu(DEFAULT_MENU, "client").map((g) => `${g.key}:${g.items.map((i) => i.key).join(",")}`)).toEqual([
@@ -45,7 +45,7 @@ describe("request 28: the menu in groups", () => {
         { key: "inputs", items: [{ key: "input" }, { key: "inbox" }, { key: "clientinbox" }] },
         { key: "analytics", items: [{ key: "dashboard", label: "Overview" }, { key: "knowledge-graph" }, { key: "primary-tracker" }] },
         { key: "database", items: [{ key: "database" }] },
-        { key: "admin", label: "Back office", items: [{ key: "deliverables", label: "Reports" }, { key: "admin" }] },
+        { key: "admin", label: "Back office", items: [{ key: "admin" }] },
       ],
     });
   });

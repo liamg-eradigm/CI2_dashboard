@@ -28,21 +28,19 @@ const DEV_USERS = [
 ];
 
 /**
- * A menu group (Inputs, Analytics, Trackers, Admin; requests 28 and 31): a
- * button that opens its subtabs. Open while one of its pages is open, unless
- * the user closed it. Names and order are an admin setting (Administration → Menu).
+ * A menu group (Inputs, Analytics; requests 28 and 31): a button that opens
+ * its subtabs. Open while one of its pages is open, unless the user closed it.
+ * Names and order are an admin setting (Admin → Menu).
  */
 function NavGroup({
   group,
   open,
   onToggle,
-  linkTo,
   badge,
 }: {
   group: MenuGroupSetting;
   open: boolean;
   onToggle: (open: boolean) => void;
-  linkTo: (path: string) => string;
   badge: (item: MenuItemKey) => { n: number; label: string } | null;
 }) {
   const loc = useLocation();
@@ -68,7 +66,7 @@ function NavGroup({
             return (
               <Link
                 key={it.key}
-                to={linkTo(MENU_ITEM_PATH[it.key])}
+                to={MENU_ITEM_PATH[it.key]}
                 aria-label={`${label}: ${itemLabel(it)}`}
                 aria-current={isMenuItemAt(it.key, loc.pathname) ? "page" : undefined}
                 className={isMenuItemAt(it.key, loc.pathname) ? "active" : ""}
@@ -112,18 +110,6 @@ export function Sidebar({ me }: { me: Me }) {
   const settings = useSettings();
   const n = (counts.data?.primary ?? 0) + (counts.data?.secondary ?? 0);
   const loc = useLocation();
-  // Deliverables keeps the filters it was opened with (and the Primary/Secondary switch).
-  const cur = [...new URLSearchParams(loc.search)];
-  const filterPairs = cur.filter(([k]) => k === "q" || k === "from" || k === "to" || k.startsWith("f."));
-  const TABLES = ["/deliverables"];
-  const tables = TABLES.includes(loc.pathname);
-  const withFilters = (to: string) => {
-    if (!TABLES.includes(to)) return to;
-    const pairs = tables ? cur.filter(([k]) => k === "stream" || filterPairs.some(([f]) => f === k)) : filterPairs;
-    const q = new URLSearchParams(pairs).toString();
-    return q ? `${to}?${q}` : to;
-  };
-
   if (!open) {
     return (
       <aside className="sidebar closed" aria-label="Main menu (collapsed)">
@@ -133,7 +119,7 @@ export function Sidebar({ me }: { me: Me }) {
       </aside>
     );
   }
-  // The groups and their subtabs, in the order and with the names an admin set (Administration → Menu); each role sees only its own.
+  // The groups and their subtabs, in the order and with the names an admin set (Admin → Menu); each role sees only its own.
   const groups = visibleMenu(settings.data?.menu ?? DEFAULT_MENU, me.role);
   const waiting = clientCount.data?.count ?? 0;
   return (
@@ -155,7 +141,7 @@ export function Sidebar({ me }: { me: Me }) {
       </div>
       <nav className="nav" aria-labelledby="nav-label">
         {groups.map((g) =>
-          // A tab of its own (Database, request 43): a link straight to its page, no subtabs.
+          // A tab of its own (Database, request 43; Admin, request 52): a link straight to its page, no subtabs.
           isStandaloneGroup(g.key) && g.items[0] ? (
             <SoloTab key={g.key} group={g} item={g.items[0].key} />
           ) : (
@@ -164,7 +150,6 @@ export function Sidebar({ me }: { me: Me }) {
               group={g}
               open={expanded[g.key] ?? g.items.some((it) => isMenuItemAt(it.key, loc.pathname))}
               onToggle={(o) => setExpanded((e) => ({ ...e, [g.key]: o }))}
-              linkTo={withFilters}
               badge={(k) => (k === "inbox" ? { n, label: `${n} unprocessed` } : k === "clientinbox" ? { n: waiting, label: `${waiting} to check` } : null)}
             />
           ),

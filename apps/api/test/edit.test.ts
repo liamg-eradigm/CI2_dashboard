@@ -45,16 +45,20 @@ describe("editing an approved entry and approving it again", () => {
     expect(t.rows.find((r: { id: string }) => r.id === id).values.title).toBe("Pfizer rolls out its AI assistant");
   });
 
-  it("keeps a Review Date the editor sets; Phantoms and Deliverables keep the Impact first pushed", async () => {
+  it("keeps a Review Date the editor sets; Phantoms (and so alerts) keep the Impact first pushed", async () => {
     const id = await entry("secondary", { title: "Sanofi signs an AI deal", impact: "High" });
-    const alerts = async () => (await json(call(w.a.client, "GET", `/api/deliverables/alerts?stream=secondary&${RANGE}`))).rows.map((r: { id: string }) => r.id);
-    expect(await alerts()).toContain(id);
+    const phantomImpact = async () => (await json(call(w.a.client, "GET", `/api/phantoms?stream=secondary&${RANGE}`))).rows.find((r: { id: string }) => r.id === id)?.values.impact;
+    const alertOf = async () => (await json(call(w.a.client, "GET", `/api/database?stream=secondary&${RANGE}`))).rows.find((r: { id: string }) => r.id === id)?.alertId;
+    expect(await phantomImpact()).toBe("High");
+    const alertId = await alertOf();
+    expect(alertId).toBeTruthy();
     const d = await detail(id);
     const res = await json(edit(id, { ...d.values, impact: "Medium", review_date: "2026-02-02" }, "Impact downgraded after a client call"));
     expect(res.values.review_date).toBe("2026-02-02");
     expect(res.revisions[0].note).toBe("Impact downgraded after a client call");
-    // Still a High-impact Phantom, so still an alert; the Tracker shows Medium.
-    expect(await alerts()).toContain(id);
+    // Still a High-impact Phantom, with the same alert; the Tracker shows Medium.
+    expect(await phantomImpact()).toBe("High");
+    expect(await alertOf()).toBe(alertId);
     const t = await json(call(w.a.client, "GET", `/api/tracker?stream=secondary&${RANGE}`));
     expect(t.rows.find((r: { id: string }) => r.id === id).values.impact).toBe("Medium");
   });

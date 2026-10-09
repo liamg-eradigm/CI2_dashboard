@@ -36,7 +36,7 @@ test.describe("request 19", () => {
     await signInAs(page, "analyst");
     await page.goto("/dashboard");
     expect(await menuOf(page)).toEqual(["Inputs: Eradigm Inbox", "Analytics: Megatrends Dashboard, Knowledge Graph, Primary Tracker", "Database"]);
-    for (const path of ["/input", "/admin", "/deliverables", "/client-inbox"]) {
+    for (const path of ["/input", "/admin", "/client-inbox"]) {
       await page.goto(path);
       await expect(page).toHaveURL(/\/dashboard/);
     }
@@ -54,7 +54,7 @@ test.describe("request 19", () => {
       "Inputs: Input, Eradigm Inbox, Client Inbox",
       "Analytics: Megatrends Dashboard, Knowledge Graph, Primary Tracker",
       "Database",
-      "Admin: Deliverables, Administration",
+      "Admin",
     ]);
     await actx.close();
   });

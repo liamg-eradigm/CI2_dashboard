@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Eradigm Competitive Intelligence API",
-    "version": "1.28.0",
+    "version": "2.0.0",
     "description": "Generated from packages/shared/src/api.ts. Every request is checked for both role and tenant server-side. Send X-Tenant-Id to select a tenant when the user belongs to more than one."
   },
   "components": {
@@ -7056,566 +7056,6 @@
         ]
       }
     },
-    "/api/deliverables/alerts": {
-      "get": {
-        "summary": "Deliverables → Alerts: Phantoms with the highest Impact (High), each with its stored .docx alert (generated automatically)",
-        "description": "Roles: admin, analyst, client",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "rows": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "id": {
-                            "type": "string"
-                          },
-                          "code": {
-                            "type": "string"
-                          },
-                          "stream": {
-                            "default": "primary",
-                            "type": "string",
-                            "enum": [
-                              "primary",
-                              "secondary"
-                            ]
-                          },
-                          "values": {
-                            "type": "object",
-                            "additionalProperties": {
-                              "anyOf": [
-                                {
-                                  "type": "string"
-                                },
-                                {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "string"
-                                  }
-                                },
-                                {
-                                  "type": "string",
-                                  "nullable": true,
-                                  "enum": [
-                                    null
-                                  ]
-                                }
-                              ]
-                            }
-                          },
-                          "text": {
-                            "type": "string"
-                          },
-                          "url": {
-                            "nullable": true,
-                            "type": "string"
-                          },
-                          "rev": {
-                            "type": "integer",
-                            "minimum": -9007199254740991,
-                            "maximum": 9007199254740991
-                          },
-                          "approvedAt": {
-                            "type": "string"
-                          },
-                          "approvedBy": {
-                            "type": "string"
-                          },
-                          "hasSnapshot": {
-                            "default": false,
-                            "type": "boolean"
-                          },
-                          "pages": {
-                            "default": 0,
-                            "type": "integer",
-                            "minimum": -9007199254740991,
-                            "maximum": 9007199254740991
-                          },
-                          "alertId": {
-                            "nullable": true,
-                            "type": "string"
-                          },
-                          "linkedEarlier": {
-                            "nullable": true,
-                            "type": "string"
-                          },
-                          "kiqEarlier": {
-                            "nullable": true,
-                            "type": "string"
-                          },
-                          "discussionWith": {
-                            "nullable": true,
-                            "type": "string"
-                          },
-                          "linkedLater": {
-                            "nullable": true,
-                            "type": "string"
-                          },
-                          "phantom": {
-                            "type": "boolean"
-                          },
-                          "alertPending": {
-                            "type": "boolean"
-                          },
-                          "newsletters": {
-                            "type": "array",
-                            "items": {
-                              "type": "object",
-                              "properties": {
-                                "id": {
-                                  "type": "string"
-                                },
-                                "name": {
-                                  "type": "string"
-                                },
-                                "createdAt": {
-                                  "type": "string"
-                                }
-                              },
-                              "required": [
-                                "id",
-                                "name",
-                                "createdAt"
-                              ],
-                              "additionalProperties": false
-                            }
-                          }
-                        },
-                        "required": [
-                          "id",
-                          "code",
-                          "stream",
-                          "values",
-                          "text",
-                          "url",
-                          "rev",
-                          "approvedAt",
-                          "approvedBy",
-                          "hasSnapshot",
-                          "pages"
-                        ],
-                        "additionalProperties": false
-                      }
-                    },
-                    "total": {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    },
-                    "totalPublished": {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    },
-                    "page": {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    },
-                    "pageSize": {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    },
-                    "outsideDates": {
-                      "type": "object",
-                      "properties": {
-                        "count": {
-                          "type": "integer",
-                          "minimum": -9007199254740991,
-                          "maximum": 9007199254740991
-                        },
-                        "from": {
-                          "nullable": true,
-                          "type": "string"
-                        },
-                        "to": {
-                          "nullable": true,
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "count",
-                        "from",
-                        "to"
-                      ],
-                      "additionalProperties": false
-                    }
-                  },
-                  "required": [
-                    "rows",
-                    "total",
-                    "totalPublished",
-                    "page",
-                    "pageSize"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "fields": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "key": {
-                                "type": "string"
-                              },
-                              "label": {
-                                "type": "string"
-                              },
-                              "code": {
-                                "type": "string"
-                              },
-                              "message": {
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "key",
-                              "label",
-                              "code",
-                              "message"
-                            ],
-                            "additionalProperties": false
-                          }
-                        },
-                        "details": {
-                          "type": "object",
-                          "additionalProperties": {}
-                        },
-                        "requestId": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "message"
-                      ],
-                      "additionalProperties": false
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "cloudflareAccess": []
-          }
-        ]
-      }
-    },
-    "/api/deliverables/newsletter": {
-      "get": {
-        "summary": "Deliverables → Newsletter: Phantoms with High or Medium Impact, to build newsletters from",
-        "description": "Roles: admin, analyst, client",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "rows": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "id": {
-                            "type": "string"
-                          },
-                          "code": {
-                            "type": "string"
-                          },
-                          "stream": {
-                            "default": "primary",
-                            "type": "string",
-                            "enum": [
-                              "primary",
-                              "secondary"
-                            ]
-                          },
-                          "values": {
-                            "type": "object",
-                            "additionalProperties": {
-                              "anyOf": [
-                                {
-                                  "type": "string"
-                                },
-                                {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "string"
-                                  }
-                                },
-                                {
-                                  "type": "string",
-                                  "nullable": true,
-                                  "enum": [
-                                    null
-                                  ]
-                                }
-                              ]
-                            }
-                          },
-                          "text": {
-                            "type": "string"
-                          },
-                          "url": {
-                            "nullable": true,
-                            "type": "string"
-                          },
-                          "rev": {
-                            "type": "integer",
-                            "minimum": -9007199254740991,
-                            "maximum": 9007199254740991
-                          },
-                          "approvedAt": {
-                            "type": "string"
-                          },
-                          "approvedBy": {
-                            "type": "string"
-                          },
-                          "hasSnapshot": {
-                            "default": false,
-                            "type": "boolean"
-                          },
-                          "pages": {
-                            "default": 0,
-                            "type": "integer",
-                            "minimum": -9007199254740991,
-                            "maximum": 9007199254740991
-                          },
-                          "alertId": {
-                            "nullable": true,
-                            "type": "string"
-                          },
-                          "linkedEarlier": {
-                            "nullable": true,
-                            "type": "string"
-                          },
-                          "kiqEarlier": {
-                            "nullable": true,
-                            "type": "string"
-                          },
-                          "discussionWith": {
-                            "nullable": true,
-                            "type": "string"
-                          },
-                          "linkedLater": {
-                            "nullable": true,
-                            "type": "string"
-                          },
-                          "phantom": {
-                            "type": "boolean"
-                          },
-                          "alertPending": {
-                            "type": "boolean"
-                          },
-                          "newsletters": {
-                            "type": "array",
-                            "items": {
-                              "type": "object",
-                              "properties": {
-                                "id": {
-                                  "type": "string"
-                                },
-                                "name": {
-                                  "type": "string"
-                                },
-                                "createdAt": {
-                                  "type": "string"
-                                }
-                              },
-                              "required": [
-                                "id",
-                                "name",
-                                "createdAt"
-                              ],
-                              "additionalProperties": false
-                            }
-                          }
-                        },
-                        "required": [
-                          "id",
-                          "code",
-                          "stream",
-                          "values",
-                          "text",
-                          "url",
-                          "rev",
-                          "approvedAt",
-                          "approvedBy",
-                          "hasSnapshot",
-                          "pages"
-                        ],
-                        "additionalProperties": false
-                      }
-                    },
-                    "total": {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    },
-                    "totalPublished": {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    },
-                    "page": {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    },
-                    "pageSize": {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    },
-                    "outsideDates": {
-                      "type": "object",
-                      "properties": {
-                        "count": {
-                          "type": "integer",
-                          "minimum": -9007199254740991,
-                          "maximum": 9007199254740991
-                        },
-                        "from": {
-                          "nullable": true,
-                          "type": "string"
-                        },
-                        "to": {
-                          "nullable": true,
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "count",
-                        "from",
-                        "to"
-                      ],
-                      "additionalProperties": false
-                    }
-                  },
-                  "required": [
-                    "rows",
-                    "total",
-                    "totalPublished",
-                    "page",
-                    "pageSize"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "fields": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "key": {
-                                "type": "string"
-                              },
-                              "label": {
-                                "type": "string"
-                              },
-                              "code": {
-                                "type": "string"
-                              },
-                              "message": {
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "key",
-                              "label",
-                              "code",
-                              "message"
-                            ],
-                            "additionalProperties": false
-                          }
-                        },
-                        "details": {
-                          "type": "object",
-                          "additionalProperties": {}
-                        },
-                        "requestId": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "message"
-                      ],
-                      "additionalProperties": false
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "cloudflareAccess": []
-          }
-        ]
-      }
-    },
     "/api/newsletters": {
       "get": {
         "summary": "Newsletters created so far, newest first",
@@ -7761,189 +7201,6 @@
                   ],
                   "additionalProperties": false
                 }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "cloudflareAccess": []
-          }
-        ]
-      },
-      "post": {
-        "summary": "Create a newsletter (.docx) from selected Newsletter entries",
-        "description": "Roles: admin, analyst",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "name": {
-                      "type": "string"
-                    },
-                    "createdAt": {
-                      "type": "string"
-                    },
-                    "createdBy": {
-                      "type": "string"
-                    },
-                    "items": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "id": {
-                            "type": "string"
-                          },
-                          "code": {
-                            "nullable": true,
-                            "type": "string"
-                          },
-                          "recordId": {
-                            "nullable": true,
-                            "type": "string"
-                          },
-                          "title": {
-                            "type": "string"
-                          },
-                          "stream": {
-                            "type": "string",
-                            "enum": [
-                              "primary",
-                              "secondary"
-                            ]
-                          },
-                          "deleted": {
-                            "type": "boolean"
-                          }
-                        },
-                        "required": [
-                          "id",
-                          "code",
-                          "recordId",
-                          "title",
-                          "stream",
-                          "deleted"
-                        ],
-                        "additionalProperties": false
-                      }
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "name",
-                    "createdAt",
-                    "createdBy",
-                    "items"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "fields": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "key": {
-                                "type": "string"
-                              },
-                              "label": {
-                                "type": "string"
-                              },
-                              "code": {
-                                "type": "string"
-                              },
-                              "message": {
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "key",
-                              "label",
-                              "code",
-                              "message"
-                            ],
-                            "additionalProperties": false
-                          }
-                        },
-                        "details": {
-                          "type": "object",
-                          "additionalProperties": {}
-                        },
-                        "requestId": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "message"
-                      ],
-                      "additionalProperties": false
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "name": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 120
-                  },
-                  "itemIds": {
-                    "minItems": 1,
-                    "maxItems": 200,
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 64
-                    }
-                  }
-                },
-                "required": [
-                  "name",
-                  "itemIds"
-                ],
-                "additionalProperties": false
               }
             }
           }
@@ -8525,7 +7782,7 @@
     },
     "/api/deliverables/{id}": {
       "delete": {
-        "summary": "Delete an alert (its entry leaves Deliverables → Alerts and gets no new alert; the Phantom stays) or a newsletter",
+        "summary": "Delete an alert (its entry gets no new alert) or a newsletter",
         "description": "Roles: admin, analyst",
         "parameters": [
           {
@@ -22212,9 +21469,6 @@
                             "key": "admin",
                             "items": [
                               {
-                                "key": "deliverables"
-                              },
-                              {
                                 "key": "admin"
                               }
                             ]
@@ -22243,7 +21497,7 @@
                                 "maxLength": 80
                               },
                               "items": {
-                                "maxItems": 9,
+                                "maxItems": 8,
                                 "type": "array",
                                 "items": {
                                   "type": "object",
@@ -22258,7 +21512,6 @@
                                         "knowledge-graph",
                                         "primary-tracker",
                                         "database",
-                                        "deliverables",
                                         "admin"
                                       ]
                                     },
@@ -22724,9 +21977,6 @@
                             "key": "admin",
                             "items": [
                               {
-                                "key": "deliverables"
-                              },
-                              {
                                 "key": "admin"
                               }
                             ]
@@ -22755,7 +22005,7 @@
                                 "maxLength": 80
                               },
                               "items": {
-                                "maxItems": 9,
+                                "maxItems": 8,
                                 "type": "array",
                                 "items": {
                                   "type": "object",
@@ -22770,7 +22020,6 @@
                                         "knowledge-graph",
                                         "primary-tracker",
                                         "database",
-                                        "deliverables",
                                         "admin"
                                       ]
                                     },
@@ -23190,7 +22439,7 @@
                               "maxLength": 80
                             },
                             "items": {
-                              "maxItems": 9,
+                              "maxItems": 8,
                               "type": "array",
                               "items": {
                                 "type": "object",
@@ -23205,7 +22454,6 @@
                                       "knowledge-graph",
                                       "primary-tracker",
                                       "database",
-                                      "deliverables",
                                       "admin"
                                     ]
                                   },
@@ -23547,9 +22795,6 @@
                             "key": "admin",
                             "items": [
                               {
-                                "key": "deliverables"
-                              },
-                              {
                                 "key": "admin"
                               }
                             ]
@@ -23578,7 +22823,7 @@
                                 "maxLength": 80
                               },
                               "items": {
-                                "maxItems": 9,
+                                "maxItems": 8,
                                 "type": "array",
                                 "items": {
                                   "type": "object",
@@ -23593,7 +22838,6 @@
                                         "knowledge-graph",
                                         "primary-tracker",
                                         "database",
-                                        "deliverables",
                                         "admin"
                                       ]
                                     },

@@ -234,9 +234,6 @@ table.data tr.picked td { background: var(--tint-3); }
 td.nowrap { white-space: nowrap; }
 .edit-form .field-err { font-size: 12px; margin-top: 2px; }
 .edit-actions { position: sticky; bottom: 0; display: flex; gap: 8px; padding: 12px 0 4px; background: #fff; border-top: 1px solid var(--rule); }
-.deliv-switch { display: flex; justify-content: center; }
-.deliv-seg { width: 320px; height: 42px; }
-.deliv-seg button { font-size: 14.5px; }
 .docx-body { flex: 1 1 auto; min-height: 0; overflow: auto; background: #e9eef1; }
 .docx-body:focus { outline: 2px solid var(--focus); outline-offset: -2px; }
 .docx-host .docx-wrapper { background: transparent; padding: 28px 24px 40px; }
@@ -247,10 +244,6 @@ td.nowrap { white-space: nowrap; }
 .nl-items { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 3px; font-size: 13px; }
 .nl-items .mono { font-size: 12px; color: var(--muted); margin-right: 4px; }
 .nl-items .deleted { color: var(--muted); text-decoration: line-through; }
-.nl-create { background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px; }
-.nl-create b { font-size: 16px; }
-.nl-create p { margin: 0; font-size: 13px; color: var(--ink-2); }
-.nl-create .bulk-del-list { border-color: var(--border); }
 td.long { min-width: 260px; max-width: 420px; }
 td.long .clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-line; }
 .md-toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
@@ -734,7 +727,7 @@ a.link-btn { text-decoration: none; }
 .auto-id b { font-family: var(--sans); font-weight: 700; color: var(--ink-2); margin-right: 6px; }
 @media (max-width: 900px) { .kiq-parts { grid-template-columns: 1fr; } }
 .client-kiqs { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
-/* Administration → Competitor tiers */
+/* Admin → Competitor tiers */
 .tiers-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
 .tier-field { display: flex; flex-direction: column; gap: 6px; font: 700 13px var(--sans); color: var(--ink); }
 .tier-field small { font-weight: 600; color: var(--muted); }
@@ -795,7 +788,7 @@ a.link-btn { text-decoration: none; }
 .nav-parent[aria-expanded="true"] .nav-chev::before { content: "▾"; }
 .nav-sub { display: flex; flex-direction: column; gap: 2px; margin: 0 0 4px 14px; padding-left: 8px; border-left: 1px solid rgba(255, 255, 255, 0.14); }
 .nav .nav-sub a { height: 34px; font-size: 13.5px; font-weight: 600; }
-/* Administration → Menu (request 28): groups, each with its tabs, renamed in place. */
+/* Admin → Menu (request 28): groups, each with its tabs, renamed in place. */
 .menu-editor { max-width: 640px; gap: 6px; }
 .menu-group-row { display: flex; flex-direction: column; gap: 4px; padding: 6px 0 10px; border-bottom: 1px solid var(--rule); }
 .menu-row { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 10px; align-items: center; }

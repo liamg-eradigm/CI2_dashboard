@@ -44,7 +44,7 @@ test.describe("request 34", () => {
       "Inputs: Input, Eradigm Inbox, Client Inbox",
       "Analytics: Megatrends Dashboard, Knowledge Graph, Primary Tracker",
       "Database",
-      "Admin: Deliverables, Administration",
+      "Admin",
     ]);
     await expect(page.getByRole("heading", { level: 1, name: "Megatrends Dashboard" })).toBeVisible();
     // Request 48: the Databases group is gone; the Database tab has them all.

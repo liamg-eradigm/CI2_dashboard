@@ -379,7 +379,7 @@ export async function generateSummary(env: Env, p: Principal, b: { level: TrendL
     .bind(p.tenantId, b.name, since, b.parent ?? null, jsonPath(FIELDS.keyDetails))
     .all<{ pub_date: string; title: string | null; details: string | null; competitors: string | null }>();
   const rows = (res.results ?? []).reverse();
-  if (!rows.length) throw new ApiError("CONFLICT", `No ${b.name} entries in the last ${cfg.summaryDays} days to summarise. Widen the time frame in Administration → Megatrends.`);
+  if (!rows.length) throw new ApiError("CONFLICT", `No ${b.name} entries in the last ${cfg.summaryDays} days to summarise. Widen the time frame in Admin → Megatrends.`);
   const entries: SummaryEntry[] = rows.map((r) => ({
     date: r.pub_date,
     title: r.title ?? "",

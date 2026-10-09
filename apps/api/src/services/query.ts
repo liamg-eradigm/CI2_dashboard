@@ -53,8 +53,6 @@ export interface Scope {
   impacts?: string[];
   /** The table whose "deleted from this table only" entries are left out: Phantoms, else the Tracker (Dashboard, Trend Test). */
   table?: "tracker" | "phantoms";
-  /** Deliverables → Alerts (request 36): leave out the entries whose alert was deleted (it is not made again). */
-  withoutDeletedAlerts?: boolean;
 }
 
 /** Entries removed from one table only stay out of that table (see migration 0007). */
@@ -90,7 +88,6 @@ function scopeWhere(scope: Scope): Where {
     binds.push(...scope.impacts);
   }
   // Item IDs are unique across tenants, so the list is read once (not per row).
-  if (scope.withoutDeletedAlerts) parts.push("i.id NOT IN (SELECT d.item_id FROM deliverables d WHERE d.kind = 'alert' AND d.deleted_at IS NOT NULL AND d.item_id IS NOT NULL)");
   return { sql: parts.join(" AND "), binds };
 }
 

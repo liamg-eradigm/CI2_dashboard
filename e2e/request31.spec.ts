@@ -10,7 +10,7 @@ test.describe("request 31", () => {
       "Inputs: Input, Eradigm Inbox, Client Inbox",
       "Analytics: Megatrends Dashboard, Knowledge Graph, Primary Tracker",
       "Database",
-      "Admin: Deliverables, Administration",
+      "Admin",
     ]);
     await expect(navOf(page).getByRole("link", { name: /Trend analysis$/ })).toHaveCount(0);
   });

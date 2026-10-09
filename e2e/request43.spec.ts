@@ -156,7 +156,7 @@ test.describe("request 43", () => {
     await menu.getByRole("menuitem").first().click();
     await expect(page.getByRole("dialog").locator(".docx-host")).toContainText(`Third ${tag}`);
     await page.getByRole("button", { name: "Close document" }).click();
-    // It is in the newsletters list too (Deliverables, until it is removed).
+    // It is in the newsletters list too (Database → Newsletter, request 52).
     const all = await page.evaluate(async (h) => (await (await fetch("/api/newsletters", { headers: h })).json()) as { items: { title: string }[] }[], ADMIN);
     expect(all.some((n) => n.items.some((i) => i.title === `Third ${tag}`))).toBe(true);
   });

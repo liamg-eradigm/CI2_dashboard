@@ -7,10 +7,10 @@
  *   first pushed, like the Phantoms Markdown) or, without one, its fields.
  * - Newsletters: Database → Generate Newsletter (request 51) writes the
  *   ticked entries into "Newsletter Template.docx", each in the section it
- *   was assigned to (Technology, People or Process). The older Deliverables →
- *   Newsletter page still makes a title-only newsletter (`titleDocx`).
+ *   was assigned to (Technology, People or Process). Database → Newsletter
+ *   lists them (request 52; Admin → Deliverables is gone).
  */
-import { FIELDS, docxFileName, titleDocx, type Newsletter, type NewsletterSection, type Signal, type Stream, type TrackerSchema } from "@eradigm/shared";
+import { FIELDS, docxFileName, type Newsletter, type NewsletterSection, type Signal, type Stream, type TrackerSchema } from "@eradigm/shared";
 import { signalRows } from "./query.js";
 import { alertDocx, newsletterDocx, type EntryForDoc } from "./templatedDocs.js";
 import type { Principal } from "../auth/context.js";
@@ -101,8 +101,7 @@ async function entriesForDocs(
 
 /**
  * Delete a stored alert or newsletter (soft delete, audited). A deleted
- * alert's entry no longer appears in Deliverables → Alerts and gets no new
- * alert; the Phantom itself is not touched.
+ * alert's entry gets no new alert; the Phantom itself is not touched.
  */
 export async function deleteDeliverable(env: Env, p: Principal, id: string): Promise<{ ok: true; kind: "alert" | "newsletter"; name: string }> {
   const r = await env.DB.prepare("SELECT kind, name, item_id FROM deliverables WHERE tenant_id = ?1 AND id = ?2 AND deleted_at IS NULL")
@@ -166,38 +165,6 @@ export async function listNewsletters(env: Env, tenantId: string): Promise<Newsl
   return rows.map((r) => ({ id: r.id, name: r.name, createdAt: r.created_at, createdBy: r.created_by ?? "—", items: toItems(r.ids, refs) }));
 }
 
-/**
- * Create a newsletter from Newsletter entries. `isNewsletterEntry` applies the
- * same rule as the Newsletter table (a Phantom with High or Medium Impact).
- */
-export async function createNewsletter(
-  env: Env,
-  p: Principal,
-  name: string,
-  itemIds: string[],
-  isNewsletterEntry: (stream: Stream, impact: string | null) => Promise<boolean>,
-): Promise<Newsletter> {
-  const ids = [...new Set(itemIds)];
-  const refs = await itemRefs(env, p.tenantId, ids);
-  for (const id of ids) {
-    const r = refs.get(id);
-    if (!r || r.status !== "approved" || r.deleted_at) throw new ApiError("VALIDATION", "One of the selected entries is no longer in the tracker. Reload and select again.");
-    if (r.phantoms_hidden_at || !(await isNewsletterEntry(r.stream, r.impact))) {
-      throw new ApiError("VALIDATION", `${r.signal_code ?? "An entry"} is not a Newsletter entry (Phantoms with High or Medium Impact only)`);
-    }
-  }
-  const doc = titleDocx(name);
-  const id = newId("dlv");
-  const now = nowIso();
-  await env.DB.prepare(
-    "INSERT INTO deliverables (id, tenant_id, kind, name, items_json, docx_b64, bytes, created_by, created_at, updated_at) VALUES (?1, ?2, 'newsletter', ?3, ?4, ?5, ?6, ?7, ?8, ?8)",
-  )
-    .bind(id, p.tenantId, name, JSON.stringify(ids), toBase64(doc), doc.length, p.userId, now)
-    .run();
-  await audit(env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "deliverable.created", targetType: "deliverable", targetId: id, details: { kind: "newsletter", name, items: ids.length } });
-  return { id, name, createdAt: now, createdBy: p.name, items: toItems(ids, refs) };
-}
-
 // ---------------------------------------------------------------------------
 // The Database page (request 43)
 // ---------------------------------------------------------------------------
@@ -205,10 +172,8 @@ export async function createNewsletter(
 /**
  * The Database page's extras for a page of Tracker rows: whether each entry
  * is in Phantoms (`phantomImpacts`: the Phantom Impacts that count, null =
- * all), its alert (written now, as on Deliverables → Alerts, for a Phantom
- * with the highest Impact whose alert was never deleted) and the newsletters
- * it is in. Alerts are written from the Phantom (its evergreen snapshot), as
- * on Deliverables → Alerts, so both pages share one alert per entry.
+ * all), its alert (request 51: every entry whose alert was never deleted)
+ * and the newsletters it is in.
  */
 export async function databaseExtras(env: Env, tenantId: string, rows: Signal[], phantomImpacts: string[] | null): Promise<Signal[]> {
   if (!rows.length) return rows;

@@ -6,7 +6,7 @@
  *
  * When the AI writer is connected (LLM_PROVIDER), a missing or out-of-date
  * summary is written when it is first asked for, following the instructions
- * set in Administration. Admins can write it by hand instead; a hand-written
+ * set in Admin. Admins can write it by hand instead; a hand-written
  * summary is never replaced automatically (it is flagged once the discussion
  * changes), only when an admin asks the AI writer to write it again.
  */
