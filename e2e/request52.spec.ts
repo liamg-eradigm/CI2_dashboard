@@ -55,8 +55,9 @@ test.describe("request 52", () => {
     await expect(page.getByRole("heading", { level: 1, name: "Database" })).toBeVisible();
     const list = page.getByTestId("newsletters");
     await expect(list.locator("thead th")).toHaveText([/Newsletter/i, /Name/i, /Entries used/i, /Delete/i]);
-    // Newest first: the one just made leads, with the entries it uses.
-    const first = list.locator("tbody tr").first();
+    // Newest first: the one just made leads, with the entries it uses (names are to the minute, so other tests' may match it).
+    await expect(list.locator("tbody tr").first()).toContainText(`NL one ${tag}`);
+    const first = list.locator("tbody tr", { hasText: `NL one ${tag}` });
     await expect(first).toContainText(n.name);
     await expect(first.locator(".nl-items li")).toHaveCount(2);
     await expect(first.locator(".nl-items")).toContainText(`NL one ${tag}`);
@@ -76,7 +77,7 @@ test.describe("request 52", () => {
     const dlg = page.getByTestId("delete-deliverables");
     await expect(dlg).toContainText("Delete this newsletter?");
     await dlg.getByRole("button", { name: "Delete newsletter" }).click();
-    await expect(list.getByText(n.name)).toHaveCount(0);
+    await expect(first).toHaveCount(0);
 
     // Back to a tracker, then the old Deliverables address.
     await toggle.getByRole("button", { name: "Secondary Tracker" }).click();
