@@ -1029,6 +1029,19 @@ html.resizing-rows { overflow: hidden; }
 .rich-text ul ul ul { list-style-type: square; }
 .rich-text .rt-title { font-size: 1.3em; font-weight: 700; line-height: 1.3; margin: 4px 0 6px; color: var(--ink); letter-spacing: 0; text-transform: none; }
 .rd-long { font-size: 14px; line-height: 1.6; color: var(--ink-2); }
+/* Request 54: a Database row's entry, every field in full, one per row. */
+.drawer.entry-fields { width: min(760px, 96vw); }
+.ef-head { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ef-head .mono { font-size: 12px; color: var(--muted); }
+.ef-head h2 { margin: 0; font: 700 19px/1.3 var(--sans); color: var(--ink); text-wrap: pretty; }
+.ef-actions { display: flex; align-items: center; gap: 8px; flex: none; }
+.ef-list { margin: 0; padding: 0 0 32px; }
+.ef-row { display: grid; grid-template-columns: minmax(140px, 200px) minmax(0, 1fr); gap: 18px; padding: 12px 24px; border-bottom: 1px solid var(--rule); }
+.ef-row:nth-child(even) { background: var(--subtle); }
+.ef-row dt { font: 700 11px/1.5 var(--sans); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); padding-top: 2px; }
+.ef-row dd { margin: 0; font-size: 14px; line-height: 1.6; color: var(--ink); overflow-wrap: anywhere; }
+.ef-none { color: var(--muted-2); }
+@media (max-width: 640px) { .ef-row { grid-template-columns: 1fr; gap: 4px; padding: 10px 16px; } }
 .ai-summary-edit .rt-editor { font-size: 19px; line-height: 1.55; padding: 12px; }
 .ai-summary.sized .ai-summary-edit .rt-field { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 .ai-summary.sized .ai-summary-edit .rt-field > div { flex: 1 1 auto; min-height: 0; display: flex; }
@@ -1068,6 +1081,10 @@ html.resizing-rows { overflow: hidden; }
 .nl-sec-title { min-width: 0; font-size: 13.5px; color: var(--ink); overflow-wrap: anywhere; }
 .nl-sec-title .mono { color: var(--ink-2); margin-right: 4px; font-size: 12px; }
 .nl-sec-seg { flex: none; }
+/* Request 54: the chosen section glows in the platform's cyan (as the open menu tab and graph highlights do). */
+.nl-sec-seg button[aria-checked="true"] { background: var(--cyan); color: var(--navy-900); box-shadow: 0 0 0 1px var(--cyan), 0 0 12px 2px rgba(61, 195, 201, 0.6); }
+.nl-sec-seg button[aria-checked="true"]:hover { background: var(--cyan); color: var(--navy-900); }
+.nl-sec-list li.placed { background: var(--tint-3); }
 .nl-sec-foot { display: flex; align-items: center; gap: 8px; }
 .nl-sec-foot .card-sub { margin-right: auto; }
 /* Request 51: bold / larger / smaller for selected text in the document view. */

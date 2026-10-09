@@ -62,7 +62,7 @@ export function DatabasePage({ me }: { me: Me }) {
       (prev) => {
         const p = new URLSearchParams(prev);
         // Open panels and paging belong to the table being left.
-        for (const k of ["page", "md", "signal", "edit", "saved", "savedPage", "docx", "all"]) p.delete(k);
+        for (const k of ["page", "md", "signal", "edit", "saved", "savedPage", "docx", "all", "row"]) p.delete(k);
         if (v === "ci" || v === "newsletters") p.set("db", v);
         else {
           p.delete("db");

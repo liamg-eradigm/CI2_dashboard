@@ -198,7 +198,7 @@ export function MegatrendsPage({ focusMacro }: { me?: Me; focusMacro?: string })
   );
 
   const crumbs = (
-    <nav className="mg-crumbs" aria-label="Graph level">
+    <nav className={`mg-crumbs${focusMacro ? " with-hint" : ""}`} aria-label="Graph level">
       {!focusMacro && <GraphToggle current="megatrends" onAll={() => select({ macro: null, sub: null })} />}
       {sel.macro && (
         <>
@@ -215,6 +215,12 @@ export function MegatrendsPage({ focusMacro }: { me?: Me; focusMacro?: string })
             {sel.sub}
           </span>
         </>
+      )}
+      {/* Request 54: how to use a Macrotrend's graph, in its box under its name. */}
+      {focusMacro && (
+        <p className="mg-hint" data-testid="mg-hint">
+          Select a Subtrend to explore signals in this space
+        </p>
       )}
     </nav>
   );

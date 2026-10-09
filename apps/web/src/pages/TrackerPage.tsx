@@ -22,6 +22,7 @@ import { NewsletterCell, NewspaperIcon } from "../components/NewsletterCell";
 import { DiscussionSummaryBox } from "../components/DiscussionSummaryBox";
 import { RichText } from "../components/BulletText";
 import { SizedHeading } from "../components/TextSize";
+import { EntryFields } from "../components/EntryFields";
 
 const PAGE = 10;
 
@@ -222,6 +223,8 @@ export function TrackerPage({
   const archSource = archSignal.data ? [archSignal.data.values[FIELDS.sourceRole], archSignal.data.values[FIELDS.sourceCompany]].filter(Boolean).join(" · ") : undefined;
   const savedOpen = f.params.get("saved");
   const docxOpen = f.params.get("docx");
+  // Request 54: a Database row opens every field of its entry in full, from the right.
+  const rowOpen = database ? f.params.get("row") : null;
   const newsletters = useNewsletters(database);
   // Ticked rows: for deletion (Tracker/Phantoms, cleared when the page of rows
   // changes) or, on the Database page, the entries of the next newsletter
@@ -334,7 +337,8 @@ export function TrackerPage({
     setParam({ pp: r.id, arch: has ? r.id : null, am: has && archMode === "kiq" ? "kiq" : null, ap: null }, true);
   };
   const onRowClick = (e: ReactMouseEvent, r: Signal) => {
-    if (!primaryOnly || (e.target as HTMLElement).closest("button, a, input, label, select, textarea")) return;
+    if (!(primaryOnly || database) || (e.target as HTMLElement).closest("button, a, input, label, select, textarea")) return;
+    if (database) return setParam({ row: r.id }, true);
     openRow(r);
   };
   const info = t
@@ -576,7 +580,7 @@ export function TrackerPage({
               </thead>
               <tbody>
                 {t?.rows.map((r) => (
-                  <tr key={r.id} className={[picked.has(r.id) ? "picked" : "", primaryOnly ? "arch-row" : "", primaryOnly && rowPopup === r.id ? "open" : ""].filter(Boolean).join(" ") || undefined} onClick={(e) => onRowClick(e, r)}>
+                  <tr key={r.id} className={[picked.has(r.id) ? "picked" : "", primaryOnly || database ? "arch-row" : "", (primaryOnly && rowPopup === r.id) || rowOpen === r.id ? "open" : ""].filter(Boolean).join(" ") || undefined} onClick={(e) => onRowClick(e, r)}>
                     {tickable && (
                       <td className="pick-col">
                         <input type="checkbox" checked={picked.has(r.id)} onChange={() => toggle(r)} aria-label={`Select ${titleOf(r)}`} />
@@ -816,6 +820,16 @@ export function TrackerPage({
           onClose={() => setParam({ md: null })}
           onOpenRecord={(id) => setParam({ md: null, signal: id }, true)}
           onEdit={canEdit ? (id) => setParam({ md: null, signal: id, edit: "1" }, true) : undefined}
+        />
+      )}
+      {rowOpen && !selected && (
+        <EntryFields
+          key={rowOpen}
+          id={rowOpen}
+          row={t?.rows.find((r) => r.id === rowOpen)}
+          schema={s}
+          onClose={() => setParam({ row: null })}
+          onOpenRecord={() => setParam({ row: null, signal: rowOpen }, true)}
         />
       )}
       {selected && (
