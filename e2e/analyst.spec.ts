@@ -808,12 +808,13 @@ test.describe("Eradigm staff (admin)", () => {
     const title = (await row.locator("td.title").innerText()).trim();
     await row.getByRole("button", { name: `Open the alert for ${title}` }).click();
     const pane = page.getByRole("dialog", { name: title });
-    const para = pane.locator(".docx-host section.docx p").first();
-    await expect(para).toHaveText(title, { timeout: 15_000 });
-    const style = await para.locator("span").first().evaluate((e) => ({ weight: getComputedStyle(e).fontWeight, size: getComputedStyle(e).fontSize }));
-    expect(Number(style.weight)).toBeGreaterThanOrEqual(700);
-    // 32 pt, as rendered in CSS pixels.
-    expect(Math.round(parseFloat(style.size))).toBe(Math.round((32 * 96) / 72));
+    // Request 51: the alert template, filled from the entry (its Title in the template's bold title).
+    const doc = pane.locator(".docx-host");
+    await expect(doc).toContainText("What happened:", { timeout: 15_000 });
+    const head = doc.getByText(title, { exact: true }).first();
+    await expect(head).toBeVisible();
+    expect(Number(await head.evaluate((e) => getComputedStyle(e).fontWeight))).toBeGreaterThanOrEqual(700);
+    await expect(doc).not.toContainText("<Insert");
     const [download] = await Promise.all([page.waitForEvent("download"), pane.getByRole("button", { name: "Download .docx" }).click()]);
     expect(download.suggestedFilename()).toMatch(/^[\w-]+-alert\.docx$/);
     const bytes = readFileSync((await download.path())!);

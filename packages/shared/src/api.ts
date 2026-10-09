@@ -357,8 +357,15 @@ export const NewsletterSchema = z.object({
 });
 export type Newsletter = z.infer<typeof NewsletterSchema>;
 /** The Database page (request 43): Generate Newsletter from the ticked rows (any Tracker entries, either stream). */
+/** Request 51: the sections of the newsletter template each entry goes in. */
+export const NEWSLETTER_SECTIONS = ["technology", "people", "process"] as const;
+export type NewsletterSection = (typeof NEWSLETTER_SECTIONS)[number];
+export const NEWSLETTER_SECTION_LABEL: Record<NewsletterSection, string> = { technology: "Technology", people: "People", process: "Process" };
+
 export const GenerateNewsletterRequest = z.object({
   itemIds: z.array(z.string().min(1).max(64)).min(1, "Select at least one entry").max(200),
+  /** Request 51 (contract 1.28): the section of the newsletter each entry goes in (Technology, People or Process); one per entry. */
+  sections: z.record(z.string().min(1).max(64), z.enum(NEWSLETTER_SECTIONS)),
 });
 
 /**
@@ -980,8 +987,8 @@ export const ENDPOINTS: EndpointDef[] = [
   { method: "get", path: "/api/deliverables/newsletter", summary: "Deliverables → Newsletter: Phantoms with High or Medium Impact, to build newsletters from", roles: ALL_ROLES, response: TrackerPageSchema },
   { method: "get", path: "/api/newsletters", summary: "Newsletters created so far, newest first", roles: ALL_ROLES, response: z.array(NewsletterSchema) },
   { method: "post", path: "/api/newsletters", summary: "Create a newsletter (.docx) from selected Newsletter entries", roles: STAFF, request: CreateNewsletterRequest, response: NewsletterSchema },
-  { method: "post", path: "/api/newsletters/generate", summary: "Database page: Generate Newsletter from the ticked entries (either stream). For now the .docx lists their titles; it is attached to each of those rows", roles: STAFF, request: GenerateNewsletterRequest, response: NewsletterSchema },
-  { method: "get", path: "/api/database", summary: "Database page: a stream's Tracker entries with every field, whether each is in Phantoms, its alert (written automatically for High Impact Phantoms) and the newsletters it is in", roles: ALL_ROLES, query: ["stream", "q", "from", "to", "f.<column>", "t.<column>", "df.<column>", "dt.<column>", "sort", "dir", "page", "pageSize"], response: TrackerPageSchema },
+  { method: "post", path: "/api/newsletters/generate", summary: "Database page: Generate Newsletter from the ticked entries (either stream), each in the section it is assigned to (Technology, People or Process), written into the newsletter template; it is attached to each of those rows", roles: STAFF, request: GenerateNewsletterRequest, response: NewsletterSchema },
+  { method: "get", path: "/api/database", summary: "Database page: a stream's Tracker entries with every field, whether each is in Phantoms, its alert (request 51: every entry has one, written into the alert template) and the newsletters it is in", roles: ALL_ROLES, query: ["stream", "q", "from", "to", "f.<column>", "t.<column>", "df.<column>", "dt.<column>", "sort", "dir", "page", "pageSize"], response: TrackerPageSchema },
   { method: "delete", path: "/api/deliverables/{id}", summary: "Delete an alert (its entry leaves Deliverables → Alerts and gets no new alert; the Phantom stays) or a newsletter", roles: STAFF, response: z.object({ ok: z.literal(true), kind: z.enum(["alert", "newsletter"]), name: z.string() }) },
   { method: "get", path: "/api/deliverables/{id}/docx", summary: "A stored alert or newsletter .docx (inline for the viewer, ?download=1 as a file)", roles: ALL_ROLES },
   { method: "get", path: "/api/megatrends", summary: "Megatrends: Tracker entries per Macrotrend and Subtrend (query: stream all|primary|secondary, from, to), their summaries, and the entries for the timeline", roles: ALL_ROLES, query: ["stream", "from", "to"], response: MegatrendsSchema },

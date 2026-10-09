@@ -751,6 +751,38 @@ analyst-entered information distinguishable; in the prototype every value is
   Company Profile in place (✎ Edit, a formatted-text field: select text for
   bold, underline, size or title). Saved through `PUT
   /api/megatrends/summaries` (level competitor); clients read it.
+- **Request 51** (contract 1.28, no migration): alerts and newsletters are
+  written into the Word templates at the root of the repo, "Alert
+  Template.docx" and "Newsletter Template.docx".
+  - `scripts/build-docx-templates.mjs` unpacks them into
+    `apps/api/src/templates/docxTemplates.generated.ts` (Word's revision IDs
+    dropped). The API's wrangler config runs it before every deploy
+    (`npm run templates`), and CI fails if the packed copy is out of date. To
+    change a template, replace the .docx and deploy (or run
+    `npm run templates`).
+  - `services/docxTemplate.ts` fills the placeholders in the document XML,
+    keeping the template's look: a value takes the formatting of the text where
+    its placeholder starts (Word splits placeholders over runs). Long fields
+    keep their lines, "- " bullets (as Word bullets at their level) and the
+    text boxes' bold, underline, size and titles. Missing values read "N/A".
+    Links are added as relationships; the template's review comments are
+    removed. The result is packed uncompressed (`zipStore`).
+  - **Alerts**: every Tracker entry has one (not only High Impact). Its row
+    is created when the entry is first listed; the .docx is written each time
+    it is opened, from the entry's Phantom (as first pushed) or, without one,
+    its fields, so nothing large is stored per entry. Placeholders: Title,
+    Competitor, Assets (Drug), Review Date ("September 3, 2026"), Publisher
+    (linked to the URL), Key Details, Impact, CI Perspective, Tell Me More.
+  - **Generate Newsletter** (Database): a dialog lists the ticked signals;
+    each is put in Technology, People or Process before Confirm
+    (`sections` in the request, one per entry). The template's month and year
+    are the current ones; the Executive Summary lists each section's titles;
+    each section repeats its alert block per entry (Title, Publisher linked,
+    Event Date "September 1st, 2026", Macrotrend (Subtrend), CI Perspective,
+    Key Details). An empty section reads "N/A". The .docx is stored with the
+    newsletter. Deliverables → Newsletter still makes its title-only file.
+  - The document view (`DocxPane`) has B / A− / A+ for selected text (and
+    Reset). These change the view only; Download gives the generated file.
 - **Menu in groups** (request 28, contract 1.17; regrouped in request 31,
   contract 1.19; renamed in request 34; `packages/shared/src/menu.ts`): the
   menu is four groups (and, from request 43, the Database tab on its own),

@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import { CORE, FIELDS, STREAM_LABEL, TABLE_ALL_MAX, can, displayValue, getColumn, phantomColumns, sortedColumns, trackerColumns, type Me, type Newsletter, type Signal, type TrackerColumn, type TrackerSchema } from "@eradigm/shared";
-import { api, request, type ApiError } from "../api/client";
+import { request } from "../api/client";
 import { exportUrl, useArchived, useInvalidate, useNewsletters, useSchema, useSettings, useSignal, useTracker, type TableView } from "../api/hooks";
 import { FilterHeader } from "../components/FilterHeader";
 import { MarkdownPanel } from "../components/MarkdownPanel";
 import { DeleteEntries } from "../components/DeleteEntries";
 import { DatesHint } from "../components/DatesHint";
 import { RecordDrawer, useFocusTrap } from "../components/RecordDrawer";
-import { DeleteDeliverables, DocxButton, DocxPane, NewsletterCreate, canCreateNewsletter } from "../components/Deliverables";
+import { DeleteDeliverables, DocxButton, DocxPane, NewsletterCreate, NewsletterSections, canCreateNewsletter } from "../components/Deliverables";
 import { SourceDrawer } from "../components/SnapshotFrame";
 import { SavedPagesButton, useAttachPage } from "../components/SavedPages";
 import { StreamSwitch } from "../components/StreamSwitch";
@@ -352,19 +352,12 @@ export function TrackerPage({
     : "Loading…";
 
 
-  /** The Database page: a newsletter from the ticked rows (for now, a .docx of their titles), attached to each of them. */
-  const generate = async () => {
-    setGenerating(true);
-    try {
-      const n = await api<Newsletter>("/api/newsletters/generate", { method: "POST", json: { itemIds: pickedRows.map((r) => r.id) } });
-      await inv("tracker", "newsletters");
-      setPicked(new Map());
-      toast(`Generated “${n.name}” from ${n.items.length} entries`);
-    } catch (e) {
-      toast(`Could not generate the newsletter · ${(e as ApiError).message}`, false);
-    } finally {
-      setGenerating(false);
-    }
+  /** The Database page: a newsletter from the ticked rows, each placed in a section of the template first (request 51), attached to each of them. */
+  const generated = async (n: Newsletter) => {
+    setGenerating(false);
+    await inv("tracker", "newsletters");
+    setPicked(new Map());
+    toast(`Generated “${n.name}” from ${n.items.length} entries`);
   };
 
   const doExport = async (format: string) => {
@@ -420,9 +413,9 @@ export function TrackerPage({
                     : `Approved entries from the ${STREAM_LABEL[stream]} Inbox`}
             </span>
             {canGenerate && pickedRows.length >= 2 && (
-              <button className="btn gen-newsletter" disabled={generating} onClick={() => void generate()} data-testid="generate-newsletter" title={`A newsletter from the ${pickedRows.length} ticked entries`}>
+              <button className="btn gen-newsletter" disabled={generating} onClick={() => setGenerating(true)} data-testid="generate-newsletter" title={`A newsletter from the ${pickedRows.length} ticked entries`}>
                 <NewspaperIcon />
-                <span>{generating ? "Generating…" : `Generate Newsletter (${pickedRows.length})`}</span>
+                <span>{`Generate Newsletter (${pickedRows.length})`}</span>
               </button>
             )}
           </div>
@@ -838,6 +831,13 @@ export function TrackerPage({
             setPicked((p) => new Map([...p].filter(([, r]) => !r.alertId || !ids.includes(r.alertId))));
             setConfirmDelete(false);
           }}
+        />
+      )}
+      {generating && database && pickedRows.length >= 2 && (
+        <NewsletterSections
+          entries={pickedRows.map((r) => ({ id: r.id, code: String(r.values[FIELDS.id] ?? "") || r.code, label: titleOf(r) }))}
+          onCancel={() => setGenerating(false)}
+          onDone={(n) => void generated(n)}
         />
       )}
       {confirmDelete && pickedRows.length > 0 && (view === "tracker" || view === "phantoms" || database) && (

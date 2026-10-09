@@ -28,6 +28,7 @@
     "test:e2e": "playwright test",
     "test:load": "node scripts/load-test.mjs",
     "openapi": "npm run openapi -w packages/shared",
+    "templates": "node scripts/build-docx-templates.mjs",
     "eval": "tsx scripts/eval-extraction.ts",
     "audit:deps": "npm audit --omit=dev --audit-level=high",
     "scan:secrets": "node scripts/scan-secrets.mjs",

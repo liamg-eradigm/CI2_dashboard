@@ -43,6 +43,8 @@
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": false,
   "observability": { "enabled": true, "head_sampling_rate": 1 },
+  // Request 51: pack the Word templates (Alert / Newsletter Template.docx at the repo root) before every deploy.
+  "build": { "command": "npm run --silent templates" },
 
   "env": {
     "dev": {

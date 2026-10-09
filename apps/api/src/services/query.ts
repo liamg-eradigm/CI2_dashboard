@@ -33,7 +33,7 @@ import {
   type TrendResult,
 } from "@eradigm/shared";
 import type { Env } from "../env.js";
-import { PHYSICAL, jsonPath } from "./schema.js";
+import { PHYSICAL, jsonPath, type Schemas } from "./schema.js";
 
 const SEP = "\u001f";
 
@@ -526,6 +526,23 @@ export async function signalRow(env: Env, schema: TrackerSchema, tenantId: strin
     .bind(tenantId, id)
     .first<SignalRow>();
   return r ? toSignal(schema, r) : null;
+}
+
+/**
+ * Approved entries as rows, each with its own stream's columns, in the order
+ * asked (request 51: alerts and newsletters): as they are in the Tracker, or
+ * (`scope.table` "phantoms") as their Phantom was first pushed; entries
+ * without one are left out.
+ */
+export async function signalRows(env: Env, schemas: Schemas, tenantId: string, ids: string[], scope: Scope = {}): Promise<Signal[]> {
+  if (!ids.length) return [];
+  const r = await env.DB.prepare(
+    `SELECT ${signalColumns(scope)} FROM ${itemsFrom(scope)} WHERE i.tenant_id = ?1 AND i.id IN (SELECT value FROM json_each(?2)) AND i.status = 'approved' AND i.deleted_at IS NULL`,
+  )
+    .bind(tenantId, JSON.stringify(ids))
+    .all<SignalRow>();
+  const byId = new Map((r.results ?? []).map((x) => [x.id, toSignal(schemas[x.stream as Stream] ?? schemas.primary, x)]));
+  return ids.map((id) => byId.get(id)).filter((x): x is Signal => !!x);
 }
 
 /**

@@ -499,13 +499,12 @@ async function tablePage(c: C, view: TableView) {
     result.rows = await ensureAlerts(c.env, P(c).tenantId, result.rows);
     return c.json(result);
   }
-  // The Database page: each row also says whether it is in Phantoms, carries its alert (written as on
-  // Deliverables → Alerts) and the newsletters it is in (writes alerts: never cached).
+  // The Database page: each row also says whether it is in Phantoms, carries its alert (request 51: every
+  // entry has one) and the newsletters it is in (creates alerts: never cached).
   if (view === "database") {
     const result = await trackerPage(c.env, schema, P(c).tenantId, f, sortOf(c, schema), page, pageSize, scope);
     const phantoms = await phantomScope(c, stream, schema);
-    const top = getColumn(schema, CORE.impact)?.options?.at(-1) ?? null;
-    result.rows = await databaseExtras(c.env, P(c).tenantId, result.rows, phantoms.impacts ?? null, top);
+    result.rows = await databaseExtras(c.env, P(c).tenantId, result.rows, phantoms.impacts ?? null);
     return c.json(result);
   }
   return cachedJson(c, () => trackerPage(c.env, schema, P(c).tenantId, f, sortOf(c, schema), page, pageSize, scope));
@@ -674,7 +673,7 @@ app.post("/api/newsletters/generate", async (c) => {
   requirePermission(p, "item:edit");
   const b = await body(c, GenerateNewsletterRequest);
   const s = await loadSettings(c.env, p.tenantId);
-  return c.json(await generateNewsletter(c.env, p, b.itemIds, s.timezone), 201);
+  return c.json(await generateNewsletter(c.env, p, b.itemIds, b.sections, s.timezone, (stream) => schemaFor(c, stream)), 201);
 });
 
 /** Delete an alert (its entry leaves the Alerts table; the Phantom stays) or a newsletter (request 36). */
@@ -688,7 +687,7 @@ app.delete("/api/deliverables/:id", async (c) => {
 app.get("/api/deliverables/:id/docx", async (c) => {
   const p = P(c);
   requirePermission(p, "tracker:read");
-  const d = await readDeliverable(c.env, p.tenantId, c.req.param("id"));
+  const d = await readDeliverable(c.env, p.tenantId, c.req.param("id"), (stream) => schemaFor(c, stream));
   const download = c.req.query("download") === "1";
   if (download) await audit(c.env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "deliverable.downloaded", targetType: "deliverable", targetId: c.req.param("id"), details: { kind: d.kind, file: d.fileName } });
   return new Response(d.bytes, {

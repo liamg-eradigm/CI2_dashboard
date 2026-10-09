@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "wrangler dev --env dev --port 8787 --persist-to ../../.wrangler/state",
     "build": "wrangler deploy --dry-run --outdir dist --env production",
+    "templates": "node ../../scripts/build-docx-templates.mjs",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
     "cf-typegen": "wrangler types --env-interface CloudflareBindings",

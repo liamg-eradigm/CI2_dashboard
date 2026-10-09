@@ -21,6 +21,15 @@ async function push(page: Page, stream: "primary" | "secondary", rows: Record<st
 
 const nav = (page: Page) => page.getByRole("navigation", { name: "COMPETITIVE INTELLIGENCE" });
 
+/** Request 51: Generate Newsletter asks for each entry's section first; put them all in Technology and confirm. */
+async function placeAll(page: Page) {
+  const dialog = page.getByTestId("newsletter-sections");
+  await expect(dialog).toBeVisible();
+  for (const b of await dialog.getByTestId("nl-sec-technology").all()) await b.click();
+  await dialog.getByTestId("nl-confirm").click();
+  await expect(dialog).toHaveCount(0);
+}
+
 test.describe("request 43", () => {
   test("Database: a tab of its own with Primary, Secondary and CI Analysis; every field, Source, Markdown, Alert and Newsletter; filters on every field", async ({ page }) => {
     await signInAs(page, "admin");
@@ -58,10 +67,10 @@ test.describe("request 43", () => {
     expect(heads.indexOf("Markdown")).toBeLessThan(heads.indexOf("Alert"));
     expect(heads.indexOf("Alert")).toBeLessThan(heads.indexOf("Newsletter"));
     await expect(row(`High ${tag}`)).toContainText("Lyon");
-    // Every Primary entry is a Phantom (Markdown); only High Impact gets an alert.
+    // Every Primary entry is a Phantom (Markdown); request 51: every entry has an alert.
     await expect(row(`High ${tag}`).getByRole("button", { name: `Open Markdown for High ${tag}` })).toBeVisible();
     await expect(row(`High ${tag}`).getByRole("button", { name: `Open the alert for High ${tag}` })).toBeVisible();
-    await expect(row(`Low ${tag}`).getByRole("button", { name: /Open the alert/ })).toHaveCount(0);
+    await expect(row(`Low ${tag}`).getByRole("button", { name: `Open the alert for Low ${tag}` })).toBeVisible();
     await row(`High ${tag}`).getByRole("button", { name: `Open the alert for High ${tag}` }).click();
     await expect(page.getByRole("dialog").getByText("Alert", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Close document" }).click();
@@ -116,6 +125,7 @@ test.describe("request 43", () => {
     const s = (await page.getByTestId("stream-secondary").boundingBox())!;
     expect(Math.abs(g.y + g.height / 2 - (s.y + s.height / 2))).toBeLessThan(6);
     await generate.click();
+    await placeAll(page);
     await expect(page.getByText(/Generated “Newsletter · .*” from 2 entries/).first()).toBeVisible();
     await expect(generate).toHaveCount(0);
     await expect(row(`First ${tag}`).getByTestId("newsletter-cell")).toBeVisible();
@@ -135,6 +145,7 @@ test.describe("request 43", () => {
     await row(`Second ${tag}`).getByRole("checkbox").check();
     await row(`Third ${tag}`).getByRole("checkbox").check();
     await generate.click();
+    await placeAll(page);
     await expect(row(`Third ${tag}`).getByTestId("newsletter-cell")).toBeVisible();
     const cell = row(`Second ${tag}`).getByTestId("newsletter-cell");
     await expect(cell).toHaveAttribute("aria-haspopup", "menu");
