@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Eradigm Competitive Intelligence API",
-    "version": "1.27.0",
+    "version": "1.28.0",
     "description": "Generated from packages/shared/src/api.ts. Every request is checked for both role and tenant server-side. Send X-Tenant-Id to select a tenant when the user belongs to more than one."
   },
   "components": {
@@ -7957,7 +7957,7 @@
     },
     "/api/newsletters/generate": {
       "post": {
-        "summary": "Database page: Generate Newsletter from the ticked entries (either stream). For now the .docx lists their titles; it is attached to each of those rows",
+        "summary": "Database page: Generate Newsletter from the ticked entries (either stream), each in the section it is assigned to (Technology, People or Process), written into the newsletter template; it is attached to each of those rows",
         "description": "Roles: admin, analyst",
         "parameters": [],
         "responses": {
@@ -8117,10 +8117,22 @@
                       "minLength": 1,
                       "maxLength": 64
                     }
+                  },
+                  "sections": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string",
+                      "enum": [
+                        "technology",
+                        "people",
+                        "process"
+                      ]
+                    }
                   }
                 },
                 "required": [
-                  "itemIds"
+                  "itemIds",
+                  "sections"
                 ],
                 "additionalProperties": false
               }
@@ -8136,7 +8148,7 @@
     },
     "/api/database": {
       "get": {
-        "summary": "Database page: a stream's Tracker entries with every field, whether each is in Phantoms, its alert (written automatically for High Impact Phantoms) and the newsletters it is in",
+        "summary": "Database page: a stream's Tracker entries with every field, whether each is in Phantoms, its alert (request 51: every entry has one, written into the alert template) and the newsletters it is in",
         "description": "Roles: admin, analyst, client",
         "parameters": [
           {
@@ -22197,20 +22209,6 @@
                             ]
                           },
                           {
-                            "key": "trackers",
-                            "items": [
-                              {
-                                "key": "tracker"
-                              },
-                              {
-                                "key": "phantoms"
-                              },
-                              {
-                                "key": "trend-analyses"
-                              }
-                            ]
-                          },
-                          {
                             "key": "admin",
                             "items": [
                               {
@@ -22226,7 +22224,7 @@
                       "type": "object",
                       "properties": {
                         "groups": {
-                          "maxItems": 5,
+                          "maxItems": 4,
                           "type": "array",
                           "items": {
                             "type": "object",
@@ -22237,7 +22235,6 @@
                                   "inputs",
                                   "analytics",
                                   "database",
-                                  "trackers",
                                   "admin"
                                 ]
                               },
@@ -22246,7 +22243,7 @@
                                 "maxLength": 80
                               },
                               "items": {
-                                "maxItems": 12,
+                                "maxItems": 9,
                                 "type": "array",
                                 "items": {
                                   "type": "object",
@@ -22261,9 +22258,6 @@
                                         "knowledge-graph",
                                         "primary-tracker",
                                         "database",
-                                        "tracker",
-                                        "phantoms",
-                                        "trend-analyses",
                                         "deliverables",
                                         "admin"
                                       ]
@@ -22727,20 +22721,6 @@
                             ]
                           },
                           {
-                            "key": "trackers",
-                            "items": [
-                              {
-                                "key": "tracker"
-                              },
-                              {
-                                "key": "phantoms"
-                              },
-                              {
-                                "key": "trend-analyses"
-                              }
-                            ]
-                          },
-                          {
                             "key": "admin",
                             "items": [
                               {
@@ -22756,7 +22736,7 @@
                       "type": "object",
                       "properties": {
                         "groups": {
-                          "maxItems": 5,
+                          "maxItems": 4,
                           "type": "array",
                           "items": {
                             "type": "object",
@@ -22767,7 +22747,6 @@
                                   "inputs",
                                   "analytics",
                                   "database",
-                                  "trackers",
                                   "admin"
                                 ]
                               },
@@ -22776,7 +22755,7 @@
                                 "maxLength": 80
                               },
                               "items": {
-                                "maxItems": 12,
+                                "maxItems": 9,
                                 "type": "array",
                                 "items": {
                                   "type": "object",
@@ -22791,9 +22770,6 @@
                                         "knowledge-graph",
                                         "primary-tracker",
                                         "database",
-                                        "tracker",
-                                        "phantoms",
-                                        "trend-analyses",
                                         "deliverables",
                                         "admin"
                                       ]
@@ -23195,7 +23171,7 @@
                     "type": "object",
                     "properties": {
                       "groups": {
-                        "maxItems": 5,
+                        "maxItems": 4,
                         "type": "array",
                         "items": {
                           "type": "object",
@@ -23206,7 +23182,6 @@
                                 "inputs",
                                 "analytics",
                                 "database",
-                                "trackers",
                                 "admin"
                               ]
                             },
@@ -23215,7 +23190,7 @@
                               "maxLength": 80
                             },
                             "items": {
-                              "maxItems": 12,
+                              "maxItems": 9,
                               "type": "array",
                               "items": {
                                 "type": "object",
@@ -23230,9 +23205,6 @@
                                       "knowledge-graph",
                                       "primary-tracker",
                                       "database",
-                                      "tracker",
-                                      "phantoms",
-                                      "trend-analyses",
                                       "deliverables",
                                       "admin"
                                     ]
@@ -23572,20 +23544,6 @@
                             ]
                           },
                           {
-                            "key": "trackers",
-                            "items": [
-                              {
-                                "key": "tracker"
-                              },
-                              {
-                                "key": "phantoms"
-                              },
-                              {
-                                "key": "trend-analyses"
-                              }
-                            ]
-                          },
-                          {
                             "key": "admin",
                             "items": [
                               {
@@ -23601,7 +23559,7 @@
                       "type": "object",
                       "properties": {
                         "groups": {
-                          "maxItems": 5,
+                          "maxItems": 4,
                           "type": "array",
                           "items": {
                             "type": "object",
@@ -23612,7 +23570,6 @@
                                   "inputs",
                                   "analytics",
                                   "database",
-                                  "trackers",
                                   "admin"
                                 ]
                               },
@@ -23621,7 +23578,7 @@
                                 "maxLength": 80
                               },
                               "items": {
-                                "maxItems": 12,
+                                "maxItems": 9,
                                 "type": "array",
                                 "items": {
                                   "type": "object",
@@ -23636,9 +23593,6 @@
                                         "knowledge-graph",
                                         "primary-tracker",
                                         "database",
-                                        "tracker",
-                                        "phantoms",
-                                        "trend-analyses",
                                         "deliverables",
                                         "admin"
                                       ]

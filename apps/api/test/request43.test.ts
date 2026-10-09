@@ -38,11 +38,11 @@ describe("request 43: the Database page", () => {
     // Every field, including those in neither table (Publisher, Review Date).
     expect(h.values.publisher).toBe(`Pub ${tag}`);
     expect(h.values.review_date).toBe("2026-03-10");
-    // Secondary Phantoms start at Low by default: both are Phantoms; only High Impact gets an alert.
+    // Secondary Phantoms start at Low by default: both are Phantoms; request 51: every entry has an alert.
     expect(h.phantom).toBe(true);
     expect(l.phantom).toBe(true);
     expect(h.alertId).toBeTruthy();
-    expect(l.alertId).toBeNull();
+    expect(l.alertId).toBeTruthy();
     expect(h.alertPending).toBe(false);
     // The same alert as Deliverables → Alerts.
     const alerts = (await json(call(w.a.client, "GET", `/api/deliverables/alerts?stream=secondary&${RANGE}`))).rows as Row[];
@@ -61,8 +61,9 @@ describe("request 43: the Database page", () => {
     const b = await entry("secondary", { title: `Secondary one ${tag}`, impact: "Low", publisher: `Pub ${tag}` });
     const c = await entry("secondary", { title: `Not used ${tag}`, impact: "Low", publisher: `Pub ${tag}` });
     // Clients cannot generate.
-    expect((await call(w.a.client, "POST", "/api/newsletters/generate", { body: { itemIds: [a, b] } })).status).toBe(403);
-    const res = await call(w.a.analyst, "POST", "/api/newsletters/generate", { body: { itemIds: [a, b] } });
+    const sections = { [a]: "technology", [b]: "people" };
+    expect((await call(w.a.client, "POST", "/api/newsletters/generate", { body: { itemIds: [a, b], sections } })).status).toBe(403);
+    const res = await call(w.a.analyst, "POST", "/api/newsletters/generate", { body: { itemIds: [a, b], sections } });
     expect(res.status, await res.clone().text()).toBe(201);
     const n = await res.json<{ id: string; name: string; items: { id: string; title: string }[] }>();
     expect(n.name).toMatch(/^Newsletter · /);
@@ -76,14 +77,14 @@ describe("request 43: the Database page", () => {
     expect(text).toContain(`Secondary one ${tag}`);
     expect(text).not.toContain(`Not used ${tag}`);
     // Attached to each row it was built from (both streams), not to the others; a second one adds to the list, newest first.
-    const n2 = await json(call(w.a.analyst, "POST", "/api/newsletters/generate", { body: { itemIds: [b] } }));
+    const n2 = await json(call(w.a.analyst, "POST", "/api/newsletters/generate", { body: { itemIds: [b], sections: { [b]: "process" } } }));
     const sec = await database(`stream=secondary&t.publisher=${tag}`);
     expect(sec.rows.find((r) => r.id === b)?.newsletters?.map((x) => x.id)).toEqual([n2.id, n.id]);
     expect(sec.rows.find((r) => r.id === c)?.newsletters).toEqual([]);
     expect((await database(`stream=primary&t.source_company=${tag}`)).rows.find((r) => r.id === a)?.newsletters?.map((x) => x.id)).toEqual([n.id]);
     // It is listed with the other newsletters; another tenant cannot use the entries.
     expect(((await json(call(w.a.client, "GET", "/api/newsletters"))) as { id: string }[]).map((x) => x.id)).toContain(n.id);
-    expect((await call(w.b.analyst, "POST", "/api/newsletters/generate", { body: { itemIds: [a] } })).status).toBe(422);
+    expect((await call(w.b.analyst, "POST", "/api/newsletters/generate", { body: { itemIds: [a], sections: { [a]: "people" } } })).status).toBe(422);
   });
 
   it("saving one settings section leaves the others as they were", async () => {

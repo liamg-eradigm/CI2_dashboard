@@ -34,6 +34,8 @@ jobs:
         run: npm run test:integration
       - name: Generated API description is up to date
         run: npm run openapi && git diff --exit-code packages/shared/openapi.json
+      - name: Word templates packed for the API are up to date
+        run: node scripts/build-docx-templates.mjs --check
       - name: Build all deployables
         run: |
           npm run build -w apps/web

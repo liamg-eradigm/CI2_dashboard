@@ -1,16 +1,18 @@
 /**
- * Deliverables built from Phantoms: .docx Alerts and Newsletters.
+ * Deliverables: .docx Alerts and Newsletters.
  *
- * - Alerts: every Phantom with the highest Impact (High) gets one alert,
- *   generated automatically the first time it is listed and regenerated when
- *   the entry is revised (the stored `source_rev` is its published revision).
- * - Newsletters: an analyst selects Newsletter entries (High / Medium Impact
- *   Phantoms), names the newsletter and creates it.
- *
- * The content is a placeholder until the AI writer is connected: the entry's
- * Title (alerts) or the newsletter's name, in bold 32 pt (`titleDocx`).
+ * - Alerts (request 51): every Tracker entry has one, created the first time
+ *   it is listed. It is written into "Alert Template.docx" each time it is
+ *   opened (nothing large is stored per entry), from the entry's Phantom (as
+ *   first pushed, like the Phantoms Markdown) or, without one, its fields.
+ * - Newsletters: Database → Generate Newsletter (request 51) writes the
+ *   ticked entries into "Newsletter Template.docx", each in the section it
+ *   was assigned to (Technology, People or Process). The older Deliverables →
+ *   Newsletter page still makes a title-only newsletter (`titleDocx`).
  */
-import { CORE, FIELDS, docxFileName, listDocx, titleDocx, type Newsletter, type Signal, type Stream } from "@eradigm/shared";
+import { FIELDS, docxFileName, titleDocx, type Newsletter, type NewsletterSection, type Signal, type Stream, type TrackerSchema } from "@eradigm/shared";
+import { signalRows } from "./query.js";
+import { alertDocx, newsletterDocx, type EntryForDoc } from "./templatedDocs.js";
 import type { Principal } from "../auth/context.js";
 import type { Env } from "../env.js";
 import { ApiError, notFound } from "../lib/errors.js";
@@ -35,41 +37,26 @@ function fromBase64(s: string): Uint8Array {
 /** "P-1106 alert": the entry's ID, else its signal code. */
 export const alertName = (recordId: string | null | undefined, code: string) => `${recordId?.trim() || code} alert`;
 
-/** Attach each row's alert, creating or refreshing the stored .docx where needed. */
+/** Attach each row's alert, creating it where needed (its .docx is written when it is opened). */
 export async function ensureAlerts(env: Env, tenantId: string, rows: Signal[]): Promise<Signal[]> {
   if (!rows.length) return rows;
   const list = () =>
-    env.DB.prepare(
-      "SELECT id, item_id, source_rev FROM deliverables WHERE tenant_id = ?1 AND kind = 'alert' AND deleted_at IS NULL AND item_id IN (SELECT value FROM json_each(?2))",
-    )
+    env.DB.prepare("SELECT id, item_id FROM deliverables WHERE tenant_id = ?1 AND kind = 'alert' AND deleted_at IS NULL AND item_id IN (SELECT value FROM json_each(?2))")
       .bind(tenantId, JSON.stringify(rows.map((r) => r.id)))
-      .all<{ id: string; item_id: string; source_rev: number | null }>()
+      .all<{ id: string; item_id: string }>()
       .then((r) => new Map((r.results ?? []).map((x) => [x.item_id, x])));
   let have = await list();
   const now = nowIso();
   const stmts: D1PreparedStatement[] = [];
   for (const r of rows) {
-    const cur = have.get(r.id);
-    if (cur && cur.source_rev === r.rev) continue;
+    if (have.has(r.id)) continue;
     // A long page ("Display all") is completed over the next listings.
     if (stmts.length >= ALERTS_PAGE_MAX) break;
-    const doc = titleDocx(String(r.values[CORE.title] ?? ""));
-    const name = alertName(r.values[FIELDS.id] as string | null, r.code);
     stmts.push(
-      cur
-        ? env.DB.prepare("UPDATE deliverables SET docx_b64 = ?1, bytes = ?2, source_rev = ?3, name = ?4, updated_at = ?5 WHERE tenant_id = ?6 AND id = ?7").bind(
-            toBase64(doc),
-            doc.length,
-            r.rev,
-            name,
-            now,
-            tenantId,
-            cur.id,
-          )
-        : // OR IGNORE: a concurrent listing may have created it first (unique per entry).
-          env.DB.prepare(
-            "INSERT OR IGNORE INTO deliverables (id, tenant_id, kind, item_id, source_rev, name, docx_b64, bytes, created_at, updated_at) VALUES (?1, ?2, 'alert', ?3, ?4, ?5, ?6, ?7, ?8, ?8)",
-          ).bind(newId("dlv"), tenantId, r.id, r.rev, name, toBase64(doc), doc.length, now),
+      // OR IGNORE: a concurrent listing may have created it first (unique per entry).
+      env.DB.prepare(
+        "INSERT OR IGNORE INTO deliverables (id, tenant_id, kind, item_id, source_rev, name, docx_b64, bytes, created_at, updated_at) VALUES (?1, ?2, 'alert', ?3, ?4, ?5, '', 0, ?6, ?6)",
+      ).bind(newId("dlv"), tenantId, r.id, r.rev, alertName(r.values[FIELDS.id] as string | null, r.code), now),
     );
   }
   if (stmts.length) {
@@ -79,13 +66,37 @@ export async function ensureAlerts(env: Env, tenantId: string, rows: Signal[]): 
   return rows.map((r) => ({ ...r, alertId: have.get(r.id)?.id ?? null }));
 }
 
-/** A stored deliverable's .docx. */
-export async function readDeliverable(env: Env, tenantId: string, id: string): Promise<{ kind: "alert" | "newsletter"; name: string; fileName: string; bytes: Uint8Array }> {
-  const r = await env.DB.prepare("SELECT kind, name, docx_b64 FROM deliverables WHERE tenant_id = ?1 AND id = ?2 AND deleted_at IS NULL")
+/** A deliverable's .docx: an alert written now from its entry's fields, a newsletter as it was made. */
+export async function readDeliverable(
+  env: Env,
+  tenantId: string,
+  id: string,
+  schemaOf: (stream: Stream) => Promise<TrackerSchema>,
+): Promise<{ kind: "alert" | "newsletter"; name: string; fileName: string; bytes: Uint8Array }> {
+  const r = await env.DB.prepare("SELECT kind, name, item_id, docx_b64 FROM deliverables WHERE tenant_id = ?1 AND id = ?2 AND deleted_at IS NULL")
     .bind(tenantId, id)
-    .first<{ kind: "alert" | "newsletter"; name: string; docx_b64: string }>();
+    .first<{ kind: "alert" | "newsletter"; name: string; item_id: string | null; docx_b64: string }>();
   if (!r) throw notFound("Deliverable");
+  if (r.kind === "alert" && r.item_id) {
+    const e = (await entriesForDocs(env, tenantId, [r.item_id], schemaOf, "phantoms"))[0] ?? (await entriesForDocs(env, tenantId, [r.item_id], schemaOf))[0];
+    if (!e) throw notFound("Alert");
+    const name = alertName(e.values[FIELDS.id] as string | null, e.code);
+    return { kind: "alert", name, fileName: docxFileName(name, "alert"), bytes: alertDocx(e) };
+  }
   return { kind: r.kind, name: r.name, fileName: docxFileName(r.name, r.kind), bytes: fromBase64(r.docx_b64) };
+}
+
+/** Approved Tracker entries with the schema of their stream, in the order asked (missing ones left out). */
+async function entriesForDocs(
+  env: Env,
+  tenantId: string,
+  ids: string[],
+  schemaOf: (stream: Stream) => Promise<TrackerSchema>,
+  table: "tracker" | "phantoms" = "tracker",
+): Promise<(EntryForDoc & { id: string; code: string })[]> {
+  const schemas = { primary: await schemaOf("primary"), secondary: await schemaOf("secondary") };
+  const rows = await signalRows(env, schemas, tenantId, ids, { table });
+  return rows.map((r) => ({ id: r.id, code: r.code, schema: schemas[r.stream], values: r.values }));
 }
 
 /**
@@ -199,7 +210,7 @@ export async function createNewsletter(
  * it is in. Alerts are written from the Phantom (its evergreen snapshot), as
  * on Deliverables → Alerts, so both pages share one alert per entry.
  */
-export async function databaseExtras(env: Env, tenantId: string, rows: Signal[], phantomImpacts: string[] | null, alertImpact: string | null): Promise<Signal[]> {
+export async function databaseExtras(env: Env, tenantId: string, rows: Signal[], phantomImpacts: string[] | null): Promise<Signal[]> {
   if (!rows.length) return rows;
   const ids = JSON.stringify(rows.map((r) => r.id));
   const [snaps, deleted, letters] = await env.DB.batch([
@@ -227,13 +238,8 @@ export async function databaseExtras(env: Env, tenantId: string, rows: Signal[],
     const x = snap.get(id);
     return !!x && (!phantomImpacts || (!!x.impact && phantomImpacts.includes(x.impact)));
   };
-  // The Phantom as Deliverables → Alerts lists it (its snapshot title, ID and revision).
-  const due = rows
-    .filter((r) => phantom(r.id) && !!alertImpact && snap.get(r.id)?.impact === alertImpact && !noAlert.has(r.id))
-    .map((r) => {
-      const x = snap.get(r.id)!;
-      return { ...r, rev: x.published_rev, values: { ...r.values, [CORE.title]: x.title, [FIELDS.id]: x.record_id } };
-    });
+  // Request 51: every entry has an alert (unless its alert was deleted).
+  const due = rows.filter((r) => !noAlert.has(r.id));
   const alerts = new Map((await ensureAlerts(env, tenantId, due)).map((r) => [r.id, r.alertId ?? null]));
   return rows.map((r) => ({
     ...r,
@@ -256,12 +262,20 @@ export function generatedNewsletterName(now: Date, timeZone: string): string {
 }
 
 /**
- * Generate Newsletter (request 43): from the ticked Database rows, any
- * Tracker entries of either stream, in the order given. Until the AI writer
- * is set up for newsletters, the .docx lists the entries' titles.
+ * Generate Newsletter (request 43; the template in request 51): the ticked
+ * Database rows, any Tracker entries of either stream, each written into the
+ * section of "Newsletter Template.docx" it was assigned to, in the order given.
  */
-export async function generateNewsletter(env: Env, p: Principal, itemIds: string[], timeZone: string): Promise<Newsletter> {
+export async function generateNewsletter(
+  env: Env,
+  p: Principal,
+  itemIds: string[],
+  sections: Record<string, NewsletterSection>,
+  timeZone: string,
+  schemaOf: (stream: Stream) => Promise<TrackerSchema>,
+): Promise<Newsletter> {
   const ids = [...new Set(itemIds)];
+  for (const id of ids) if (!sections[id]) throw new ApiError("VALIDATION", "Choose Technology, People or Process for every selected entry.");
   const res = await env.DB.prepare(
     `SELECT i.id, i.signal_code, i.record_id, i.title, i.stream, i.status, i.deleted_at, i.tracker_hidden_at
        FROM intelligence_items i WHERE i.tenant_id = ?1 AND i.id IN (SELECT value FROM json_each(?2))`,
@@ -274,9 +288,15 @@ export async function generateNewsletter(env: Env, p: Principal, itemIds: string
     if (!r || r.status !== "approved" || r.deleted_at || r.tracker_hidden_at) throw new ApiError("VALIDATION", "One of the selected entries is no longer in the database. Reload and select again.");
     return r;
   });
+  const entries = new Map((await entriesForDocs(env, p.tenantId, ids, schemaOf)).map((e) => [e.id, e]));
+  const grouped: Record<NewsletterSection, EntryForDoc[]> = { technology: [], people: [], process: [] };
+  for (const id of ids) {
+    const e = entries.get(id);
+    if (e) grouped[sections[id]!].push(e);
+  }
   const now = new Date();
   const name = generatedNewsletterName(now, timeZone);
-  const doc = listDocx(name, rows.map((r) => r.title ?? r.signal_code ?? "Untitled"));
+  const doc = newsletterDocx(grouped, monthYear(now, timeZone));
   const id = newId("dlv");
   const at = nowIso();
   await env.DB.prepare(
@@ -284,7 +304,15 @@ export async function generateNewsletter(env: Env, p: Principal, itemIds: string
   )
     .bind(id, p.tenantId, name, JSON.stringify(ids), toBase64(doc), doc.length, p.userId, at)
     .run();
-  await audit(env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "deliverable.created", targetType: "deliverable", targetId: id, details: { kind: "newsletter", name, items: ids.length, generated: true } });
+  await audit(env, {
+    tenantId: p.tenantId,
+    actorId: p.userId,
+    actorEmail: p.email,
+    action: "deliverable.created",
+    targetType: "deliverable",
+    targetId: id,
+    details: { kind: "newsletter", name, items: ids.length, generated: true, sections: Object.fromEntries(Object.entries(grouped).map(([k, v]) => [k, v.length])) },
+  });
   return {
     id,
     name,
@@ -292,4 +320,16 @@ export async function generateNewsletter(env: Env, p: Principal, itemIds: string
     createdBy: p.name,
     items: rows.map((r) => ({ id: r.id, code: r.signal_code, recordId: r.record_id, title: r.title ?? "", stream: r.stream, deleted: false })),
   };
+}
+
+/** The month (1–12) and year now, in the workspace's time zone. */
+export function monthYear(now: Date, timeZone: string): { month: number; year: number } {
+  try {
+    const parts = new Intl.DateTimeFormat("en-GB", { timeZone, month: "numeric", year: "numeric" }).formatToParts(now);
+    const n = (t: string) => Number(parts.find((x) => x.type === t)?.value);
+    if (n("month") && n("year")) return { month: n("month"), year: n("year") };
+  } catch {
+    /* unknown time zone: UTC */
+  }
+  return { month: now.getUTCMonth() + 1, year: now.getUTCFullYear() };
 }

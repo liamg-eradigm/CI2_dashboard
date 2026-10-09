@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { can, type Me, type Newsletter } from "@eradigm/shared";
+import { NEWSLETTER_SECTIONS, NEWSLETTER_SECTION_LABEL, can, type Me, type Newsletter, type NewsletterSection } from "@eradigm/shared";
 import { api, request, type ApiError } from "../api/client";
 import { useInvalidate, useNewsletters } from "../api/hooks";
 import { localDateTime } from "../lib/format";
@@ -55,6 +55,44 @@ export function DocxPane({ id, title, kind, onClose }: { id: string; title: stri
   const ref = useFocusTrap(true, onClose);
   const host = useRef<HTMLDivElement>(null);
   const toast = useToast();
+  const [changed, setChanged] = useState(false);
+  const [reload, setReload] = useState(0);
+  /** Request 51: select text in the document, then make it bold or larger / smaller (this view only). */
+  const format = (what: "bold" | "larger" | "smaller") => {
+    const el = host.current;
+    const sel = window.getSelection();
+    if (!el || !sel || sel.isCollapsed || !sel.rangeCount || !el.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+      toast("Select text in the document first", false);
+      return;
+    }
+    if (what === "bold") {
+      el.contentEditable = "true";
+      document.execCommand("bold");
+      el.contentEditable = "false";
+    } else {
+      const range = sel.getRangeAt(0);
+      const start = range.startContainer.nodeType === Node.ELEMENT_NODE ? (range.startContainer as Element) : range.startContainer.parentElement;
+      const px = Number.parseFloat(getComputedStyle(start ?? el).fontSize) || 14;
+      const k = what === "larger" ? 1.15 : 1 / 1.15;
+      const size = (n: number) => `${Math.max(6, Math.round(n * k * 10) / 10)}px`;
+      const span = document.createElement("span");
+      span.style.fontSize = size(px);
+      const part = range.extractContents();
+      // The document's own runs carry their sizes: scale those too.
+      part.querySelectorAll<HTMLElement>("*").forEach((n) => {
+        const own = Number.parseFloat(n.style.fontSize);
+        if (own) n.style.fontSize = size(own * (n.style.fontSize.endsWith("pt") ? 4 / 3 : 1));
+      });
+      span.appendChild(part);
+      range.insertNode(span);
+      sel.removeAllRanges();
+      const r = document.createRange();
+      r.selectNodeContents(span);
+      sel.addRange(r);
+    }
+    setChanged(true);
+  };
+  const keep = (e: { preventDefault: () => void }) => e.preventDefault();
   const [state, setState] = useState<{ loading: boolean; fileName?: string; error?: string }>({ loading: true });
   useEffect(() => {
     let gone = false;
@@ -69,6 +107,8 @@ export function DocxPane({ id, title, kind, onClose }: { id: string; title: stri
         if (gone || !host.current) return;
         host.current.replaceChildren();
         await renderAsync(buf, host.current, undefined, { className: "docx", inWrapper: true, breakPages: true, useBase64URL: true, renderHeaders: true, renderFooters: true });
+        // The templates' logos are decoration: the text says what they say.
+        host.current.querySelectorAll("img:not([alt])").forEach((img) => img.setAttribute("alt", ""));
         if (!gone) setState({ loading: false, fileName });
       } catch (e) {
         if (!gone) setState({ loading: false, error: (e as Error).message || "Could not open the document" });
@@ -77,7 +117,7 @@ export function DocxPane({ id, title, kind, onClose }: { id: string; title: stri
     return () => {
       gone = true;
     };
-  }, [id]);
+  }, [id, reload]);
 
   return (
     <>
@@ -92,6 +132,30 @@ export function DocxPane({ id, title, kind, onClose }: { id: string; title: stri
             <span>{kind}</span>
           </span>
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <span className="fmt-bar docx-fmt" role="toolbar" aria-label="Format the selected text in this view" data-testid="docx-format">
+              <button type="button" className="fmt-btn b" onMouseDown={keep} onClick={() => format("bold")} aria-label="Bold" title="Bold (select text first)" data-testid="docx-bold">
+                B
+              </button>
+              <button type="button" className="fmt-btn small" onMouseDown={keep} onClick={() => format("smaller")} aria-label="Smaller text" title="Smaller text" data-testid="docx-smaller">
+                A−
+              </button>
+              <button type="button" className="fmt-btn big" onMouseDown={keep} onClick={() => format("larger")} aria-label="Larger text" title="Larger text" data-testid="docx-larger">
+                A+
+              </button>
+              {changed && (
+                <button
+                  type="button"
+                  className="fmt-btn"
+                  onClick={() => {
+                    setChanged(false);
+                    setReload((n) => n + 1);
+                  }}
+                  title="Show the document as generated"
+                >
+                  Reset
+                </button>
+              )}
+            </span>
             <button
               className="link-btn"
               onClick={() =>
@@ -111,6 +175,11 @@ export function DocxPane({ id, title, kind, onClose }: { id: string; title: stri
             {title}
           </h2>
         </div>
+        {changed && (
+          <p className="docx-note" role="status">
+            Formatting changes show here only; Download gives the document as generated.
+          </p>
+        )}
         <div className="docx-body" aria-label={`${kind}: ${title}`} role="document" tabIndex={0}>
           {state.loading && <div className="skeleton" style={{ height: 320, margin: 24 }} />}
           {state.error && (
@@ -366,3 +435,77 @@ export function NewsletterCreate({ entries, onCancel, onCreated }: { entries: Ne
 
 /** Who can build newsletters (analysts and admins; everyone can view and download). */
 export const canCreateNewsletter = (me: Me) => can(me.role, "item:edit");
+
+/**
+ * Request 51: Database → Generate Newsletter. Each ticked entry is put in a
+ * section of the newsletter template (Technology, People or Process) before
+ * Confirm writes it; several entries can share a section.
+ */
+export function NewsletterSections({ entries, onCancel, onDone }: { entries: NewsletterPick[]; onCancel: () => void; onDone: (n: Newsletter) => void }) {
+  const [sections, setSections] = useState<Record<string, NewsletterSection>>({});
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const ref = useFocusTrap(true, busy ? () => undefined : onCancel);
+  const left = entries.filter((e) => !sections[e.id]).length;
+  const confirm = async () => {
+    if (left) return setErr(`Choose Technology, People or Process for ${left === 1 ? "the last entry" : `${left} more entries`}.`);
+    setBusy(true);
+    setErr(null);
+    try {
+      const n = await api<Newsletter>("/api/newsletters/generate", { method: "POST", json: { itemIds: entries.map((e) => e.id), sections } });
+      onDone(n);
+    } catch (e) {
+      setErr((e as ApiError).message);
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      <div className="scrim" onClick={busy ? undefined : onCancel} aria-hidden="true" />
+      <div className="modal nl-sections" role="dialog" aria-modal="true" aria-labelledby="nl-sections-title" ref={ref} data-testid="newsletter-sections">
+        <b id="nl-sections-title">Generate newsletter</b>
+        <p>Put each signal in a section of the newsletter. Several can share a section; they follow one another in it.</p>
+        <ul className="nl-sec-list">
+          {entries.map((e, i) => (
+            <li key={e.id}>
+              <span className="nl-sec-title">
+                {e.code && <span className="mono">{e.code}</span>} {e.label}
+              </span>
+              <span className="seg nl-sec-seg" role="radiogroup" aria-label={`Section for ${e.label}`}>
+                {NEWSLETTER_SECTIONS.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    role="radio"
+                    aria-checked={sections[e.id] === s}
+                    data-autofocus={i === 0 && s === "technology" ? true : undefined}
+                    onClick={() => setSections((cur) => ({ ...cur, [e.id]: s }))}
+                    data-testid={`nl-sec-${s}`}
+                  >
+                    {NEWSLETTER_SECTION_LABEL[s]}
+                  </button>
+                ))}
+              </span>
+            </li>
+          ))}
+        </ul>
+        {err && (
+          <div className="err-msg" role="alert">
+            ✕ {err}
+          </div>
+        )}
+        <div className="nl-sec-foot">
+          <span className="card-sub" aria-live="polite">
+            {left ? `${left} of ${entries.length} still to place` : "Every signal has a section"}
+          </span>
+          <button className="btn secondary" disabled={busy} onClick={onCancel}>
+            Cancel
+          </button>
+          <button className="btn" disabled={busy || left > 0} onClick={() => void confirm()} data-testid="nl-confirm">
+            {busy ? "Generating…" : "Confirm"}
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}

@@ -49,8 +49,9 @@ describe("Deliverables → Alerts", () => {
     expect(res.headers.get("content-disposition")).toMatch(/^inline; filename="[^"]+-alert\.docx"$/);
     const xml = await docxText(res);
     expect(xml).toContain("word/document.xml");
-    // The Title, bold, 32 pt (w:sz is in half-points), XML-escaped.
-    expect(xml).toContain('<w:b/><w:bCs/><w:sz w:val="64"/><w:szCs w:val="64"/></w:rPr><w:t xml:space="preserve">Roche launches an AI lab &amp; &lt;pilot&gt;</w:t>');
+    // Request 51: written into the alert template; the Title XML-escaped, in the template's bold title look.
+    expect(xml).toContain('<w:t xml:space="preserve">Roche launches an AI lab &amp; &lt;pilot&gt;</w:t>');
+    expect(xml).not.toContain("&lt;Insert Title&gt;");
     const dl = await call(w.a.client, "GET", `/api/deliverables/${row.alertId}/docx?download=1`);
     expect(dl.headers.get("content-disposition")).toMatch(/^attachment; /);
     expect((await call(w.b.admin, "GET", `/api/deliverables/${row.alertId}/docx`)).status).toBe(404);
