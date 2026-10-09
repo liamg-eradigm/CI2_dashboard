@@ -753,10 +753,12 @@ test.describe("Eradigm staff (admin)", () => {
     await expect(page).toHaveURL(/\/database\?stream=primary$/);
     await searchDatabase(page, title);
 
-    // No saved page yet: a green plus on the left; the row itself no longer opens anything.
+    // No saved page yet: a green plus on the left; the row itself opens the entry's fields (request 54), not the page.
     const tr = page.locator("table tbody tr", { hasText: title });
     await expect(tr.getByRole("button", { name: `Attach the HTML page for ${title}` })).toBeVisible();
     await tr.locator("td.date").click();
+    await expect(page.getByTestId("entry-fields")).toBeVisible();
+    await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog")).toHaveCount(0);
     const html = htmlFile("kol.html", `<!DOCTYPE html><html><head><title>KOL notes</title><script>alert(1)</script></head><body><article><h1>KOL notes on Roche</h1><p>The KOL said Roche is piloting agentic AI in two early research sites.</p><p>Results are expected in 2027.</p></article></body></html>`);
     await tr.locator('input[type="file"]').setInputFiles(html);
