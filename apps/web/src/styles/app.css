@@ -889,6 +889,8 @@ table.data.ptr td.title { min-width: 150px; }
 .ptr-card { border-left: 4px solid var(--teal); }
 .ptr-card .table-top { background: var(--tint); border-bottom: 1px solid var(--rule); align-items: flex-start; }
 .ptr-card .table-top .card-title { color: var(--teal-press); }
+/* Request 53: links on the tinted top bar (the Database's Clear) take the darker teal for contrast. */
+.ptr-card .table-top .link-btn:not(.danger) { color: var(--teal-press); }
 .ptr-head { min-width: 0; }
 .ptr-head .info { margin-top: 4px; }
 tr.arch-row.open td { background: #d9eff1; }

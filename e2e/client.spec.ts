@@ -193,9 +193,9 @@ test.describe("client role", () => {
     const box = (await json.boundingBox())!;
     const hit = await page.evaluate(([x, y]) => document.elementFromPoint(x!, y!)?.closest("button")?.textContent ?? "", [box.x + box.width / 2, box.y + box.height / 2]);
     expect(hit).toContain("JSON");
-    const card = (await page.locator("section.card.pop-host").boundingBox())!;
+    // And the whole menu is on screen (request 53: the table's card fills the window, so the menu sits within it).
     const menuBox = (await menu.boundingBox())!;
-    expect(menuBox.y + menuBox.height).toBeGreaterThan(card.y + card.height);
+    expect(menuBox.y + menuBox.height).toBeLessThanOrEqual(page.viewportSize()!.height);
   });
 
   test("pages pass automated accessibility checks", async ({ page }) => {
