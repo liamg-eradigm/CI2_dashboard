@@ -55,6 +55,8 @@ test.describe("request 19", () => {
       "Analytics: Megatrends Dashboard, Primary Tracker",
       "Database",
       "Admin",
+      // Request 55: the Test tab (admins only).
+      "Test: Database, Megatrends, Primary Tracker",
     ]);
     await actx.close();
   });

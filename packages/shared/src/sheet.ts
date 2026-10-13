@@ -118,27 +118,10 @@ function colIndex(ref: string): number {
   return n - 1;
 }
 
-/** The first worksheet of an .xlsx workbook as a grid of strings. */
-export async function parseXlsx(bytes: Uint8Array): Promise<Grid> {
-  const parts = await unzip(bytes, (n) => n === "xl/workbook.xml" || n === "xl/_rels/workbook.xml.rels" || n === "xl/sharedStrings.xml" || /^xl\/worksheets\/[^/]+\.xml$/.test(n));
-  const dec = new TextDecoder();
-  const text = (n: string) => (parts.has(n) ? dec.decode(parts.get(n)) : "");
-  // First sheet in workbook order → its part via the relationships file.
-  let sheetPath = "xl/worksheets/sheet1.xml";
-  const firstSheet = /<sheet\b[^>]*\br:id="([^"]+)"/.exec(text("xl/workbook.xml"));
-  if (firstSheet) {
-    const rel = new RegExp(`<Relationship\\b[^>]*\\bId="${firstSheet[1]}"[^>]*\\bTarget="([^"]+)"`).exec(text("xl/_rels/workbook.xml.rels"))
-      ?? new RegExp(`<Relationship\\b[^>]*\\bTarget="([^"]+)"[^>]*\\bId="${firstSheet[1]}"`).exec(text("xl/_rels/workbook.xml.rels"));
-    if (rel?.[1]) sheetPath = rel[1].startsWith("/") ? rel[1].slice(1) : `xl/${rel[1].replace(/^\.\//, "")}`;
-  }
-  if (!parts.has(sheetPath)) {
-    const any = [...parts.keys()].filter((n) => n.startsWith("xl/worksheets/")).sort()[0];
-    if (!any) throw new Error("The workbook has no worksheet");
-    sheetPath = any;
-  }
-  const shared = [...text("xl/sharedStrings.xml").matchAll(/<si>([\s\S]*?)<\/si>/g)].map((m) => runs(m[1] ?? ""));
+/** A worksheet's cells as a grid of strings (shared strings resolved). */
+function sheetGrid(xml: string, shared: string[]): Grid {
   const grid: Grid = [];
-  for (const rm of text(sheetPath).matchAll(/<row\b([^>]*)>([\s\S]*?)<\/row>/g)) {
+  for (const rm of xml.matchAll(/<row\b([^>]*)>([\s\S]*?)<\/row>/g)) {
     const rAttr = /\br="(\d+)"/.exec(rm[1] ?? "");
     const rowIdx = rAttr ? Number(rAttr[1]) - 1 : grid.length;
     const row: string[] = [];
@@ -163,6 +146,36 @@ export async function parseXlsx(bytes: Uint8Array): Promise<Grid> {
     grid[rowIdx] = row;
   }
   return grid;
+}
+
+/** Every worksheet of an .xlsx workbook, in workbook order, by name (request 55: the SharePoint workbook). */
+export async function parseXlsxBook(bytes: Uint8Array, only?: (name: string) => boolean): Promise<{ name: string; grid: Grid }[]> {
+  const parts = await unzip(bytes, (n) => n === "xl/workbook.xml" || n === "xl/_rels/workbook.xml.rels" || n === "xl/sharedStrings.xml" || /^xl\/worksheets\/[^/]+\.xml$/.test(n));
+  const dec = new TextDecoder();
+  const text = (n: string) => (parts.has(n) ? dec.decode(parts.get(n)) : "");
+  const rels = text("xl/_rels/workbook.xml.rels");
+  const target = (rid: string) => {
+    const rel =
+      new RegExp(`<Relationship\\b[^>]*\\bId="${rid}"[^>]*\\bTarget="([^"]+)"`).exec(rels) ?? new RegExp(`<Relationship\\b[^>]*\\bTarget="([^"]+)"[^>]*\\bId="${rid}"`).exec(rels);
+    return rel?.[1] ? (rel[1].startsWith("/") ? rel[1].slice(1) : `xl/${rel[1].replace(/^\.\//, "")}`) : null;
+  };
+  const sheets = [...text("xl/workbook.xml").matchAll(/<sheet\b([^>]*)\/?>/g)].map((m, i) => ({
+    name: xmlText(/\bname="([^"]*)"/.exec(m[1] ?? "")?.[1] ?? `Sheet${i + 1}`),
+    path: target(/\br:id="([^"]+)"/.exec(m[1] ?? "")?.[1] ?? "") ?? `xl/worksheets/sheet${i + 1}.xml`,
+  }));
+  if (!sheets.length) {
+    const any = [...parts.keys()].filter((n) => n.startsWith("xl/worksheets/")).sort()[0];
+    if (!any) throw new Error("The workbook has no worksheet");
+    sheets.push({ name: "Sheet1", path: any });
+  }
+  const shared = [...text("xl/sharedStrings.xml").matchAll(/<si>([\s\S]*?)<\/si>/g)].map((m) => runs(m[1] ?? ""));
+  return sheets.filter((sh) => !only || only(sh.name)).map((sh) => ({ name: sh.name, grid: parts.has(sh.path) ? sheetGrid(text(sh.path), shared) : [] }));
+}
+
+/** The first worksheet of an .xlsx workbook as a grid of strings. */
+export async function parseXlsx(bytes: Uint8Array): Promise<Grid> {
+  const [first] = await parseXlsxBook(bytes);
+  return first?.grid ?? [];
 }
 
 /** Read a spreadsheet by file name (.xlsx, .csv or .tsv). */

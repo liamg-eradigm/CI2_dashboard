@@ -361,7 +361,7 @@ export async function approve(
  * Dashboard and Megatrends follow the new revision; Phantoms (with their
  * Markdown, alerts and newsletters) keep the entry as first pushed.
  */
-export async function revise(env: Env, schemas: Schemas, p: Principal, id: string, raw: Record<string, unknown>, note?: string): Promise<void> {
+export async function revise(env: Env, schemas: Schemas, p: Principal, id: string, raw: Record<string, unknown>, note?: string, opts: { keepReviewDate?: boolean } = {}): Promise<void> {
   const row = await getItemRow(env, p.tenantId, id);
   const schema = schemas[row.stream];
   if (row.status !== "approved") throw conflict("Only approved entries can be edited here");
@@ -370,7 +370,8 @@ export async function revise(env: Env, schemas: Schemas, p: Principal, id: strin
   const changed = changedKeys(schema, current, values);
   if (!changed.length) throw new ApiError("BAD_REQUEST", "Nothing changed");
   // Re-approved today, unless the editor chose the Review Date themselves.
-  if (schema.columns.some((c) => c.key === FIELDS.reviewDate) && (!values[FIELDS.reviewDate] || !changed.includes(FIELDS.reviewDate))) {
+  // (Request 55: an entry kept in step with the SharePoint workbook keeps the workbook's date.)
+  if (!opts.keepReviewDate && schema.columns.some((c) => c.key === FIELDS.reviewDate) && (!values[FIELDS.reviewDate] || !changed.includes(FIELDS.reviewDate))) {
     values[FIELDS.reviewDate] = await todayIn(env, p.tenantId);
     if (current[FIELDS.reviewDate] !== values[FIELDS.reviewDate] && !changed.includes(FIELDS.reviewDate)) changed.push(FIELDS.reviewDate);
   }

@@ -18,7 +18,7 @@ describe("request 28: the menu in groups", () => {
     });
     // Inputs leads by default (first); Analytics goes after the group it follows by default (Inputs), then Database (request 43).
     // Request 48: the Databases group ("trackers") is gone, so a saved one is dropped.
-    expect(m.groups.map((g) => g.key)).toEqual(["inputs", "analytics", "database", "admin"]);
+    expect(m.groups.map((g) => g.key)).toEqual(["inputs", "analytics", "database", "admin", "test"]);
     // Request 52: Admin is a tab of its own (Deliverables is gone).
     expect(m.groups[3]).toEqual({ key: "admin", label: "Back office", items: [{ key: "admin", label: "Settings" }] });
     expect(normaliseMenu(undefined)).toEqual(DEFAULT_MENU);
@@ -46,6 +46,8 @@ describe("request 28: the menu in groups", () => {
         { key: "analytics", items: [{ key: "dashboard", label: "Overview" }, { key: "primary-tracker" }] },
         { key: "database", items: [{ key: "database" }] },
         { key: "admin", label: "Back office", items: [{ key: "admin" }] },
+        // Request 55: the Test tab (admins only).
+        { key: "test", items: [{ key: "test-database" }, { key: "test-megatrends" }, { key: "test-primary-tracker" }] },
       ],
     });
   });
@@ -58,7 +60,7 @@ describe("request 28: the menu in groups", () => {
     const saved = await json(call(w.a.admin, "PATCH", "/api/settings", { body: { menu } }));
     // The Client Inbox (left out) goes back after the Eradigm Inbox, the tab it follows by default.
     expect(saved.menu.groups[0]).toEqual({ key: "inputs", label: "Sources", items: [{ key: "inbox" }, { key: "clientinbox" }, { key: "input", label: "Add sources" }] });
-    expect(saved.menu.groups.map((g: { key: string }) => g.key)).toEqual(["inputs", "analytics", "database", "admin"]);
+    expect(saved.menu.groups.map((g: { key: string }) => g.key)).toEqual(["inputs", "analytics", "database", "admin", "test"]);
     // Other settings leave it alone; another workspace is unaffected.
     const again = await json(call(w.a.admin, "PATCH", "/api/settings", { body: { timezone: "Europe/Paris" } }));
     expect(again.menu.groups[0].label).toBe("Sources");

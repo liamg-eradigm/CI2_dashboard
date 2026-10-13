@@ -86,12 +86,12 @@ test.describe("tab order", () => {
     await expect(card.getByRole("heading", { name: "Menu" })).toBeVisible();
     // Every group, including the tabs of their own (Database; Admin since request 52).
     const groups = () => navOf(page).locator(".nav-group > .nav-parent > span:first-child, .nav-group > .nav-solo > span").allInnerTexts();
-    await expect.poll(groups).toEqual(["Inputs", "Analytics", "Database", "Admin"]);
+    await expect.poll(groups).toEqual(["Inputs", "Analytics", "Database", "Admin", "Test"]);
     // Groups move; tabs move within their group (Admin moves past the Database tab, then Analytics).
     await card.getByRole("button", { name: "Move group Admin up" }).click();
     await expect(page.locator(".toast").last()).toContainText("Moved");
     await card.getByRole("button", { name: "Move group Admin up" }).click();
-    await expect.poll(groups).toEqual(["Inputs", "Admin", "Analytics", "Database"]);
+    await expect.poll(groups).toEqual(["Inputs", "Admin", "Analytics", "Database", "Test"]);
     await card.getByTestId("menu-group-analytics").getByRole("button", { name: "Move tab Analytics: Primary Tracker up" }).click();
     await expect(page.locator(".toast").last()).toContainText("Moved");
     // Renamed: a group and a tab.
@@ -108,6 +108,7 @@ test.describe("tab order", () => {
       "Admin",
       "Analytics: Interviews, Megatrends Dashboard",
       "Database",
+      "Test: Database, Megatrends, Primary Tracker",
     ]);
     await goTab(page, "Analytics", "Interviews");
     await expect(page).toHaveURL(/\/analytics\/primary/);
@@ -121,7 +122,7 @@ test.describe("tab order", () => {
     // Restore.
     await page.goto("/admin");
     await card.getByRole("button", { name: "Restore the usual menu" }).click();
-    await expect.poll(groups).toEqual(["Inputs", "Analytics", "Database", "Admin"]);
+    await expect.poll(groups).toEqual(["Inputs", "Analytics", "Database", "Admin", "Test"]);
     await expect(card.getByLabel("Name of the Analytics tab Primary Tracker")).toHaveValue("");
   });
 

@@ -72,7 +72,7 @@
           { "queue": "eradigm-ci-jobs-dlq-dev", "max_batch_size": 5, "max_retries": 1 }
         ]
       },
-      "triggers": { "crons": ["17 3 * * *"] }
+      "triggers": { "crons": ["17 3 * * *", "* * * * *"] }
     },
 
     "staging": {
@@ -111,7 +111,7 @@
         { "name": "AUTH_LIMITER", "namespace_id": "2003", "simple": { "limit": 20, "period": 60 } }
       ],
       "analytics_engine_datasets": [{ "binding": "METRICS", "dataset": "eradigm_ci_metrics_staging" }],
-      "triggers": { "crons": ["17 3 * * *"] }
+      "triggers": { "crons": ["17 3 * * *", "* * * * *"] }
     },
 
     "production": {
@@ -150,7 +150,7 @@
         { "name": "AUTH_LIMITER", "namespace_id": "3003", "simple": { "limit": 20, "period": 60 } }
       ],
       "analytics_engine_datasets": [{ "binding": "METRICS", "dataset": "eradigm_ci_metrics_production" }],
-      "triggers": { "crons": ["17 3 * * *"] }
+      "triggers": { "crons": ["17 3 * * *", "* * * * *"] }
     }
   }
 }

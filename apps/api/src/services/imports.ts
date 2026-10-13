@@ -142,6 +142,79 @@ async function allocCodes(env: Env, tenantId: string, name: "inbox" | "signal", 
   return Array.from({ length: n }, (_, i) => `${name === "inbox" ? "INB" : "SIG"}-${last - n + 1 + i}`);
 }
 
+/** A spreadsheet row as the values it gives a Tracker entry (request 55: also the SharePoint workbook's rows). */
+export interface PreparedRow {
+  row: number;
+  values: ItemValues;
+  /** The ID was blank and is the automatic one (Date_Competitor_Title). */
+  auto: boolean;
+  /** The columns the row's sheet gives (keys), so blank cells there count as blank. */
+  given: string[];
+  /** Values filled in rather than given (Source Tier, a blank Review Date as today, the automatic ID). */
+  filled: string[];
+}
+
+/**
+ * Rows keyed by column labels as Tracker values, checked as an approval is
+ * (dropdowns as their options, the automatic ID and Review Date filled in).
+ * Problems are listed by row; columns that are not the stream's are listed
+ * apart. Nothing is read or written but today's date.
+ */
+export async function prepareRows(
+  env: Env,
+  schemas: Schemas,
+  tenantId: string,
+  stream: Stream,
+  rows: ImportRow[],
+): Promise<{ rows: PreparedRow[]; errors: ImportError[]; unknown: string[] }> {
+  const schema = schemas[stream];
+  const other = schemas[stream === "primary" ? "secondary" : "primary"];
+  const byLabel = new Map(schema.columns.map((c) => [norm(c.label), c]));
+  const errors: ImportError[] = [];
+  const unknown = new Set<string>();
+  const today = await todayIn(env, tenantId);
+  const hasReviewDate = schema.columns.some((c) => c.key === FIELDS.reviewDate);
+  const hasTier = schema.columns.some((c) => c.key === FIELDS.sourceTier);
+  const hasId = schema.columns.some((c) => c.key === FIELDS.id);
+
+  const parsed = rows.map((r) => {
+    const given: string[] = [];
+    const raw: Record<string, unknown> = {};
+    for (const [label, v] of Object.entries(r.values)) {
+      const col = byLabel.get(norm(label));
+      if (!col) {
+        if (label.trim()) unknown.add(label.trim());
+        continue;
+      }
+      raw[col.key] = cell(col, v);
+      given.push(col.key);
+    }
+    const values = canonicalise(schema, normaliseValues(schema, raw));
+    const filled: string[] = [];
+    if (hasTier) {
+      values[FIELDS.sourceTier] = SOURCE_TIER[stream];
+      filled.push(FIELDS.sourceTier);
+    }
+    if (hasReviewDate && !values[FIELDS.reviewDate]) {
+      values[FIELDS.reviewDate] = today;
+      filled.push(FIELDS.reviewDate);
+    }
+    // A blank ID is filled in like the Inbox does: Date_Competitor_Title (or Key Intelligence Question).
+    let auto = false;
+    if (hasId && !values[FIELDS.id]) {
+      const a = autoRecordId(stream, values);
+      if (a) {
+        values[FIELDS.id] = a;
+        auto = true;
+        filled.push(FIELDS.id);
+      }
+    }
+    for (const e of validateValues(schema, values, { forApproval: true })) errors.push({ row: r.row, column: e.label, message: explain(schema, other, stream, values, e) });
+    return { row: r.row, values, auto, given, filled };
+  });
+  return { rows: parsed, errors, unknown: [...unknown] };
+}
+
 export async function importRows(
   env: Env,
   schemas: Schemas,
@@ -152,40 +225,7 @@ export async function importRows(
   dryRun: boolean,
 ): Promise<{ ok: boolean; imported: number; errors: ImportError[]; codes: string[] }> {
   const schema = schemas[stream];
-  const other = schemas[stream === "primary" ? "secondary" : "primary"];
-  const byLabel = new Map(schema.columns.map((c) => [norm(c.label), c]));
-  const errors: ImportError[] = [];
-  const unknown = new Set<string>();
-  const today = await todayIn(env, p.tenantId);
-  const hasReviewDate = schema.columns.some((c) => c.key === FIELDS.reviewDate);
-  const hasTier = schema.columns.some((c) => c.key === FIELDS.sourceTier);
-  const hasId = schema.columns.some((c) => c.key === FIELDS.id);
-
-  const parsed = rows.map((r) => {
-    const raw: Record<string, unknown> = {};
-    for (const [label, v] of Object.entries(r.values)) {
-      const col = byLabel.get(norm(label));
-      if (!col) {
-        if (label.trim()) unknown.add(label.trim());
-        continue;
-      }
-      raw[col.key] = cell(col, v);
-    }
-    const values = canonicalise(schema, normaliseValues(schema, raw));
-    if (hasTier) values[FIELDS.sourceTier] = SOURCE_TIER[stream];
-    if (hasReviewDate && !values[FIELDS.reviewDate]) values[FIELDS.reviewDate] = today;
-    // A blank ID is filled in like the Inbox does: Date_Competitor_Title (or Key Intelligence Question).
-    let auto = false;
-    if (hasId && !values[FIELDS.id]) {
-      const a = autoRecordId(stream, values);
-      if (a) {
-        values[FIELDS.id] = a;
-        auto = true;
-      }
-    }
-    for (const e of validateValues(schema, values, { forApproval: true })) errors.push({ row: r.row, column: e.label, message: explain(schema, other, stream, values, e) });
-    return { row: r.row, values, auto };
-  });
+  const { rows: parsed, errors, unknown } = await prepareRows(env, schemas, p.tenantId, stream, rows);
   for (const u of unknown) errors.push({ row: 1, column: u, message: `“${u}” is not a column of the ${stream === "primary" ? "Primary" : "Secondary"} Tracker` });
 
   // IDs: unique within this request and among existing tracker entries.
@@ -225,6 +265,25 @@ export async function importRows(
     });
   }
 
+  const codes = await insertRows(env, schema, p, stream, fileName, parsed);
+  if (!codes) return { ok: false, imported: 0, errors: [{ row: 0, column: idLabel, message: `An ${idLabel} in these rows was just used by another entry. Check the file and import again.` }], codes: [] };
+  await audit(env, {
+    tenantId: p.tenantId,
+    actorId: p.userId,
+    actorEmail: p.email,
+    action: "import.completed",
+    targetType: "tracker",
+    details: { stream, fileName, rows: parsed.length, firstRow: parsed[0]?.row, codes },
+  });
+  return { ok: true, imported: parsed.length, errors: [], codes };
+}
+
+/**
+ * Publishes checked rows straight to the stream's Tracker (and Phantoms), in
+ * one atomic batch: about four statements a row, so at most IMPORT_CHUNK_ROWS
+ * rows at a time on the Workers Free plan. Null when an ID was taken meanwhile.
+ */
+export async function insertRows(env: Env, schema: TrackerSchema, p: Principal, stream: Stream, fileName: string, parsed: { row: number; values: ItemValues }[]): Promise<string[] | null> {
   // ---- write (one atomic batch per request) --------------------------------
   const n = parsed.length;
   const [inbox, signal] = [await allocCodes(env, p.tenantId, "inbox", n), await allocCodes(env, p.tenantId, "signal", n)];
@@ -301,20 +360,10 @@ export async function importRows(
   try {
     await env.DB.batch(stmts);
   } catch (err) {
-    if (/UNIQUE/i.test(String((err as Error)?.message ?? err))) {
-      return { ok: false, imported: 0, errors: [{ row: 0, column: idLabel, message: `An ${idLabel} in these rows was just used by another entry. Check the file and import again.` }], codes: [] };
-    }
+    if (/UNIQUE/i.test(String((err as Error)?.message ?? err))) return null;
     throw err;
   }
-  await audit(env, {
-    tenantId: p.tenantId,
-    actorId: p.userId,
-    actorEmail: p.email,
-    action: "import.completed",
-    targetType: "tracker",
-    details: { stream, fileName, rows: n, firstRow: parsed[0]?.row, codes: signal },
-  });
-  return { ok: true, imported: n, errors: [], codes: signal };
+  return signal;
 }
 
 /** Attach the saved HTML page to a tracker entry that has none (e.g. an imported row). */

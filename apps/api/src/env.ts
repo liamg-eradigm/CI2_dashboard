@@ -43,6 +43,15 @@ export interface Env {
   ENTRA_ALLOWED_TENANTS?: string;
   /** Random string (≥ 32 characters) that signs the short-lived sign-in state cookie. */
   SESSION_SECRET?: string;
+  /**
+   * Request 55: the SharePoint workbook behind the Test tab (app registration in
+   * Eradigm's directory with Sites.Selected, and the workbook's drive and item ids).
+   */
+  SHAREPOINT_TENANT_ID?: string;
+  SHAREPOINT_CLIENT_ID?: string;
+  SHAREPOINT_CLIENT_SECRET?: string;
+  SHAREPOINT_DRIVE_ID?: string;
+  SHAREPOINT_ITEM_ID?: string;
 }
 
 export interface JobMessage {

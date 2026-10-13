@@ -6,10 +6,11 @@ import { formatDate } from "../../lib/format";
 import { useSavedPages } from "../SavedPages";
 import { impactColour } from "./model";
 import { useIsNewSignal } from "./newSignals";
+import { appHref } from "../../api/space";
 
 /** Open an entry's saved page in a popup window (the app's sandboxed source view). */
 export function openSourcePopup(itemId: string, pageId: string | null = null) {
-  const url = `/source/${itemId}${pageId ? `?page=${encodeURIComponent(pageId)}` : ""}`;
+  const url = appHref(`/source/${itemId}${pageId ? `?page=${encodeURIComponent(pageId)}` : ""}`);
   const w = Math.min(1180, Math.round(window.screen.availWidth * 0.8));
   const h = Math.min(900, Math.round(window.screen.availHeight * 0.85));
   window.open(url, `eradigm-source-${itemId}${pageId ? `-${pageId}` : ""}`, `popup=yes,width=${w},height=${h},left=${Math.round((window.screen.availWidth - w) / 2)},top=40`);
