@@ -751,3 +751,20 @@ button.mix-lbl:hover, button.mix-lbl:focus-visible { color: #fff; text-decoratio
 .ta-summary-edit .rt-editor { font: 400 17px/1.6 var(--sans); }
 .ta-summary-edit .list-hint { color: var(--mg-ink-3); }
 .ta-summary-edit .md-edit-foot { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* Request 57: a header's right-hand part holding more than one thing (the intro or the row dots, then Sync now on the Test pages). */
+.head-end { display: flex; align-items: center; justify-content: flex-end; gap: 24px; flex: 1 1 0; min-width: min-content; }
+/* A Trends Analysis list: title, intro, Sync now in one row; when the page is narrower, the intro goes under them. */
+.ta-page { container: ta-page / inline-size; }
+.ta-head:has(> .ta-intro + .test-sync) { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: end; column-gap: 24px; row-gap: 12px; }
+.ta-head:has(> .ta-intro + .test-sync) .ta-intro { justify-self: end; }
+@container ta-page (max-width: 1080px) {
+  .ta-head:has(> .ta-intro + .test-sync) { grid-template-columns: minmax(0, 1fr) auto; }
+  .ta-head:has(> .ta-intro + .test-sync) .ta-intro { grid-column: 1 / -1; grid-row: 2; justify-self: start; }
+}
+/* The full-page graphs: Sync now in the top right corner, across from the graph toggle (same height, same inset). */
+.mg-stage-end { position: absolute; z-index: 2; right: 16px; top: 14px; }
+.mg-stage-end:empty { display: none; }
+.mg-stage-end .test-sync { padding: 4px 4px 4px 14px; border-radius: 999px; min-height: 0; background: var(--mg-glass); -webkit-backdrop-filter: blur(12px) saturate(125%); backdrop-filter: blur(12px) saturate(125%); border: 1px solid var(--mg-line); box-shadow: 0 14px 36px rgba(0, 6, 12, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.04); }
+.mg-stage-end .test-sync-btn { height: 30px; border-radius: 999px; }
+.mg-page.drawer-open .mg-stage-end { display: none; }

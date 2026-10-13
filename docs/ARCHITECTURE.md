@@ -879,6 +879,20 @@ analyst-entered information distinguishable; in the prototype every value is
     Sync now, Check connection, the sheets read and the rows left out moved to
     Admin → Test tab · SharePoint workbook (`ExcelSyncCard`, `#excel-sync`);
     a Test page shows a red ! leading there when the sync needs attention.
+- **Request 57** (no contract change, no migration, web only): **Sync now on
+  every Test page** (`TestSyncButton`), at the top right: the last item of the
+  page's header row, level with the bottom of the title (Database bands,
+  Megatrends Dashboard, Trends Analysis lists and dashboards); on the
+  full-page graphs, in the stage's top right corner across from the graph
+  toggle (same inset and height). On a Trends Analysis list the intro moves
+  under the title and Sync now when the page is narrower than 1080 px.
+  `TestSpaceSync` is now a provider around the Test pages: Sync now asks the
+  same loop for a forced run (`force: true`, carrying on while `more`), after
+  the check under way if there is one. Beside the button, "Checked … ago"
+  (this page's own last check; the workbook's last save in its tooltip), and
+  "✓ Data synced" there for a moment when a sync changes the test space. A
+  forced run that changes nothing says "Already up to date with the workbook"
+  with the workbook's last save time.
 - **Menu in groups** (request 28, contract 1.17; regrouped in request 31,
   contract 1.19; renamed in request 34; `packages/shared/src/menu.ts`): the
   menu is four groups (and, from request 43, the Database tab on its own),

@@ -6,6 +6,7 @@ import { useStickUnderFilters } from "../lib/stickUnderFilters";
 import { useStreamParam } from "../state/stream";
 import { TrackerPage } from "./TrackerPage";
 import { TrendAnalysesPage } from "./TrendAnalysesPage";
+import { TestSyncButton } from "../components/ExcelSync";
 
 type Pick = Stream | "ci" | "newsletters";
 
@@ -96,6 +97,7 @@ function NewslettersDatabase({ me, toggle }: { me: Me; toggle: React.ReactNode }
             <span className="eyebrow">Every database in one place</span>
             <h1 id="page-title">Database</h1>
           </div>
+          <TestSyncButton />
         </div>
       </section>
       {toggle}

@@ -12,6 +12,7 @@ import { ALL, CORE, FIELDS, formatDate, getColumn, isIsoDate, type FilterState, 
 import { useTrackerValues } from "../api/hooks";
 import { Combobox } from "./Combobox";
 import { filtersToggleLabel, useFiltersOpen } from "../state/filtersOpen";
+import { TestSyncButton } from "./ExcelSync";
 
 export const PT_PREFIX = "pt.";
 /** Chosen from the values in the tracker. */
@@ -98,6 +99,7 @@ export function PrimaryTrackerFilters({
             <span className="eyebrow">{eyebrow}</span>
             <h1 id="page-title">{title}</h1>
           </div>
+          <TestSyncButton />
         </div>
         <div className="active-filters" role="region" aria-label="Active filters">
           <span className="lbl">ACTIVE FILTERS</span>

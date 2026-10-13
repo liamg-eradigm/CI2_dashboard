@@ -27,6 +27,7 @@ import { ImpactMix, RecordFromTimeline, SignalTimeline, useAnalytics, useRecordP
 import { RichTextField } from "../RichTextField";
 import { RichText } from "../BulletText";
 import { SizedHeading } from "../TextSize";
+import { TestSyncButton } from "../ExcelSync";
 
 // The knowledge graph carries three.js: loaded when row 5 is first shown.
 const MegatrendsPage = lazy(() => import("../../pages/MegatrendsPage").then((m) => ({ default: m.MegatrendsPage })));
@@ -165,13 +166,16 @@ export function MacroDashboard({ me, macro, onBack }: { me: Me; macro: string; o
           <h1 data-testid="ta-name">{last ? labels[4] : macro}</h1>
         </div>
         {last && <div className="md-head-up">{upArrow}</div>}
-        <nav className="md-dots" aria-label="Dashboard rows">
-          {[0, 1, 2, 3].map((v) => (
-            <button key={v} aria-current={view === v ? "true" : undefined} onClick={() => go(v)} title={v === 3 ? labels[4] : `${labels[v]} · ${labels[v + 1]}`}>
-              <span className="sr-only">{v === 3 ? labels[4] : `Rows ${v + 1} and ${v + 2}: ${labels[v]} and ${labels[v + 1]}`}</span>
-            </button>
-          ))}
-        </nav>
+        <div className="head-end">
+          <nav className="md-dots" aria-label="Dashboard rows">
+            {[0, 1, 2, 3].map((v) => (
+              <button key={v} aria-current={view === v ? "true" : undefined} onClick={() => go(v)} title={v === 3 ? labels[4] : `${labels[v]} · ${labels[v + 1]}`}>
+                <span className="sr-only">{v === 3 ? labels[4] : `Rows ${v + 1} and ${v + 2}: ${labels[v]} and ${labels[v + 1]}`}</span>
+              </button>
+            ))}
+          </nav>
+          <TestSyncButton />
+        </div>
       </header>
       <div className={`md-body${last ? " last" : ""}`} ref={body} style={{ ["--bar" as string]: `${bar}px` }}>
         <div className="md-arrow-bar up">{!last && upArrow}</div>

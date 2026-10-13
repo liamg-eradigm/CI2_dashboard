@@ -91,8 +91,9 @@ function SignedIn() {
             The API does not know the Test tab yet: deploy the API (and apply its migrations), then reload.
           </div>
         )}
-        {/* Request 56: the Test pages keep in step with the workbook every 10 seconds; its status and problems are on the Admin page. */}
-        {SPACE === "test" && <TestSpaceSync />}
+        {/* Request 56: the Test pages keep in step with the workbook every 10 seconds; its status and problems are on the Admin page.
+            Request 57: their headers have Sync now (TestSyncButton). */}
+        <TestSpaceSync enabled={SPACE === "test"}>
         <ErrorBoundary key={loc.pathname} label="This page">
           {SPACE === "test" ? <TestRoutes me={me.data} /> : (
           <Routes>
@@ -150,6 +151,7 @@ function SignedIn() {
           </Routes>
           )}
         </ErrorBoundary>
+        </TestSpaceSync>
       </main>
     </div>
   );

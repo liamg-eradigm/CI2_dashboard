@@ -16,6 +16,7 @@ import { useCompetitors, useMegatrends, useSettings } from "../api/hooks";
 import { CompetitorDashboard } from "../components/analytics/CompetitorDashboard";
 import { MacroDashboard } from "../components/analytics/MacroDashboard";
 import { NEUTRAL, TIER_COLOUR, impactColour, paletteOf, plural } from "../components/megatrends/model";
+import { TestSyncButton } from "../components/ExcelSync";
 import "../styles/megatrends.css";
 
 type Kind = "macro" | "competitor";
@@ -114,6 +115,7 @@ export function TrendAnalysisPage({ me, kind }: { me: Me; kind: Kind }) {
             ? "Select a Macrotrend to open its dashboard: its analysis, its signals over time, its impact mix and its knowledge graph."
             : "Select a competitor to see its Company Profile, its signals over time, its impact mix by Macrotrend and the knowledge graph of its signals."}
         </p>
+        <TestSyncButton />
       </header>
       <div className="ta-body">
         {kind === "competitor" && (
