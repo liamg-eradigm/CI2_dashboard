@@ -1,4 +1,4 @@
-import { expect, expectAccessible, menuOf, navLink, navOf, signInAs, test } from "./fixtures";
+import { expect, expectAccessible, menuOf, navOf, signInAs, test } from "./fixtures";
 import type { Locator, Page } from "@playwright/test";
 
 /** The table's card runs from the tables strip to the bottom of the window, the width of the page (as on the Primary Tracker). */
@@ -56,10 +56,10 @@ test.describe("request 53", () => {
   test("the Knowledge Graph tab is gone; the full-page graphs count as the Megatrends Dashboard", async ({ page }) => {
     await signInAs(page, "analyst");
     await page.goto("/dashboard");
-    expect(await menuOf(page)).toEqual(["Inputs: Eradigm Inbox", "Analytics: Megatrends Dashboard, Primary Tracker", "Database"]);
+    expect(await menuOf(page)).toEqual(["Inputs: Eradigm Inbox", "Megatrends Dashboard", "Database"]);
     await expect(navOf(page).getByRole("link", { name: /Knowledge Graph/ })).toHaveCount(0);
     await page.goto("/megatrends");
     await expect(page.locator(".mg-stage")).toBeVisible();
-    await expect(navLink(page, "Analytics", "Megatrends Dashboard")).toHaveAttribute("aria-current", "page");
+    await expect(navOf(page).getByRole("link", { name: "Megatrends Dashboard", exact: true })).toHaveAttribute("aria-current", "page");
   });
 });

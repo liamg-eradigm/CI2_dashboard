@@ -1,4 +1,4 @@
-import { choose, expect, expectAccessible, goTab, navOf, signInAs, test } from "./fixtures";
+import { choose, expect, expectAccessible, signInAs, test } from "./fixtures";
 import type { Page } from "@playwright/test";
 
 const ADMIN = { "x-dev-user": "admin@example.com", "content-type": "application/json" };
@@ -20,7 +20,7 @@ async function push(page: Page, rows: Record<string, unknown>[]) {
 }
 
 test.describe("request 41", () => {
-  test("Analytics → Primary Tracker has its own filters, one per column, that never carry over to other pages", async ({ page }) => {
+  test("the Primary Tracker (Database → Primary Tracker since request 56) has its own filters, one per column, that never carry over to other tables", async ({ page }) => {
     await signInAs(page, "admin");
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/dashboard");
@@ -29,7 +29,7 @@ test.describe("request 41", () => {
       { title: `Alpha ${tag}`, date: "2026-03-10", source_company: `Alpha Clinic ${tag}`, source_role: "Medical Director", insight_topic: `Topic ${tag}`, key_intelligence_question: "Will payers cover it?", key_details: "Payers push back on price.", key_metrics: "30% rejected" },
       { title: `Beta ${tag}`, date: "2026-08-10", source_company: `Beta Hospital ${tag}`, source_role: "Head of Access", insight_topic: `Topic ${tag}`, key_intelligence_question: "Is uptake growing?", key_details: "Uptake is growing fast.", key_metrics: "12% growth" },
     ]);
-    await page.goto("/analytics/primary");
+    await page.goto("/database?stream=primary");
     const bar = page.getByTestId("ptr-filters");
     await expect(bar.getByRole("combobox", { name: "Source Company" })).toBeVisible();
     // One filter per column, in the table's order; none of the shared filters (Macrotrend, search, saved views).
@@ -59,19 +59,17 @@ test.describe("request 41", () => {
     await bar.getByLabel("Event Date to").fill("2026-06-30");
     await expect(rows).toHaveCount(1);
     await expect(rows.first()).toContainText(`Alpha Clinic ${tag}`);
-    // The Primary Tracker's filters stay on this tab: the Database has none of them…
-    await navOf(page).getByRole("link", { name: "Database", exact: true }).click();
-    await expect(page).toHaveURL(/\/database/);
-    expect(page.url()).not.toContain("pt.");
+    // Request 56: the Primary Tracker is the Database's. Its filters are its own: the Secondary Tracker does not use them…
+    await page.getByTestId("stream-secondary").click();
     await expect(page.getByRole("region", { name: "Active filters" })).not.toContainText(tag);
-    // …and the filters set there do not reach the Primary Tracker.
+    // …and the Secondary Tracker's filters do not reach the Primary Tracker.
     if (!(await page.getByTestId("db-filters").isVisible())) await page.getByTestId("filters-toggle").click();
     await page.getByTestId("db-filters").getByRole("button", { name: /^All filters/ }).click();
     await choose(page.getByTestId("db-filters").getByRole("combobox", { name: "Macrotrend", exact: true }), "AI Investment in R&D");
-    await goTab(page, "Analytics", "Primary Tracker");
-    await expect(page).toHaveURL(/\/analytics\/primary$/);
+    await page.getByTestId("stream-primary").click();
+    await expect(page.getByTestId("ptr-filters")).toBeVisible();
     await choose(page.getByTestId("ptr-filters").getByRole("combobox", { name: "Insight Topic" }), `Topic ${tag}`);
-    // Both Geopolitics entries show, though the Database was filtered to another Macrotrend.
+    // Both Geopolitics entries show, though the Secondary Tracker was filtered to another Macrotrend.
     await expect(page.getByTestId("table-scroll").locator("tbody tr")).toHaveCount(2);
     // Reset clears them.
     await page.getByRole("button", { name: "Reset filter" }).click();

@@ -66,7 +66,7 @@ test.describe("request 45", () => {
     await page.evaluate(() => localStorage.removeItem("eradigm.ptr.aiSummaryHeight"));
     const tag = Math.random().toString(36).slice(2, 8);
     await push(page, tag, 12);
-    await page.goto(`/analytics/primary?${new URLSearchParams({ "pt.source_company": `Clinic ${tag}` })}`);
+    await page.goto(`/database?stream=primary&${new URLSearchParams({ "pt.source_company": `Clinic ${tag}` })}`);
     const scroll = page.getByTestId("table-scroll");
     await expect(scroll.locator("tbody tr")).toHaveCount(10);
     await expect(page.getByText("Approved entries from the Primary Inbox")).toHaveCount(0);

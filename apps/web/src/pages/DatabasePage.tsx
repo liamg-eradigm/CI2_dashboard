@@ -37,7 +37,7 @@ function DatabaseTabs({ value, onChange, note }: { value: Pick; onChange: (v: Pi
 }
 
 const NOTE: Record<Pick, string> = {
-  primary: "Every Primary Tracker entry with all its fields, its saved page, Markdown, alert and newsletters",
+  primary: "The Primary Tracker, with each entry's Markdown, alert and newsletters · open Full Discussion or KIQ Archive from a row",
   secondary: "Every Secondary Tracker entry with all its fields, its saved page, Markdown, alert and newsletters",
   ci: "Every trend analysis submitted on the Input page, newest first, each a Markdown file",
   newsletters: "Every newsletter made with Generate Newsletter, newest first: open one to read or download it",
@@ -53,16 +53,15 @@ const NOTE: Record<Pick, string> = {
  */
 export function DatabasePage({ me }: { me: Me }) {
   const [params, setParams] = useSearchParams();
-  const [stream, setStream] = useStreamParam();
+  const [stream] = useStreamParam();
   const which = params.get("db");
   const other: Pick | null = which === "ci" || which === "newsletters" ? which : null;
   const go = (v: Pick) => {
-    if (v !== "ci" && v !== "newsletters" && !other) return setStream(v);
     setParams(
       (prev) => {
         const p = new URLSearchParams(prev);
-        // Open panels and paging belong to the table being left.
-        for (const k of ["page", "md", "signal", "edit", "saved", "savedPage", "docx", "all", "row"]) p.delete(k);
+        // Open panels, pop-ups and paging belong to the table being left.
+        for (const k of ["page", "md", "signal", "edit", "saved", "savedPage", "docx", "all", "row", "pp", "arch", "am", "ap"]) p.delete(k);
         if (v === "ci" || v === "newsletters") p.set("db", v);
         else {
           p.delete("db");
@@ -78,6 +77,8 @@ export function DatabasePage({ me }: { me: Me }) {
   const toggle = <DatabaseTabs value={value} onChange={go} note={NOTE[value]} />;
   if (other === "ci") return <TrendAnalysesPage me={me} title="Database" eyebrow="Every database in one place" strip={toggle} />;
   if (other === "newsletters") return <NewslettersDatabase me={me} toggle={toggle} />;
+  // Request 56: the Primary Tracker here is the Primary Tracker page, with the Markdown, Alert and Newsletter columns.
+  if (stream === "primary") return <TrackerPage key="database-primary" me={me} view="database" title="Database" switcher={toggle} primaryOnly />;
   return <TrackerPage key="database" me={me} view="database" title="Database" switcher={toggle} />;
 }
 

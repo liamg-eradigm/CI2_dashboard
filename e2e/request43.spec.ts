@@ -173,7 +173,7 @@ test.describe("request 43", () => {
       { ...base, title: `Oldest ${tag}`, date: "2026-09-01", key_intelligence_question: "Will payers cover it?", key_details: "Oldest details." },
       { ...base, title: `Newest ${tag}`, date: "2026-09-01", key_intelligence_question: "Will payers cover it?", key_details: "Newest details." },
     ]);
-    await page.goto(`/analytics/primary?${new URLSearchParams({ "pt.source_company": `Clinic ${tag}` })}`);
+    await page.goto(`/database?stream=primary&${new URLSearchParams({ "pt.source_company": `Clinic ${tag}` })}`);
     const box = page.getByTestId("ai-summary");
     // Below the filters, above the Primary Signals table.
     await expect(box).toContainText("Open a Full Discussion");
@@ -208,7 +208,7 @@ test.describe("request 43", () => {
 
     // Clients read it but cannot edit it.
     await signInAs(page, "client");
-    await page.goto(`/analytics/primary?${new URLSearchParams({ "pt.source_company": `Clinic ${tag}` })}`);
+    await page.goto(`/database?stream=primary&${new URLSearchParams({ "pt.source_company": `Clinic ${tag}` })}`);
     await page.getByTestId("table-scroll").getByRole("row", { name: new RegExp(`Newest ${tag}`) }).getByTestId("archived-cell").click();
     await expect(box.getByTestId("ai-summary-text")).toContainText("They accept it now.");
     await expect(box.getByRole("button", { name: /Edit|Write/ })).toHaveCount(0);

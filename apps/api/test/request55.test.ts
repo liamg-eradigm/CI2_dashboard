@@ -231,11 +231,17 @@ describe("request 55: the test space, kept in step with the workbook", () => {
     const status = async () => json(call(w.a.admin, "GET", "/api/excel/status"));
     expect((await status()).counts.secondary).toBe(1);
     expect(ms.asked.filter((u) => u.endsWith("/content")).length).toBeGreaterThan(0);
-    // Unchanged: only the file's version is asked for.
+    // Unchanged: only the file's version is asked for, and (request 56: checks come every 10 seconds) nothing is written.
+    const checkedAt = async () => (await env.DB.prepare("SELECT last_checked_at AS at FROM excel_sync WHERE tenant_id = ?1").bind(w.a.id).first<{ at: string }>())?.at;
+    const before = await checkedAt();
     ms.asked.length = 0;
     await runExcelCron(withSecrets);
     expect(ms.asked.some((u) => u.endsWith("/content"))).toBe(false);
     expect(ms.asked.some((u) => u.includes("/items/01ITEM?"))).toBe(true);
+    expect(await checkedAt()).toBe(before);
+    // The Test pages' check (Sync without force) says nothing was applied.
+    const quiet = await app.fetch(new Request("https://api.test/api/excel/sync", { method: "POST", headers: { "x-dev-user": w.a.admin, "content-type": "application/json" }, body: "{}" }), withSecrets);
+    expect((await quiet.json()).applied).toEqual({ created: 0, updated: 0, deleted: 0, trends: 0 });
     // A new version is read again.
     tag = "cron-2";
     ms.asked.length = 0;

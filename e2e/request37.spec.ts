@@ -8,7 +8,7 @@ test.describe("request 37", () => {
     test(`database tables scroll inside a box that fits a ${w}×${h} screen, the header row staying in view`, async ({ page }) => {
       await signInAs(page, "admin");
       await page.setViewportSize({ width: w, height: h });
-      for (const url of ["/tracker?all=1", "/tracker?stream=primary", "/phantoms?all=1", "/analytics/primary", "/trend-analyses"]) {
+      for (const url of ["/tracker?all=1", "/tracker?stream=primary", "/phantoms?all=1", "/database?stream=primary", "/trend-analyses"]) {
         await page.goto(url);
         const box = page.getByTestId(url === "/trend-analyses" ? "trend-analyses-table" : "table-scroll");
         const scroller = url === "/trend-analyses" ? box.locator("xpath=..") : box;

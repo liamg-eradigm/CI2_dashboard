@@ -81,7 +81,7 @@ test.describe("request 44", () => {
     await page.goto("/dashboard");
     const tag = Math.random().toString(36).slice(2, 8);
     await push(page, tag, 12);
-    await page.goto(`/analytics/primary?${new URLSearchParams({ "pt.source_company": `Clinic ${tag}` })}`);
+    await page.goto(`/database?stream=primary&${new URLSearchParams({ "pt.source_company": `Clinic ${tag}` })}`);
     const table = page.getByTestId("table-scroll");
     await expect(table.locator("tbody tr")).toHaveCount(10);
 

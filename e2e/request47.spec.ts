@@ -45,7 +45,7 @@ test.describe("request 47", () => {
     );
 
     // Primary Tracker.
-    await page.goto(`/analytics/primary?${new URLSearchParams({ "pt.source_company": `Clinic ${tag}` })}`);
+    await page.goto(`/database?stream=primary&${new URLSearchParams({ "pt.source_company": `Clinic ${tag}` })}`);
     const scroll = page.getByTestId("table-scroll");
     await expect(scroll.locator("tbody tr")).toHaveCount(10);
     const filters = page.getByTestId("ptr-filters");
@@ -125,7 +125,7 @@ test.describe("request 47", () => {
       { title: `First ${tag}`, date: "2026-09-01", source_role: "Lead", source_company: `Clinic ${tag}`, key_intelligence_question: "Q1" },
       { title: `Second ${tag}`, date: "2026-09-01", source_role: "Lead", source_company: `Clinic ${tag}`, key_intelligence_question: "Q2" },
     ]);
-    await page.goto(`/analytics/primary?${new URLSearchParams({ "pt.source_company": `Clinic ${tag}` })}`);
+    await page.goto(`/database?stream=primary&${new URLSearchParams({ "pt.source_company": `Clinic ${tag}` })}`);
     await page.getByTestId("table-scroll").getByRole("row", { name: new RegExp(`First ${tag}`) }).getByTestId("archived-cell").click();
     const summary = page.getByTestId("ai-summary");
     await summary.getByRole("button", { name: "Write the summary" }).click();
@@ -207,7 +207,7 @@ test.describe("request 47", () => {
     expect(await px(page, ".inbox-title .ts-text")).toBeCloseTo(15.5 * 1.15, 0);
 
     // Section headings: the AI Summary heading on the Primary Tracker.
-    await page.goto("/analytics/primary");
+    await page.goto("/database?stream=primary");
     const head = page.getByTestId("ai-summary").locator("#ai-summary-title");
     const base = await head.locator(".ts-text").evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
     await head.hover();
