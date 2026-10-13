@@ -11,6 +11,8 @@ test.describe("request 31", () => {
       "Analytics: Megatrends Dashboard, Primary Tracker",
       "Database",
       "Admin",
+      // Request 55: the Test tab (admins only).
+      "Test: Database, Megatrends, Primary Tracker",
     ]);
     await expect(navOf(page).getByRole("link", { name: /Trend analysis$/ })).toHaveCount(0);
   });

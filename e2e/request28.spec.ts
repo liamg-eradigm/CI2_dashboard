@@ -15,7 +15,7 @@ test.describe("request 28", () => {
     await navOf(page).getByRole("link", { name: "Admin", exact: true }).click();
     await expect(page).toHaveURL(/\/admin$/);
     // Two groups and the Database and Admin tabs (request 43; the Databases group went in request 48; Admin is one tab since request 52).
-    expect(await menuOf(page)).toHaveLength(4);
+    expect(await menuOf(page)).toHaveLength(5);
     await expectAccessible(page, "Menu with every group open");
   });
 

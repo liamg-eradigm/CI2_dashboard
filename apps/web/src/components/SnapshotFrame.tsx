@@ -4,6 +4,7 @@ import { request } from "../api/client";
 import { MAX_SAVED_PAGES } from "@eradigm/shared";
 import { useFocusTrap } from "./RecordDrawer";
 import { useAttachPage, useSavedPages } from "./SavedPages";
+import { appHref } from "../api/space";
 
 /**
  * Renders a stored, sanitised source snapshot in a fully sandboxed iframe
@@ -47,7 +48,7 @@ export function SnapshotActions({ itemId, code, pageId = null }: { itemId: strin
   };
   return (
     <span className="snap-actions">
-      <a className="link-btn" href={`/source/${itemId}${pageQs ? `?${pageQs}` : ""}`} target="_blank" rel="noopener">
+      <a className="link-btn" href={appHref(`/source/${itemId}${pageQs ? `?${pageQs}` : ""}`)} target="_blank" rel="noopener">
         Open saved page in new tab<span aria-hidden="true"> ↗</span>
       </a>
       <button className="link-btn" onClick={download} disabled={busy}>

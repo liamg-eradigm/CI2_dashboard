@@ -3,7 +3,7 @@
  * which role. Resolved on every request; every repository call takes the
  * tenant id from here, never from request data.
  */
-import { can, type Action, type Role } from "@eradigm/shared";
+import { can, type Action, type Role, type Space } from "@eradigm/shared";
 import type { Env } from "../env.js";
 import { ApiError, forbidden } from "../lib/errors.js";
 import { nowIso } from "../lib/ids.js";
@@ -19,6 +19,10 @@ export interface Principal {
   tenantName: string;
   role: Role;
   tenants: { id: string; name: string; role: Role }[];
+  /** Request 55: "test" when the request is answered from the Test tab's test space (tenantId is then the test space's). */
+  space?: Space;
+  /** The live workspace (the same as tenantId outside the test space). */
+  liveTenantId?: string;
 }
 
 const DEV_SESSION_START = Math.floor(Date.now() / 1000);

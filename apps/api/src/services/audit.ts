@@ -66,7 +66,9 @@ export type AuditAction =
   | "view.saved"
   | "view.deleted"
   | "retention.purged"
-  | "incident.resolved";
+  | "incident.resolved"
+  | "test_space.created"
+  | "test_space.synced";
 
 export interface AuditInput {
   tenantId: string | null;

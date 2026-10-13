@@ -22,3 +22,4 @@ export * from "./sourceLink.js";
 export * from "./menu.js";
 export * from "./trendAnalyses.js";
 export * from "./richText.js";
+export * from "./excelSync.js";

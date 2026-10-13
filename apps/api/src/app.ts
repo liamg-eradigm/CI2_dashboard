@@ -35,6 +35,8 @@ import {
   SplitRequest,
   DeleteItemRequest,
   CONTRACT_VERSION,
+  ExcelSyncRequest,
+  SPACE_HEADER,
   CreateSavedViewRequest,
   CreateSubmissionRequest,
   CreateUserRequest,
@@ -126,6 +128,8 @@ import { addComment, backToEradigm, clientPush, listComments, sendToClient, upda
 import { databaseExtras, deleteDeliverable, generateNewsletter, listNewsletters, readDeliverable } from "./services/deliverables.js";
 import { getDiscussionSummary, regenerateDiscussionSummary, writeDiscussionSummary } from "./services/discussionSummaries.js";
 import { createInvite, createUser, listUsers, revokeSessions, updateUser } from "./services/users.js";
+import { ensureTestSpace, excelStatus, syncStep } from "./services/excelSync.js";
+import { checkWorkbook } from "./services/sharepoint.js";
 
 type Vars = { principal: Principal; requestId: string; dataVersion?: DataVersions };
 type C = Context<{ Bindings: Env; Variables: Vars }>;
@@ -185,7 +189,13 @@ app.use("/api/*", async (c, next) => {
   if (c.env.AUTH_MODE === "entra" && !["GET", "HEAD", "OPTIONS"].includes(c.req.method) && c.req.header("x-eci-request") !== "1") {
     throw forbidden("Request blocked (missing X-ECI-Request header)");
   }
-  const p = await resolvePrincipal(c.req.raw, c.env);
+  let p = await resolvePrincipal(c.req.raw, c.env);
+  // Request 55: the Test tab's pages read and write the workspace's test space (admins only).
+  if (c.req.header(SPACE_HEADER) === "test") {
+    if (p.role !== "admin") throw forbidden("The Test tab is for admins only");
+    const test = await ensureTestSpace(c.env, { id: p.tenantId, name: p.tenantName }, p.userId);
+    p = { ...p, tenantId: test, tenantName: `${p.tenantName} · Test`, space: "test", liveTenantId: p.tenantId };
+  }
   c.set("principal", p);
   if (c.env.RATE_LIMITER) {
     const { success } = await c.env.RATE_LIMITER.limit({ key: p.userId });
@@ -203,7 +213,7 @@ app.use("/api/*", async (c, next) => {
 });
 
 /** POSTs that only read (nothing to bump). */
-const READ_ONLY_POSTS = new Set(["POST /api/trend-test"]);
+const READ_ONLY_POSTS = new Set(["POST /api/trend-test", "POST /api/excel/sync", "POST /api/excel/upload"]);
 /**
  * Changes that never reach the Tracker, Phantoms, Dashboard, Megatrends or
  * Competitors (entries still in the Inbox, comments, saved views, users):
@@ -366,7 +376,44 @@ app.get("/api/me", async (c) => {
     environment: c.env.ENVIRONMENT,
     timezone: s.timezone,
     features: { prefill: prefillMode(c.env) },
+    space: p.space ?? "live",
   });
+});
+
+// ---------------------------------------------------------------------------
+// Request 55: the Test tab's SharePoint workbook (always the live workspace's, whichever space asks)
+// ---------------------------------------------------------------------------
+
+/** The live workspace of the caller (an admin). */
+function liveOf(c: C): { id: string; name: string } {
+  const p = P(c);
+  if (p.role !== "admin") throw forbidden("The Test tab is for admins only");
+  return { id: p.liveTenantId ?? p.tenantId, name: p.space === "test" ? p.tenantName.replace(/ · Test$/, "") : p.tenantName };
+}
+
+app.get("/api/excel/check", async (c) => {
+  liveOf(c);
+  return c.json(await checkWorkbook(c.env));
+});
+
+app.get("/api/excel/status", async (c) => c.json(await excelStatus(c.env, liveOf(c).id)));
+
+app.post("/api/excel/sync", async (c) => {
+  const live = liveOf(c);
+  const b = await body(c, ExcelSyncRequest);
+  const p = P(c);
+  return c.json(await syncStep(c.env, live, { userId: p.userId, email: p.email, name: p.name }, { force: !!b.force }));
+});
+
+/** Development and tests only: the workbook from an upload instead of SharePoint. */
+app.post("/api/excel/upload", async (c) => {
+  const live = liveOf(c);
+  if (c.env.ENVIRONMENT !== "dev" && c.env.ENVIRONMENT !== "test") throw notFound("Endpoint");
+  const form = await c.req.formData().catch(() => null);
+  const file = form?.get("file") as unknown as File | string | null | undefined;
+  if (!file || typeof file === "string") throw badRequest("Send the workbook as the multipart field “file”");
+  const p = P(c);
+  return c.json(await syncStep(c.env, live, { userId: p.userId, email: p.email, name: p.name }, { upload: { bytes: new Uint8Array(await file.arrayBuffer()), name: file.name || "upload.xlsx" } }));
 });
 
 app.post("/api/me/sessions/revoke", async (c) => {

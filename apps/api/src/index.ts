@@ -1,12 +1,13 @@
 /**
- * API worker entry point: HTTP (Hono app), background queue consumer and the
- * daily retention cron.
+ * API worker entry point: HTTP (Hono app), background queue consumer, the
+ * daily retention cron and (request 55) the every-minute Test tab workbook check.
  */
 import { app } from "./app.js";
 import type { Env, JobMessage } from "./env.js";
 import { log } from "./lib/log.js";
 import { failItem, runJob } from "./pipeline/process.js";
 import { runRetention } from "./services/retention.js";
+import { EXCEL_CRON, runExcelCron } from "./services/excelSync.js";
 
 const MAX_DELIVERIES = 3;
 
@@ -34,7 +35,8 @@ export default {
     }
   },
 
-  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-    ctx.waitUntil(runRetention(env));
+  async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    if (controller.cron === EXCEL_CRON) ctx.waitUntil(runExcelCron(env));
+    else ctx.waitUntil(runRetention(env));
   },
 } satisfies ExportedHandler<Env, JobMessage>;

@@ -1093,3 +1093,23 @@ html.resizing-rows { overflow: hidden; }
 .docx-fmt .fmt-btn.small { font-size: 11.5px; }
 .docx-fmt .fmt-btn.big { font-size: 15px; }
 .docx-note { margin: 0; padding: 6px 16px; font-size: 12px; color: var(--muted); background: var(--tint-3); border-bottom: 1px solid var(--border); }
+
+/* Request 55: the Test tab's bar (the test space, fed by the SharePoint workbook), above every Test page. */
+.test-bar { background: #fff8e8; border-bottom: 1px solid #f0d49b; border-left: 6px solid #d99a1e; padding: 10px 24px 10px 20px; display: flex; flex-direction: column; gap: 8px; }
+.test-bar.problem { background: #fdeeee; border-left-color: var(--high); border-bottom-color: #f1c4c1; }
+.test-bar-main { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.test-badge { flex: none; font: 800 11px/1 var(--sans); letter-spacing: 0.14em; text-transform: uppercase; color: #fff; background: #9a5a00; border-radius: 4px; padding: 5px 8px; }
+.test-bar-text { flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: var(--ink-2); }
+.test-bar-text b { color: var(--ink); font-size: 13.5px; }
+.test-bar-text a { color: var(--teal-press); }
+.test-bar-hint { font-size: 12.5px; color: #7a2b26; margin: 0; }
+.test-bar-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.test-bar-actions .link-btn { color: var(--teal-press); }
+.test-bar-details { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: var(--ink); max-height: 46vh; overflow: auto; }
+.test-bar-sub { margin: 0; color: var(--ink-2); }
+.test-sheets th, .test-sheets td { padding: 6px 10px; font-size: 12.5px; }
+.test-issues, .test-steps, .test-check-sheets { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 4px; }
+.test-steps { list-style: none; padding-left: 0; }
+.test-steps li.ok span { color: var(--success); }
+.test-steps li.fail span { color: var(--high); }
+.test-check-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }

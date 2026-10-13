@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, NavLink, useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   DEFAULT_MENU,
@@ -19,6 +19,29 @@ import {
 } from "@eradigm/shared";
 import { useClientInboxCount, useInboxCounts, useSettings } from "../api/hooks";
 import { DEV_AUTH, devUserStore, signOut, tenantStore } from "../api/client";
+import { SPACE, appHref, routerPath } from "../api/space";
+import type { ReactNode } from "react";
+
+/** Whether a menu item is the page shown (by its full path: the Test tab's pages are under /test). */
+const isHere = (item: MenuItemKey, pathname: string) => isMenuItemAt(item, appHref(pathname));
+
+/**
+ * A menu link (request 55): within this space, a link of the app; into the
+ * other space (the Test tab from the live pages, or back), a page load of its
+ * own, so nothing cached in one space shows in the other.
+ */
+function MenuLink({ path, children, ...rest }: { path: string; children: ReactNode; className?: string; "aria-label"?: string; "aria-current"?: "page" }) {
+  const to = routerPath(path);
+  return to != null ? (
+    <Link to={to} {...rest}>
+      {children}
+    </Link>
+  ) : (
+    <a href={path} {...rest}>
+      {children}
+    </a>
+  );
+}
 
 const DEV_USERS = [
   ["l.griffith@example.com", "L. Griffith · Analyst"],
@@ -44,7 +67,7 @@ function NavGroup({
   badge: (item: MenuItemKey) => { n: number; label: string } | null;
 }) {
   const loc = useLocation();
-  const within = group.items.some((it) => isMenuItemAt(it.key, loc.pathname));
+  const within = group.items.some((it) => isHere(it.key, loc.pathname));
   const id = `nav-sub-${group.key}`;
   const label = groupLabel(group);
   const total = group.items.reduce((sum, it) => sum + (badge(it.key)?.n ?? 0), 0);
@@ -64,12 +87,12 @@ function NavGroup({
           {group.items.map((it) => {
             const b = badge(it.key);
             return (
-              <Link
+              <MenuLink
                 key={it.key}
-                to={MENU_ITEM_PATH[it.key]}
+                path={MENU_ITEM_PATH[it.key]}
                 aria-label={`${label}: ${itemLabel(it)}`}
-                aria-current={isMenuItemAt(it.key, loc.pathname) ? "page" : undefined}
-                className={isMenuItemAt(it.key, loc.pathname) ? "active" : ""}
+                aria-current={isHere(it.key, loc.pathname) ? "page" : undefined}
+                className={isHere(it.key, loc.pathname) ? "active" : ""}
               >
                 <span>{itemLabel(it)}</span>
                 {b && b.n > 0 && (
@@ -77,7 +100,7 @@ function NavGroup({
                     {b.n}
                   </span>
                 )}
-              </Link>
+              </MenuLink>
             );
           })}
         </div>
@@ -89,12 +112,12 @@ function NavGroup({
 /** A group that is a tab of its own (request 43): one link, named as the group. */
 function SoloTab({ group, item }: { group: MenuGroupSetting; item: MenuItemKey }) {
   const loc = useLocation();
-  const here = isMenuItemAt(item, loc.pathname);
+  const here = isHere(item, loc.pathname);
   return (
     <div className={`nav-group solo${here ? " within" : ""}`} data-testid={`nav-group-${group.key}`}>
-      <Link className={`nav-solo${here ? " active" : ""}`} to={MENU_ITEM_PATH[item]} aria-current={here ? "page" : undefined}>
+      <MenuLink className={`nav-solo${here ? " active" : ""}`} path={MENU_ITEM_PATH[item]} aria-current={here ? "page" : undefined}>
         <span>{groupLabel(group)}</span>
-      </Link>
+      </MenuLink>
     </div>
   );
 }
@@ -127,7 +150,7 @@ export function Sidebar({ me }: { me: Me }) {
       <button className="side-close" onClick={() => setOpen(false)} title="Close menu" aria-label="Close menu" aria-expanded="true">
         «
       </button>
-      <NavLink to="/dashboard" className="brand" aria-label="Eradigm Consulting — Dashboard">
+      <MenuLink path="/dashboard" className="brand" aria-label="Eradigm Consulting — Dashboard">
         <div className="logo-tile">
           <img src="/eradigm-logo.webp" alt="" />
         </div>
@@ -135,7 +158,7 @@ export function Sidebar({ me }: { me: Me }) {
           <b>ERADIGM</b>
           <span>CONSULTING</span>
         </div>
-      </NavLink>
+      </MenuLink>
       <div className="side-label" id="nav-label">
         COMPETITIVE INTELLIGENCE
       </div>
@@ -148,7 +171,7 @@ export function Sidebar({ me }: { me: Me }) {
             <NavGroup
               key={g.key}
               group={g}
-              open={expanded[g.key] ?? g.items.some((it) => isMenuItemAt(it.key, loc.pathname))}
+              open={expanded[g.key] ?? g.items.some((it) => isHere(it.key, loc.pathname))}
               onToggle={(o) => setExpanded((e) => ({ ...e, [g.key]: o }))}
               badge={(k) => (k === "inbox" ? { n, label: `${n} unprocessed` } : k === "clientinbox" ? { n: waiting, label: `${waiting} to check` } : null)}
             />
@@ -160,7 +183,7 @@ export function Sidebar({ me }: { me: Me }) {
         <div className="role">
           {ROLE_LABEL[me.role]} · {me.tenant.name}
         </div>
-        {me.tenants.length > 1 && (
+        {me.tenants.length > 1 && SPACE === "live" && (
           <label className="field">
             <span className="sr-only">Workspace</span>
             <select

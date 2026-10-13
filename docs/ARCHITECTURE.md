@@ -824,6 +824,38 @@ analyst-entered information distinguishable; in the prototype every value is
     right (`?row=<id>`): every field of the entry in the table's order, one per
     row, long text through `RichText` so lines and bullets (nested too) are
     kept. "Open record" goes on to the full record.
+- **Request 55** (contract 2.1.0, migration 0022): the Test tab (admins
+  only), whose pages show a test space fed by the SharePoint workbook
+  "Power_Automate_Test.xlsx". Guide: [TEST-TAB-SHAREPOINT.md](TEST-TAB-SHAREPOINT.md).
+  - **Microsoft Graph** (`services/sharepoint.ts`): the app signs in as itself
+    (client credentials: `SHAREPOINT_TENANT_ID`, `SHAREPOINT_CLIENT_ID`,
+    `SHAREPOINT_CLIENT_SECRET`; the app registration has Sites.Selected with
+    read on the CI2 Monitoring site), reads the file's version (`cTag`) by
+    `SHAREPOINT_DRIVE_ID` / `SHAREPOINT_ITEM_ID`, and downloads and reads the
+    .xlsx itself (`parseXlsxBook`, every sheet). `GET /api/excel/check` is the
+    test endpoint: each step (secrets, sign-in, workbook, worksheets with their
+    columns) and, on failure, Microsoft's error with what to fix; failures are
+    logged (`sharepoint_graph_error`, never the secret or token).
+  - **Test space** (`services/excelSync.ts`): a workspace of its own
+    (`<tenant>-test` in tenants, linked in `excel_sync`), nobody's member.
+    Admins' requests with `x-eradigm-space: test` are answered from it (the
+    principal's tenant is swapped in app.ts), so every page and endpoint works
+    unchanged. The web app serves the Test pages under `/test` (router
+    basename) and sends the header there; moving between `/test` and the rest
+    is a page load, so nothing cached in one space shows in the other.
+  - **Sync** (the every-minute cron, `* * * * *`, and Sync now): when the
+    workbook's version changed, the live workspace's columns, options and
+    settings are copied in again, then the workbook is the master: Primary /
+    Secondary rows are matched to entries by ID (new rows published as the
+    spreadsheet import does, changed rows edited with the workbook's Review
+    Date kept and their Phantom taken again so the Markdown and alert follow,
+    missing rows deleted); Competitor Trend Analysis sets Company Profiles;
+    Macrotrend Analysis sets each Macrotrend's sections. Rows with problems are
+    left out and listed (sheet, row, column, why). A run spends at most about
+    20 statements on changes (the Free plan's 50 queries per invocation), so a
+    large change takes several runs (`more`).
+  - `POST /api/excel/upload` (dev and test only) syncs from an uploaded
+    workbook instead of SharePoint (the e2e tests).
 - **Menu in groups** (request 28, contract 1.17; regrouped in request 31,
   contract 1.19; renamed in request 34; `packages/shared/src/menu.ts`): the
   menu is four groups (and, from request 43, the Database tab on its own),

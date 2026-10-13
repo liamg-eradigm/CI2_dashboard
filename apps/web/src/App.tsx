@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, type ReactNode } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
-import { canSeeTab, type NavTab } from "@eradigm/shared";
+import { canSeeTab, type Me, type NavTab } from "@eradigm/shared";
 import { useMe } from "./api/hooks";
 import { getContractWarning } from "./api/client";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -15,6 +15,8 @@ import { InvitePage, SignInPage } from "./pages/SignInPage";
 import { SourcePage } from "./pages/SourcePage";
 import { DatabasePage } from "./pages/DatabasePage";
 import { DB_PREFIX } from "./components/DatabaseFilters";
+import { TestSpaceBar } from "./components/TestSpaceBar";
+import { SPACE } from "./api/space";
 
 // Loaded on first visit: it carries the 3D graph (three.js).
 const MegatrendsPage = lazy(() => import("./pages/MegatrendsPage").then((m) => ({ default: m.MegatrendsPage })));
@@ -41,16 +43,26 @@ function SignedIn() {
   const me = useMe();
   const loc = useLocation();
   useEffect(() => {
-    document.title = `${TITLES[loc.pathname] ?? "Eradigm"} · Eradigm Competitive Intelligence`;
+    document.title = `${SPACE === "test" ? "Test · " : ""}${TITLES[loc.pathname] ?? "Eradigm"} · Eradigm Competitive Intelligence`;
   }, [loc.pathname]);
 
   if (me.isLoading) return <div className="empty" role="status">Loading…</div>;
   if (me.isError || !me.data) {
     const e = me.error as { status?: number } | null;
+    // Request 55: the Test tab is for admins only (the API refuses its space to anyone else).
+    if (SPACE === "test" && e?.status === 403) {
+      window.location.replace("/dashboard");
+      return null;
+    }
     if (e?.status === 401) return <Navigate to={`/signin?returnTo=${encodeURIComponent(loc.pathname + loc.search)}`} replace />;
     return <SignInPage problem={me.error} />;
   }
   const role = me.data.role;
+  // Request 55: the Test tab is for admins only (the API refuses the test space to anyone else).
+  if (SPACE === "test" && role !== "admin") {
+    window.location.replace("/dashboard");
+    return null;
+  }
   // Each role sees only its own tabs; any other page redirects to the Dashboard (the API enforces its own rules).
   const only = (tab: NavTab, page: ReactNode) => (canSeeTab(role, tab) ? page : <Navigate to="/dashboard" replace />);
   const warning = getContractWarning();
@@ -75,7 +87,14 @@ function SignedIn() {
       <Sidebar me={me.data} />
       <main id="main" tabIndex={-1}>
         {warning && <div className="banner" role="alert">{warning}</div>}
+        {SPACE === "test" && me.data.space !== "test" && (
+          <div className="banner" role="alert">
+            The API does not know the Test tab yet: deploy the API (and apply its migrations), then reload.
+          </div>
+        )}
+        {SPACE === "test" && <TestSpaceBar />}
         <ErrorBoundary key={loc.pathname} label="This page">
+          {SPACE === "test" ? <TestRoutes me={me.data} /> : (
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<DashboardPage me={me.data} />} />
@@ -128,9 +147,64 @@ function SignedIn() {
             <Route path="/admin" element={only("admin", <AdminPage me={me.data} />)} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
+          )}
         </ErrorBoundary>
       </main>
     </div>
+  );
+}
+
+/**
+ * Request 55: the Test tab's pages (under /test, in the test space): the
+ * Database, the Megatrends Dashboard (with its Trends Analysis pages and
+ * full-page graphs) and the Primary Tracker, exactly as the live ones. Any
+ * other address opens the test Database.
+ */
+function TestRoutes({ me }: { me: Me }) {
+  return (
+    <Routes>
+      <Route path="/" element={<Navigate to="/database" replace />} />
+      <Route path="/database" element={<DatabasePage me={me} />} />
+      <Route path="/dashboard" element={<DashboardPage me={me} />} />
+      <Route path="/analytics/primary" element={<TrackerPage key="primary-tracker" me={me} view="tracker" title="Primary Tracker" primaryOnly />} />
+      <Route path="/tracker" element={<ToDatabase />} />
+      <Route path="/phantoms" element={<ToDatabase />} />
+      <Route path="/trend-analyses" element={<ToDatabase ci />} />
+      <Route path="/deliverables" element={<Navigate to="/database?db=newsletters" replace />} />
+      <Route
+        path="/megatrends"
+        element={
+          <Suspense fallback={<div className="empty" role="status">Loading Megatrends…</div>}>
+            <MegatrendsPage me={me} />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/competitors"
+        element={
+          <Suspense fallback={<div className="empty" role="status">Loading Competitors…</div>}>
+            <CompetitorsPage me={me} />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/analytics/megatrends"
+        element={
+          <Suspense fallback={<div className="empty" role="status">Loading the trends analysis…</div>}>
+            <TrendAnalysisPage key="macro" me={me} kind="macro" />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/analytics/competitors"
+        element={
+          <Suspense fallback={<div className="empty" role="status">Loading the trends analysis…</div>}>
+            <TrendAnalysisPage key="competitor" me={me} kind="competitor" />
+          </Suspense>
+        }
+      />
+      <Route path="*" element={<Navigate to="/database" replace />} />
+    </Routes>
   );
 }
 

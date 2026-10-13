@@ -2,7 +2,8 @@
  * The dashboard's only way to reach data: the processing service's /api.
  * It never talks to the database, storage or the LLM directly.
  */
-import { CONTRACT_VERSION, isContractCompatible, type ApiError as ApiErrorBody } from "@eradigm/shared";
+import { CONTRACT_VERSION, SPACE_HEADER, isContractCompatible, type ApiError as ApiErrorBody } from "@eradigm/shared";
+import { SPACE } from "./space";
 
 /** Whether version `a` is older than `b` (major.minor.patch). */
 function contractOlder(a: string, b: string): boolean {
@@ -67,6 +68,8 @@ export async function request(path: string, init: RequestInit & { json?: unknown
   if (t) headers.set("x-tenant-id", t);
   const dev = devUserStore.get();
   if (dev) headers.set("x-dev-user", dev);
+  // Request 55: the Test tab's pages read and write the test space.
+  if (SPACE === "test") headers.set(SPACE_HEADER, "test");
   let body = init.body;
   if (init.json !== undefined) {
     headers.set("content-type", "application/json");

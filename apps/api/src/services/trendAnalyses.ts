@@ -77,7 +77,7 @@ export async function listTrendAnalyses(env: Env, tenantId: string): Promise<Tre
 // ---------------------------------------------------------------------------
 
 /** The names the trackers know (taxonomy and Competitors options), by lower case. */
-interface Known {
+export interface Known {
   macros: Map<string, string>;
   /** Subtrend → its Macrotrends (a Subtrend name can sit under more than one). */
   subs: Map<string, { name: string; parent: string }[]>;
@@ -86,7 +86,7 @@ interface Known {
 
 const key = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
 
-function knownNames(schemas: Schemas): Known {
+export function knownNames(schemas: Schemas): Known {
   const k: Known = { macros: new Map(), subs: new Map(), comps: new Map() };
   for (const sch of [schemas.primary, schemas.secondary] as TrackerSchema[]) {
     for (const g of sch.taxonomy) {
@@ -108,7 +108,7 @@ type Resolved = { ok: true; level: TrendLevel; name: string; parent: string | nu
  * taxonomy or the Competitors options match in any case; a name only Tracker
  * entries still carry (since removed from the dropdowns) matches exactly.
  */
-async function resolve(env: Env, tenantId: string, known: Known, level: TrendLevel, rawName: string, rawParent?: string | null): Promise<Resolved> {
+export async function resolve(env: Env, tenantId: string, known: Known, level: TrendLevel, rawName: string, rawParent?: string | null): Promise<Resolved> {
   const name = rawName.replace(/\s+/g, " ").trim();
   const col = TREND_ANALYSIS_COLUMNS.name;
   if (!name)
@@ -178,7 +178,7 @@ interface Submission {
 }
 
 /** Stores the submissions and makes each the analysis of its trend (later ones win). */
-async function store(env: Env, p: Principal, list: Submission[], source: TrendAnalysisSource, fileName: string | null): Promise<TrendAnalysis[]> {
+export async function store(env: Env, p: Principal, list: Submission[], source: TrendAnalysisSource, fileName: string | null): Promise<TrendAnalysis[]> {
   const at = nowIso();
   const made: TrendAnalysis[] = list.map((s) => ({
     id: newId("ta"),
@@ -366,7 +366,7 @@ export async function listMacroSections(env: Env, tenantId: string): Promise<Mac
   return (results ?? []).map((r) => ({ macrotrend: r.macrotrend, section: r.section, text: r.text, updatedAt: r.updated_at, updatedBy: r.updated_by ?? "—" }));
 }
 
-const sectionUpsert = (env: Env, p: Principal, macrotrend: string, section: MacroSectionKey, text: string, at: string) =>
+export const sectionUpsert = (env: Env, p: Principal, macrotrend: string, section: MacroSectionKey, text: string, at: string) =>
   env.DB.prepare(
     `INSERT INTO macrotrend_sections (tenant_id, macrotrend, section, text, updated_by, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
      ON CONFLICT (tenant_id, macrotrend, section) DO UPDATE SET text = excluded.text, updated_by = excluded.updated_by, updated_at = excluded.updated_at`,
@@ -383,7 +383,7 @@ function filled(sections: Partial<Record<MacroSectionKey, string | undefined>>):
 }
 
 /** The sections as one text (the CI analyses table and its search). */
-const joined = (sections: Partial<Record<MacroSectionKey, string>>) =>
+export const joined = (sections: Partial<Record<MacroSectionKey, string>>) =>
   MACRO_SECTIONS.filter((x) => sections[x.key])
     .map((x) => `${x.label}: ${sections[x.key]}`)
     .join("\n\n");

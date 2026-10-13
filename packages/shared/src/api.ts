@@ -10,6 +10,7 @@ import { ACTIONS, ROLES } from "./permissions.js";
 import { ITEM_STATUSES } from "./status.js";
 import { COLUMN_TYPES, CREATABLE_COLUMN_TYPES, MAX_LABEL_LENGTH, MAX_OPTION_LENGTH, STREAMS } from "./schema.js";
 import { EXPORT_FORMATS } from "./export.js";
+import { ExcelCheckSchema, ExcelSyncRequest, ExcelSyncStatusSchema, SPACES } from "./excelSync.js";
 import { DEFAULT_NAV_ORDER, MAX_SUMMARY_LENGTH, NAV_TABS, SUMMARY_MODELS, SUMMARY_SOURCES, TREND_LEVELS } from "./megatrends.js";
 import { MACRO_SECTION_KEYS, TREND_ANALYSIS_CATEGORIES, TREND_ANALYSIS_SOURCES, type MacroSectionKey } from "./trendAnalyses.js";
 import { DEFAULT_COMPETITOR_TIERS } from "./competitors.js";
@@ -150,6 +151,8 @@ export const MeSchema = z.object({
   timezone: z.string(),
   /** How drafts are pre-filled: "manual" (all fields empty, no external service) or "llm". Added in contract 1.1. */
   features: z.object({ prefill: z.enum(["manual", "llm"]) }).default({ prefill: "manual" }),
+  /** Request 55 (contract 2.1): the space the request was answered in (the Test tab's is "test"). */
+  space: z.enum(SPACES).default("live"),
 });
 
 export const UserSchema = z.object({
@@ -1039,5 +1042,9 @@ export const ENDPOINTS: EndpointDef[] = [
   { method: "get", path: "/api/audit/verify", summary: "Verify the audit hash chain", roles: ADMIN },
   { method: "get", path: "/api/incidents", summary: "Quarantine incidents (category and time only)", roles: ADMIN, response: z.array(IncidentSchema) },
   { method: "post", path: "/api/incidents/{id}/resolve", summary: "Mark an incident resolved", roles: ADMIN },
+  { method: "get", path: "/api/excel/check", summary: "Test tab: sign in to Microsoft Graph as the app (client credentials), read the SharePoint workbook (SHAREPOINT_DRIVE_ID / SHAREPOINT_ITEM_ID) and list its worksheets with their columns; each step says how it went, and a failure what to fix (also logged)", roles: ADMIN, response: ExcelCheckSchema },
+  { method: "get", path: "/api/excel/status", summary: "Test tab: the sync from the SharePoint workbook into the test space (last run, sheets, rows skipped and why)", roles: ADMIN, response: ExcelSyncStatusSchema },
+  { method: "post", path: "/api/excel/sync", summary: "Test tab: sync the test space from the workbook now (one run: when more is true, call again)", roles: ADMIN, request: ExcelSyncRequest, response: ExcelSyncStatusSchema },
+  { method: "post", path: "/api/excel/upload", summary: "Development and tests only: sync the test space from an uploaded workbook instead of SharePoint (multipart field file)", roles: ADMIN, response: ExcelSyncStatusSchema, multipart: true },
   { method: "get", path: "/api/metrics/quality", summary: "Extraction quality: completion, corrections, evidence coverage", roles: STAFF, response: QualityMetricsSchema },
 ];
