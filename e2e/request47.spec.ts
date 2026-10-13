@@ -73,8 +73,8 @@ test.describe("request 47", () => {
     await toggle.click();
     await expect(filters).toBeVisible();
 
-    // Database: its own setting (closed at first since request 48).
-    await page.goto(`/database?${new URLSearchParams({ stream: "primary", "db.t.source_company": tag })}`);
+    // Database (the Secondary Tracker; request 56: its Primary Tracker is the one above): its own setting (closed at first since request 48).
+    await page.goto("/database?stream=secondary");
     const dbFilters = page.getByTestId("db-filters");
     await expect(page.getByTestId("table-scroll").locator("tbody tr").first()).toBeVisible();
     await expect(dbFilters).toBeHidden();

@@ -2,9 +2,9 @@ import { expect, expectAccessible, menuOf, navOf, signInAs, test } from "./fixtu
 import type { Locator, Page } from "@playwright/test";
 
 /** The table's card runs from the tables strip to the bottom of the window, the width of the page (as on the Primary Tracker). */
-async function expectFills(page: Page, card: Locator) {
+async function expectFills(page: Page, card: Locator, above: Locator = page.getByTestId("db-tabs")) {
   await page.waitForTimeout(300);
-  const strip = (await page.getByTestId("db-tabs").boundingBox())!;
+  const strip = (await above.boundingBox())!;
   const box = (await card.boundingBox())!;
   const main = (await page.locator("main").boundingBox())!;
   expect(Math.abs(box.y - (strip.y + strip.height))).toBeLessThanOrEqual(2);
@@ -39,9 +39,10 @@ test.describe("request 53", () => {
     expect(Math.abs((await strip.boundingBox())!.y - (filters.y + filters.height))).toBeLessThanOrEqual(2);
     await page.getByTestId("filters-toggle").click();
 
+    // Request 56: the Primary Tracker is the Primary Tracker page: its heading, and its AI Summary under the strip.
     await tabs.getByRole("button", { name: "Primary Tracker" }).click();
-    await expect(card.getByRole("heading", { name: "Primary Tracker" })).toBeVisible();
-    await expectFills(page, card);
+    await expect(card.getByRole("heading", { name: "Primary Signals" })).toBeVisible();
+    await expectFills(page, card, page.getByTestId("ai-summary"));
 
     // CI Analysis and Newsletter: the same strip, their tables filling the page too.
     await tabs.getByRole("button", { name: "CI Analysis" }).click();

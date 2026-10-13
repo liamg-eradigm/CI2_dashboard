@@ -68,8 +68,11 @@ test.describe("request 41", () => {
     await choose(page.getByTestId("db-filters").getByRole("combobox", { name: "Macrotrend", exact: true }), "AI Investment in R&D");
     await page.getByTestId("stream-primary").click();
     await expect(page.getByTestId("ptr-filters")).toBeVisible();
-    await choose(page.getByTestId("ptr-filters").getByRole("combobox", { name: "Insight Topic" }), `Topic ${tag}`);
-    // Both Geopolitics entries show, though the Secondary Tracker was filtered to another Macrotrend.
+    // Its own filters are as they were (Insight Topic, and Event Date up to June): the Geopolitics entry shows,
+    // though the Secondary Tracker was filtered to another Macrotrend.
+    await expect(page.getByTestId("table-scroll").locator("tbody tr")).toHaveCount(1);
+    await expect(page.getByTestId("table-scroll").locator("tbody tr").first()).toContainText(`Alpha Clinic ${tag}`);
+    await bar.getByLabel("Event Date to").fill("2026-12-31");
     await expect(page.getByTestId("table-scroll").locator("tbody tr")).toHaveCount(2);
     // Reset clears them.
     await page.getByRole("button", { name: "Reset filter" }).click();

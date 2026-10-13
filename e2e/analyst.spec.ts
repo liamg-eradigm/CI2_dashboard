@@ -2,7 +2,7 @@ import path from "node:path";
 import { readFileSync, writeFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import type { Locator, Page } from "@playwright/test";
-import { choose, chooseMany, expect, expectAccessible, searchDatabase, signInAs, test } from "./fixtures";
+import { choose, chooseMany, expect, expectAccessible, openPrimaryRecord, searchDatabase, signInAs, test } from "./fixtures";
 
 const uid = () => Date.now().toString(36);
 
@@ -687,10 +687,12 @@ test.describe("Eradigm staff (admin)", () => {
     await card.getByRole("button", { name: "Check and import" }).click();
     await expect(card.getByText(/Imported 1 entry into the Primary Tracker \(SIG-\d+\)/)).toBeVisible({ timeout: 30_000 });
     await expect(sourceRule).toContainText(option);
-    await page.goto(`/database?${new URLSearchParams({ stream: "primary", "db.q": title })}`);
-    const tr = page.locator("table tbody tr", { hasText: title });
-    await expect(tr).toContainText(option);
-    await expect(tr).toContainText("AI Investment in R&D");
+    // Database → Primary Tracker (request 56: its columns are the Primary Tracker's); the full record has every field.
+    await page.goto(`/database?${new URLSearchParams({ stream: "primary", "pt.from": "2026-09-02", "pt.to": "2026-09-02" })}`);
+    await openPrimaryRecord(page, title);
+    const drawer = page.getByRole("dialog");
+    await expect(drawer).toContainText(option);
+    await expect(drawer).toContainText("AI Investment in R&D");
   });
 
   test("the import keeps the chosen file when switching between the Primary and Secondary Tracker", async ({ page }) => {
@@ -705,7 +707,7 @@ test.describe("Eradigm staff (admin)", () => {
     await expect(card.getByTestId("drop-zone-import")).toContainText("cols.csv");
   });
 
-  test("imports a spreadsheet into the Primary Tracker, then attaches the HTML with the green plus", async ({ page }) => {
+  test("imports a spreadsheet into the Primary Tracker; its row opens the entry (primary research: no HTML page)", async ({ page }) => {
     await page.goto("/input");
     const card = page.getByTestId("import-card");
     // Secondary first; switch to the Primary Tracker.
@@ -751,28 +753,14 @@ test.describe("Eradigm staff (admin)", () => {
     await expectAccessible(page, "/input after import");
     await card.getByRole("link", { name: "Open the Primary Tracker in the Database →" }).click();
     await expect(page).toHaveURL(/\/database\?stream=primary$/);
-    await searchDatabase(page, title);
+    await page.goto(`/database?${new URLSearchParams({ stream: "primary", "pt.from": "2026-09-01", "pt.to": "2026-09-01" })}`);
+    const tr = page.getByRole("row").filter({ has: page.getByRole("button", { name: `Open Markdown for ${title}` }) });
 
-    // No saved page yet: a green plus on the left; the row itself opens the entry's fields (request 54), not the page.
-    const tr = page.locator("table tbody tr", { hasText: title });
-    await expect(tr.getByRole("button", { name: `Attach the HTML page for ${title}` })).toBeVisible();
-    await tr.locator("td.date").click();
-    await expect(page.getByTestId("entry-fields")).toBeVisible();
-    await page.keyboard.press("Escape");
-    await expect(page.getByRole("dialog")).toHaveCount(0);
-    const html = htmlFile("kol.html", `<!DOCTYPE html><html><head><title>KOL notes</title><script>alert(1)</script></head><body><article><h1>KOL notes on Roche</h1><p>The KOL said Roche is piloting agentic AI in two early research sites.</p><p>Results are expected in 2027.</p></article></body></html>`);
-    await tr.locator('input[type="file"]').setInputFiles(html);
-    await expect(page.locator(".toast")).toContainText(/Saved page attached to SIG-\d+/);
-    // The icon opens the saved page itself as the side pane (not a new tab).
-    const open = tr.getByRole("button", { name: `Open saved page for ${title}` });
-    await expect(open).toBeVisible();
-    await open.click();
-    const pane = page.getByRole("dialog", { name: title });
-    await expect(pane.frameLocator("iframe.snapshot-frame").getByText("piloting agentic AI")).toBeVisible();
-    // The page fills the pane below its header.
-    const [paneBox, frameBox] = [await pane.boundingBox(), await pane.locator("iframe.snapshot-frame").boundingBox()];
-    expect(frameBox!.height).toBeGreaterThan(paneBox!.height * 0.8);
-    await expectAccessible(page, "/database saved-page pane");
+    // Request 56: primary research has no web page, so the Primary Tracker has no Source column; its row opens the entry.
+    await expect(page.getByTestId("table-scroll").locator("thead th").filter({ hasText: /^Source$/ })).toHaveCount(0);
+    await expect(tr.getByRole("button", { name: `Attach the HTML page for ${title}` })).toHaveCount(0);
+    await openPrimaryRecord(page, title);
+    await expect(page.getByRole("dialog")).toContainText("What is Roche piloting?");
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog")).toHaveCount(0);
     // It is in Primary Phantoms with the Primary Markdown (the Database's Markdown column).
@@ -786,10 +774,12 @@ test.describe("Eradigm staff (admin)", () => {
 
   test("edits a Tracker entry and pushes it again; its Phantom (and Markdown) keeps the first version", async ({ page }) => {
     await page.goto("/database?stream=primary");
-    const row = page.locator("table tbody tr").nth(2);
-    const title = (await row.locator("td.title").innerText()).trim();
-    await row.getByRole("button", { name: `Edit ${title}` }).click();
+    // Request 56: the Primary Tracker's row opens its card; the full record has Edit.
+    const mdButton = page.getByTestId("table-scroll").locator("tbody tr").nth(2).getByRole("button", { name: /^Open Markdown for / });
+    const title = ((await mdButton.getAttribute("aria-label")) ?? "").replace(/^Open Markdown for /, "");
+    await openPrimaryRecord(page, title);
     const drawer = page.getByRole("dialog");
+    await drawer.getByRole("button", { name: "✎ Edit" }).click();
     await expect(drawer.getByText("Edit entry")).toBeVisible();
     // A field of the edit form by its label (a textarea's accessible name also contains its text).
     const field = (label: string) => drawer.locator(".edit-form .field").filter({ has: page.getByText(label, { exact: true }) }).locator("input, textarea").first();
@@ -807,9 +797,8 @@ test.describe("Eradigm staff (admin)", () => {
     await expect(page.locator(".toast").last()).toContainText(/SIG-\d+ pushed to the Tracker again as rev \d+ · its Phantom is unchanged/);
     await expect(drawer.getByRole("heading", { name: newTitle })).toBeVisible();
     await page.keyboard.press("Escape");
-    await expect(page.locator("table tbody tr", { hasText: newTitle })).toBeVisible();
     // Its Phantom keeps the first version: the Markdown (Database → Markdown column), with no Edit in its pane.
-    await page.locator("table tbody tr", { hasText: newTitle }).getByRole("button", { name: `Open Markdown for ${newTitle}` }).click();
+    await page.getByRole("button", { name: `Open Markdown for ${newTitle}` }).click();
     const md = page.getByRole("dialog").getByLabel("Markdown source");
     await expect(md).toContainText(`title: ${title}`);
     await expect(md).not.toContainText(newTitle);

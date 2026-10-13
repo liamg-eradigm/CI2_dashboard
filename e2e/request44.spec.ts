@@ -54,12 +54,12 @@ test.describe("request 44", () => {
     await page.goto("/dashboard");
     const tag = Math.random().toString(36).slice(2, 8);
     await push(page, tag, 12);
-    await page.goto(`/database?${new URLSearchParams({ stream: "primary", "db.t.source_company": tag })}`);
+    await page.goto(`/database?${new URLSearchParams({ stream: "primary", "pt.source_company": `Clinic ${tag}` })}`);
     const table = page.getByTestId("table-scroll").locator("table");
     await expect(table.locator("tbody tr")).toHaveCount(10);
     const heads = table.locator("thead th.doc-col");
-    // Request 45: Edit is one of them too.
-    await expect(heads).toHaveText(["Source", "Markdown", "Alert", "Newsletter", "Edit"]);
+    // Request 56: the Primary Tracker adds only the Markdown, Alert and Newsletter (no Source or Edit).
+    await expect(heads).toHaveText(["Markdown", "Alert", "Newsletter"]);
     const widths = await heads.evaluateAll((ths) => ths.map((t) => t.getBoundingClientRect().width));
     for (const w of widths) expect(Math.abs(w - widths[0]!)).toBeLessThan(1);
     // Each icon sits in the middle of its column, so the icons are evenly spaced.
@@ -124,10 +124,13 @@ test.describe("request 44", () => {
     await expect(page.getByTestId("ai-summary-text").locator("> ul > li > ul > li > ul > li")).toHaveText("New evidence");
     await expectAccessible(page, "AI Summary with nested bullets");
 
-    // Attached to the bottom of the filters (sticky; request 45 makes the page fit the window, so it rarely scrolls).
+    // Attached under the filters (sticky; request 45 makes the page fit the window, so it rarely scrolls).
+    // Request 56: in the Database, the tables strip comes first, then the AI Summary.
     const bar = (await page.locator(".filterbar").boundingBox())!;
+    const strip = (await page.getByTestId("db-tabs").boundingBox())!;
     const b = (await page.getByTestId("ai-summary").boundingBox())!;
-    expect(Math.abs(b.y - (bar.y + bar.height))).toBeLessThan(2);
+    expect(Math.abs(strip.y - (bar.y + bar.height))).toBeLessThan(2);
+    expect(Math.abs(b.y - (strip.y + strip.height))).toBeLessThan(2);
     expect(await page.getByTestId("ai-summary").evaluate((el) => getComputedStyle(el).position)).toBe("sticky");
   });
 });
