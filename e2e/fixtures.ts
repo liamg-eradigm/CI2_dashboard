@@ -92,3 +92,11 @@ export async function searchDatabase(page: Page, text: string) {
   if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
   await page.getByRole("searchbox", { name: "Search contains" }).fill(text);
 }
+
+/** Database → Primary Tracker (request 56): a row opens its card; from it, the entry's full record. */
+export async function openPrimaryRecord(page: Page, title: string) {
+  const md = page.getByRole("button", { name: `Open Markdown for ${title}` });
+  await md.locator("xpath=ancestor::tr").locator("td.date").click();
+  await page.getByRole("button", { name: "Open the full record →" }).click();
+  await expect(page.getByRole("dialog").getByRole("button", { name: "Close record" })).toBeVisible();
+}

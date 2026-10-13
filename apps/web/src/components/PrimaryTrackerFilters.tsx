@@ -45,7 +45,21 @@ function TypedFilter({ label, value, onChange }: { label: string; value: string;
   return <input className={`control${value ? " on" : ""}`} type="search" value={v} onChange={(e) => setV(e.target.value)} placeholder="Contains…" maxLength={200} aria-label={`${label} contains`} />;
 }
 
-export function PrimaryTrackerFilters({ title, schema, params, setParams, defaults }: { title: string; schema: TrackerSchema; params: URLSearchParams; setParams: SetParams; defaults: { from: string; to: string } }) {
+export function PrimaryTrackerFilters({
+  title,
+  eyebrow = "Primary signals",
+  schema,
+  params,
+  setParams,
+  defaults,
+}: {
+  title: string;
+  eyebrow?: string;
+  schema: TrackerSchema;
+  params: URLSearchParams;
+  setParams: SetParams;
+  defaults: { from: string; to: string };
+}) {
   const values = useTrackerValues("primary", PICK_KEYS);
   const [shown, setShown] = useFiltersOpen("ptr");
   const f = useMemo(() => primaryTrackerFilters(params, defaults), [params, defaults]);
@@ -81,7 +95,7 @@ export function PrimaryTrackerFilters({ title, schema, params, setParams, defaul
       <section className={`band${shown ? "" : " filters-closed"}`} aria-labelledby="page-title">
         <div className="band-row">
           <div>
-            <span className="eyebrow">Primary signals</span>
+            <span className="eyebrow">{eyebrow}</span>
             <h1 id="page-title">{title}</h1>
           </div>
         </div>

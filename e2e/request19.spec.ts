@@ -35,7 +35,7 @@ test.describe("request 19", () => {
   test("each role sees only its tabs", async ({ page, browser }) => {
     await signInAs(page, "analyst");
     await page.goto("/dashboard");
-    expect(await menuOf(page)).toEqual(["Inputs: Eradigm Inbox", "Analytics: Megatrends Dashboard, Primary Tracker", "Database"]);
+    expect(await menuOf(page)).toEqual(["Inputs: Eradigm Inbox", "Megatrends Dashboard", "Database"]);
     for (const path of ["/input", "/admin", "/client-inbox"]) {
       await page.goto(path);
       await expect(page).toHaveURL(/\/dashboard/);
@@ -44,7 +44,7 @@ test.describe("request 19", () => {
     const client = await ctx.newPage();
     await signInAs(client, "client");
     await client.goto("/dashboard");
-    expect(await menuOf(client)).toEqual(["Inputs: Client Inbox", "Analytics: Megatrends Dashboard, Primary Tracker", "Database"]);
+    expect(await menuOf(client)).toEqual(["Inputs: Client Inbox", "Megatrends Dashboard", "Database"]);
     await ctx.close();
     const actx = await browser.newContext();
     const admin = await actx.newPage();
@@ -52,11 +52,11 @@ test.describe("request 19", () => {
     await admin.goto("/dashboard");
     expect(await menuOf(admin)).toEqual([
       "Inputs: Input, Eradigm Inbox, Client Inbox",
-      "Analytics: Megatrends Dashboard, Primary Tracker",
+      "Megatrends Dashboard",
       "Database",
       "Admin",
       // Request 55: the Test tab (admins only).
-      "Test: Database, Megatrends, Primary Tracker",
+      "Test: Database, Megatrends",
     ]);
     await actx.close();
   });

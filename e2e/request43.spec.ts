@@ -1,4 +1,4 @@
-import { expect, expectAccessible, signInAs, test } from "./fixtures";
+import { choose, expect, expectAccessible, signInAs, test } from "./fixtures";
 import type { Page } from "@playwright/test";
 
 const ADMIN = { "x-dev-user": "admin@example.com" };
@@ -49,42 +49,56 @@ test.describe("request 43", () => {
     await expect(link).toHaveAttribute("aria-current", "page");
     await expect(page.getByRole("heading", { level: 1, name: "Database" })).toBeVisible();
 
+    // Request 56: the Primary Tracker is the Primary Tracker page, with the Markdown, Alert and Newsletter columns and no other.
     await page.getByTestId("stream-primary").click();
-    // Filters on every field (hidden at first since request 48): one row at first, all of them on demand.
-    const bar = page.getByTestId("db-filters");
-    if (!(await bar.isVisible())) await page.getByTestId("filters-toggle").click();
-    await expect(bar.getByLabel("Source Company contains")).toHaveCount(0);
-    await bar.getByRole("button", { name: /All filters/ }).click();
-    await bar.getByLabel("Source Company contains").fill(tag);
+    await choose(page.getByTestId("ptr-filters").getByRole("combobox", { name: "Source Company" }), `Clinic ${tag}`);
     const table = page.getByTestId("table-scroll").locator("table");
-    const row = (t: string) => table.getByRole("row", { name: new RegExp(t) });
-    await expect(row(`High ${tag}`)).toBeVisible();
     await expect(table.locator("tbody tr")).toHaveCount(2);
-    // Every Primary field (Source Location and Workstream are in neither the Tracker nor the Phantoms table), then the four document columns.
-    const heads = (await table.locator("thead th").allTextContents()).map((h) => h.replace(/[↓↑]/g, "").trim());
-    for (const h of ["Source", "Markdown", "Alert", "Newsletter", "Source Location", "Workstream", "Key Intelligence Question", "Key Metrics", "Impact"]) expect(heads).toContain(h);
-    expect(heads.indexOf("Source")).toBeLessThan(heads.indexOf("Markdown"));
+    const headsOf = async () => (await table.locator("thead th").allTextContents()).map((h) => h.replace(/[↓↑]/g, "").trim());
+    let heads = await headsOf();
+    for (const h of ["Source Company", "Key Intelligence Question", "Key Metrics", "Markdown", "Alert", "Newsletter"]) expect(heads).toContain(h);
+    for (const h of ["Source", "Edit", "Source Location", "Workstream", "Impact"]) expect(heads).not.toContain(h);
     expect(heads.indexOf("Markdown")).toBeLessThan(heads.indexOf("Alert"));
     expect(heads.indexOf("Alert")).toBeLessThan(heads.indexOf("Newsletter"));
-    await expect(row(`High ${tag}`)).toContainText("Lyon");
-    // Every Primary entry is a Phantom (Markdown); request 51: every entry has an alert.
-    await expect(row(`High ${tag}`).getByRole("button", { name: `Open Markdown for High ${tag}` })).toBeVisible();
-    await expect(row(`High ${tag}`).getByRole("button", { name: `Open the alert for High ${tag}` })).toBeVisible();
-    await expect(row(`Low ${tag}`).getByRole("button", { name: `Open the alert for Low ${tag}` })).toBeVisible();
-    await row(`High ${tag}`).getByRole("button", { name: `Open the alert for High ${tag}` }).click();
+    // Every Primary entry is a Phantom (Markdown, made from every field); request 51: every entry has an alert.
+    await expect(table.getByRole("button", { name: `Open the alert for High ${tag}` })).toBeVisible();
+    await expect(table.getByRole("button", { name: `Open the alert for Low ${tag}` })).toBeVisible();
+    await table.getByRole("button", { name: `Open the alert for High ${tag}` }).click();
     await expect(page.getByRole("dialog").getByText("Alert", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Close document" }).click();
-    await row(`Low ${tag}`).getByRole("button", { name: `Open Markdown for Low ${tag}` }).click();
-    await expect(page.getByRole("dialog")).toContainText(`Low ${tag}`);
+    await table.getByRole("button", { name: `Open Markdown for High ${tag}` }).click();
+    await expect(page.getByRole("dialog").getByLabel("Markdown source")).toContainText(/Location: "?Lyon/);
+    await expect(page.getByRole("dialog").getByLabel("Markdown source")).toContainText(/Workstream: "?Digital and Data Platforms/);
     await page.keyboard.press("Escape");
+    await expectAccessible(page, "Database page: Primary Tracker");
+
+    // The Secondary Tracker: every field, then Source and the document columns; filters on every field
+    // (hidden at first since request 48): one row at first, all of them on demand.
+    await push(page, "secondary", [
+      { title: `Sec one ${tag}`, date: "2026-05-01", publisher: `Pub ${tag}`, raw_ref: "Ref Lyon" },
+      { title: `Sec two ${tag}`, date: "2026-06-01", publisher: `Pub ${tag}`, raw_ref: "Ref Paris" },
+    ]);
+    await page.getByTestId("stream-secondary").click();
+    const bar = page.getByTestId("db-filters");
+    if (!(await bar.isVisible())) await page.getByTestId("filters-toggle").click();
+    await expect(bar.getByLabel("Publisher contains")).toHaveCount(0);
+    await bar.getByRole("button", { name: /All filters/ }).click();
+    await bar.getByLabel("Publisher contains").fill(tag);
+    const row = (t: string) => table.getByRole("row", { name: new RegExp(t) });
+    await expect(row(`Sec one ${tag}`)).toBeVisible();
+    await expect(table.locator("tbody tr")).toHaveCount(2);
+    heads = await headsOf();
+    for (const h of ["Source", "Markdown", "Alert", "Newsletter", "Raw Ref", "CI Perspective", "Impact"]) expect(heads).toContain(h);
+    expect(heads.indexOf("Source")).toBeLessThan(heads.indexOf("Markdown"));
+    await expect(row(`Sec one ${tag}`)).toContainText("Ref Lyon");
     await expectAccessible(page, "Database page");
 
     // A field that is in no other table filters too.
-    await bar.getByLabel("Source Location contains").fill("lyon");
+    await bar.getByLabel("Raw Ref contains").fill("lyon");
     await expect(table.locator("tbody tr")).toHaveCount(1);
-    await expect(row(`High ${tag}`)).toBeVisible();
-    await expect(page.getByRole("region", { name: "Active filters" })).toContainText("Source Location: contains “lyon”");
-    await page.getByRole("button", { name: "Clear Source Location filter" }).click();
+    await expect(row(`Sec one ${tag}`)).toBeVisible();
+    await expect(page.getByRole("region", { name: "Active filters" })).toContainText("Raw Ref: contains “lyon”");
+    await page.getByRole("button", { name: "Clear Raw Ref filter" }).click();
     await expect(table.locator("tbody tr")).toHaveCount(2);
     await expectAccessible(page, "Database filters, all open");
 
@@ -173,7 +187,7 @@ test.describe("request 43", () => {
       { ...base, title: `Oldest ${tag}`, date: "2026-09-01", key_intelligence_question: "Will payers cover it?", key_details: "Oldest details." },
       { ...base, title: `Newest ${tag}`, date: "2026-09-01", key_intelligence_question: "Will payers cover it?", key_details: "Newest details." },
     ]);
-    await page.goto(`/analytics/primary?${new URLSearchParams({ "pt.source_company": `Clinic ${tag}` })}`);
+    await page.goto(`/database?stream=primary&${new URLSearchParams({ "pt.source_company": `Clinic ${tag}` })}`);
     const box = page.getByTestId("ai-summary");
     // Below the filters, above the Primary Signals table.
     await expect(box).toContainText("Open a Full Discussion");
@@ -208,7 +222,7 @@ test.describe("request 43", () => {
 
     // Clients read it but cannot edit it.
     await signInAs(page, "client");
-    await page.goto(`/analytics/primary?${new URLSearchParams({ "pt.source_company": `Clinic ${tag}` })}`);
+    await page.goto(`/database?stream=primary&${new URLSearchParams({ "pt.source_company": `Clinic ${tag}` })}`);
     await page.getByTestId("table-scroll").getByRole("row", { name: new RegExp(`Newest ${tag}`) }).getByTestId("archived-cell").click();
     await expect(box.getByTestId("ai-summary-text")).toContainText("They accept it now.");
     await expect(box.getByRole("button", { name: /Edit|Write/ })).toHaveCount(0);

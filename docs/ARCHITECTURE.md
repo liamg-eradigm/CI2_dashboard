@@ -856,6 +856,29 @@ analyst-entered information distinguishable; in the prototype every value is
     large change takes several runs (`more`).
   - `POST /api/excel/upload` (dev and test only) syncs from an uploaded
     workbook instead of SharePoint (the e2e tests).
+- **Request 56** (no contract change, no migration):
+  - **Database → Primary Tracker is the Primary Tracker.** `TrackerPage` with
+    `primaryOnly` and view "database": the Primary Tracker's filters
+    (`pt.` parameters, open by default), its AI Summary, columns, Full
+    Discussion and KIQ Archive and row pop-ups, plus the Markdown, Alert and
+    Newsletter columns (and Generate Newsletter from ticked rows); no Source or
+    Edit column. The Markdown is built from the whole entry, not from the
+    columns shown. The tables strip sits above the AI Summary; stuck strips
+    stack under the filters (`useStickUnderFilters`). `/analytics/primary`
+    redirects to `/database?stream=primary` (its parameters kept).
+  - **Menu**: Analytics → Primary Tracker and Test → Primary Tracker are gone
+    (their keys stay readable); the Megatrends Dashboard is a tab of its own
+    (the analytics group is standalone, named "Megatrends Dashboard").
+  - **Test tab sync**: while a Test page is open and in view it calls `POST
+    /api/excel/sync` every 10 seconds (`TestSpaceSync`); the every-minute cron
+    stays the fallback (Cloudflare schedules run at most once a minute). A
+    check that finds the same workbook version makes one Graph call and no
+    database write (the last-checked time is written at most once a minute,
+    and the lock is only taken when there is work). When a change lands, the
+    page reads again and shows a small green "Data synced". The status,
+    Sync now, Check connection, the sheets read and the rows left out moved to
+    Admin → Test tab · SharePoint workbook (`ExcelSyncCard`, `#excel-sync`);
+    a Test page shows a red ! leading there when the sync needs attention.
 - **Menu in groups** (request 28, contract 1.17; regrouped in request 31,
   contract 1.19; renamed in request 34; `packages/shared/src/menu.ts`): the
   menu is four groups (and, from request 43, the Database tab on its own),

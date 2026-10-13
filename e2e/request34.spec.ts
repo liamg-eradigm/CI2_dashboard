@@ -1,4 +1,4 @@
-import { expect, expectAccessible, menuOf, navLink, navOf, signInAs, test } from "./fixtures";
+import { expect, expectAccessible, menuOf, navOf, signInAs, test } from "./fixtures";
 import type { Page } from "@playwright/test";
 
 const ADMIN = { "x-dev-user": "admin@example.com" };
@@ -42,11 +42,11 @@ test.describe("request 34", () => {
     await page.goto("/dashboard");
     expect(await menuOf(page)).toEqual([
       "Inputs: Input, Eradigm Inbox, Client Inbox",
-      "Analytics: Megatrends Dashboard, Primary Tracker",
+      "Megatrends Dashboard",
       "Database",
       "Admin",
       // Request 55: the Test tab (admins only).
-      "Test: Database, Megatrends, Primary Tracker",
+      "Test: Database, Megatrends",
     ]);
     await expect(page.getByRole("heading", { level: 1, name: "Megatrends Dashboard" })).toBeVisible();
     // Request 48: the Databases group is gone; the Database tab has them all.
@@ -211,12 +211,12 @@ test.describe("request 34", () => {
       { title: `Latest answer ${tag}`, date: "2026-08-01", source_role: role, source_company: company, key_details: kd("latest") },
     ]);
     await page.goto("/dashboard");
-    await navLink(page, "Analytics", "Primary Tracker").click();
-    await expect(page).toHaveURL(/\/analytics\/primary/);
-    await expect(page.getByRole("heading", { level: 1, name: "Primary Tracker" })).toBeVisible();
-    // Primary only: no Primary/Secondary switch.
-    await expect(page.getByRole("group", { name: /Show entries from/ })).toHaveCount(0);
-    await page.goto(`/analytics/primary?${new URLSearchParams({ "pt.source_role": role })}`);
+    // Request 56: the Primary Tracker is the Database's (Database → Primary Tracker).
+    await navOf(page).getByRole("link", { name: "Database", exact: true }).click();
+    await page.getByTestId("stream-primary").click();
+    await expect(page).toHaveURL(/stream=primary/);
+    await expect(page.getByRole("heading", { name: "Primary Signals" })).toBeVisible();
+    await page.goto(`/database?stream=primary&${new URLSearchParams({ "pt.source_role": role })}`);
     const table = page.locator("table.data").first();
     await expect(table.getByRole("columnheader", { name: "Full Discussion" })).toBeVisible();
     await expect(table.getByTestId("archived-cell")).toHaveCount(3);

@@ -1,4 +1,4 @@
-import { expect, expectAccessible, menuOf, navLink, navOf, signInAs, test } from "./fixtures";
+import { expect, expectAccessible, menuOf, navOf, signInAs, test } from "./fixtures";
 
 const R_AND_D = "AI Investment in R&D";
 
@@ -8,11 +8,11 @@ test.describe("request 31", () => {
     await page.goto("/dashboard");
     expect(await menuOf(page)).toEqual([
       "Inputs: Input, Eradigm Inbox, Client Inbox",
-      "Analytics: Megatrends Dashboard, Primary Tracker",
+      "Megatrends Dashboard",
       "Database",
       "Admin",
       // Request 55: the Test tab (admins only).
-      "Test: Database, Megatrends, Primary Tracker",
+      "Test: Database, Megatrends",
     ]);
     await expect(navOf(page).getByRole("link", { name: /Trend analysis$/ })).toHaveCount(0);
   });
@@ -30,7 +30,7 @@ test.describe("request 31", () => {
     await expect(page).toHaveURL(/\/competitors$/);
     await expect(toggle.getByRole("button", { name: "Competitors" })).toHaveAttribute("aria-pressed", "true");
     // Request 53: the Megatrends Dashboard tab (the Knowledge Graph tab is gone).
-    await expect(navLink(page, "Analytics", "Megatrends Dashboard")).toHaveAttribute("aria-current", "page");
+    await expect(navOf(page).getByRole("link", { name: "Megatrends Dashboard", exact: true })).toHaveAttribute("aria-current", "page");
     await expectAccessible(page, "Knowledge Graph on Competitors");
     await toggle.getByRole("button", { name: "Megatrends" }).click();
     await expect(page).toHaveURL(/\/megatrends$/);
@@ -79,7 +79,7 @@ test.describe("request 31", () => {
     await expectAccessible(page, "Analytics Dashboard");
     await page.getByTestId("ad-megatrends").click();
     await expect(page).toHaveURL(/\/analytics\/megatrends$/);
-    await expect(navLink(page, "Analytics", "Megatrends Dashboard")).toHaveAttribute("aria-current", "page");
+    await expect(navOf(page).getByRole("link", { name: "Megatrends Dashboard", exact: true })).toHaveAttribute("aria-current", "page");
   });
 
   test("Trends Analysis: a Macrotrend opens its own dashboard (request 34)", async ({ page }) => {

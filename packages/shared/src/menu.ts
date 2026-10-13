@@ -29,19 +29,23 @@ export type MenuItemKey = (typeof MENU_ITEMS)[number];
  * Analytics → Knowledge Graph is gone (the knowledge graphs are part of the
  * Megatrends Dashboard); a menu saved with it drops it. Request 55: Test
  * (admins only): the Database, Megatrends Dashboard and Primary Tracker in the
- * test space, whose contents come from the SharePoint workbook.
+ * test space, whose contents come from the SharePoint workbook. Request 56:
+ * the Primary Tracker is the Database's (Analytics → Primary Tracker and Test →
+ * Primary Tracker are gone), so the Megatrends Dashboard is a tab of its own.
+ * Their keys stay in MENU_ITEMS so menus saved with them still read.
  */
 export const MENU_GROUP_ITEMS: Record<MenuGroupKey, readonly MenuItemKey[]> = {
   inputs: ["input", "inbox", "clientinbox"],
-  analytics: ["dashboard", "primary-tracker"],
+  analytics: ["dashboard"],
   database: ["database"],
   admin: ["admin"],
-  test: ["test-database", "test-megatrends", "test-primary-tracker"],
+  test: ["test-database", "test-megatrends"],
 };
 
 export const MENU_GROUP_LABEL: Record<MenuGroupKey, string> = {
   inputs: "Inputs",
-  analytics: "Analytics",
+  // Request 56: a tab of its own (the Megatrends Dashboard is all it holds).
+  analytics: "Megatrends Dashboard",
   database: "Database",
   admin: "Admin",
   test: "Test",
@@ -77,7 +81,7 @@ export const MENU_ITEM_PATH: Record<MenuItemKey, string> = {
 };
 
 /** Groups that are a tab of their own: a link straight to their one page, with no subtabs (request 43). */
-export const STANDALONE_GROUPS: readonly MenuGroupKey[] = ["database", "admin"];
+export const STANDALONE_GROUPS: readonly MenuGroupKey[] = ["analytics", "database", "admin"];
 export const isStandaloneGroup = (key: MenuGroupKey) => STANDALONE_GROUPS.includes(key);
 
 /** Other pages a subtab is current on: the Trends Analysis pages and (request 53) the full-page knowledge graphs, all part of the Megatrends Dashboard. */

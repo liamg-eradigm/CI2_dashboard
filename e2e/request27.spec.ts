@@ -72,7 +72,8 @@ test.describe("request 27", () => {
 
     // Request 48: the 🔗 Linked column went with the Signals and Phantoms Databases; the Primary Tracker's
     // Full Discussion and KIQ Archive link answers from the same source (requests 34 and 46).
-    await page.goto(`/database?${new URLSearchParams({ stream: "primary", "db.q": tag })}`);
+    // (Request 56: Database → Primary Tracker, filtered by its own Source Role filter.)
+    await page.goto(`/database?${new URLSearchParams({ stream: "primary", "pt.source_role": tag })}`);
     await expect(page.locator("table.data tbody tr")).toHaveCount(3);
     await expect(page.locator("table.data").getByRole("columnheader", { name: "Linked" })).toHaveCount(0);
   });

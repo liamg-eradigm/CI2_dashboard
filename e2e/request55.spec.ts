@@ -52,24 +52,28 @@ async function uploadWorkbook(page: Page, sheets: Record<string, string[][]>) {
   );
 }
 
-test.describe("request 55", () => {
-  test("admins have a Test tab (Database, Megatrends, Primary Tracker); its pages are the test space", async ({ page, browser }) => {
+test.describe("request 55 (and 56)", () => {
+  test("admins have a Test tab (Database, Megatrends); its pages are the test space", async ({ page, browser }) => {
     await signInAs(page, "admin");
     await page.goto("/dashboard");
-    expect(await menuOf(page)).toContain("Test: Database, Megatrends, Primary Tracker");
+    expect(await menuOf(page)).toContain("Test: Database, Megatrends");
     await goTab(page, "Test", "Database");
     await expect(page).toHaveURL(/\/test\/database$/);
-    await expect(page.getByTestId("test-bar")).toBeVisible();
     await expect(navLink(page, "Test", "Database")).toHaveAttribute("aria-current", "page");
     await expect(navOf(page).getByRole("link", { name: "Database", exact: true })).not.toHaveAttribute("aria-current", "page");
     await expect(page).toHaveTitle(/^Test · Database/);
     // The same page as the live one.
     await expect(page.getByRole("group", { name: "Database to show" }).getByRole("button")).toHaveText(["Primary Tracker", "Secondary Tracker", "CI Analysis", "Newsletter"]);
+    // Request 56: no bar on the Test pages; here (no SharePoint secrets) a ! says the sync needs attention, and leads to Admin.
+    await expect(page.getByTestId("test-bar")).toHaveCount(0);
+    const alert = page.getByTestId("sync-alert");
+    await expect(alert).toBeVisible();
+    await expect(alert).toHaveAccessibleName(/not connected to the workbook: see Admin/);
     await expectAccessible(page, "Test → Database");
     // Back to the live pages.
     await navOf(page).getByRole("link", { name: "Database", exact: true }).click();
     await expect(page).toHaveURL(/\/database$/);
-    await expect(page.getByTestId("test-bar")).toHaveCount(0);
+    await expect(page.getByTestId("sync-alert")).toHaveCount(0);
 
     // Not for analysts or clients.
     for (const who of ["analyst", "client"] as const) {
@@ -84,7 +88,7 @@ test.describe("request 55", () => {
     }
   });
 
-  test("the Test pages show the workbook's rows, profiles and sections, and list the rows left out; the live pages do not", async ({ page }) => {
+  test("the Test pages show the workbook's rows, profiles and sections (the live pages do not); Admin lists the rows left out", async ({ page }) => {
     await signInAs(page, "admin");
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/dashboard");
@@ -110,10 +114,16 @@ test.describe("request 55", () => {
     });
     expect(status.counts).toEqual({ primary: 2, secondary: 1, competitors: 1, macrotrends: 1 });
 
+    // Admin → Test tab · SharePoint workbook: what it holds, and the row left out (and why).
+    await page.goto("/admin");
+    const card = page.getByTestId("excel-sync");
+    await expect(card.getByTestId("test-bar-status")).toContainText("Holds 2 Primary, 1 Secondary, 1 Company Profile, 1 Macrotrend");
+    await expect(card.getByTestId("test-issues")).toContainText("Secondary, row 3");
+    await expect(card.getByTestId("test-issues")).toContainText("Huge");
+    await expectAccessible(page, "Admin with the Test tab's workbook sync");
+
     // Database: the workbook's entry, its fields in full; not in the live Database.
     await page.goto("/test/database");
-    const bar = page.getByTestId("test-bar");
-    await expect(bar.getByTestId("test-bar-status")).toContainText("2 Primary, 1 Secondary, 1 Company Profile, 1 Macrotrend");
     await searchDatabase(page, tag);
     // (The search is saved in the address after a pause: wait for it before opening panes.)
     await expect(page).toHaveURL(/db\.q=/);
@@ -128,20 +138,22 @@ test.describe("request 55", () => {
     await row.getByRole("button", { name: new RegExp(`Open Markdown for Excel signal ${tag}`) }).click();
     await expect(page.getByRole("dialog").getByLabel("Markdown source")).toContainText(`Excel signal ${tag}`);
     await page.keyboard.press("Escape");
-    // The row left out, and why.
-    await bar.getByTestId("test-bar-issues").click();
-    await expect(bar.getByTestId("test-issues")).toContainText("Secondary, row 3");
-    await expect(bar.getByTestId("test-issues")).toContainText("Huge");
-    await expectAccessible(page, "Test → Database with the rows left out");
+    // The ! leads to Admin's section.
+    await page.getByTestId("sync-alert").click();
+    await expect(page).toHaveURL(/\/admin#excel-sync$/);
+    await expect(page.getByTestId("excel-sync")).toBeInViewport();
     await page.goto("/database");
     await searchDatabase(page, tag);
     await expect(page.getByTestId("table-scroll").getByRole("row", { name: new RegExp(`Excel signal ${tag}`) })).toHaveCount(0);
 
-    // Primary Tracker: the two answers of one conversation (Full Discussion).
-    await page.goto("/test/analytics/primary");
-    await expect(navLink(page, "Test", "Primary Tracker")).toHaveAttribute("aria-current", "page");
+    // The Primary Tracker (Database → Primary Tracker, request 56): the two answers of one conversation (Full Discussion).
+    await page.goto("/test/database?stream=primary");
+    await expect(navLink(page, "Test", "Database")).toHaveAttribute("aria-current", "page");
     const first = page.getByRole("row", { name: new RegExp(`Excel KOL first ${tag}`) });
     await expect(first.getByRole("button", { name: /^Full Discussion:/ })).toBeVisible();
+    // The old Test → Primary Tracker address leads there too.
+    await page.goto("/test/analytics/primary");
+    await expect(page).toHaveURL(/\/test\/database\?stream=primary$/);
 
     // Megatrends: the Macrotrend's sections and the competitor's Company Profile, from the workbook.
     await page.goto(`/test/analytics/megatrends?${new URLSearchParams({ m: "Geopolitics" })}`);
@@ -154,16 +166,39 @@ test.describe("request 55", () => {
     await expect(page.getByText(`Roche profile from Excel ${tag}`)).toHaveCount(0);
   });
 
-  test("Check connection runs the test endpoint: here (no SharePoint secrets) it says what to set", async ({ page }) => {
+  test("an open Test page follows the workbook by itself (checked every 10 seconds) and says “Data synced” for a moment", async ({ page }) => {
+    test.setTimeout(90_000);
     await signInAs(page, "admin");
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/dashboard");
+    const tag = Math.random().toString(36).slice(2, 8);
+    const sl = await labelsOf(page, "secondary");
+    const sheets = (title: string) => ({ Secondary: trackerSheet(sl, [{ record_id: `XA-${tag}`, title }]) });
+    await uploadWorkbook(page, sheets(`Before ${tag}`));
     await page.goto("/test/database");
-    const bar = page.getByTestId("test-bar");
-    await expect(bar.getByTestId("test-bar-status")).toContainText("Not connected: set SHAREPOINT_TENANT_ID");
-    await bar.getByTestId("test-check").click();
-    const result = bar.getByTestId("test-check-result");
+    const table = page.getByTestId("table-scroll");
+    await expect(table.getByRole("row", { name: new RegExp(`Before ${tag}`) })).toBeVisible();
+    // Let the page's first check go by, then change the workbook (here: uploaded, as SharePoint would have it).
+    await page.waitForTimeout(1500);
+    await uploadWorkbook(page, sheets(`After ${tag}`));
+    // Within a check or two, without reloading: the change shows, with a small green note that goes by itself.
+    const note = page.getByTestId("data-synced");
+    await expect(note).toBeVisible({ timeout: 25_000 });
+    await expect(note).toHaveText("✓ Data synced");
+    expect(await note.evaluate((el) => getComputedStyle(el).color)).toBe("rgb(29, 107, 61)");
+    await expect(table.getByRole("row", { name: new RegExp(`After ${tag}`) })).toBeVisible();
+    await expect(note).toHaveCount(0, { timeout: 6_000 });
+  });
+
+  test("Admin → Check connection runs the test endpoint: here (no SharePoint secrets) it says what to set", async ({ page }) => {
+    await signInAs(page, "admin");
+    await page.goto("/admin");
+    const card = page.getByTestId("excel-sync");
+    await card.getByTestId("test-check").click();
+    const result = card.getByTestId("test-check-result");
     await expect(result).toContainText("Could not read the workbook");
     await expect(result).toContainText("Secrets");
     await expect(result).toContainText("What to do:");
-    await expectAccessible(page, "Test bar with the connection check");
+    await expectAccessible(page, "Admin with the connection check");
   });
 });

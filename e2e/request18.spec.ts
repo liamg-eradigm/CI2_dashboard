@@ -80,6 +80,8 @@ test.describe("request 18", () => {
 
     const tl = page.getByTestId("mg-timeline");
     const balls = tl.getByTestId("mg-ball");
+    // (Counted once the entries have loaded.)
+    await expect(balls.first()).toBeAttached();
     const all = await balls.count();
     await expect(tl.getByText("All dates")).toBeVisible();
     // Zoom in (button, then scroll), then drag to move across the dates.

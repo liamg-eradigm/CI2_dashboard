@@ -113,7 +113,7 @@ test.describe("request 46", () => {
       { ...base, title: `Afternoon ${tag}`, date: "2026-09-01", key_intelligence_question: "Q2", key_details: "Afternoon answer." },
       { ...base, title: `Next month ${tag}`, date: "2026-10-01", key_intelligence_question: "Q3", key_details: "Next month's answer." },
     ]);
-    await page.goto(`/analytics/primary?${new URLSearchParams({ "pt.source_company": `Clinic ${tag}` })}`);
+    await page.goto(`/database?stream=primary&${new URLSearchParams({ "pt.source_company": `Clinic ${tag}` })}`);
     const table = page.getByTestId("table-scroll");
     const row = (t: string) => table.getByRole("row", { name: new RegExp(t) });
     await expect(table.locator("tbody tr")).toHaveCount(3);
@@ -136,7 +136,7 @@ test.describe("request 46", () => {
       "primary",
       Array.from({ length: 12 }, (_, i) => ({ title: `Row ${i} ${tag}`, date: "2026-09-01", source_role: "Lead", source_company: `Clinic ${tag}`, key_intelligence_question: `Q${i}` })),
     );
-    await page.goto(`/analytics/primary?${new URLSearchParams({ "pt.source_company": `Clinic ${tag}` })}`);
+    await page.goto(`/database?stream=primary&${new URLSearchParams({ "pt.source_company": `Clinic ${tag}` })}`);
     await expect(page.getByTestId("table-scroll").locator("tbody tr")).toHaveCount(10);
     // Watch every frame for a page scrollbar: it would narrow the page.
     await page.evaluate(() => {

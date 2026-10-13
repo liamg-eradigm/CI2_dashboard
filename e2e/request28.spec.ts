@@ -5,8 +5,8 @@ test.describe("request 28", () => {
     await signInAs(page, "admin");
     await page.goto("/dashboard");
     const nav = navOf(page);
-    // Only the group of the page in view is open.
-    await expect(nav.getByRole("button", { name: /^Analytics\b/ })).toHaveAttribute("aria-expanded", "true");
+    // Only the group of the page in view is open (request 56: the Megatrends Dashboard is a tab of its own, current here).
+    await expect(nav.getByRole("link", { name: "Megatrends Dashboard", exact: true })).toHaveAttribute("aria-current", "page");
     await expect(nav.getByRole("button", { name: /^Inputs\b/ })).toHaveAttribute("aria-expanded", "false");
     await expect(nav.getByRole("button", { name: /^Inputs\b/ }).locator(".badge")).toBeVisible();
     await goTab(page, "Inputs", "Input");

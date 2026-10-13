@@ -162,6 +162,9 @@ function MdIcon() {
  * The Database page (request 43, view "database"): a stream's Tracker
  * entries with every field, their saved page, Markdown (Phantoms), alert and
  * newsletters, its own filters, and Generate Newsletter from the ticked rows.
+ * Request 56: its Primary Tracker is the Primary Tracker page (`primaryOnly`
+ * with view "database": its filters, AI Summary, columns, Full Discussion,
+ * KIQ Archive and pop-ups) with the Markdown, Alert and Newsletter columns.
  */
 export function TrackerPage({
   me,
@@ -184,8 +187,9 @@ export function TrackerPage({
   const [streamParam, setStream] = useStreamParam();
   // Analytics → Primary Tracker (request 34): the Primary Tracker only, with Archived Responses.
   const stream = primaryOnly ? "primary" : streamParam;
-  // Primary Tracker and Phantoms: 🔗 marks entries linked to others from the same source (request 27).
-  const linkCol = stream === "primary" && (view === "tracker" || view === "phantoms");
+  // Primary Tracker and Phantoms: 🔗 marks entries linked to others from the same source (request 27);
+  // the Primary Tracker (request 56: also the Database's) has Full Discussion and KIQ Archive instead.
+  const linkCol = stream === "primary" && (primaryOnly || view === "tracker" || view === "phantoms");
   const schema = useSchema(stream);
   const settings = useSettings();
   const f = useFilters(schema.data, settings.data?.timezone ?? me.timezone);
@@ -338,7 +342,7 @@ export function TrackerPage({
   };
   const onRowClick = (e: ReactMouseEvent, r: Signal) => {
     if (!(primaryOnly || database) || (e.target as HTMLElement).closest("button, a, input, label, select, textarea")) return;
-    if (database) return setParam({ row: r.id }, true);
+    if (database && !primaryOnly) return setParam({ row: r.id }, true);
     openRow(r);
   };
   const info = t
@@ -384,7 +388,16 @@ export function TrackerPage({
     <>
       {primaryOnly ? (
         <>
-          <PrimaryTrackerFilters title={title ?? "Primary Tracker"} schema={s} params={f.params} setParams={f.setParams} defaults={f.defaults} />
+          <PrimaryTrackerFilters
+            title={title ?? "Primary Tracker"}
+            eyebrow={database ? "Every database in one place" : undefined}
+            schema={s}
+            params={f.params}
+            setParams={f.setParams}
+            defaults={f.defaults}
+          />
+          {/* Request 56: the Database's tables strip, above the AI Summary (the Database's Primary Tracker is the Primary Tracker). */}
+          {database && switcher}
           {/* The AI Summary of the open Full Discussion or KIQ Archive (request 43), attached under the sticky filters (request 44). */}
           <DiscussionSummaryBox me={me} id={archId} mode={archMode} source={archSource} />
         </>
@@ -503,7 +516,7 @@ export function TrackerPage({
           </div>
           {/* Request 36: the table scrolls inside its own box, sized to the screen, so its horizontal scrollbar is always in view. */}
           <div ref={fitRef} className={`table-wrap fit${showAll ? " all" : ""}`} tabIndex={0} role="region" aria-label={showAll ? "All entries (scrollable)" : "Entries (scrollable)"} data-testid="table-scroll">
-            <table className={`data${primaryOnly ? " ptr" : ""}${database ? " db-table" : ""}`} style={{ minWidth: primaryOnly ? 1500 : Math.max(1100, cols.length * (database ? 150 : 125) + (phantoms ? 150 : 0) + (linkCol ? 60 : 0) + (database ? 300 : 0)) }}>
+            <table className={`data${primaryOnly ? " ptr" : ""}${database ? " db-table" : ""}`} style={{ minWidth: primaryOnly ? (database ? 1800 : 1500) : Math.max(1100, cols.length * (database ? 150 : 125) + (phantoms ? 150 : 0) + (linkCol ? 60 : 0) + (database ? 300 : 0)) }}>
               <caption className="sr-only">Approved signals, sorted by {getColumn(s, sortKey)?.label ?? "Date"} {dir === "asc" ? "ascending" : "descending"}</caption>
               <thead>
                 <tr>

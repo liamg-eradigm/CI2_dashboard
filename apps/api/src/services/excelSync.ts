@@ -526,35 +526,55 @@ export async function syncStep(
   const test = await ensureTestSpace(env, live, actor?.userId ?? null);
   let row = (await syncRow(env, live.id))!;
   const now = nowIso();
+  const prev: Report = row.report_json ? { ...EMPTY_REPORT, ...(JSON.parse(row.report_json) as Partial<Report>) } : EMPTY_REPORT;
+  /** No change in this call (the stored report keeps what the last real run did). */
+  const quiet = (r: SyncRow) => ({ ...statusOf(env, r), applied: EMPTY_APPLIED, more: !!r.pending_version });
+  // Request 56: the Test pages check every 10 seconds, so a check that finds nothing writes only when something is new.
+  const recent = (at: string | null) => !!at && Date.now() - Date.parse(at) < 60_000;
+  const failed = async (message: string, problem: ReturnType<GraphError["toJSON"]> | null, releaseLock: boolean) => {
+    if (!releaseLock && row.status === "error" && row.message === message && recent(row.last_checked_at)) return quiet(row);
+    await env.DB.prepare(`UPDATE excel_sync SET status = 'error', message = ?2, last_checked_at = ?3, report_json = ?4${releaseLock ? ", lock_until = NULL" : ""} WHERE tenant_id = ?1`)
+      .bind(live.id, message, now, JSON.stringify({ ...prev, problem, applied: EMPTY_APPLIED, more: false }))
+      .run();
+    row = (await syncRow(env, live.id))!;
+    return quiet(row);
+  };
   if (!opts.upload) {
     const missing = missingSecrets(env);
-    if (missing.length) {
-      await env.DB.prepare("UPDATE excel_sync SET status = 'error', message = ?2, last_checked_at = ?3 WHERE tenant_id = ?1").bind(live.id, `Not configured: set ${missing.join(", ")}`, now).run();
-      return excelStatus(env, live.id);
-    }
+    if (missing.length) return failed(`Not configured: set ${missing.join(", ")}`, null, false);
   }
-  // One run at a time.
-  const lock = await env.DB.prepare("UPDATE excel_sync SET lock_until = ?2 WHERE tenant_id = ?1 AND (lock_until IS NULL OR lock_until < ?3)")
-    .bind(live.id, new Date(Date.now() + LOCK_MS).toISOString(), now)
-    .run();
-  if (!lock.meta.changes) return { ...statusOf(env, row), message: "A sync is already running: try again in a moment." };
 
-  const prev: Report = row.report_json ? { ...EMPTY_REPORT, ...(JSON.parse(row.report_json) as Partial<Report>) } : EMPTY_REPORT;
-  let file: WorkbookFile | null = null;
+  // Has the workbook changed? (One Graph call; no lock, and no write unless something is new.)
+  let file: WorkbookFile;
   try {
     file = opts.upload
       ? { name: opts.upload.name, size: opts.upload.bytes.byteLength, lastModified: now, lastModifiedBy: actor?.name ?? null, webUrl: null, version: `upload:${(await sha256Hex(opts.upload.bytes)).slice(0, 24)}` }
       : await workbookFile(env);
-    const fileCols = [file.name, file.webUrl, file.lastModified, file.lastModifiedBy] as const;
-    if (!opts.force && !opts.upload && row.version === file.version && !row.pending_version) {
-      // Nothing new in the workbook.
-      await env.DB.prepare(
-        "UPDATE excel_sync SET status = 'idle', message = NULL, file_name = ?2, file_url = ?3, file_modified_at = ?4, file_modified_by = ?5, last_checked_at = ?6, lock_until = NULL, report_json = ?7 WHERE tenant_id = ?1",
-      )
-        .bind(live.id, ...fileCols, now, JSON.stringify({ ...prev, problem: null, applied: EMPTY_APPLIED, more: false }))
-        .run();
-      return excelStatus(env, live.id);
-    }
+  } catch (err) {
+    const problem = err instanceof GraphError ? err.toJSON() : null;
+    if (!problem) log("error", "excel_sync_failed", { tenant: live.id, message: (err as Error).message });
+    return failed(problem ? problem.message : `The sync stopped: ${(err as Error).message}`, problem, false);
+  }
+  const fileCols = [file.name, file.webUrl, file.lastModified, file.lastModifiedBy] as const;
+  if (!opts.force && !opts.upload && row.version === file.version && !row.pending_version) {
+    const sameFile = row.file_name === file.name && row.file_url === file.webUrl && row.file_modified_at === file.lastModified && row.file_modified_by === file.lastModifiedBy;
+    if (row.status === "idle" && !prev.problem && sameFile && recent(row.last_checked_at)) return quiet(row);
+    await env.DB.prepare(
+      "UPDATE excel_sync SET status = 'idle', message = NULL, file_name = ?2, file_url = ?3, file_modified_at = ?4, file_modified_by = ?5, last_checked_at = ?6, report_json = ?7 WHERE tenant_id = ?1",
+    )
+      .bind(live.id, ...fileCols, now, JSON.stringify({ ...prev, problem: null, applied: EMPTY_APPLIED, more: false }))
+      .run();
+    row = (await syncRow(env, live.id))!;
+    return quiet(row);
+  }
+
+  // One run at a time.
+  const lock = await env.DB.prepare("UPDATE excel_sync SET lock_until = ?2 WHERE tenant_id = ?1 AND (lock_until IS NULL OR lock_until < ?3)")
+    .bind(live.id, new Date(Date.now() + LOCK_MS).toISOString(), now)
+    .run();
+  if (!lock.meta.changes) return { ...quiet(row), message: "A sync is already running: try again in a moment." };
+
+  try {
     // A new version (or a forced run): the live workspace's columns, options and settings are copied again first.
     const starting = opts.force || opts.upload || row.pending_version !== file.version;
     if (starting) await env.DB.batch(copyConfig(env, live.id, test));
@@ -608,11 +628,7 @@ export async function syncStep(
   } catch (err) {
     const problem = err instanceof GraphError ? err.toJSON() : null;
     if (!problem) log("error", "excel_sync_failed", { tenant: live.id, message: (err as Error).message, stack: (err as Error).stack?.split("\n").slice(0, 4).join(" | ") });
-    await env.DB.prepare("UPDATE excel_sync SET status = 'error', message = ?2, last_checked_at = ?3, lock_until = NULL, report_json = ?4 WHERE tenant_id = ?1")
-      .bind(live.id, problem ? problem.message : `The sync stopped: ${(err as Error).message}`, now, JSON.stringify({ ...prev, problem, applied: EMPTY_APPLIED, more: false }))
-      .run();
-    row = (await syncRow(env, live.id))!;
-    return statusOf(env, row);
+    return failed(problem ? problem.message : `The sync stopped: ${(err as Error).message}`, problem, true);
   }
 }
 

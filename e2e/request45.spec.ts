@@ -36,17 +36,18 @@ async function push(page: Page, tag: string, n: number) {
 }
 
 test.describe("request 45", () => {
-  test("Database: Source, Markdown, Alert, Newsletter and Edit are equal, narrow columns", async ({ page }) => {
+  test("Database: the document columns are equal, narrow columns", async ({ page }) => {
     await signInAs(page, "admin");
     await page.setViewportSize({ width: 1536, height: 864 });
     await page.goto("/dashboard");
     const tag = Math.random().toString(36).slice(2, 8);
     await push(page, tag, 2);
-    await page.goto(`/database?${new URLSearchParams({ stream: "primary", "db.t.source_company": tag })}`);
+    // (Request 56: the Primary Tracker has Markdown, Alert and Newsletter; the Secondary Tracker also Source and Edit.)
+    await page.goto(`/database?${new URLSearchParams({ stream: "primary", "pt.source_company": `Clinic ${tag}` })}`);
     const table = page.getByTestId("table-scroll").locator("table");
     await expect(table.locator("tbody tr")).toHaveCount(2);
     const heads = table.locator("thead th.doc-col");
-    await expect(heads).toHaveText(["Source", "Markdown", "Alert", "Newsletter", "Edit"]);
+    await expect(heads).toHaveText(["Markdown", "Alert", "Newsletter"]);
     const boxes = await heads.evaluateAll((ths) => ths.map((t) => t.getBoundingClientRect()).map((r) => ({ x: r.left, w: r.width })));
     for (const b of boxes) {
       expect(Math.abs(b.w - boxes[0]!.w)).toBeLessThan(1);
@@ -66,7 +67,7 @@ test.describe("request 45", () => {
     await page.evaluate(() => localStorage.removeItem("eradigm.ptr.aiSummaryHeight"));
     const tag = Math.random().toString(36).slice(2, 8);
     await push(page, tag, 12);
-    await page.goto(`/analytics/primary?${new URLSearchParams({ "pt.source_company": `Clinic ${tag}` })}`);
+    await page.goto(`/database?stream=primary&${new URLSearchParams({ "pt.source_company": `Clinic ${tag}` })}`);
     const scroll = page.getByTestId("table-scroll");
     await expect(scroll.locator("tbody tr")).toHaveCount(10);
     await expect(page.getByText("Approved entries from the Primary Inbox")).toHaveCount(0);

@@ -6,7 +6,6 @@ import { getContractWarning } from "./api/client";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Sidebar } from "./components/Sidebar";
 import { DashboardPage } from "./pages/DashboardPage";
-import { TrackerPage } from "./pages/TrackerPage";
 import { InboxPage } from "./pages/InboxPage";
 import { ClientInboxPage } from "./pages/ClientInboxPage";
 import { InputPage } from "./pages/InputPage";
@@ -15,7 +14,7 @@ import { InvitePage, SignInPage } from "./pages/SignInPage";
 import { SourcePage } from "./pages/SourcePage";
 import { DatabasePage } from "./pages/DatabasePage";
 import { DB_PREFIX } from "./components/DatabaseFilters";
-import { TestSpaceBar } from "./components/TestSpaceBar";
+import { TestSpaceSync } from "./components/ExcelSync";
 import { SPACE } from "./api/space";
 
 // Loaded on first visit: it carries the 3D graph (three.js).
@@ -23,7 +22,7 @@ const MegatrendsPage = lazy(() => import("./pages/MegatrendsPage").then((m) => (
 const CompetitorsPage = lazy(() => import("./pages/CompetitorsPage").then((m) => ({ default: m.CompetitorsPage })));
 const TrendAnalysisPage = lazy(() => import("./pages/TrendAnalysisPage").then((m) => ({ default: m.TrendAnalysisPage })));
 
-const TITLES: Record<string, string> = { "/dashboard": "Megatrends Dashboard", "/database": "Database", "/analytics/primary": "Primary Tracker", "/megatrends": "Knowledge Graph · Megatrends", "/competitors": "Knowledge Graph · Competitors", "/analytics/megatrends": "Trends Analysis · Megatrends", "/analytics/competitors": "Trends Analysis · Competitors", "/inbox": "Eradigm Inbox", "/client-inbox": "Client Inbox", "/input": "Input", "/admin": "Admin" };
+const TITLES: Record<string, string> = { "/dashboard": "Megatrends Dashboard", "/database": "Database", "/megatrends": "Knowledge Graph · Megatrends", "/competitors": "Knowledge Graph · Competitors", "/analytics/megatrends": "Trends Analysis · Megatrends", "/analytics/competitors": "Trends Analysis · Competitors", "/inbox": "Eradigm Inbox", "/client-inbox": "Client Inbox", "/input": "Input", "/admin": "Admin" };
 
 export function App() {
   const loc = useLocation();
@@ -92,7 +91,8 @@ function SignedIn() {
             The API does not know the Test tab yet: deploy the API (and apply its migrations), then reload.
           </div>
         )}
-        {SPACE === "test" && <TestSpaceBar />}
+        {/* Request 56: the Test pages keep in step with the workbook every 10 seconds; its status and problems are on the Admin page. */}
+        {SPACE === "test" && <TestSpaceSync />}
         <ErrorBoundary key={loc.pathname} label="This page">
           {SPACE === "test" ? <TestRoutes me={me.data} /> : (
           <Routes>
@@ -101,7 +101,8 @@ function SignedIn() {
             {/* Request 48: the Signals and Phantoms Databases and CI analyses are on the Database page (old links still work). */}
             <Route path="/tracker" element={<ToDatabase />} />
             <Route path="/phantoms" element={<ToDatabase />} />
-            <Route path="/analytics/primary" element={<TrackerPage key="primary-tracker" me={me.data} view="tracker" title="Primary Tracker" primaryOnly />} />
+            {/* Request 56: the Primary Tracker is the Database's (old links keep their filters and open pop-ups). */}
+            <Route path="/analytics/primary" element={<PrimaryToDatabase />} />
             <Route path="/trend-analyses" element={<ToDatabase ci />} />
             <Route path="/database" element={<DatabasePage me={me.data} />} />
             {/* Request 52: Admin → Deliverables is gone; its newsletters are on the Database page. */}
@@ -166,7 +167,7 @@ function TestRoutes({ me }: { me: Me }) {
       <Route path="/" element={<Navigate to="/database" replace />} />
       <Route path="/database" element={<DatabasePage me={me} />} />
       <Route path="/dashboard" element={<DashboardPage me={me} />} />
-      <Route path="/analytics/primary" element={<TrackerPage key="primary-tracker" me={me} view="tracker" title="Primary Tracker" primaryOnly />} />
+      <Route path="/analytics/primary" element={<PrimaryToDatabase />} />
       <Route path="/tracker" element={<ToDatabase />} />
       <Route path="/phantoms" element={<ToDatabase />} />
       <Route path="/trend-analyses" element={<ToDatabase ci />} />
@@ -213,6 +214,15 @@ function TestRoutes({ me }: { me: Me }) {
  * address opens the Database page, with its filters (the Database keeps them
  * under `db.`) and any open record, Markdown or page.
  */
+/** Request 56: Analytics → Primary Tracker is now Database → Primary Tracker (the same page, its parameters kept). */
+function PrimaryToDatabase() {
+  const loc = useLocation();
+  const p = new URLSearchParams(loc.search);
+  p.delete("db");
+  p.set("stream", "primary");
+  return <Navigate to={`/database?${p.toString()}`} replace />;
+}
+
 function ToDatabase({ ci = false }: { ci?: boolean }) {
   const loc = useLocation();
   const p = new URLSearchParams();

@@ -33,7 +33,7 @@ test.describe("request 42", () => {
       { ...base, title: `Middle ${tag}`, date: "2026-09-01", key_intelligence_question: "Is uptake growing?", key_details: "Middle details." },
       { ...base, title: `Newest ${tag}`, date: "2026-09-01", insight_topic: " pricing ", key_intelligence_question: "will payers cover it?", key_details: "Newest details." },
     ]);
-    await page.goto(`/analytics/primary?${new URLSearchParams({ "pt.source_company": `Clinic ${tag}` })}`);
+    await page.goto(`/database?stream=primary&${new URLSearchParams({ "pt.source_company": `Clinic ${tag}` })}`);
     const table = page.getByTestId("table-scroll").locator("table");
     const row = (t: string) => table.getByRole("row", { name: new RegExp(t) });
     await expect(row(`Newest ${tag}`)).toBeVisible();

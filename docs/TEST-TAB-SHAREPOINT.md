@@ -1,17 +1,19 @@
 # The Test tab and the SharePoint workbook
 
-The **Test** tab (admins only) has three pages: **Database**, **Megatrends** and
-**Primary Tracker**. They are the same pages as the live ones, but they show a
+The **Test** tab (admins only) has two pages: **Database** (whose Primary
+Tracker is the Primary Tracker) and **Megatrends**. They are the same pages as the live ones, but they show a
 separate *test space* whose contents come only from the workbook
 `Power_Automate_Test.xlsx` on SharePoint. Nothing on the Test tab changes the
 live data, and nothing live shows on the Test tab.
 
 ## How it stays in step
 
-- Every minute the platform asks Microsoft whether the workbook has changed
-  (Excel in the browser saves as you type; desktop Excel when it saves). When
-  it has, it reads the workbook and brings the test space in line with it.
-- **Sync now** (the bar at the top of every Test page) does the same at once.
+- While a Test page is open it asks Microsoft every 10 seconds whether the
+  workbook has changed (Excel in the browser saves as you type; desktop Excel
+  when it saves); otherwise every minute. When it has, it reads the workbook
+  and brings the test space in line with it, and the page shows a small green
+  **Data synced**.
+- **Sync now** (Admin → Test tab · SharePoint workbook) does the same at once.
 - The workbook is the master: a new row adds an entry, a changed row edits it
   (its Markdown and alert show the new values), and a row you delete removes
   the entry. The same goes for Company Profiles and Macrotrend sections.
@@ -33,15 +35,16 @@ live data, and nothing live shows on the Test tab.
 - Every Primary or Secondary row needs a unique **ID** (it is how a row is
   matched to its entry). A blank ID is made from the date, competitor and title.
 - Dropdown values must be the platform's options (any case or spacing). A row
-  with a problem is left out; **N problems** on the bar lists each one (sheet,
-  row, column and why). Columns that are not fields are listed as left out.
+  with a problem is left out; Admin → Test tab · SharePoint workbook lists each
+  one (sheet, row, column and why), and the Test pages show a red **!** that
+  leads there. Columns that are not fields are listed as left out.
 - Lists (for example several competitors) are separated by commas, semicolons
   or new lines. Dates are real Excel dates (or YYYY-MM-DD).
 - A sheet that is missing (for example renamed) leaves its part as it is.
 
 ## Check connection (the test endpoint)
 
-**Check connection** calls `GET /api/excel/check`: it signs in to Microsoft as
+**Check connection** (Admin → Test tab · SharePoint workbook) calls `GET /api/excel/check`: it signs in to Microsoft as
 the app, finds the workbook and lists its worksheets with their columns. Each
 step shows ✓ or ✕; a failure says what to fix:
 

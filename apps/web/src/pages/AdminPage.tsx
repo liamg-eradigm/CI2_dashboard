@@ -29,6 +29,7 @@ import { api } from "../api/client";
 import { useConfigStatus, useIncidents, useInvalidate, useNotifications, useQuality, useSchema, useSettings, useUsers } from "../api/hooks";
 import { Combobox } from "../components/Combobox";
 import { ErrorBoundary } from "../components/ErrorBoundary";
+import { ExcelSyncCard } from "../components/ExcelSync";
 import { ReorderList } from "../components/SchemaEditor";
 import { localDateTime, pct } from "../lib/format";
 import { useToast } from "../state/toast";
@@ -51,6 +52,12 @@ export function AdminPage({ me }: { me: Me }) {
         {isAdmin && (
           <ErrorBoundary label="Configuration">
             <ConfigStatus />
+          </ErrorBoundary>
+        )}
+        {/* Request 56: the Test tab's workbook sync (it was the Test pages' bar), with any rows it left out. */}
+        {isAdmin && (
+          <ErrorBoundary label="Test tab · SharePoint workbook">
+            <ExcelSyncCard />
           </ErrorBoundary>
         )}
         <ErrorBoundary label="Users">
