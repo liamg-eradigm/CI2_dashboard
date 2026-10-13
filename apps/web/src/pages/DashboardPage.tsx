@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import type { Me } from "@eradigm/shared";
 import { ImpactMixes, RecordFromTimeline, SignalTimeline, useAnalytics, useRecordParam } from "../components/analytics/Analytics";
+import { TestSyncButton } from "../components/ExcelSync";
 import "../styles/megatrends.css";
 
 /**
@@ -21,6 +22,7 @@ export function DashboardPage({ me }: { me: Me }) {
           <span className="eyebrow">Analytics</span>
           <h1>Megatrends Dashboard</h1>
         </div>
+        <TestSyncButton />
       </header>
       <div className="ad-body">
         {dash.isError && (

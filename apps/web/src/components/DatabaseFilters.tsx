@@ -25,6 +25,7 @@ import {
 } from "@eradigm/shared";
 import { Combobox } from "./Combobox";
 import { filtersToggleLabel, useFiltersOpen } from "../state/filtersOpen";
+import { TestSyncButton } from "./ExcelSync";
 
 export const DB_PREFIX = "db.";
 
@@ -175,6 +176,7 @@ export function DatabaseFilters({ schema, params, setParams, defaults }: { schem
             <span className="eyebrow">Every database in one place</span>
             <h1 id="page-title">Database</h1>
           </div>
+          <TestSyncButton />
         </div>
         <div className="active-filters" role="region" aria-label="Active filters">
           <span className="lbl">ACTIVE FILTERS</span>

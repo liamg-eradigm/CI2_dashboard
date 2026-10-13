@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { EXCEL_WORKBOOK_NAME, sheetKindOf, type ExcelCheck, type ExcelSyncStatus } from "@eradigm/shared";
 import { api, type ApiError } from "../api/client";
@@ -215,6 +215,17 @@ export function ExcelSyncCard() {
   );
 }
 
+interface TestSync {
+  status: ExcelSyncStatus | null;
+  /** When this page last heard from the workbook (every check, not only those the API records). */
+  checkedAt: number | null;
+  busy: boolean;
+  /** A sync just changed the test space: "Data synced" shows for a moment. */
+  synced: boolean;
+  syncNow: () => void;
+}
+const TestSyncContext = createContext<TestSync | null>(null);
+
 /**
  * Request 56: on the Test pages, the workbook is checked every 10 seconds while
  * the page is open and in view (Cloudflare's schedules run at most once a
@@ -222,42 +233,62 @@ export function ExcelSyncCard() {
  * finds nothing new costs one call to Microsoft and no database write. When a
  * sync changes the test space, the page reads it again and a small green
  * "Data synced" shows for a moment. Problems are on the Admin page: a ! here
- * says there are some and leads there.
+ * says there are some and leads there. Request 57: the pages' Sync now button
+ * (TestSyncButton) reads the whole workbook at once, through the same loop,
+ * and "Data synced" shows beside it.
  */
-export function TestSpaceSync() {
+export function TestSpaceSync({ enabled = true, children }: { enabled?: boolean; children?: ReactNode }) {
   const qc = useQueryClient();
+  const toast = useToast();
   const [status, setStatus] = useState<ExcelSyncStatus | null>(null);
+  const [checkedAt, setCheckedAt] = useState<number | null>(null);
   const [synced, setSynced] = useState(0);
+  const [manual, setManual] = useState(false);
   const seen = useRef<string | null | undefined>(undefined);
   const busy = useRef(false);
+  /** Sync now was pressed: the next check reads the whole workbook (now, or as soon as the one under way ends). */
+  const wanted = useRef(false);
+  const tickRef = useRef<() => Promise<void>>(async () => undefined);
 
   useEffect(() => {
+    if (!enabled) return;
     let stop = false;
+    const applied = (x: ExcelSyncStatus) => x.applied.created + x.applied.updated + x.applied.deleted + x.applied.trends;
     const tick = async () => {
-      if (busy.current || document.visibilityState !== "visible") return;
+      if (busy.current || (!wanted.current && document.visibilityState !== "visible")) return;
       busy.current = true;
+      const force = wanted.current;
+      wanted.current = false;
+      if (force) setManual(true);
       try {
-        const applied = (x: ExcelSyncStatus) => x.applied.created + x.applied.updated + x.applied.deleted + x.applied.trends;
-        let r = await api<ExcelSyncStatus>("/api/excel/sync", { method: "POST", json: {} });
+        let r = await api<ExcelSyncStatus>("/api/excel/sync", { method: "POST", json: force ? { force: true } : {} });
         let changed = applied(r);
-        for (let n = 0; r.more && n < 60 && !stop; n++) {
+        for (let n = 0; r.more && n < 60 && (force || !stop); n++) {
           r = await api<ExcelSyncStatus>("/api/excel/sync", { method: "POST", json: {} });
           changed += applied(r);
         }
         // (Kept even if this page was left meanwhile: the next look compares with it.)
         setStatus(r);
+        setCheckedAt(Date.now());
         // A change made by this check, or since the page last looked (the every-minute one's): read it, and say so.
         if (changed > 0 || (seen.current !== undefined && r.lastChangeAt && r.lastChangeAt !== seen.current)) {
           await qc.invalidateQueries();
           setSynced(Date.now());
+        } else if (force) {
+          toast(r.status === "error" ? `Sync failed · ${r.message ?? "see Admin → Test tab · SharePoint workbook"}` : `Already up to date with the workbook${r.file?.modifiedAt ? ` (last saved ${localDateTime(r.file.modifiedAt)})` : ""}`, r.status !== "error");
         }
         seen.current = r.lastChangeAt;
-      } catch {
-        /* Tried again at the next tick. */
+      } catch (e) {
+        if (force) toast(`Sync failed · ${(e as ApiError).message}`, false);
+        /* Otherwise tried again at the next tick. */
       } finally {
         busy.current = false;
+        if (force) setManual(false);
+        // Sync now pressed during a check: run it now.
+        if (wanted.current && !stop) void tick();
       }
     };
+    tickRef.current = tick;
     void tick();
     const id = setInterval(() => void tick(), TEST_SYNC_MS);
     const onShow = () => document.visibilityState === "visible" && void tick();
@@ -267,7 +298,7 @@ export function TestSpaceSync() {
       clearInterval(id);
       document.removeEventListener("visibilitychange", onShow);
     };
-  }, [qc]);
+  }, [qc, toast, enabled]);
 
   // The green note goes by itself.
   useEffect(() => {
@@ -275,6 +306,22 @@ export function TestSpaceSync() {
     const id = setTimeout(() => setSynced(0), 2600);
     return () => clearTimeout(id);
   }, [synced]);
+
+  const value = useMemo<TestSync>(
+    () => ({
+      status,
+      checkedAt,
+      busy: manual,
+      synced: synced > 0,
+      syncNow: () => {
+        wanted.current = true;
+        setManual(true);
+        void tickRef.current();
+      },
+    }),
+    [status, checkedAt, manual, synced],
+  );
+  if (!enabled) return <>{children}</>;
 
   const n = status?.issues.length ?? 0;
   const label = !status
@@ -285,17 +332,61 @@ export function TestSpaceSync() {
         ? "The last sync from the workbook failed"
         : `${n} row${n === 1 ? "" : "s"} of the workbook ${n === 1 ? "was" : "were"} left out`;
   return (
-    <>
-      {synced > 0 && (
-        <div className="synced-pop" role="status" data-testid="data-synced">
-          ✓ Data synced
-        </div>
-      )}
+    <TestSyncContext.Provider value={value}>
+      <span className="sr-only" role="status">
+        {synced > 0 ? "Data synced" : ""}
+      </span>
       {syncNeedsAttention(status ?? undefined) && (
         <a className="sync-alert" href={`/admin#${EXCEL_SECTION_ID}`} title={`${label}: see Admin`} aria-label={`${label}: see Admin`} data-testid="sync-alert">
           !
         </a>
       )}
-    </>
+      {children}
+    </TestSyncContext.Provider>
+  );
+}
+
+/** "Checked 5 s ago" (the time since this page last heard from the workbook). */
+function checkedLine(at: number | null, now: number): string {
+  if (!at) return "Checking the workbook…";
+  const s = Math.max(0, Math.round((now - at) / 1000));
+  return s < 5 ? "Checked just now" : s < 60 ? `Checked ${s} s ago` : `Checked ${ago(new Date(at).toISOString())}`;
+}
+
+/**
+ * Request 57: Sync now, at the top right of every Test page: in its header,
+ * level with the bottom of the title (on the full-page graphs, in the corner
+ * across from the graph toggle). When the page last checked the workbook sits
+ * beside it. Nothing outside the Test pages.
+ */
+export function TestSyncButton() {
+  const sync = useContext(TestSyncContext);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!sync) return;
+    const id = setInterval(() => setNow(Date.now()), 5000);
+    return () => clearInterval(id);
+  }, [sync]);
+  if (!sync) return null;
+  const saved = sync.status?.file?.modifiedAt;
+  return (
+    <div className="test-sync" data-testid="test-sync-bar">
+      {sync.synced ? (
+        <span className="synced-pop" aria-hidden="true" data-testid="data-synced">
+          ✓ Data synced
+        </span>
+      ) : (
+      <span className="test-sync-meta" title={saved ? `The workbook was last saved ${localDateTime(saved)}${sync.status?.file?.modifiedBy ? ` by ${sync.status.file.modifiedBy}` : ""}` : undefined} data-testid="test-sync-checked">
+        {checkedLine(sync.checkedAt, Math.max(now, sync.checkedAt ?? 0))}
+      </span>
+      )}
+      <button className="test-sync-btn" onClick={sync.syncNow} disabled={sync.busy} aria-label={sync.busy ? "Syncing the Test tab from the workbook" : "Sync the Test tab from the workbook now"} data-testid="test-sync-now">
+        <svg className={sync.busy ? "spin" : undefined} viewBox="0 0 20 20" width="15" height="15" aria-hidden="true">
+          <path d="M16 10a6 6 0 1 1-1.76-4.24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+          <path d="M16.2 3.2v3.6h-3.6" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        <span>{sync.busy ? "Syncing…" : "Sync now"}</span>
+      </button>
+    </div>
   );
 }

@@ -9,6 +9,7 @@
  */
 import { lazy, Suspense, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import type { GraphSpec } from "./Graph3D";
+import { TestSyncButton } from "../ExcelSync";
 
 const Graph3D = lazy(() => import("./Graph3D").then((m) => ({ default: m.Graph3D })));
 
@@ -161,6 +162,11 @@ export function GraphShell({
           <Suspense fallback={<div className="mg-loading">Loading the knowledge graph…</div>}>
             <Graph3D spec={spec} reducedMotion={reducedMotion} {...graph} onUnavailable={() => setNoGl(true)} rightPanel={drawerOpen} />
           </Suspense>
+        )}
+        {!embedded && (
+          <div className="mg-stage-end">
+            <TestSyncButton />
+          </div>
         )}
         {noGl && <p className="mg-nogl">The 3D view needs WebGL, which is switched off in this browser. The timeline and the sources still work.</p>}
         {panel == null && rail == null ? (

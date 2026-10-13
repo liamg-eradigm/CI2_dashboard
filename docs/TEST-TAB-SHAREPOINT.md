@@ -13,7 +13,17 @@ live data, and nothing live shows on the Test tab.
   when it saves); otherwise every minute. When it has, it reads the workbook
   and brings the test space in line with it, and the page shows a small green
   **Data synced**.
-- **Sync now** (Admin → Test tab · SharePoint workbook) does the same at once.
+- **Sync now**, at the top right of every Test page (and in Admin → Test tab ·
+  SharePoint workbook), reads the whole workbook at once, whether or not
+  Microsoft reports a change. Beside it, "Checked … ago" says when the page
+  last asked; hover it to see when the workbook was last saved, and by whom.
+- If a change does not show: look at "Checked … ago". If it keeps counting
+  from "just now", the checks are running and SharePoint has not saved the
+  change yet (Excel in the browser saves within moments, but it can take a
+  minute or so to reach SharePoint; desktop Excel only saves with AutoSave on
+  or when you save). Press Sync now once it has. If it says "Checking the
+  workbook…" for long, or a red **!** shows, open Admin → Test tab ·
+  SharePoint workbook to see why.
 - The workbook is the master: a new row adds an entry, a changed row edits it
   (its Markdown and alert show the new values), and a row you delete removes
   the entry. The same goes for Company Profiles and Macrotrend sections.
