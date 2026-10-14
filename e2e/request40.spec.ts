@@ -7,7 +7,7 @@ const SUB = "Agentic AI Platforms";
 const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString().slice(0, 10);
 
 /** Secondary entries in one Subtrend, pushed to the Tracker through the API (as the admin). */
-async function push(page: Page, rows: { title: string; date: string }[]) {
+async function push(page: Page, rows: { title: string; date: string; ci?: string }[]) {
   await page.evaluate(
     async ({ rows, h, m, s }) => {
       for (const r of rows) {
@@ -24,6 +24,7 @@ async function push(page: Page, rows: { title: string; date: string }[]) {
           source: "PR",
           competitors: ["Roche"],
           action: "Not Actioned",
+          ...(r.ci ? { ci_perspective: r.ci } : {}),
         };
         const res = await fetch(`/api/items/${item.id}/approve`, { method: "POST", headers: h, body: JSON.stringify({ values, version: item.version }) });
         if (!res.ok) throw new Error(await res.text());
@@ -44,6 +45,7 @@ test.describe("request 40", () => {
     await push(page, [
       { title: `Fresh signal ${tag}`, date: daysAgo(3) },
       { title: `Older signal ${tag}`, date: daysAgo(40) },
+      { title: `Fresh with a view ${tag}`, date: daysAgo(2), ci: `Watch this ${tag}.` },
     ]);
     expect(await setDays(page, 14)).toBe(true);
 
@@ -54,15 +56,20 @@ test.describe("request 40", () => {
     const older = list.getByRole("button", { name: new RegExp(`Older signal ${tag}`) });
     await expect(fresh.getByTestId("new-tag")).toHaveText(/new/i);
     await expect(older.getByTestId("new-tag")).toHaveCount(0);
-    // Glowing red, and left of the CI Perspective tag when there is one.
+    // Glowing red, and (request 59) just left of the date, which is at the far right.
     const shadow = await fresh.getByTestId("new-tag").evaluate((el) => getComputedStyle(el).boxShadow);
     expect(shadow).toContain("rgba(255, 90, 100");
-    const withCi = list.locator("button").filter({ has: page.getByTestId("new-tag") }).filter({ has: page.getByTestId("ci-tag") }).first();
-    if (await withCi.count()) {
-      const n = (await withCi.getByTestId("new-tag").boundingBox())!;
-      const c = (await withCi.getByTestId("ci-tag").boundingBox())!;
-      expect(n.x + n.width).toBeLessThanOrEqual(c.x);
-    }
+    const tagBox = async (row: typeof fresh, id: string) => (await row.getByTestId(id).boundingBox())!;
+    const [n, d] = [await tagBox(fresh, "new-tag"), await tagBox(fresh, "signal-date")];
+    expect(n.x + n.width).toBeLessThanOrEqual(d.x);
+    // All three on one signal: CI Perspective, then New, then the date at the far right, on one line.
+    const withCi = list.getByRole("button", { name: new RegExp(`Fresh with a view ${tag}`) });
+    const [c, n2, d2] = [await tagBox(withCi, "ci-tag"), await tagBox(withCi, "new-tag"), await tagBox(withCi, "signal-date")];
+    expect(c.x + c.width).toBeLessThanOrEqual(n2.x);
+    expect(n2.x + n2.width).toBeLessThanOrEqual(d2.x);
+    expect(Math.abs(c.y + c.height / 2 - (d2.y + d2.height / 2))).toBeLessThan(3);
+    const row = (await withCi.boundingBox())!;
+    expect(row.x + row.width - (d2.x + d2.width)).toBeLessThan(20);
     // The new ones pulse among the Subtrend's signals in orbit.
     const canvas = page.getByTestId("mg-canvas");
     await expect.poll(async () => Number(await canvas.getAttribute("data-fresh"))).toBeGreaterThanOrEqual(1);

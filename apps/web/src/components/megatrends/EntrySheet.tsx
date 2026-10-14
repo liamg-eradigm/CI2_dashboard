@@ -45,7 +45,8 @@ export interface SourcesList {
  * - Sources: selecting a Subtrend or a competitor lists its entries, most
  *   recent first (the same day's by Impact) or by Impact, high to low (the
  *   toggle at its top right, request 58); each row an Impact dot, as much of
- *   the title as fits and the signal's date.
+ *   the title as fits and its tags: from the right, the signal's date, New,
+ *   then CI Perspective (request 59).
  *   ✕ (or Esc) hides it; "Signals" at the right edge brings it back.
  * - Entry: an opened entry's Tracker row (its Tracker columns, in the
  *   Tracker's order) with its saved page(s) in a popup window. ← (or Esc)
@@ -177,20 +178,21 @@ export function EntrySheet({
                       <span className="dot" style={{ background: impactColour(x.impact) }} aria-hidden="true" />
                       <span className="sr-only">{x.impact ? `${x.impact} impact: ` : "No impact: "}</span>
                       <span className="nm">{x.title || x.code}</span>
+                      {/* Right to left: the date at the far right, then New, then CI Perspective (request 59). */}
                       <span className="mg-tags">
-                          <span className="mg-date-tag" data-testid="signal-date">
-                            {formatDate(x.date)}
+                        {x.ci && (
+                          <span className="mg-ci-tag" data-testid="ci-tag" title="This signal's Phantom has a CI Perspective">
+                            CI Perspective
                           </span>
-                          {isNew(x.date) && (
-                            <span className="mg-new-tag" data-testid="new-tag" title="A new signal: its Event Date is recent">
-                              New
-                            </span>
-                          )}
-                          {x.ci && (
-                            <span className="mg-ci-tag" data-testid="ci-tag" title="This signal's Phantom has a CI Perspective">
-                              CI Perspective
-                            </span>
-                          )}
+                        )}
+                        {isNew(x.date) && (
+                          <span className="mg-new-tag" data-testid="new-tag" title="A new signal: its Event Date is recent">
+                            New
+                          </span>
+                        )}
+                        <span className="mg-date-tag" data-testid="signal-date">
+                          {formatDate(x.date)}
+                        </span>
                       </span>
                     </button>
                   </li>
