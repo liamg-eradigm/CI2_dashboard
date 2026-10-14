@@ -27,10 +27,10 @@
     "zod": "^4.1.0"
   },
   "devDependencies": {
-    "@cloudflare/vitest-pool-workers": "^0.22.0",
-    "@cloudflare/workers-types": "^4.20250101.0",
+    "@cloudflare/vitest-pool-workers": "^0.23.0",
+    "@cloudflare/workers-types": "^5.20261010.1",
     "tsx": "^4.20.0",
     "vitest": "^4.1.11",
-    "wrangler": "^4.142.0"
+    "wrangler": "^4.149.0"
   }
 }
