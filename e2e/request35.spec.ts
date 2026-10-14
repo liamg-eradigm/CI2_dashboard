@@ -57,10 +57,12 @@ test.describe("request 35", () => {
     // The Macrotrend and its Subtrends only.
     expect(Number(await canvas.getAttribute("data-hubs"))).toBeGreaterThan(1);
     await expect(graph.getByTestId("mg-timeline")).toHaveCount(0);
-    // The graph fills the frame.
+    // The graph fills the frame, above its time frame bar (request 58).
     const g = (await graph.boundingBox())!;
     const stage = (await graph.locator(".mg-stage").boundingBox())!;
-    expect(Math.abs(stage.height - g.height)).toBeLessThan(4);
+    const bar = (await graph.getByTestId("explore-frame").locator("xpath=..").boundingBox())!;
+    expect(Math.abs(stage.height + bar.height - g.height)).toBeLessThan(4);
+    expect(bar.height).toBeLessThan(90);
     const up = dash.getByTestId("md-up").locator(".md-arrow-label");
     expect(Number.parseFloat(await up.evaluate((el) => getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(18);
     await expectAccessible(page, "Macrotrend dashboard: Explore Signals");

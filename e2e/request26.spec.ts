@@ -26,7 +26,8 @@ test.describe("request 26: sources list on the right", () => {
     await expect(sheet.getByRole("heading", { name: "Pfizer" })).toBeVisible();
     const n = await list.getByRole("button").count();
     expect(n).toBeGreaterThan(5);
-    // High first, then Medium, then Low.
+    // Request 58: most recent first by default; the Impact toggle lists High first, then Medium, then Low.
+    await sheet.getByTestId("mg-order-impact").click();
     const order = await impacts(page);
     expect(order).toEqual([...order].sort((a, b) => a - b));
     expect(order[0]).toBe(0);
@@ -38,8 +39,8 @@ test.describe("request 26: sources list on the right", () => {
     const rb = (await row.boundingBox())!;
     expect(dot.x).toBeLessThan(name.x);
     expect(dot.x - rb.x).toBeLessThan(20);
-    // (with its CI Perspective tag, request 34, when it has one)
-    const tag = await row.getByTestId("ci-tag").count() ? (await row.getByTestId("ci-tag").boundingBox())!.width + 11 : 0;
+    // (with its tags: its date, request 58, and its CI Perspective tag, request 34, when it has one)
+    const tag = (await row.locator(".mg-tags").boundingBox())!.width + 11;
     expect(name.width + tag).toBeGreaterThan(rb.width * 0.75);
     await expect(row.locator(".dot")).toHaveCSS("background-color", "rgb(229, 83, 75)");
     // Half the page wide (request 34), the full height; the list scrolls inside it.
@@ -102,6 +103,8 @@ test.describe("request 26: sources list on the right", () => {
     const n = await list.getByRole("button").count();
     const balls = await page.getByTestId("mg-ball").count();
     expect(n).toBe(balls);
+    // (Request 58: by Impact from the toggle; most recent first by default.)
+    await sheet.getByTestId("mg-order-impact").click();
     const order = await impacts(page);
     expect(order).toEqual([...order].sort((a, b) => a - b));
     await expectAccessible(page, "Megatrends with the sources list");
