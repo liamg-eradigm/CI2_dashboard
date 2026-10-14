@@ -893,6 +893,17 @@ analyst-entered information distinguishable; in the prototype every value is
   "✓ Data synced" there for a moment when a sync changes the test space. A
   forced run that changes nothing says "Already up to date with the workbook"
   with the workbook's last save time.
+- **Request 60** (no contract change, no migration): numbered lists in
+  formatted text (`richText`, `richDoc`, `BulletText`, `RichTextField`).
+  - A list split by blank lines keeps counting: the shown list starts at its
+    first item's number (`<ol start>`), as the editor already did.
+  - A second line in an item (Shift+Enter, or another paragraph in it) is
+    stored indented one level past the item, read back as more of it (a `p`
+    block with `cont`), shown in the item after a line break, and opened in
+    the editor as a line break in the item. Before, it was stored as a plain
+    line, which ended the list (the next item started again at 1).
+  - Typing "2. " at the start of an item of a numbered list keeps the list's
+    own number instead of adding a second one ("2. 2.").
 - **Request 59** (web only): in the signals list, a signal's tags read, from
   the right: its date at the far right, then New, then CI Perspective.
 - **Request 58** (no contract change, no migration, web only): **Explore

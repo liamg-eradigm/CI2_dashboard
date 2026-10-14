@@ -5,7 +5,7 @@
  * markup of `@eradigm/shared` richText.
  */
 import type { JSONContent } from "@tiptap/react";
-import { parseRich, serializeInline, type RichBlock, type RichRun } from "@eradigm/shared";
+import { parseRich, serializeRich, type RichBlock, type RichRun } from "@eradigm/shared";
 
 function runsToContent(runs: RichRun[]): JSONContent[] {
   return runs
@@ -30,6 +30,13 @@ export function toDoc(value: string): JSONContent {
   // The open list at each depth of the bullets being read.
   let stack: JSONContent[] = [];
   for (const b of parseRich(value ?? "")) {
+    // More of a bullet (request 60): a new line in it.
+    if (b.kind === "p" && b.cont != null && stack[b.cont]) {
+      const item = stack[b.cont]!.content![stack[b.cont]!.content!.length - 1]!;
+      const first = item.content![0]!;
+      first.content = [...(first.content ?? []), { type: "hardBreak" }, ...runsToContent(b.runs)];
+      continue;
+    }
     if (b.kind !== "item") {
       stack = [];
       out.push(b.kind === "title" ? { type: "heading", attrs: { level: 3 }, content: runsToContent(b.runs) } : para(b.runs));
@@ -94,7 +101,7 @@ export function fromDoc(doc: JSONContent): string {
           if (first) {
             blocks.push({ kind: "item", depth, ordered, marker: ordered ? `${n}.` : "-", runs });
             first = false;
-          } else blocks.push({ kind: "p", runs });
+          } else blocks.push({ kind: "p", runs, cont: depth }); // a second line in the bullet (request 60)
         }
       }
       if (first) blocks.push({ kind: "item", depth, ordered, marker: ordered ? `${n}.` : "-", runs: [] });
@@ -106,12 +113,5 @@ export function fromDoc(doc: JSONContent): string {
     else if (node.type === "heading") lines(node).forEach((runs, i) => blocks.push(i === 0 ? { kind: "title", runs } : { kind: "p", runs }));
     else lines(node).forEach((runs) => blocks.push({ kind: "p", runs }));
   }
-  return blocks
-    .map((b) => {
-      const inline = serializeInline(b.runs);
-      if (b.kind === "title") return `### ${inline}`;
-      if (b.kind === "item") return `${"  ".repeat(b.depth)}${b.marker} ${inline}`;
-      return inline;
-    })
-    .join("\n");
+  return serializeRich(blocks);
 }

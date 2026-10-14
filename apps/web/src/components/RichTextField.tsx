@@ -1,5 +1,5 @@
 import { useEffect, useRef, type CSSProperties, type FocusEvent, type MouseEvent as ReactMouseEvent } from "react";
-import { Extension, EditorContent, useEditor, useEditorState, type Editor } from "@tiptap/react";
+import { Extension, EditorContent, InputRule, useEditor, useEditorState, type Editor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import StarterKit from "@tiptap/starter-kit";
 import { FontSize, TextStyle } from "@tiptap/extension-text-style";
@@ -74,6 +74,24 @@ const ListKeys = Extension.create({
         return true;
       },
     };
+  },
+  addInputRules() {
+    return [
+      // Request 60: a number typed at the start of a numbered item ("2. ") is the item's own number, not text.
+      new InputRule({
+        find: /^\d{1,3}[.)]\s$/,
+        handler: ({ state, range }) => {
+          const $from = state.selection.$from;
+          for (let d = $from.depth; d > 0; d--) {
+            if ($from.node(d).type.name !== "listItem") continue;
+            if ($from.node(d - 1).type.name !== "orderedList") return null;
+            state.tr.delete(range.from, range.to);
+            return;
+          }
+          return null;
+        },
+      }),
+    ];
   },
   onSelectionUpdate() {
     this.storage.released = false;

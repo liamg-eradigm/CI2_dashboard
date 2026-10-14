@@ -5,15 +5,22 @@ import { parseRich, type RichBlock, type RichRun } from "@eradigm/shared";
  * Formatted text as written in a `RichTextField` (requests 44 and 46): each
  * line break is kept, a blank line starts a new paragraph, `### ` lines are
  * titles, "- " / "1. " lines are bullets nested by two spaces a level, and
- * bold, underline and font size show inside a line. Only that markup is
+ * bold, underline and font size show inside a line. Request 60: a numbered
+ * list goes on from its first number (a list split by a blank line keeps
+ * counting), and a bullet's second line stays in it. Only that markup is
  * understood; any other text (including tags) is shown as text, never as HTML.
  */
 interface Item {
   depth: number;
   ordered: boolean;
+  /** "3." for a numbered item: where its list starts when it is the first. */
+  marker: string;
   runs: RichRun[];
+  /** Its further lines. */
+  more: RichRun[][];
   children: Item[];
 }
+type ItemLine = Extract<RichBlock, { kind: "item" }> & { more: RichRun[][] };
 
 export function Runs({ runs }: { runs: RichRun[] }) {
   return (
@@ -30,11 +37,11 @@ export function Runs({ runs }: { runs: RichRun[] }) {
 }
 
 /** Nested lists from consecutive bullet lines (a deeper line belongs to the bullet above it). */
-function tree(lines: Extract<RichBlock, { kind: "item" }>[]): Item[] {
+function tree(lines: ItemLine[]): Item[] {
   const root: Item[] = [];
   const stack: Item[] = [];
   for (const b of lines) {
-    const item: Item = { depth: b.depth, ordered: b.ordered, runs: b.runs, children: [] };
+    const item: Item = { depth: b.depth, ordered: b.ordered, marker: b.marker, runs: b.runs, more: b.more, children: [] };
     while (stack.length && stack[stack.length - 1]!.depth >= item.depth) stack.pop();
     if (stack.length) stack[stack.length - 1]!.children.push(item);
     else root.push(item);
@@ -44,12 +51,20 @@ function tree(lines: Extract<RichBlock, { kind: "item" }>[]): Item[] {
 }
 
 function List({ items, k }: { items: Item[]; k: string }) {
-  const Tag = items[0]?.ordered ? "ol" : "ul";
+  const ordered = !!items[0]?.ordered;
+  const start = ordered ? Number.parseInt(items[0]!.marker, 10) || 1 : 1;
+  const Tag = ordered ? "ol" : "ul";
   return (
-    <Tag>
+    <Tag start={start !== 1 ? start : undefined}>
       {items.map((it, i) => (
         <li key={`${k}-${i}`}>
           <Runs runs={it.runs} />
+          {it.more.map((runs, j) => (
+            <span key={j}>
+              <br />
+              <Runs runs={runs} />
+            </span>
+          ))}
           {it.children.length > 0 && <List items={it.children} k={`${k}-${i}`} />}
         </li>
       ))}
@@ -60,7 +75,7 @@ function List({ items, k }: { items: Item[]; k: string }) {
 export function BulletText({ text, className, testId }: { text: string; className?: string; testId?: string }) {
   const out: ReactNode[] = [];
   let para: RichRun[][] = [];
-  let bullets: Extract<RichBlock, { kind: "item" }>[] = [];
+  let bullets: ItemLine[] = [];
   const flushPara = () => {
     if (para.length)
       out.push(
@@ -82,7 +97,11 @@ export function BulletText({ text, className, testId }: { text: string; classNam
   for (const b of parseRich(text ?? "")) {
     if (b.kind === "item") {
       flushPara();
-      bullets.push(b);
+      bullets.push({ ...b, more: [] });
+    } else if (b.kind === "p" && b.cont != null && bullets.length) {
+      // A further line of the bullet above (at its depth).
+      const own = [...bullets].reverse().find((x) => x.depth === b.cont) ?? bullets[bullets.length - 1]!;
+      own.more.push(b.runs);
     } else if (b.kind === "title") {
       flushPara();
       flushList();
