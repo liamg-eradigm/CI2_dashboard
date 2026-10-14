@@ -893,6 +893,8 @@ analyst-entered information distinguishable; in the prototype every value is
   "✓ Data synced" there for a moment when a sync changes the test space. A
   forced run that changes nothing says "Already up to date with the workbook"
   with the workbook's last save time.
+- **Request 59** (web only): in the signals list, a signal's tags read, from
+  the right: its date at the far right, then New, then CI Perspective.
 - **Request 58** (no contract change, no migration, web only): **Explore
   Signals** (a Macrotrend's dashboard, row 5; a competitor's page,
   `v=signals`).
