@@ -4,7 +4,7 @@ import { CORE, displayValue, tableColumns, type MegatrendEntry } from "@eradigm/
 import { useSchema, useSignal } from "../../api/hooks";
 import { formatDate } from "../../lib/format";
 import { useSavedPages } from "../SavedPages";
-import { impactColour } from "./model";
+import { impactColour, type SignalOrder } from "./model";
 import { useIsNewSignal } from "./newSignals";
 import { appHref } from "../../api/space";
 
@@ -29,8 +29,11 @@ export function useSourcesList(key: string | null) {
 export interface SourcesList {
   /** The Subtrend or competitor. */
   title: string;
-  /** Its entries, in list order (by Impact, High first: `bySourceOrder`). */
+  /** Its entries, in list order (`inSignalOrder`: most recent first, or by Impact). */
   entries: MegatrendEntry[];
+  /** Request 58: most recent first (the default) or by Impact, high to low; the toggle at the list's top right. */
+  order: SignalOrder;
+  onOrder: (o: SignalOrder) => void;
   shown: boolean;
   onShow: () => void;
   onHide: () => void;
@@ -39,8 +42,10 @@ export interface SourcesList {
 /**
  * The drawer that slides in from the right (Megatrends and Competitors).
  *
- * - Sources: selecting a Subtrend or a competitor lists its entries, High
- *   Impact first, each row an Impact dot and as much of the title as fits.
+ * - Sources: selecting a Subtrend or a competitor lists its entries, most
+ *   recent first (the same day's by Impact) or by Impact, high to low (the
+ *   toggle at its top right, request 58); each row an Impact dot, as much of
+ *   the title as fits and the signal's date.
  *   ✕ (or Esc) hides it; "Signals" at the right edge brings it back.
  * - Entry: an opened entry's Tracker row (its Tracker columns, in the
  *   Tracker's order) with its saved page(s) in a popup window. ← (or Esc)
@@ -137,12 +142,19 @@ export function EntrySheet({
             <header className="mg-sheet-head">
               <div className="mg-sheet-meta">
                 <span className="mg-pages-label">Signals</span>
-                <span>{sources.entries.length} · by Impact, high to low</span>
+                <span>{sources.entries.length} · {sources.order === "impact" ? "by Impact, high to low" : "most recent first"}</span>
               </div>
               <h2 ref={listHead} tabIndex={-1}>
                 {sources.title}
               </h2>
               <div className="mg-sheet-ctl">
+                <div className="mg-seg sm mg-order" role="group" aria-label="Order the signals by" data-testid="mg-order">
+                  {(["recent", "impact"] as const).map((o) => (
+                    <button key={o} aria-pressed={sources.order === o} onClick={() => sources.onOrder(o)} data-testid={`mg-order-${o}`} title={o === "recent" ? "Most recent first (the same day's by Impact)" : "Impact, high to low (the newest first within each)"}>
+                      {o === "recent" ? "Recency" : "Impact"}
+                    </button>
+                  ))}
+                </div>
                 <button className="mg-icon" onClick={sources.onHide} aria-label="Close the signals list" title="Close (Esc)">
                   ✕
                 </button>
@@ -165,8 +177,10 @@ export function EntrySheet({
                       <span className="dot" style={{ background: impactColour(x.impact) }} aria-hidden="true" />
                       <span className="sr-only">{x.impact ? `${x.impact} impact: ` : "No impact: "}</span>
                       <span className="nm">{x.title || x.code}</span>
-                      {(isNew(x.date) || x.ci) && (
-                        <span className="mg-tags">
+                      <span className="mg-tags">
+                          <span className="mg-date-tag" data-testid="signal-date">
+                            {formatDate(x.date)}
+                          </span>
                           {isNew(x.date) && (
                             <span className="mg-new-tag" data-testid="new-tag" title="A new signal: its Event Date is recent">
                               New
@@ -177,8 +191,7 @@ export function EntrySheet({
                               CI Perspective
                             </span>
                           )}
-                        </span>
-                      )}
+                      </span>
                     </button>
                   </li>
                 ))}

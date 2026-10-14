@@ -11,7 +11,8 @@
  * 2. Current Landscape · Impact Mix by Subtrend (or by Competitor)
  * 3. Long-Term Landscape · Signal Timeline
  * 4. What's Next? · Impact on AbbVie
- * 5. Explore Signals: the knowledge graph of this Macrotrend only
+ * 5. Explore Signals: the knowledge graph of this Macrotrend only (request 58:
+ *    with a time frame bar, the same as the Impact Mix's and moving with it)
  *
  * The text cells are the Macrotrend's analysis sections (Input → Input Trend
  * Analysis → Macrotrend, or edited in place by admins).
@@ -196,6 +197,7 @@ export function MacroDashboard({ me, macro, onBack }: { me: Me; macro: string; o
                     schema={schema}
                     fit
                     noSub
+                    shared
                     headExtra={
                       <div className="seg md-mix-toggle" role="group" aria-label="Impact mix by">
                         {(["sub", "comp"] as const).map((k) => (
@@ -229,7 +231,7 @@ export function MacroDashboard({ me, macro, onBack }: { me: Me; macro: string; o
               <section className="md-cell md-graph" aria-label={`Explore Signals: the knowledge graph of ${macro}`} data-testid="md-graph">
                 {graphOn ? (
                   <Suspense fallback={<div className="mg-loading">Loading the knowledge graph…</div>}>
-                    <MegatrendsPage me={me} focusMacro={macro} />
+                    <MegatrendsPage me={me} focusMacro={macro} span={filters ? { from: filters.from, to: filters.to } : undefined} />
                   </Suspense>
                 ) : (
                   <div className="mg-loading">The knowledge graph of {macro}</div>

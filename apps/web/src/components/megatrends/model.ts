@@ -125,14 +125,25 @@ export function spreadSlots(sizes: number[]): [number, number, number][] {
   return out;
 }
 
+/** High, Medium, Low, then any other Impact, then none. */
+const impactRank = (v: string | null) => {
+  const i = ["high", "medium", "low"].indexOf((v ?? "").trim().toLowerCase());
+  return i < 0 ? (v ? 3 : 4) : i;
+};
+
 /** Sources for the right-hand list: High, Medium, Low, then any other or no Impact; newest first within each. */
 export function bySourceOrder<E extends { impact: string | null; date: string; title: string }>(list: E[]): E[] {
-  const rank = (v: string | null) => {
-    const i = ["high", "medium", "low"].indexOf((v ?? "").trim().toLowerCase());
-    return i < 0 ? (v ? 3 : 4) : i;
-  };
-  return [...list].sort((a, b) => rank(a.impact) - rank(b.impact) || b.date.localeCompare(a.date) || a.title.localeCompare(b.title));
+  return [...list].sort((a, b) => impactRank(a.impact) - impactRank(b.impact) || b.date.localeCompare(a.date) || a.title.localeCompare(b.title));
 }
+
+/** Request 58: newest first; signals of the same day by Impact (High first). */
+export function byRecency<E extends { impact: string | null; date: string; title: string }>(list: E[]): E[] {
+  return [...list].sort((a, b) => b.date.localeCompare(a.date) || impactRank(a.impact) - impactRank(b.impact) || a.title.localeCompare(b.title));
+}
+
+/** How a Subtrend's or competitor's signals are listed (request 58: most recent first by default). */
+export type SignalOrder = "recent" | "impact";
+export const inSignalOrder = <E extends { impact: string | null; date: string; title: string }>(list: E[], order: SignalOrder): E[] => (order === "impact" ? bySourceOrder(list) : byRecency(list));
 
 /** Competitor tier colours (Admin → Competitor tiers): Tier 1 red, 2 orange-yellow, 3 green, 4 (all others) grey. */
 export const TIER_COLOUR: Record<1 | 2 | 3 | 4, string> = { 1: "#e5534b", 2: "#e8a33d", 3: "#3fb37f", 4: "#8b9aa6" };

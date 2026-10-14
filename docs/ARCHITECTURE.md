@@ -893,6 +893,24 @@ analyst-entered information distinguishable; in the prototype every value is
   "✓ Data synced" there for a moment when a sync changes the test space. A
   forced run that changes nothing says "Already up to date with the workbook"
   with the workbook's last save time.
+- **Request 58** (no contract change, no migration, web only): **Explore
+  Signals** (a Macrotrend's dashboard, row 5; a competitor's page,
+  `v=signals`).
+  - The signals list of a Subtrend or competitor is most recent first (the
+    same day's by Impact, High first: `byRecency`), or by Impact, high to low
+    (`bySourceOrder`), from a Recency / Impact toggle at the list's top right
+    (`EntrySheet`; Recency each time the page opens). ‹ › step in the list's
+    order. Each signal shows its Event Date in a small box. The full-page
+    graphs' lists work the same way.
+  - A time frame bar under the graph (`ExploreTimeFrame`, GraphShell's
+    `footer`): the Impact Mix's slider (`TimeFrameSlider`, taken out of
+    `ImpactMix`). On these two pages the Impact Mix's time frame and this bar
+    share one value in the address, `tf=YYYY-MM~YYYY-MM` (none: all dates;
+    `useTimeFrameParam`), so moving either moves the other, and Back and
+    shared links keep it. The graph, its counts and the list show only the
+    signals in the time frame (filtered in the browser; the drawer stops above
+    the bar). Leaving a dashboard, or opening another, clears `tf`; the
+    Megatrends Dashboard's own two impact mixes keep separate time frames.
 - **Menu in groups** (request 28, contract 1.17; regrouped in request 31,
   contract 1.19; renamed in request 34; `packages/shared/src/menu.ts`): the
   menu is four groups (and, from request 43, the Database tab on its own),

@@ -72,7 +72,7 @@ export function TrendAnalysisPage({ me, kind }: { me: Me; kind: Kind }) {
   const title = kind === "macro" ? "Megatrends" : "Competitors";
 
   // Request 34: a Macrotrend opens its own five-row dashboard.
-  if (kind === "macro" && selMacro) return <MacroDashboard me={me} macro={selMacro} onBack={() => set({ m: null, s: null, e: null, v: null, signal: null }, true)} />;
+  if (kind === "macro" && selMacro) return <MacroDashboard me={me} macro={selMacro} onBack={() => set({ m: null, s: null, e: null, v: null, signal: null, tf: null }, true)} />;
 
   // Request 48: a competitor opens its own page (Company Profile, timeline, impact mix, then Explore Signals).
   if (selComp) {
@@ -85,7 +85,7 @@ export function TrendAnalysisPage({ me, kind }: { me: Me; kind: Kind }) {
         summary={comp?.summary ?? null}
         colour={comp ? TIER_COLOUR[comp.tier] : NEUTRAL}
         note={comp ? `Competitor · Tier ${comp.tier}` : "Competitor"}
-        onBack={() => set({ c: null, v: null, m: null, s: null, e: null, signal: null }, true)}
+        onBack={() => set({ c: null, v: null, m: null, s: null, e: null, signal: null, tf: null }, true)}
       />
     );
   }
@@ -136,7 +136,7 @@ export function TrendAnalysisPage({ me, kind }: { me: Me; kind: Kind }) {
         <ul className="ta-list" aria-label={kind === "macro" ? "Macrotrends" : "Competitors"}>
           {items.map((it) => (
             <li key={it.name}>
-              <button className="ta-cell" onClick={() => set(kind === "macro" ? { m: it.name, s: null } : { c: it.name }, true)}>
+              <button className="ta-cell" onClick={() => set(kind === "macro" ? { m: it.name, s: null, tf: null } : { c: it.name, tf: null }, true)}>
                 <span className="dot" style={{ background: it.colour }} aria-hidden="true" />
                 <span className="nm">{it.name}</span>
                 {it.impacts && (

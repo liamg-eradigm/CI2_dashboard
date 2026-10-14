@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MegatrendEntry } from "@eradigm/shared";
-import { NEUTRAL, PALETTE, bySourceOrder, colourMap, paletteOf, shade, spreadSlots, timelineEntries, type Macro } from "./model";
+import { NEUTRAL, PALETTE, byRecency, bySourceOrder, colourMap, paletteOf, shade, spreadSlots, timelineEntries, type Macro } from "./model";
 
 const node = (name: string, count: number, subs: [string, number][] = []): Macro => ({
   name,
@@ -74,5 +74,13 @@ describe("bySourceOrder", () => {
     const e = (title: string, impact: string | null, date: string) => ({ title, impact, date });
     const out = bySourceOrder([e("a", "Low", "2026-01-01"), e("b", null, "2026-05-01"), e("c", "High", "2026-02-01"), e("d", "medium", "2026-03-01"), e("e", "High", "2026-04-01"), e("f", "Critical", "2026-01-01")]);
     expect(out.map((x) => x.title)).toEqual(["e", "c", "d", "a", "f", "b"]);
+  });
+});
+
+describe("byRecency (request 58)", () => {
+  const e = (id: string, impact: string | null, date: string) => ({ id, title: id, impact, date });
+  it("lists the newest first, and the same day's signals by Impact, High first", () => {
+    const out = byRecency([e("a", "Low", "2026-01-01"), e("b", "Low", "2026-05-01"), e("c", "High", "2026-05-01"), e("d", null, "2026-05-01"), e("e", "medium", "2026-05-01"), e("f", "High", "2026-03-01")]);
+    expect(out.map((x) => x.id)).toEqual(["c", "e", "b", "d", "f", "a"]);
   });
 });
