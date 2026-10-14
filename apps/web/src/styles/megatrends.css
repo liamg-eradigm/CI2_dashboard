@@ -768,3 +768,13 @@ button.mix-lbl:hover, button.mix-lbl:focus-visible { color: #fff; text-decoratio
 .mg-stage-end .test-sync { padding: 4px 4px 4px 14px; border-radius: 999px; min-height: 0; background: var(--mg-glass); -webkit-backdrop-filter: blur(12px) saturate(125%); backdrop-filter: blur(12px) saturate(125%); border: 1px solid var(--mg-line); box-shadow: 0 14px 36px rgba(0, 6, 12, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.04); }
 .mg-stage-end .test-sync-btn { height: 30px; border-radius: 999px; }
 .mg-page.drawer-open .mg-stage-end { display: none; }
+
+/* Request 58: Explore Signals. A slim bar under the graph with the Impact Mix's time frame slider (the two move together);
+   the signals list most recent first or by Impact (the toggle at its top right), each with its date. */
+.mg-footer { flex: none; position: relative; z-index: 3; padding: 10px 20px 12px; border-top: 1px solid var(--mg-line); background: var(--mg-glass); -webkit-backdrop-filter: blur(12px) saturate(125%); backdrop-filter: blur(12px) saturate(125%); }
+.mg-frame .mix-range { margin-top: 0; padding-top: 0; border-top: 0; }
+.mg-frame .mix-range-all { color: var(--cyan-2); }
+.mg-frame .mix-range-all:disabled { color: var(--mg-ink-3); opacity: 0.6; }
+.mg-embedded.has-footer .mg-drawer { bottom: calc(var(--mg-footer-h, 78px) + 8px); }
+.mg-sheet-ctl .mg-order { align-self: center; }
+.mg-date-tag { padding: 1px 7px; border-radius: 6px; font: 600 10.5px/1.5 var(--mono); color: var(--mg-ink-2); background: rgba(255, 255, 255, 0.06); border: 1px solid var(--mg-line); white-space: nowrap; }

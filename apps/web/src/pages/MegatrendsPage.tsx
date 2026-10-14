@@ -15,11 +15,12 @@ import { useMegatrends } from "../api/hooks";
 import { EntrySheet, useSourcesList } from "../components/megatrends/EntrySheet";
 import { GraphShell } from "../components/megatrends/GraphShell";
 import type { GraphSpec } from "../components/megatrends/Graph3D";
-import { bySourceOrder, impactColour, impactOrder, paletteOf, plural, timelineEntries, NEUTRAL, type Selection } from "../components/megatrends/model";
+import { impactColour, impactOrder, inSignalOrder, paletteOf, plural, timelineEntries, NEUTRAL, type Selection, type SignalOrder } from "../components/megatrends/model";
 import { Timeline, type LegendItem } from "../components/megatrends/Timeline";
 import { GraphToggle } from "../components/megatrends/GraphToggle";
 import "../styles/megatrends.css";
 import { useIsNewSignal } from "../components/megatrends/newSignals";
+import { ExploreTimeFrame, useExploreFrame } from "../components/megatrends/ExploreTimeFrame";
 
 const SEP = "\u001f";
 const macroId = (m: string) => `m:${m}`;
@@ -31,9 +32,11 @@ const subR = (n: number) => Math.min(15, 3 + 1.9 * Math.sqrt(n));
 /**
  * `focusMacro` (request 34): only that Macrotrend's globe, its Subtrends and
  * their signals, embedded in its dashboard (Explore Signals); `s` and `e` stay
- * in the URL, `m` is the dashboard's own.
+ * in the URL, `m` is the dashboard's own. `span` (request 58): the dashboard's
+ * date span, whose time frame (shared with its Impact Mix) the bar at the
+ * bottom picks.
  */
-export function MegatrendsPage({ focusMacro }: { me?: Me; focusMacro?: string }) {
+export function MegatrendsPage({ focusMacro, span }: { me?: Me; focusMacro?: string; span?: { from: string; to: string } }) {
   const [params, setParams] = useSearchParams();
   // Both trackers, all dates (the page has no filters: the graph and timeline get the space).
   const from: string | null = null;
@@ -67,10 +70,19 @@ export function MegatrendsPage({ focusMacro }: { me?: Me; focusMacro?: string })
   // With a focus Macrotrend, only its Subtrend changes (the dashboard keeps its own `m`).
   const select = useCallback((s: Selection) => (focusMacro ? set({ s: s.sub }) : set({ m: s.macro, s: s.sub })), [set, focusMacro]);
 
-  const macros = useMemo(() => data?.macrotrends ?? [], [data]);
+  // Request 58: Explore Signals shows the time frame's signals only (its Macrotrend's and Subtrends' counts too).
+  const frame = useExploreFrame(focusMacro ? span : undefined);
+  const { inFrame, framed } = frame;
+  const entries = useMemo(() => (data?.entries ?? []).filter((e) => inFrame(e.date)), [data, inFrame]);
+  const macros = useMemo(() => {
+    const all = data?.macrotrends ?? [];
+    if (!framed) return all;
+    const n = new Map<string, number>();
+    for (const e of entries) for (const k of [e.macrotrend, `${e.macrotrend}${SEP}${e.subtrend ?? ""}`]) n.set(k, (n.get(k) ?? 0) + 1);
+    return all.map((m) => ({ ...m, count: n.get(m.name) ?? 0, subtrends: m.subtrends.map((x) => ({ ...x, count: n.get(`${m.name}${SEP}${x.name}`) ?? 0 })) }));
+  }, [data, entries, framed]);
   const isNew = useIsNewSignal();
   const palette = useMemo(() => paletteOf(macros), [macros]);
-  const entries = useMemo(() => data?.entries ?? [], [data]);
   const visible = macros.filter((m) => m.count > 0 && (!focusMacro || m.name === focusMacro));
   const total = visible.reduce((n, m) => n + m.count, 0);
   const macro = sel.macro ? macros.find((m) => m.name === sel.macro) : undefined;
@@ -116,10 +128,11 @@ export function MegatrendsPage({ focusMacro }: { me?: Me; focusMacro?: string })
     [colourBy, trendLegend, impacts, trendItems],
   );
 
-  // A selected Subtrend lists its sources on the right (High Impact first); ‹ › then step through that list.
+  // A selected Subtrend lists its sources on the right (most recent first, or by Impact); ‹ › then step through that list.
   const listKey = sel.macro && sel.sub ? subId(sel.macro, sel.sub) : null;
   const sourcesList = useSourcesList(listKey);
-  const sources = useMemo(() => (listKey ? bySourceOrder(entries.filter((e) => e.macrotrend === sel.macro && e.subtrend === sel.sub)) : []), [listKey, entries, sel]);
+  const [order, setOrder] = useState<SignalOrder>("recent");
+  const sources = useMemo(() => (listKey ? inSignalOrder(entries.filter((e) => e.macrotrend === sel.macro && e.subtrend === sel.sub), order) : []), [listKey, entries, sel, order]);
   const inList = openId && listKey ? sources.findIndex((e) => e.id === openId) : -1;
   const openIndex = openId ? items.findIndex((i) => i.entry.id === openId) : -1;
   const openItem = openIndex >= 0 ? items[openIndex] : openId ? timelineEntries(entries, { macro: null, sub: null }, palette).find((i) => i.entry.id === openId) : undefined;
@@ -255,7 +268,7 @@ export function MegatrendsPage({ focusMacro }: { me?: Me; focusMacro?: string })
           stepIn={inList >= 0 ? "in the signals list" : "on the timeline"}
           onClose={closeSheet}
           onStep={step}
-          sources={listKey && sel.sub ? { title: sel.sub, entries: sources, shown: sourcesList.shown, onShow: sourcesList.show, onHide: sourcesList.hide } : null}
+          sources={listKey && sel.sub ? { title: sel.sub, entries: sources, shown: sourcesList.shown, onShow: sourcesList.show, onHide: sourcesList.hide, order, onOrder: setOrder } : null}
           onOpen={(id) => set({ e: id }, false)}
           onBack={() => {
             set({ e: null }, false);
@@ -263,6 +276,7 @@ export function MegatrendsPage({ focusMacro }: { me?: Me; focusMacro?: string })
           }}
         />
       }
+      footer={frame.framing ? <ExploreTimeFrame frame={frame} title={`Explore Signals of ${focusMacro}`} /> : undefined}
       timeline={
         focusMacro ? undefined : (
           <Timeline

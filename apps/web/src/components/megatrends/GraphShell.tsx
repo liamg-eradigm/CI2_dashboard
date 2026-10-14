@@ -68,6 +68,7 @@ export function GraphShell({
   railNoun,
   rail,
   timeline,
+  footer,
   drawer,
   drawerOpen,
   embedded = false,
@@ -92,6 +93,8 @@ export function GraphShell({
   rail?: ReactNode;
   /** Below the graph (request 35: none on the Macrotrend dashboard's graph). */
   timeline?: ReactNode;
+  /** Request 58: a slim bar under the graph (Explore Signals' time frame). */
+  footer?: ReactNode;
   drawer: ReactNode;
   drawerOpen: boolean;
   /** Inside another page (a Macrotrend dashboard's Explore Signals) rather than the whole window. */
@@ -156,7 +159,7 @@ export function GraphShell({
   };
 
   return (
-    <div className={`mg-page${drawerOpen ? " drawer-open" : ""}${embedded ? " mg-embedded" : ""}${timeline ? "" : " no-timeline"}`} data-testid={storageKey} style={{ ["--side-w" as string]: `${w}px` }}>
+    <div className={`mg-page${drawerOpen ? " drawer-open" : ""}${embedded ? " mg-embedded" : ""}${timeline ? "" : " no-timeline"}${footer ? " has-footer" : ""}`} data-testid={storageKey} style={{ ["--side-w" as string]: `${w}px` }}>
       <section className="mg-stage" aria-label={stageLabel} ref={stage}>
         {!noGl && (
           <Suspense fallback={<div className="mg-loading">Loading the knowledge graph…</div>}>
@@ -261,6 +264,7 @@ export function GraphShell({
           </div>
         )}
       </section>
+      {footer && <div className="mg-footer">{footer}</div>}
       {timeline}
       {drawer}
     </div>

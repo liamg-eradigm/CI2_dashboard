@@ -166,7 +166,7 @@ export function CompetitorDashboard({
               {d && schema && filters ? (
                 <>
                   <SignalTimeline data={d} schema={schema} from={filters.from} to={filters.to} onOpen={rec.open} id="ta-tl-title" sizeKey="heading:cd-timeline" />
-                  <ImpactMixes filters={filters} schema={schema} show={["macro"]} note="an entry counts for its Macrotrend" sizeKey={() => "heading:cd-mix"} />
+                  <ImpactMixes filters={filters} schema={schema} show={["macro"]} note="an entry counts for its Macrotrend" sizeKey={() => "heading:cd-mix"} shared />
                 </>
               ) : (
                 !dash.isError && <div className="ad-skeleton" style={{ height: 420 }} role="status" aria-label="Loading the signals" />
@@ -184,7 +184,7 @@ export function CompetitorDashboard({
           <section className="cd-panel cd-graph" aria-label={`Explore Signals: the knowledge graph of ${name}'s signals`} aria-hidden={!graph} inert={!graph} data-testid="cd-graph">
             {graphOn ? (
               <Suspense fallback={<div className="mg-loading">Loading the knowledge graph…</div>}>
-                <CompetitorsPage me={me} focus={name} />
+                <CompetitorsPage me={me} focus={name} span={filters ? { from: filters.from, to: filters.to } : undefined} />
               </Suspense>
             ) : (
               <div className="mg-loading">The knowledge graph of {name}'s signals</div>

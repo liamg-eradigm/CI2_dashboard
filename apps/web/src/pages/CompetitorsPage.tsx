@@ -20,11 +20,12 @@ import { useCompetitors, useSettings } from "../api/hooks";
 import { EntrySheet, useSourcesList } from "../components/megatrends/EntrySheet";
 import { GraphShell } from "../components/megatrends/GraphShell";
 import type { GraphSpec } from "../components/megatrends/Graph3D";
-import { TIER_COLOUR, bySourceOrder, colourMap, impactColour, impactOrder, NEUTRAL, plural } from "../components/megatrends/model";
+import { TIER_COLOUR, colourMap, impactColour, impactOrder, inSignalOrder, NEUTRAL, plural, type SignalOrder } from "../components/megatrends/model";
 import { Timeline, type LegendItem } from "../components/megatrends/Timeline";
 import { GraphToggle } from "../components/megatrends/GraphToggle";
 import "../styles/megatrends.css";
 import { useIsNewSignal } from "../components/megatrends/newSignals";
+import { ExploreTimeFrame, useExploreFrame } from "../components/megatrends/ExploreTimeFrame";
 
 /**
  * Tiers (Admin → Competitor tiers) colour the spheres: Tier 1 red,
@@ -39,7 +40,8 @@ const hubId = (name: string) => `c:${name}`;
 const R_MIN = 1.4;
 const R_TOP = 26;
 
-export function CompetitorsPage({ focus }: { me?: Me; focus?: string }) {
+/** `span` (request 58): the company page's date span, whose time frame (shared with its Impact Mix) the bar under its Explore Signals picks. */
+export function CompetitorsPage({ focus, span }: { me?: Me; focus?: string; span?: { from: string; to: string } }) {
   const [params, setParams] = useSearchParams();
   const q = useCompetitors();
   const data = q.data;
@@ -77,15 +79,23 @@ export function CompetitorsPage({ focus }: { me?: Me; focus?: string }) {
   const settings = useSettings();
   const isNew = useIsNewSignal();
   const tiers = settings.data?.competitorTiers ?? DEFAULT_COMPETITOR_TIERS;
-  // "N/A" and the like are never competitors, whatever the API sends.
-  const comps = useMemo(() => (data?.competitors ?? []).filter((c) => !isPlaceholderCompetitor(c.name)).map((c) => ({ ...c, tier: tierOf(c.name, tiers) })), [data, tiers]);
+  // Request 58: Explore Signals shows the time frame's signals only (and counts them).
+  const frame = useExploreFrame(focus ? span : undefined);
+  const { inFrame, framed } = frame;
   const entries = useMemo(
     () =>
       (data?.entries ?? [])
+        .filter((e) => inFrame(e.date))
         .map((e) => ({ ...e, competitors: (e.competitors ?? []).filter((n) => !isPlaceholderCompetitor(n)) }))
         .filter((e) => e.competitors.length > 0),
-    [data],
+    [data, inFrame],
   );
+  // "N/A" and the like are never competitors, whatever the API sends.
+  const comps = useMemo(() => {
+    const named = new Map<string, number>();
+    if (framed) for (const e of entries) for (const c of e.competitors) named.set(c, (named.get(c) ?? 0) + 1);
+    return (data?.competitors ?? []).filter((c) => !isPlaceholderCompetitor(c.name)).map((c) => ({ ...c, ...(framed ? { count: named.get(c.name) ?? 0 } : {}), tier: tierOf(c.name, tiers) }));
+  }, [data, tiers, entries, framed]);
   const total = entries.length;
   const max = comps.reduce((m, c) => Math.max(m, c.count), 0);
   const byName = useMemo(() => new Map(comps.map((c) => [c.name, c])), [comps]);
@@ -151,9 +161,10 @@ export function CompetitorsPage({ focus }: { me?: Me; focus?: string }) {
     return names.map((name) => ({ name, colour: colourBy === "impact" ? impactColour(name === "No Impact" ? null : name) : (macroColour.get(name) ?? NEUTRAL), count: n.get(name) ?? 0 }));
   }, [shownEntries, colourBy, groupOf, macroColour]);
 
-  // A selected competitor lists its sources on the right (High Impact first); ‹ › then step through that list.
+  // A selected competitor lists its sources on the right (most recent first, or by Impact); ‹ › then step through that list.
   const sourcesList = useSourcesList(selected);
-  const sources = useMemo(() => (selected ? bySourceOrder(ofComp.get(selected) ?? []) : []), [selected, ofComp]);
+  const [order, setOrder] = useState<SignalOrder>("recent");
+  const sources = useMemo(() => (selected ? inSignalOrder(ofComp.get(selected) ?? [], order) : []), [selected, ofComp, order]);
   const inList = openId && selected ? sources.findIndex((e) => e.id === openId) : -1;
   const openIndex = openId ? items.findIndex((i) => i.entry.id === openId) : -1;
   // An entry opened from the graph or the list may be outside the timeline's legend filter.
@@ -205,7 +216,7 @@ export function CompetitorsPage({ focus }: { me?: Me; focus?: string }) {
           stepIn={inList >= 0 ? "in the signals list" : "on the timeline"}
           onClose={closeSheet}
           onStep={step}
-          sources={selected ? { title: selected, entries: sources, shown: sourcesList.shown, onShow: sourcesList.show, onHide: sourcesList.hide } : null}
+          sources={selected ? { title: selected, entries: sources, shown: sourcesList.shown, onShow: sourcesList.show, onHide: sourcesList.hide, order, onOrder: setOrder } : null}
           onOpen={(id) => set({ e: id }, false)}
           onBack={() => {
             set({ e: null }, false);
@@ -213,6 +224,7 @@ export function CompetitorsPage({ focus }: { me?: Me; focus?: string }) {
           }}
         />
       }
+      footer={frame.framing ? <ExploreTimeFrame frame={frame} title={`Explore Signals of ${focus}`} /> : undefined}
       timeline={
         focus ? undefined : (
         <Timeline
