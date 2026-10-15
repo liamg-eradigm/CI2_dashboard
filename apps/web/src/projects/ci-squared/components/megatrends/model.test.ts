@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MegatrendEntry } from "@eradigm/shared";
-import { NEUTRAL, PALETTE, byRecency, bySourceOrder, colourMap, paletteOf, shade, spreadSlots, timelineEntries, type Macro } from "./model";
+import { CLUSTER_GAP, NEUTRAL, PALETTE, byRecency, bySourceOrder, clusterLayout, clusterRadius, colourMap, paletteOf, shade, spreadSlots, timelineEntries, type Macro } from "./model";
 
 const node = (name: string, count: number, subs: [string, number][] = []): Macro => ({
   name,
@@ -82,5 +82,37 @@ describe("byRecency (request 58)", () => {
   it("lists the newest first, and the same day's signals by Impact, High first", () => {
     const out = byRecency([e("a", "Low", "2026-01-01"), e("b", "Low", "2026-05-01"), e("c", "High", "2026-05-01"), e("d", null, "2026-05-01"), e("e", "medium", "2026-05-01"), e("f", "High", "2026-03-01")]);
     expect(out.map((x) => x.id)).toEqual(["c", "e", "b", "d", "f", "a"]);
+  });
+});
+
+describe("request 62: clusterLayout (signals clustered around a hub, each with space around it)", () => {
+  const layout = (sizes: number[], ungrouped = 0) => {
+    const groups = [...sizes.flatMap((n, g) => Array.from({ length: n }, () => `g${g}`)), ...Array.from({ length: ungrouped }, () => null)];
+    return { groups, places: clusterLayout(groups, 40) };
+  };
+  const gap = (a: number[], b: number[]) => Math.hypot(a[0]! - b[0]!, a[1]! - b[1]!, a[2]! - b[2]!);
+
+  it("keeps every entry nearly a full gap from every other, however big the clusters", () => {
+    for (const sizes of [[2], [12], [80], [40, 20, 10, 5, 3, 1, 1], [25, 25, 25, 5]]) {
+      const { places } = layout(sizes);
+      for (let i = 0; i < places.length; i++) for (let j = i + 1; j < places.length; j++) expect(gap(places[i]!.at, places[j]!.at)).toBeGreaterThan(CLUSTER_GAP * 0.95);
+    }
+  });
+
+  it("grows a big cluster outwards: its centre further from the hub, and it is wider", () => {
+    expect(clusterRadius(1)).toBe(0);
+    expect(clusterRadius(60)).toBeGreaterThan(clusterRadius(10));
+    const far = (sizes: number[]) => Math.max(...layout(sizes).places.map((p) => Math.hypot(...p!.at)));
+    expect(far([60])).toBeGreaterThan(far([5]));
+    // Every entry is clear of the hub.
+    for (const p of layout([60]).places) expect(Math.hypot(...p!.at)).toBeGreaterThanOrEqual(40);
+  });
+
+  it("puts a group's entries together in their group's direction, and leaves ungrouped entries alone", () => {
+    const { groups, places } = layout([6, 6], 2);
+    expect(places.slice(-2)).toEqual([null, null]);
+    const dirOf = (g: string) => places[groups.indexOf(g)]!.dir;
+    expect(dirOf("g0")).not.toEqual(dirOf("g1"));
+    groups.forEach((g, i) => g && expect(places[i]!.dir).toEqual(dirOf(g)));
   });
 });

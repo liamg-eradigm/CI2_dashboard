@@ -22,7 +22,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ForceGraph3DInstance } from "3d-force-graph";
 import type ForceGraph3DClass from "3d-force-graph";
 import type * as ThreeNS from "three";
-import { plural, shade, spreadSlots } from "./model";
+import { CLUSTER_GAP, clusterLayout, plural, shade, spreadSlots } from "./model";
 
 type Three = typeof ThreeNS;
 
@@ -101,6 +101,8 @@ interface GNode {
   slot?: [number, number, number];
   /** Request 61: an entry's direction from its hub, shared by its group (so the group sits together). */
   cluster?: [number, number, number];
+  /** Request 62: the entry's own place, relative to its hub: its group's place plus its spot in the group (a bubble of space each). */
+  clusterAt?: [number, number, number];
 }
 interface GLink {
   source: string | GNode;
@@ -243,9 +245,9 @@ export function Graph3D({
       g.d3Force("center", null);
       g.d3Force("slots", slotForce(0.12) as never);
       g.d3Force("clusters", clusterForce(0.6) as never);
-      // Request 61: grouped entries barely push each other, so each group sits tightly together.
+      // Request 62: a grouped entry has its own place in its group (clusterLayout), so it pushes nothing.
       g.d3Force("charge")?.strength?.((n: GNode) =>
-        n.kind === "entry" ? (n.cluster ? -2.5 : -18) : n.kind === "core" ? -40 : comp() ? -(40 + n.r * 5) : n.level === 1 ? -170 : -110,
+        n.kind === "entry" ? (n.clusterAt ? 0 : -18) : n.kind === "core" ? -40 : comp() ? -(40 + n.r * 5) : n.level === 1 ? -170 : -110,
       );
       // Every level-1 hub hangs off the core on the same short orbit (so dragging
       // the core brings them along). Competitor ties are only drawn: each
@@ -260,7 +262,7 @@ export function Graph3D({
           // Entries orbit well clear of their hub, spread out rather than in a tight cluster.
           return 26 + s.r * 1.9;
         })
-        ?.strength?.((l: GLink) => (l.kind === "core" ? 0.6 : l.kind === "tie" ? 0 : l.kind === "entry" ? ((l.target as GNode).cluster ? 0.3 : 0.5) : 0.9));
+        ?.strength?.((l: GLink) => (l.kind === "core" ? 0.6 : l.kind === "tie" ? 0 : l.kind === "entry" ? ((l.target as GNode).clusterAt ? 0 : 0.5) : 0.9));
 
       // Lighting: a soft fill plus a key light, so spheres read as spheres.
       const key = new T.DirectionalLight(0xffffff, 2.6);
@@ -488,14 +490,17 @@ export function Graph3D({
       const hub = spec.orbit.hub;
       const shown = spec.orbit.entries.slice(-ENTRIES_SHOWN);
       // Request 61: each group its own direction from the hub, the biggest groups far apart.
-      const sizes = new Map<string, number>();
-      for (const e of shown) if (e.group) sizes.set(e.group, (sizes.get(e.group) ?? 0) + 1);
-      const groups = [...sizes].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([k]) => k);
-      const spread = spreadSlots(groups.map((g) => sizes.get(g)!));
-      const dirs = new Map(groups.map((k, i) => [k, spread[i]!]));
-      for (const e of shown) {
+      // Request 62: each entry its own spot in its group, with space around it; a big group sits further out.
+      const hubNode = byId.get(hub);
+      const places = clusterLayout(
+        shown.map((e) => e.group ?? null),
+        30 + (hubNode?.r ?? 0) * 2.1,
+      );
+      for (const [i, e] of shown.entries()) {
         const n = node({ id: `e:${e.id}`, kind: "entry", level: 0, root: hub, name: e.title, title: e.title, date: e.date, fresh: !!e.fresh, count: 1, colour: e.colour, r: 1.5, dots: [], labelScale: 0 });
-        n.cluster = e.group ? dirs.get(e.group) : undefined;
+        const at = places[i];
+        n.cluster = at ? at.dir : undefined;
+        n.clusterAt = at ? at.at : undefined;
         want.push(n);
         links.push({ source: hub, target: `e:${e.id}`, kind: "entry", weight: 1 });
       }
@@ -629,13 +634,20 @@ export function Graph3D({
     if (n.kind === "entry") {
       const dot = new T.Mesh(new T.SphereGeometry(n.r, 16, 12), track(new T.MeshBasicMaterial({ color: new T.Color(shade(n.colour, 0.25)), opacity: 1 })));
       group.add(dot);
-      group.add(glow(T, n.colour, n.r * 6, 0.5, track));
+      // Request 62: the pointer finds an entry anywhere in its own bubble (an unseen sphere, smaller than the space
+      // between entries), and never through a neighbour's glow.
+      const hit = new T.Mesh(new T.SphereGeometry(CLUSTER_GAP * 0.45, 10, 8), new T.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+      group.add(hit);
+      const halo = glow(T, n.colour, n.r * 6, 0.5, track);
+      halo.raycast = () => {};
+      group.add(halo);
       if (n.fresh) {
         // Not tracked: its opacity is the pulse's (entries in orbit are always in view).
-        const halo = glow(T, PULSE_COLOUR, n.r * 8, 0.7, (m) => m);
+        const pulseHalo = glow(T, PULSE_COLOUR, n.r * 8, 0.7, (m) => m);
         const ripple = rippleSprite(T, PULSE_COLOUR, n.r * 8);
-        group.add(halo, ripple);
-        pulse = { dot, halo, ripple, size: n.r * 8, phase: (hash(n.id) % 1000) / 1000 };
+        pulseHalo.raycast = ripple.raycast = () => {};
+        group.add(pulseHalo, ripple);
+        pulse = { dot, halo: pulseHalo, ripple, size: n.r * 8, phase: (hash(n.id) % 1000) / 1000 };
       }
     } else if (n.kind === "core") {
       const sphere = new T.Mesh(
@@ -914,22 +926,22 @@ const orbitOf = (n: GNode) => 66 + n.r * 2.2;
 
 /**
  * Request 61: pulls each grouped entry towards its group's place around its
- * hub (the hub's position plus the group's direction at the entries' orbit),
- * so a group sits together, tightly.
+ * hub. Request 62: to its own spot in the group (`clusterAt`, from
+ * clusterLayout), so the entries keep a bubble of space between them instead
+ * of piling into one blob.
  */
 function clusterForce(strength: number) {
   let nodes: GNode[] = [];
   let byId = new Map<string, GNode>();
   const force = (alpha: number) => {
     for (const n of nodes) {
-      if (!n.cluster || n.x == null) continue;
+      if (!n.clusterAt || n.x == null) continue;
       const hub = byId.get(n.root);
       if (!hub || hub.x == null) continue;
-      const d = 30 + hub.r * 2.1;
       const k = strength * alpha;
-      n.vx = (n.vx ?? 0) + (hub.x + n.cluster[0] * d - n.x) * k;
-      n.vy = (n.vy ?? 0) + ((hub.y ?? 0) + n.cluster[1] * d - (n.y ?? 0)) * k;
-      n.vz = (n.vz ?? 0) + ((hub.z ?? 0) + n.cluster[2] * d - (n.z ?? 0)) * k;
+      n.vx = (n.vx ?? 0) + (hub.x + n.clusterAt[0] - n.x) * k;
+      n.vy = (n.vy ?? 0) + ((hub.y ?? 0) + n.clusterAt[1] - (n.y ?? 0)) * k;
+      n.vz = (n.vz ?? 0) + ((hub.z ?? 0) + n.clusterAt[2] - (n.z ?? 0)) * k;
     }
   };
   force.initialize = (ns: GNode[]) => {

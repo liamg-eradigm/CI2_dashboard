@@ -147,3 +147,85 @@ export const inSignalOrder = <E extends { impact: string | null; date: string; t
 
 /** Competitor tier colours (Admin → Competitor tiers): Tier 1 red, 2 orange-yellow, 3 green, 4 (all others) grey. */
 export const TIER_COLOUR: Record<1 | 2 | 3 | 4, string> = { 1: "#e5534b", 2: "#e8a33d", 3: "#3fb37f", 4: "#8b9aa6" };
+
+/** Request 62: the space between neighbouring entries in a cluster (an entry's dot is 3 across). */
+export const CLUSTER_GAP = 8;
+
+type V3 = [number, number, number];
+const add = (a: V3, b: V3): V3 => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+const scale = (a: V3, k: number): V3 => [a[0] * k, a[1] * k, a[2] * k];
+const dist = (a: V3, b: V3) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+
+/** How many entries a shell `k` gaps out holds, each a gap from the next (the centre holds one). */
+const shellHolds = (k: number) => (k === 0 ? 1 : Math.floor(10 * k * k));
+
+/** The shells (radius in gaps, entries on it) of a cluster of `n`: filled from the centre out. */
+function shells(n: number): { k: number; count: number }[] {
+  const out: { k: number; count: number }[] = [];
+  for (let k = 0, left = n; left > 0; k++) {
+    const count = Math.min(left, shellHolds(k));
+    out.push({ k, count });
+    left -= count;
+  }
+  return out;
+}
+
+/** The radius of a cluster of `n` entries. */
+export const clusterRadius = (n: number) => (Math.max(1, shells(n).length) - 1) * CLUSTER_GAP;
+
+/**
+ * Request 62: where each grouped entry sits around its hub, so every entry has
+ * a bubble of space and can be pointed at on its own. Each group gets its own
+ * direction (spreadSlots: the biggest far apart); its entries fill shells
+ * around the group's centre, each entry a gap (CLUSTER_GAP) from the next, so
+ * the group grows outwards with its size. A group sits just clear of the hub, further out the bigger
+ * it is, and is pushed further out still while it would touch another group.
+ * Returns, per entry (in the order given), its group's direction and its place
+ * relative to the hub; null for an entry with no group.
+ */
+export function clusterLayout(groups: (string | null)[], base: number): ({ dir: V3; at: V3 } | null)[] {
+  const members = new Map<string, number[]>();
+  groups.forEach((g, i) => {
+    if (g) members.set(g, [...(members.get(g) ?? []), i]);
+  });
+  const names = [...members.keys()].sort((a, b) => members.get(b)!.length - members.get(a)!.length || a.localeCompare(b));
+  const dirs = spreadSlots(names.map((g) => members.get(g)!.length));
+  const radius = names.map((g) => clusterRadius(members.get(g)!.length));
+  // Each group's distance from the hub: clear of it, then clear of each other.
+  const far = radius.map((r) => base + r + CLUSTER_GAP);
+  const centre = (k: number) => scale(dirs[k]!, far[k]!);
+  for (let pass = 0; pass < 40; pass++) {
+    let moved = false;
+    for (let a = 0; a < names.length; a++) {
+      for (let b = a + 1; b < names.length; b++) {
+        const need = radius[a]! + radius[b]! + CLUSTER_GAP * 1.5;
+        if (dist(centre(a), centre(b)) >= need) continue;
+        // The bigger group moves out (a step at a time, until they are clear).
+        const k = radius[a]! >= radius[b]! ? a : b;
+        far[k] = far[k]! + CLUSTER_GAP * 0.5;
+        moved = true;
+      }
+    }
+    if (!moved) break;
+  }
+  const out: ({ dir: V3; at: V3 } | null)[] = groups.map(() => null);
+  const golden = Math.PI * (3 - Math.sqrt(5));
+  names.forEach((g, k) => {
+    const idx = members.get(g)!;
+    const n = idx.length;
+    const c = centre(k);
+    // Shell by shell from the centre: each shell's entries spread evenly over it (a golden-angle spiral), a gap apart.
+    let at = 0;
+    for (const { k: shell, count } of shells(n)) {
+      const r = shell * CLUSTER_GAP;
+      for (let i = 0; i < count; i++, at++) {
+        const y = count === 1 ? 0 : 1 - (2 * (i + 0.5)) / count;
+        const ring = Math.sqrt(Math.max(0, 1 - y * y));
+        // Each shell turned a little, so the shells' spirals do not line up.
+        const a = golden * i + shell * 1.3;
+        out[idx[at]!] = { dir: dirs[k]!, at: add(c, [Math.cos(a) * ring * r, y * r, Math.sin(a) * ring * r]) };
+      }
+    }
+  });
+  return out;
+}
