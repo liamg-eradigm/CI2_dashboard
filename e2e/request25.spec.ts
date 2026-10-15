@@ -17,7 +17,7 @@ test.describe("request 25", () => {
     const card = page.getByTestId("competitor-tiers");
     await expect(card.getByLabel("Tier 1 competitors, one per line")).toHaveValue(/Pfizer/);
     await expect(page.getByTestId("tab-order")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Users" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Projects and access" })).toBeVisible();
     await expectAccessible(page, "Administration against an older API");
   });
 
@@ -57,6 +57,6 @@ test.describe("request 25", () => {
     await expect(page.getByRole("heading", { level: 1, name: "Admin", exact: true })).toBeVisible();
     await expect(page.getByRole("navigation", { name: "COMPETITIVE INTELLIGENCE" })).toBeVisible();
     await expect(page.getByTestId("error-boundary").first()).toContainText("could not be shown");
-    await expect(page.getByRole("heading", { name: "Users" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Projects and access" })).toBeVisible();
   });
 });
