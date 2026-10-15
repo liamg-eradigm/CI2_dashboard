@@ -9,6 +9,7 @@ import { useLocation } from "react-router-dom";
 import {
   DEFAULT_MENU,
   MENU_ITEM_PATH,
+  TEST_PATH_PREFIX,
   can,
   canSeeTab,
   groupLabel,
@@ -21,12 +22,14 @@ import {
   type MenuGroupSetting,
   type MenuItemKey,
 } from "@eradigm/shared";
-import { appHref } from "../../api/space";
+import { PROJECT_BASE, SPACE } from "../../api/space";
 import { MenuLink } from "../../components/MenuLink";
 import { useClientInboxCount, useInboxCounts, useSettings } from "./api/hooks";
 
 /** Whether a menu item is the page shown (by its full path: the Test tab's pages are under /test). */
-const isHere = (item: MenuItemKey, pathname: string) => isMenuItemAt(item, appHref(pathname));
+const isHere = (item: MenuItemKey, pathname: string) => isMenuItemAt(item, SPACE === "test" ? `${TEST_PATH_PREFIX}${pathname}` : pathname);
+/** A menu item's address in this workspace (request 61: a workspace other than the first is under /p/<slug>). */
+const hrefOf = (item: MenuItemKey) => `${PROJECT_BASE}${MENU_ITEM_PATH[item]}`;
 
 /**
  * A menu group (Inputs, Analytics; requests 28 and 31): a button that opens
@@ -67,7 +70,7 @@ function NavGroup({
             return (
               <MenuLink
                 key={it.key}
-                path={MENU_ITEM_PATH[it.key]}
+                path={hrefOf(it.key)}
                 aria-label={`${label}: ${itemLabel(it)}`}
                 aria-current={isHere(it.key, loc.pathname) ? "page" : undefined}
                 className={isHere(it.key, loc.pathname) ? "active" : ""}
@@ -93,7 +96,7 @@ function SoloTab({ group, item }: { group: MenuGroupSetting; item: MenuItemKey }
   const here = isHere(item, loc.pathname);
   return (
     <div className={`nav-group solo${here ? " within" : ""}`} data-testid={`nav-group-${group.key}`}>
-      <MenuLink className={`nav-solo${here ? " active" : ""}`} path={MENU_ITEM_PATH[item]} aria-current={here ? "page" : undefined}>
+      <MenuLink className={`nav-solo${here ? " active" : ""}`} path={hrefOf(item)} aria-current={here ? "page" : undefined}>
         <span>{groupLabel(group)}</span>
       </MenuLink>
     </div>

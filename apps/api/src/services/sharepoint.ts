@@ -29,20 +29,29 @@ interface Config {
   itemId: string;
 }
 
-/** The secrets that are not set (none: the workbook can be read). */
-export function missingSecrets(env: Env): string[] {
-  return SHAREPOINT_SECRETS.filter((k) => !env[k]?.trim());
+/** The app's own sign-in secrets (any workbook it reads). */
+export const SHAREPOINT_APP_SECRETS = ["SHAREPOINT_TENANT_ID", "SHAREPOINT_CLIENT_ID", "SHAREPOINT_CLIENT_SECRET"] as const;
+
+/** Request 61: a workbook named by its drive (document library) and item ids, instead of the secrets' (the Test tab's). */
+export interface WorkbookTarget {
+  driveId: string;
+  itemId: string;
 }
 
-function config(env: Env): Config {
-  const missing = missingSecrets(env);
+/** The secrets that are not set (none: the workbook can be read). */
+export function missingSecrets(env: Env, target?: WorkbookTarget): string[] {
+  return (target ? SHAREPOINT_APP_SECRETS : SHAREPOINT_SECRETS).filter((k) => !env[k]?.trim());
+}
+
+function config(env: Env, target?: WorkbookTarget): Config {
+  const missing = missingSecrets(env, target);
   if (missing.length) throw new GraphError("config", `Not configured: set ${missing.join(", ")} with wrangler secret put`, { hint: "Set the missing secrets, then redeploy the API." });
   return {
     tenantId: env.SHAREPOINT_TENANT_ID!.trim(),
     clientId: env.SHAREPOINT_CLIENT_ID!.trim(),
     clientSecret: env.SHAREPOINT_CLIENT_SECRET!.trim(),
-    driveId: env.SHAREPOINT_DRIVE_ID!.trim(),
-    itemId: env.SHAREPOINT_ITEM_ID!.trim(),
+    driveId: target?.driveId ?? env.SHAREPOINT_DRIVE_ID!.trim(),
+    itemId: target?.itemId ?? env.SHAREPOINT_ITEM_ID!.trim(),
   };
 }
 
@@ -170,8 +179,8 @@ export interface WorkbookFile {
 const itemPath = (cfg: Config) => `/drives/${encodeURIComponent(cfg.driveId)}/items/${encodeURIComponent(cfg.itemId)}`;
 
 /** The file's name and version (one Graph call): enough to tell whether it changed. */
-export async function workbookFile(env: Env): Promise<WorkbookFile> {
-  const cfg = config(env);
+export async function workbookFile(env: Env, target?: WorkbookTarget): Promise<WorkbookFile> {
+  const cfg = config(env, target);
   const token = await appToken(cfg);
   const res = await graph(cfg, token, `${itemPath(cfg)}?$select=name,size,lastModifiedDateTime,lastModifiedBy,webUrl,cTag,eTag,file`, "file");
   const it = (await res.json()) as { name: string; size?: number; lastModifiedDateTime?: string; lastModifiedBy?: { user?: { displayName?: string } }; webUrl?: string; cTag?: string; eTag?: string; file?: unknown };
@@ -187,8 +196,8 @@ export async function workbookFile(env: Env): Promise<WorkbookFile> {
 }
 
 /** The workbook's bytes. */
-export async function downloadWorkbook(env: Env): Promise<Uint8Array> {
-  const cfg = config(env);
+export async function downloadWorkbook(env: Env, target?: WorkbookTarget): Promise<Uint8Array> {
+  const cfg = config(env, target);
   const token = await appToken(cfg);
   const res = await graph(cfg, token, `${itemPath(cfg)}/content`, "download");
   const bytes = new Uint8Array(await res.arrayBuffer());
@@ -196,10 +205,10 @@ export async function downloadWorkbook(env: Env): Promise<Uint8Array> {
   return bytes;
 }
 
-/** Every sheet of a workbook's bytes. */
-export async function readWorkbook(bytes: Uint8Array): Promise<{ name: string; grid: Grid }[]> {
+/** Every sheet of a workbook's bytes (or, with `only`, the sheets it picks). */
+export async function readWorkbook(bytes: Uint8Array, only?: (name: string) => boolean, opts?: { formats?: boolean }): Promise<{ name: string; grid: Grid }[]> {
   try {
-    return await parseXlsxBook(bytes);
+    return await parseXlsxBook(bytes, only, opts);
   } catch (err) {
     throw logged(new GraphError("read", `The file could not be read as an Excel workbook: ${(err as Error).message}`, { hint: "The file must be an .xlsx workbook (not .xls or .csv)." }));
   }
@@ -213,6 +222,48 @@ export function headerRow(grid: Grid): { at: number; columns: string[] } {
   let end = row.length;
   while (end > 0 && !row[end - 1]?.trim()) end--;
   return { at, columns: row.slice(0, end).map((v) => (v ?? "").replace(/\s+/g, " ").trim()) };
+}
+
+/**
+ * Request 61: the drive and item ids of a workbook from its SharePoint link
+ * (“Copy link”). Graph opens a sharing link directly (/shares); when it
+ * cannot (an app with access to one site only may not), the file is looked
+ * for by name on the link's site.
+ */
+export async function resolveWorkbookLink(env: Env, link: string, fileName: string): Promise<WorkbookTarget & { name: string; webUrl: string | null }> {
+  const creds = config(env, { driveId: "", itemId: "" });
+  const token = await appToken(creds);
+  type Item = { id: string; name: string; webUrl?: string; parentReference?: { driveId?: string }; file?: unknown };
+  const asTarget = (it: Item) => ({ driveId: it.parentReference?.driveId ?? "", itemId: it.id, name: it.name, webUrl: it.webUrl ?? null });
+  const share = `u!${btoa(link.trim()).replace(/=+$/, "").replace(/\//g, "_").replace(/\+/g, "-")}`;
+  let first: GraphError | null = null;
+  try {
+    const res = await graph(creds, token, `/shares/${share}/driveItem?$select=id,name,webUrl,parentReference,file`, "file");
+    const it = (await res.json()) as Item;
+    if (it.parentReference?.driveId) return asTarget(it);
+  } catch (err) {
+    if (!(err instanceof GraphError)) throw err;
+    first = err;
+  }
+  // The site the link is on: https://<host>/:x:/s/<site>/… or https://<host>/sites/<site>/…
+  let url: URL;
+  try {
+    url = new URL(link.trim());
+  } catch {
+    throw logged(new GraphError("file", "That is not a link", { hint: "Paste the workbook's link from SharePoint or Excel (Share → Copy link)." }));
+  }
+  const site = /\/(?::[a-z]:\/)?(?:s|sites|teams|t)\/([^/?#]+)/i.exec(url.pathname)?.[1];
+  const kind = /\/(?::[a-z]:\/)?(t|teams)\//i.test(url.pathname) ? "teams" : "sites";
+  if (!site) throw first ?? logged(new GraphError("file", "The link does not name a SharePoint site", { hint: "Paste the workbook's SharePoint link (it contains /s/<site name>/)." }));
+  const siteRes = await graph(creds, token, `/sites/${url.hostname}:/${kind}/${encodeURIComponent(decodeURIComponent(site))}?$select=id`, "file");
+  const siteId = ((await siteRes.json()) as { id: string }).id;
+  const q = fileName.replace(/'/g, "''");
+  const found = await graph(creds, token, `/sites/${encodeURIComponent(siteId)}/drive/root/search(q='${encodeURIComponent(q)}')?$select=id,name,webUrl,parentReference,file&$top=50`, "file");
+  const items = ((await found.json()) as { value?: Item[] }).value ?? [];
+  const it = items.find((x) => x.file && x.name.toLowerCase() === fileName.toLowerCase()) ?? items.find((x) => x.file && /\.xlsx$/i.test(x.name) && x.name.toLowerCase().includes(fileName.toLowerCase().replace(/\.xlsx$/i, "")));
+  if (!it?.parentReference?.driveId)
+    throw logged(new GraphError("file", `No workbook named “${fileName}” on that site`, { status: 404, hint: "Check the file name (Admin → Epilepsy settings) matches the workbook's name on SharePoint exactly." }));
+  return asTarget(it);
 }
 
 export interface CheckStep {

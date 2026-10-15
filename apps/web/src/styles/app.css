@@ -1156,6 +1156,7 @@ html.resizing-rows { overflow: hidden; }
 .access-project-name .control { width: 220px; }
 .access-table th.access-project { color: var(--navy-700); }
 .access-table .muted { color: var(--muted-2); }
+.access-table td:first-child { white-space: nowrap; }
 .admin-project-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 2px 0; }
 .admin-project-head .card-title { font-size: 18px; }
 .project-toggle { min-width: 280px; }

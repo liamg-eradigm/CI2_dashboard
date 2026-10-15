@@ -16,6 +16,7 @@ import { MACRO_SECTION_KEYS, TREND_ANALYSIS_CATEGORIES, TREND_ANALYSIS_SOURCES, 
 import { DEFAULT_COMPETITOR_TIERS } from "./competitors.js";
 import { KiqTopicsSchema } from "./kiq.js";
 import { AccessSchema, AddPersonRequest, ProjectSchema, RenameProjectRequest, SetAccessRequest } from "./projects.js";
+import { EpilepsyDataSchema, EpilepsySettingsRequest, EpilepsySyncRequest, EpilepsySyncStatusSchema } from "./epilepsy.js";
 import { DEFAULT_MENU, MAX_MENU_LABEL, MENU_GROUPS, MENU_ITEMS } from "./menu.js";
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD");
@@ -1078,6 +1079,10 @@ export const ENDPOINTS: EndpointDef[] = [
   { method: "put", path: "/api/access/{userId}", summary: "Request 61: give a person a role in a project, change it, or take their access away (admins of that project)", roles: ADMIN, request: SetAccessRequest, response: AccessSchema },
   { method: "post", path: "/api/access/{userId}/invite", summary: "Request 61: a one-time sign-in link for a person in a project the caller manages", roles: STAFF, response: InviteSchema },
   { method: "post", path: "/api/access/{userId}/sessions/revoke", summary: "Request 61: end a person's sessions (admins of a project they are in)", roles: ADMIN },
+  { method: "get", path: "/api/epilepsy/data", summary: "Request 61 (Epilepsy): the workbook's four sheets, the companies' colours and when it was last read", roles: ALL_ROLES, response: EpilepsyDataSchema },
+  { method: "get", path: "/api/epilepsy/status", summary: "Request 61 (Epilepsy): the workbook's sync status", roles: ALL_ROLES, response: EpilepsySyncStatusSchema },
+  { method: "put", path: "/api/epilepsy/settings", summary: "Request 61 (Epilepsy): the workbook's link and file name, and the companies' colours", roles: ADMIN, request: EpilepsySettingsRequest, response: EpilepsySyncStatusSchema },
+  { method: "post", path: "/api/epilepsy/sync", summary: "Request 61 (Epilepsy): Sync now (read the workbook when it changed; force: anyway)", roles: STAFF, request: EpilepsySyncRequest, response: EpilepsySyncStatusSchema },
   { method: "patch", path: "/api/projects/{id}", summary: "Request 61: rename a project (its admins)", roles: ADMIN, request: RenameProjectRequest, response: ProjectSchema.omit({ path: true }) },
   { method: "post", path: "/api/users", summary: "Create a user and a one-time Microsoft sign-in invite link (analysts: analyst/client only)", roles: STAFF, request: CreateUserRequest, response: UserWithInviteSchema },
   { method: "post", path: "/api/users/{id}/invite", summary: "Issue a new one-time sign-in link (also re-links a changed Microsoft account)", roles: STAFF, response: InviteSchema },
