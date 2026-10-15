@@ -18,6 +18,7 @@ import {
   CreateManualRequest,
   GenerateDiscussionSummaryRequest,
   GenerateNewsletterRequest,
+  SaveAlertRequest,
   UpdateDiscussionSummaryRequest,
   DOCX_MIME,
   GenerateTrendSummaryRequest,
@@ -125,7 +126,7 @@ import {
 } from "./services/trendAnalyses.js";
 import { listPages, pageSnapshotId } from "./services/pages.js";
 import { addComment, backToEradigm, clientPush, listComments, sendToClient, updateComment } from "./services/clientInbox.js";
-import { databaseExtras, deleteDeliverable, generateNewsletter, listNewsletters, readDeliverable } from "./services/deliverables.js";
+import { alertEdit, databaseExtras, deleteDeliverable, generateNewsletter, listNewsletters, readDeliverable, saveAlertEdit } from "./services/deliverables.js";
 import { getDiscussionSummary, regenerateDiscussionSummary, writeDiscussionSummary } from "./services/discussionSummaries.js";
 import { createInvite, createUser, listUsers, revokeSessions, updateUser } from "./services/users.js";
 import { ensureTestSpace, excelStatus, syncStep } from "./services/excelSync.js";
@@ -694,6 +695,20 @@ app.delete("/api/deliverables/:id", async (c) => {
   const p = P(c);
   requirePermission(p, "item:delete");
   return c.json(await deleteDeliverable(c.env, p, c.req.param("id")));
+});
+
+/** Request 61: an alert's text, to reword it in its viewer. */
+app.get("/api/deliverables/:id/alert", async (c) => {
+  const p = P(c);
+  requirePermission(p, "item:edit");
+  return c.json(await alertEdit(c.env, p.tenantId, c.req.param("id"), (stream) => schemaFor(c, stream)));
+});
+
+app.put("/api/deliverables/:id/alert", async (c) => {
+  const p = P(c);
+  requirePermission(p, "item:edit");
+  const b = await body(c, SaveAlertRequest);
+  return c.json(await saveAlertEdit(c.env, p, c.req.param("id"), b.fields, (stream) => schemaFor(c, stream)));
 });
 
 /** A stored alert or newsletter .docx: inline for the side pane, or ?download=1 as a file. */

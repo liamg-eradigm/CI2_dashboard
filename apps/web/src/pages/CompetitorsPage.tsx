@@ -135,10 +135,12 @@ export function CompetitorsPage({ focus, span }: { me?: Me; focus?: string; span
       ties: focus ? [] : (data?.pairs ?? []).filter((p) => !isPlaceholderCompetitor(p.a) && !isPlaceholderCompetitor(p.b)).map((p) => ({ a: hubId(p.a), b: hubId(p.b), weight: p.count })),
       open: selected ? hubId(selected) : null,
       selected: selected ? hubId(selected) : null,
-      orbit: selected ? { hub: hubId(selected), entries: (ofComp.get(selected) ?? []).map((e) => ({ id: e.id, title: e.title, date: e.date, colour: impactColour(e.impact), fresh: isNew(e.date) })) } : null,
+      // Request 61: clustered by Macrotrend.
+      orbit: selected ? { hub: hubId(selected), entries: (ofComp.get(selected) ?? []).map((e) => ({ id: e.id, title: e.title, date: e.date, colour: impactColour(e.impact), fresh: isNew(e.date), group: e.macrotrend || "No Macrotrend" })) } : null,
       noCore: !!focus,
+      focus: openId,
     }),
-    [comps, max, ofComp, data, selected, total, isNew, focus],
+    [comps, max, ofComp, data, selected, total, isNew, focus, openId],
   );
 
   // Timeline: the selected competitor's entries (or every entry naming one), by Impact or by Macrotrend.
@@ -162,7 +164,7 @@ export function CompetitorsPage({ focus, span }: { me?: Me; focus?: string; span
   }, [shownEntries, colourBy, groupOf, macroColour]);
 
   // A selected competitor lists its sources on the right (most recent first, or by Impact); ‹ › then step through that list.
-  const sourcesList = useSourcesList(selected);
+  const sourcesList = useSourcesList(selected, !!focus);
   const [order, setOrder] = useState<SignalOrder>("recent");
   const sources = useMemo(() => (selected ? inSignalOrder(ofComp.get(selected) ?? [], order) : []), [selected, ofComp, order]);
   const inList = openId && selected ? sources.findIndex((e) => e.id === openId) : -1;

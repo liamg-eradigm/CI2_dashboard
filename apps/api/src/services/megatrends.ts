@@ -100,7 +100,9 @@ export async function megatrends(env: Env, tenantId: string, q: MegatrendsQuery,
   const [counts, rows, sums] = await env.DB.batch([
     env.DB.prepare(`SELECT i.macrotrend AS macro, i.subtrend AS sub, COUNT(*) AS n FROM intelligence_items i WHERE ${w.sql} GROUP BY i.macrotrend, i.subtrend`).bind(tenantId, ...w.binds),
     env.DB.prepare(
-      `SELECT i.id, i.signal_code, i.record_id, i.stream, i.pub_date, i.title, i.macrotrend, i.subtrend, i.impact, ${CI_EXPR} AS ci FROM intelligence_items i WHERE ${w.sql}
+      `SELECT i.id, i.signal_code, i.record_id, i.stream, i.pub_date, i.title, i.macrotrend, i.subtrend, i.impact, ${CI_EXPR} AS ci,
+              (SELECT group_concat(c.competitor, '\u001f') FROM item_competitors c WHERE c.item_id = i.id) AS comps
+         FROM intelligence_items i WHERE ${w.sql}
         ORDER BY i.pub_date DESC, i.signal_code DESC LIMIT ${MEGATRENDS_MAX_ENTRIES + 1}`,
     ).bind(tenantId, ...w.binds),
     env.DB.prepare(SUMMARY_SELECT).bind(tenantId),
@@ -145,6 +147,7 @@ export async function megatrends(env: Env, tenantId: string, q: MegatrendsQuery,
     subtrend: string | null;
     impact: string | null;
     ci: number | null;
+    comps: string | null;
   }[];
   const truncated = list.length > MEGATRENDS_MAX_ENTRIES;
   const entries: MegatrendEntry[] = list
@@ -161,6 +164,7 @@ export async function megatrends(env: Env, tenantId: string, q: MegatrendsQuery,
       subtrend: r.subtrend || null,
       impact: r.impact,
       ci: !!r.ci,
+      competitors: r.comps ? r.comps.split("\u001f").sort() : [],
     }));
 
   return {

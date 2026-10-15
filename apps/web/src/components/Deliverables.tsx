@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { NEWSLETTER_SECTIONS, NEWSLETTER_SECTION_LABEL, can, type Me, type Newsletter, type NewsletterSection } from "@eradigm/shared";
+import { ALERT_FIELDS, ALERT_FIELD_LABEL, ALERT_LONG_FIELDS, NEWSLETTER_SECTIONS, NEWSLETTER_SECTION_LABEL, can, type AlertEdit, type AlertField, type AlertFields, type Me, type Newsletter, type NewsletterSection } from "@eradigm/shared";
 import { api, request, type ApiError } from "../api/client";
-import { useInvalidate, useNewsletters } from "../api/hooks";
+import { useInvalidate, useMe, useNewsletters } from "../api/hooks";
+import { RichTextField } from "./RichTextField";
 import { localDateTime } from "../lib/format";
 import { useToast } from "../state/toast";
 import { useFocusTrap } from "./RecordDrawer";
@@ -53,6 +54,10 @@ export function DocxButton({ label, onClick }: { label: string; onClick: () => v
  */
 export function DocxPane({ id, title, kind, onClose }: { id: string; title: string; kind: string; onClose: () => void }) {
   const ref = useFocusTrap(true, onClose);
+  // Request 61: analysts and admins reword an alert here and save it.
+  const me = useMe().data;
+  const canEdit = kind === "Alert" && !!me && can(me.role, "item:edit");
+  const [editing, setEditing] = useState(false);
   const host = useRef<HTMLDivElement>(null);
   const toast = useToast();
   const [changed, setChanged] = useState(false);
@@ -132,6 +137,12 @@ export function DocxPane({ id, title, kind, onClose }: { id: string; title: stri
             <span>{kind}</span>
           </span>
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            {canEdit && !editing && (
+              <button className="btn secondary small" onClick={() => setEditing(true)} data-testid="alert-edit">
+                ✎ Edit alert
+              </button>
+            )}
+            {!editing && (
             <span className="fmt-bar docx-fmt" role="toolbar" aria-label="Format the selected text in this view" data-testid="docx-format">
               <button type="button" className="fmt-btn b" onMouseDown={keep} onClick={() => format("bold")} aria-label="Bold" title="Bold (select text first)" data-testid="docx-bold">
                 B
@@ -156,6 +167,7 @@ export function DocxPane({ id, title, kind, onClose }: { id: string; title: stri
                 </button>
               )}
             </span>
+            )}
             <button
               className="link-btn"
               onClick={() =>
@@ -180,7 +192,18 @@ export function DocxPane({ id, title, kind, onClose }: { id: string; title: stri
             Formatting changes show here only; Download gives the document as generated.
           </p>
         )}
-        <div className="docx-body" aria-label={`${kind}: ${title}`} role="document" tabIndex={0}>
+        {editing && (
+          <AlertEditor
+            id={id}
+            onCancel={() => setEditing(false)}
+            onSaved={() => {
+              setEditing(false);
+              setChanged(false);
+              setReload((n) => n + 1);
+            }}
+          />
+        )}
+        <div className="docx-body" aria-label={`${kind}: ${title}`} role="document" tabIndex={0} hidden={editing}>
           {state.loading && <div className="skeleton" style={{ height: 320, margin: 24 }} />}
           {state.error && (
             <p className="err-msg" role="alert" style={{ margin: 24 }}>
@@ -191,6 +214,105 @@ export function DocxPane({ id, title, kind, onClose }: { id: string; title: stri
         </div>
       </div>
     </>
+  );
+}
+
+/**
+ * Request 61: reword an automatically generated alert. Each part of the alert
+ * (the text of a template placeholder) can be changed; Save writes the alert
+ * again with it. A part left as generated keeps following its entry; a
+ * reworded one is marked and can be put back.
+ */
+function AlertEditor({ id, onCancel, onSaved }: { id: string; onCancel: () => void; onSaved: () => void }) {
+  const toast = useToast();
+  const inv = useInvalidate();
+  const [data, setData] = useState<AlertEdit | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [v, setV] = useState<AlertFields | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    let gone = false;
+    api<AlertEdit>(`/api/deliverables/${id}/alert`).then(
+      (d) => {
+        if (gone) return;
+        setData(d);
+        setV(d.fields);
+      },
+      (e: ApiError) => !gone && setErr(e.message),
+    );
+    return () => {
+      gone = true;
+    };
+  }, [id]);
+  const save = async (fields: AlertFields) => {
+    setBusy(true);
+    try {
+      await api<AlertEdit>(`/api/deliverables/${id}/alert`, { method: "PUT", json: { fields } });
+      await inv("deliverables");
+      toast("Alert saved");
+      onSaved();
+    } catch (e) {
+      toast(`Could not save the alert · ${(e as ApiError).message}`, false);
+      setBusy(false);
+    }
+  };
+  if (err) return <p className="err-msg" role="alert" style={{ margin: 24 }}>{err}</p>;
+  if (!data || !v) return <div className="skeleton" style={{ height: 320, margin: 24 }} />;
+  const set = (k: AlertField, x: string) => setV((p) => (p ? { ...p, [k]: x } : p));
+  const differs = (k: AlertField) => v[k] !== data.generated[k];
+  return (
+    <form
+      className="alert-edit"
+      data-testid="alert-editor"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void save(v);
+      }}
+    >
+      <p className="card-sub" style={{ margin: 0 }}>
+        Change any part of the alert, then save: the alert is written again with it. A part left as generated keeps following its entry.
+        {data.editedAt && data.editedBy ? ` Last reworded by ${data.editedBy}, ${localDateTime(data.editedAt)}.` : ""}
+      </p>
+      {ALERT_FIELDS.map((k) => {
+        const long = ALERT_LONG_FIELDS.includes(k);
+        const fid = `alert-${k}`;
+        return (
+          <div className="field" key={k}>
+            <span className="alert-edit-label">
+              <label htmlFor={fid} id={`${fid}-label`}>
+                {ALERT_FIELD_LABEL[k]}
+              </label>
+              {differs(k) && (
+                <>
+                  <span className="alert-edit-tag">Reworded</span>
+                  <button type="button" className="link-btn" onClick={() => set(k, data.generated[k])} aria-label={`Put back the generated ${ALERT_FIELD_LABEL[k]}`}>
+                    Put back
+                  </button>
+                </>
+              )}
+            </span>
+            {long ? (
+              <RichTextField id={fid} value={v[k]} onValueChange={(x) => set(k, x)} rows={5} aria-labelledby={`${fid}-label`} />
+            ) : (
+              <input id={fid} className="control" value={v[k]} onChange={(e) => set(k, e.target.value)} maxLength={2000} />
+            )}
+          </div>
+        );
+      })}
+      <div className="alert-edit-actions">
+        <button type="submit" className="btn" disabled={busy} data-testid="alert-save">
+          {busy ? "Saving…" : "Save alert"}
+        </button>
+        <button type="button" className="btn secondary" onClick={onCancel} disabled={busy}>
+          Cancel
+        </button>
+        {data.edited.length > 0 && (
+          <button type="button" className="link-btn" onClick={() => void save(data.generated)} disabled={busy} data-testid="alert-reset">
+            Put the whole alert back as generated
+          </button>
+        )}
+      </div>
+    </form>
   );
 }
 

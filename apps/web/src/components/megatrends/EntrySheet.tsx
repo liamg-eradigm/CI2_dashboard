@@ -16,15 +16,22 @@ export function openSourcePopup(itemId: string, pageId: string | null = null) {
   window.open(url, `eradigm-source-${itemId}${pageId ? `-${pageId}` : ""}`, `popup=yes,width=${w},height=${h},left=${Math.round((window.screen.availWidth - w) / 2)},top=40`);
 }
 
-/** The sources list of a Subtrend or competitor: shown when it is selected, until ✕ hides it (for that selection). */
-export function useSourcesList(key: string | null) {
+/**
+ * The sources list of a Subtrend or competitor: shown when it is selected, until ✕ hides it (for that selection).
+ * `sticky` (request 61, Explore Signals): once hidden it stays hidden, whatever is selected, until shown again.
+ */
+export function useSourcesList(key: string | null, sticky = false) {
   const [hiddenFor, setHiddenFor] = useState<string | null>(null);
+  const [hidden, setHidden] = useState(false);
   return {
-    shown: !!key && hiddenFor !== key,
-    hide: () => setHiddenFor(key),
-    show: () => setHiddenFor(null),
+    shown: !!key && (sticky ? !hidden : hiddenFor !== key),
+    hide: () => (sticky ? setHidden(true) : setHiddenFor(key)),
+    show: () => (sticky ? setHidden(false) : setHiddenFor(null)),
   };
 }
+
+/** "October 2026" for a YYYY-MM-DD date. */
+const monthOf = (date: string) => new Date(`${date.slice(0, 7)}-01T00:00:00Z`).toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" });
 
 export interface SourcesList {
   /** The Subtrend or competitor. */
@@ -43,8 +50,9 @@ export interface SourcesList {
  * The drawer that slides in from the right (Megatrends and Competitors).
  *
  * - Sources: selecting a Subtrend or a competitor lists its entries, most
- *   recent first (the same day's by Impact) or by Impact, high to low (the
- *   toggle at its top right, request 58); each row an Impact dot, as much of
+ *   recent first (the same day's by Impact; request 61: under a heading for
+ *   each month) or by Impact, high to low (the toggle at its top right,
+ *   request 58); each row an Impact dot, as much of
  *   the title as fits and its tags: from the right, the signal's date, New,
  *   then CI Perspective (request 59).
  *   ✕ (or Esc) hides it; "Signals" at the right edge brings it back.
@@ -165,8 +173,14 @@ export function EntrySheet({
               <p className="mg-hint">No signals.</p>
             ) : (
               <ul className="mg-source-list" ref={listBox} aria-label={`Signals of ${sources.title}`}>
-                {sources.entries.map((x) => (
-                  <li key={x.id}>
+                {sources.entries.map((x, i) => (
+                  <li key={x.id} className="mg-source-item">
+                    {/* Request 61: most recent first, the list is in months, each under a small heading. */}
+                    {sources.order === "recent" && (i === 0 || sources.entries[i - 1]!.date.slice(0, 7) !== x.date.slice(0, 7)) && (
+                      <h3 className="mg-month" data-testid="signal-month">
+                        {monthOf(x.date)}
+                      </h3>
+                    )}
                     <button
                       data-id={x.id}
                       onClick={() => {

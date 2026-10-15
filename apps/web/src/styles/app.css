@@ -1128,3 +1128,11 @@ html.resizing-rows { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) { .synced-pop { animation: none; } }
 .sync-alert { position: fixed; bottom: 22px; right: 22px; z-index: 60; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--high); color: #fff; font: 800 22px/1 var(--sans); text-decoration: none; box-shadow: 0 6px 18px rgba(200, 65, 58, 0.4); }
 .sync-alert:hover, .sync-alert:focus-visible { background: #a8332d; }
+
+/* Request 61: rewording an alert in its viewer. */
+.alert-edit { flex: 1 1 auto; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; padding: 18px 24px 24px; }
+.alert-edit .field { display: flex; flex-direction: column; gap: 6px; }
+.alert-edit-label { display: flex; align-items: baseline; gap: 10px; font: 700 11px var(--sans); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-2); }
+.alert-edit-tag { padding: 1px 7px; border-radius: 999px; background: var(--tint); color: var(--teal); font-size: 10px; letter-spacing: 0.06em; }
+.alert-edit .link-btn { text-transform: none; letter-spacing: 0; font-size: 12px; }
+.alert-edit-actions { display: flex; align-items: center; gap: 10px; padding-top: 4px; position: sticky; bottom: -24px; background: var(--surface, #fff); padding-bottom: 6px; }

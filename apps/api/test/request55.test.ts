@@ -241,7 +241,7 @@ describe("request 55: the test space, kept in step with the workbook", () => {
     expect(await checkedAt()).toBe(before);
     // The Test pages' check (Sync without force) says nothing was applied.
     const quiet = await app.fetch(new Request("https://api.test/api/excel/sync", { method: "POST", headers: { "x-dev-user": w.a.admin, "content-type": "application/json" }, body: "{}" }), withSecrets);
-    expect((await quiet.json()).applied).toEqual({ created: 0, updated: 0, deleted: 0, trends: 0 });
+    expect(((await quiet.json()) as { applied: unknown }).applied).toEqual({ created: 0, updated: 0, deleted: 0, trends: 0 });
     // A new version is read again.
     tag = "cron-2";
     ms.asked.length = 0;

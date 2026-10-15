@@ -129,10 +129,15 @@ export function MegatrendsPage({ focusMacro, span }: { me?: Me; focusMacro?: str
   );
 
   // A selected Subtrend lists its sources on the right (most recent first, or by Impact); ‹ › then step through that list.
-  const listKey = sel.macro && sel.sub ? subId(sel.macro, sel.sub) : null;
-  const sourcesList = useSourcesList(listKey);
+  // Request 61: in Explore Signals the Macrotrend's own signals are listed before a Subtrend is chosen, and the
+  // list stays open (whatever is selected) until it is closed.
+  const listKey = sel.macro && sel.sub ? subId(sel.macro, sel.sub) : focusMacro ? macroId(focusMacro) : null;
+  const sourcesList = useSourcesList(listKey, !!focusMacro);
   const [order, setOrder] = useState<SignalOrder>("recent");
-  const sources = useMemo(() => (listKey ? inSignalOrder(entries.filter((e) => e.macrotrend === sel.macro && e.subtrend === sel.sub), order) : []), [listKey, entries, sel, order]);
+  const sources = useMemo(
+    () => (listKey ? inSignalOrder(entries.filter((e) => e.macrotrend === sel.macro && (!sel.sub || e.subtrend === sel.sub)), order) : []),
+    [listKey, entries, sel, order],
+  );
   const inList = openId && listKey ? sources.findIndex((e) => e.id === openId) : -1;
   const openIndex = openId ? items.findIndex((i) => i.entry.id === openId) : -1;
   const openItem = openIndex >= 0 ? items[openIndex] : openId ? timelineEntries(entries, { macro: null, sub: null }, palette).find((i) => i.entry.id === openId) : undefined;
@@ -182,7 +187,10 @@ export function MegatrendsPage({ focusMacro, span }: { me?: Me; focusMacro?: str
       sel.macro && sel.sub
         ? {
             hub: subId(sel.macro, sel.sub),
-            entries: entries.filter((e) => e.macrotrend === sel.macro && e.subtrend === sel.sub).map((e) => ({ id: e.id, title: e.title, date: e.date, colour: impactColour(e.impact), fresh: isNew(e.date) })),
+            // Request 61: clustered by competitor (an entry naming several sits with the first).
+            entries: entries
+              .filter((e) => e.macrotrend === sel.macro && e.subtrend === sel.sub)
+              .map((e) => ({ id: e.id, title: e.title, date: e.date, colour: impactColour(e.impact), fresh: isNew(e.date), group: e.competitors?.[0] ?? "No competitor" })),
           }
         : null;
     return {
@@ -195,8 +203,9 @@ export function MegatrendsPage({ focusMacro, span }: { me?: Me; focusMacro?: str
       orbit,
       frame: !!focusMacro,
       noCore: !!focusMacro,
+      focus: openId,
     };
-  }, [macros, entries, palette, sel, total, focusMacro, isNew]);
+  }, [macros, entries, palette, sel, total, focusMacro, isNew, openId]);
   const onHub = useCallback(
     (id: string) => {
       if (id.startsWith("m:")) {
@@ -268,8 +277,12 @@ export function MegatrendsPage({ focusMacro, span }: { me?: Me; focusMacro?: str
           stepIn={inList >= 0 ? "in the signals list" : "on the timeline"}
           onClose={closeSheet}
           onStep={step}
-          sources={listKey && sel.sub ? { title: sel.sub, entries: sources, shown: sourcesList.shown, onShow: sourcesList.show, onHide: sourcesList.hide, order, onOrder: setOrder } : null}
-          onOpen={(id) => set({ e: id }, false)}
+          sources={listKey && (sel.sub || focusMacro) ? { title: sel.sub ?? focusMacro!, entries: sources, shown: sourcesList.shown, onShow: sourcesList.show, onHide: sourcesList.hide, order, onOrder: setOrder } : null}
+          onOpen={(id) => {
+            // Request 61: the graph goes to it (its Subtrend opens first when none is).
+            const e = entries.find((x) => x.id === id);
+            set(!sel.sub && e?.subtrend ? { s: e.subtrend, e: id } : { e: id }, false);
+          }}
           onBack={() => {
             set({ e: null }, false);
             sourcesList.show();

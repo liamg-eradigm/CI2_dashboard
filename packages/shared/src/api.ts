@@ -353,6 +353,37 @@ export const NewsletterSchema = z.object({
   items: z.array(z.object({ id: z.string(), code: z.string().nullable(), recordId: z.string().nullable(), title: z.string(), stream: StreamSchema, deleted: z.boolean() })),
 });
 export type Newsletter = z.infer<typeof NewsletterSchema>;
+/** Request 61: the parts of an alert an analyst can reword in its viewer (each the text of a template placeholder). */
+export const ALERT_FIELDS = ["title", "competitor", "assets", "reviewDate", "publisher", "url", "impact", "keyDetails", "ciPerspective", "tellMeMore"] as const;
+export type AlertField = (typeof ALERT_FIELDS)[number];
+export const ALERT_FIELD_LABEL: Record<AlertField, string> = {
+  title: "Title",
+  competitor: "Competitor",
+  assets: "Assets",
+  reviewDate: "Review Date",
+  publisher: "Publisher",
+  url: "Publisher link (URL)",
+  impact: "Impact",
+  keyDetails: "Key Details",
+  ciPerspective: "CI Perspective",
+  tellMeMore: "Tell Me More",
+};
+/** The long ones (formatted text with bullets). */
+export const ALERT_LONG_FIELDS: readonly AlertField[] = ["keyDetails", "ciPerspective", "tellMeMore"];
+const alertText = z.string().max(20_000);
+export const AlertFieldsSchema = z.object(Object.fromEntries(ALERT_FIELDS.map((k) => [k, alertText])) as Record<AlertField, typeof alertText>);
+export type AlertFields = z.infer<typeof AlertFieldsSchema>;
+/** An alert's text: as written now (`fields`), as generated from its entry, and which parts were reworded. */
+export const AlertEditSchema = z.object({
+  fields: AlertFieldsSchema,
+  generated: AlertFieldsSchema,
+  edited: z.array(z.enum(ALERT_FIELDS)),
+  editedAt: isoDateTime.nullable(),
+  editedBy: z.string().nullable(),
+});
+export type AlertEdit = z.infer<typeof AlertEditSchema>;
+/** Save the alert's text: a part equal to the generated text follows its entry again. */
+export const SaveAlertRequest = z.object({ fields: AlertFieldsSchema.partial() });
 /** The Database page (request 43): Generate Newsletter from the ticked rows (any Tracker entries, either stream). */
 /** Request 51: the sections of the newsletter template each entry goes in. */
 export const NEWSLETTER_SECTIONS = ["technology", "people", "process"] as const;
@@ -421,6 +452,8 @@ export const MegatrendEntrySchema = z.object({
   impact: z.string().nullable(),
   /** Request 34 (contract 1.20): its Phantom has a CI Perspective. */
   ci: z.boolean().optional(),
+  /** Request 61 (contract 2.2): the competitors it names (signals cluster by them in a Subtrend's orbit). */
+  competitors: z.array(z.string()).optional(),
 });
 export const MegatrendsSchema = z.object({
   /** "all" = both trackers. */
@@ -985,6 +1018,8 @@ export const ENDPOINTS: EndpointDef[] = [
   { method: "get", path: "/api/database", summary: "Database page: a stream's Tracker entries with every field, whether each is in Phantoms, its alert (request 51: every entry has one, written into the alert template) and the newsletters it is in", roles: ALL_ROLES, query: ["stream", "q", "from", "to", "f.<column>", "t.<column>", "df.<column>", "dt.<column>", "sort", "dir", "page", "pageSize"], response: TrackerPageSchema },
   { method: "delete", path: "/api/deliverables/{id}", summary: "Delete an alert (its entry gets no new alert) or a newsletter", roles: STAFF, response: z.object({ ok: z.literal(true), kind: z.enum(["alert", "newsletter"]), name: z.string() }) },
   { method: "get", path: "/api/deliverables/{id}/docx", summary: "A stored alert or newsletter .docx (inline for the viewer, ?download=1 as a file)", roles: ALL_ROLES },
+  { method: "get", path: "/api/deliverables/{id}/alert", summary: "An alert's text (as written now, as generated, and the reworded parts)", roles: STAFF, response: AlertEditSchema },
+  { method: "put", path: "/api/deliverables/{id}/alert", summary: "Reword an alert (request 61): the parts equal to the generated text follow the entry again", roles: STAFF, request: SaveAlertRequest, response: AlertEditSchema },
   { method: "get", path: "/api/megatrends", summary: "Megatrends: Tracker entries per Macrotrend and Subtrend (query: stream all|primary|secondary, from, to), their summaries, and the entries for the timeline", roles: ALL_ROLES, query: ["stream", "from", "to"], response: MegatrendsSchema },
   { method: "get", path: "/api/competitors", summary: "Competitors: Tracker entries per competitor named, co-occurring competitors, their summaries and the entries for the timeline (query: stream all|primary|secondary)", roles: ALL_ROLES, query: ["stream"], response: CompetitorsSchema },
   { method: "put", path: "/api/megatrends/summaries", summary: "Write a Macrotrend, Subtrend or competitor summary by hand (empty text = back to the default)", roles: STAFF, request: UpdateTrendSummaryRequest, response: TrendSummarySchema },

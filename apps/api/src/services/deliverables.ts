@@ -10,9 +10,9 @@
  *   was assigned to (Technology, People or Process). Database → Newsletter
  *   lists them (request 52; Admin → Deliverables is gone).
  */
-import { FIELDS, docxFileName, type Newsletter, type NewsletterSection, type Signal, type Stream, type TrackerSchema } from "@eradigm/shared";
+import { ALERT_FIELDS, FIELDS, docxFileName, type AlertEdit, type AlertField, type AlertFields, type Newsletter, type NewsletterSection, type Signal, type Stream, type TrackerSchema } from "@eradigm/shared";
 import { signalRows } from "./query.js";
-import { alertDocx, newsletterDocx, type EntryForDoc } from "./templatedDocs.js";
+import { alertDocx, alertFields, newsletterDocx, type EntryForDoc } from "./templatedDocs.js";
 import type { Principal } from "../auth/context.js";
 import type { Env } from "../env.js";
 import { ApiError, notFound } from "../lib/errors.js";
@@ -73,17 +73,77 @@ export async function readDeliverable(
   id: string,
   schemaOf: (stream: Stream) => Promise<TrackerSchema>,
 ): Promise<{ kind: "alert" | "newsletter"; name: string; fileName: string; bytes: Uint8Array }> {
-  const r = await env.DB.prepare("SELECT kind, name, item_id, docx_b64 FROM deliverables WHERE tenant_id = ?1 AND id = ?2 AND deleted_at IS NULL")
+  const r = await env.DB.prepare("SELECT kind, name, item_id, docx_b64, edits_json FROM deliverables WHERE tenant_id = ?1 AND id = ?2 AND deleted_at IS NULL")
     .bind(tenantId, id)
-    .first<{ kind: "alert" | "newsletter"; name: string; item_id: string | null; docx_b64: string }>();
+    .first<{ kind: "alert" | "newsletter"; name: string; item_id: string | null; docx_b64: string; edits_json: string | null }>();
   if (!r) throw notFound("Deliverable");
   if (r.kind === "alert" && r.item_id) {
-    const e = (await entriesForDocs(env, tenantId, [r.item_id], schemaOf, "phantoms"))[0] ?? (await entriesForDocs(env, tenantId, [r.item_id], schemaOf))[0];
-    if (!e) throw notFound("Alert");
+    const e = await alertEntry(env, tenantId, r.item_id, schemaOf);
     const name = alertName(e.values[FIELDS.id] as string | null, e.code);
-    return { kind: "alert", name, fileName: docxFileName(name, "alert"), bytes: alertDocx(e) };
+    return { kind: "alert", name, fileName: docxFileName(name, "alert"), bytes: alertDocx(e, editsOf(r.edits_json)) };
   }
   return { kind: r.kind, name: r.name, fileName: docxFileName(r.name, r.kind), bytes: fromBase64(r.docx_b64) };
+}
+
+/** An alert's entry: its Phantom (as first pushed), else its Tracker row. */
+async function alertEntry(env: Env, tenantId: string, itemId: string, schemaOf: (stream: Stream) => Promise<TrackerSchema>) {
+  const e = (await entriesForDocs(env, tenantId, [itemId], schemaOf, "phantoms"))[0] ?? (await entriesForDocs(env, tenantId, [itemId], schemaOf))[0];
+  if (!e) throw notFound("Alert");
+  return e;
+}
+
+/** The reworded parts of an alert (request 61), only those that are known. */
+function editsOf(json: string | null): Partial<AlertFields> {
+  if (!json) return {};
+  try {
+    const raw = JSON.parse(json) as Record<string, unknown>;
+    return Object.fromEntries(ALERT_FIELDS.filter((k) => typeof raw[k] === "string").map((k) => [k, raw[k] as string]));
+  } catch {
+    return {};
+  }
+}
+
+const alertRow = (env: Env, tenantId: string, id: string) =>
+  env.DB.prepare(
+    "SELECT d.kind, d.item_id, d.edits_json, d.edited_at, (SELECT u.name FROM users u WHERE u.id = d.edited_by) AS edited_by FROM deliverables d WHERE d.tenant_id = ?1 AND d.id = ?2 AND d.deleted_at IS NULL",
+  )
+    .bind(tenantId, id)
+    .first<{ kind: "alert" | "newsletter"; item_id: string | null; edits_json: string | null; edited_at: string | null; edited_by: string | null }>();
+
+/** Request 61: an alert's text as written now, as generated from its entry, and the parts reworded. */
+export async function alertEdit(env: Env, tenantId: string, id: string, schemaOf: (stream: Stream) => Promise<TrackerSchema>): Promise<AlertEdit> {
+  const r = await alertRow(env, tenantId, id);
+  if (!r || r.kind !== "alert" || !r.item_id) throw notFound("Alert");
+  const generated = alertFields(await alertEntry(env, tenantId, r.item_id, schemaOf));
+  const edits = editsOf(r.edits_json);
+  return { fields: { ...generated, ...edits }, generated, edited: Object.keys(edits) as AlertField[], editedAt: r.edited_at, editedBy: r.edited_by };
+}
+
+/** Request 61: save an alert as reworded. A part left as generated keeps following its entry. */
+export async function saveAlertEdit(
+  env: Env,
+  p: Principal,
+  id: string,
+  fields: Partial<AlertFields>,
+  schemaOf: (stream: Stream) => Promise<TrackerSchema>,
+): Promise<AlertEdit> {
+  const r = await alertRow(env, p.tenantId, id);
+  if (!r || r.kind !== "alert" || !r.item_id) throw notFound("Alert");
+  const generated = alertFields(await alertEntry(env, p.tenantId, r.item_id, schemaOf));
+  const edits: Partial<AlertFields> = { ...editsOf(r.edits_json) };
+  for (const k of ALERT_FIELDS) {
+    const v = fields[k];
+    if (v == null) continue;
+    if (v === generated[k]) delete edits[k];
+    else edits[k] = v;
+  }
+  const changed = Object.keys(edits) as AlertField[];
+  const now = nowIso();
+  await env.DB.prepare("UPDATE deliverables SET edits_json = ?3, edited_at = ?4, edited_by = ?5, updated_at = ?6 WHERE tenant_id = ?1 AND id = ?2")
+    .bind(p.tenantId, id, changed.length ? JSON.stringify(edits) : null, changed.length ? now : null, changed.length ? p.userId : null, now)
+    .run();
+  await audit(env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "deliverable.alert_edited", targetType: "deliverable", targetId: id, details: { fields: changed } });
+  return alertEdit(env, p.tenantId, id, schemaOf);
 }
 
 /** Approved Tracker entries with the schema of their stream, in the order asked (missing ones left out). */

@@ -12,7 +12,7 @@
  * Macrotrend (Subtrend), CI Perspective and Key Details. The Executive
  * Summary lists each section's titles.
  */
-import { CORE, FIELDS, tellMeMoreKey, type ItemValues, type NewsletterSection, type TrackerSchema } from "@eradigm/shared";
+import { CORE, FIELDS, tellMeMoreKey, type AlertFields, type ItemValues, type NewsletterSection, type TrackerSchema } from "@eradigm/shared";
 import { ALERT_TEMPLATE, NEWSLETTER_TEMPLATE } from "../templates/docxTemplates.generated.js";
 import { DocxDoc, NA, dateParts, longDate, monthName, paragraphText, paragraphs, plain, shortText, type Find, type Value } from "./docxTemplate.js";
 
@@ -62,27 +62,43 @@ function bulletNear(xml: string, find: string, fallback: string): string {
   return (p && /<w:numId w:val="(\d+)"\/>/.exec(p.xml)?.[1]) || fallback;
 }
 
-/** An entry's alert (.docx) from Alert Template.docx. */
-export function alertDocx(e: EntryForDoc): Uint8Array {
+/** Request 61: an alert's text as generated from its entry (each part the text of a template placeholder). */
+export function alertFields(e: EntryForDoc): AlertFields {
+  const more = tellMeMoreKey(e.schema.columns);
+  return {
+    title: shortTextOrEmpty(field(e, [CORE.title])),
+    competitor: shortTextOrEmpty(field(e, [CORE.competitors], ["Competitor", "Company"])),
+    assets: shortTextOrEmpty(field(e, [FIELDS.assets, FIELDS.sourceBrandAsset], ["Assets", "Asset", "Drug"])),
+    reviewDate: text(e, [FIELDS.reviewDate], ["Review Date"]).trim(),
+    publisher: shortTextOrEmpty(field(e, [FIELDS.publisher], ["Publisher", "Source"])),
+    url: text(e, [FIELDS.url], ["URL", "Link"]).trim(),
+    impact: shortTextOrEmpty(field(e, [CORE.impact], ["Impact"])),
+    keyDetails: text(e, [FIELDS.keyDetails], ["Key Details"]),
+    ciPerspective: text(e, [FIELDS.ciPerspective], ["CI Perspective"]),
+    tellMeMore: text(e, more ? [more] : [], ["Tell Me More"]),
+  };
+}
+
+/** An entry's alert (.docx) from Alert Template.docx; `edits` (request 61): the parts an analyst reworded. */
+export function alertDocx(e: EntryForDoc, edits: Partial<AlertFields> = {}): Uint8Array {
   const d = new DocxDoc(ALERT_TEMPLATE);
   const bullets = bulletNear(d.doc, "<Insert CI Perspective>", "13");
-  const url = text(e, [FIELDS.url], ["URL", "Link"]);
-  const more = tellMeMoreKey(e.schema.columns);
+  const f = { ...alertFields(e), ...edits };
   d.doc = fillEach(
     d,
     d.doc,
     [
-      { find: "<Insert Title>", value: plain(shortTextOrEmpty(field(e, [CORE.title]))) },
-      { find: "<Insert Competitor>", value: plain(shortTextOrEmpty(field(e, [CORE.competitors], ["Competitor", "Company"]))) },
-      { find: "<Insert Assets>", value: plain(shortTextOrEmpty(field(e, [FIELDS.assets, FIELDS.sourceBrandAsset], ["Assets", "Asset", "Drug"]))) },
-      { find: "<Insert Review Date>", value: plain(dateOrEmpty(text(e, [FIELDS.reviewDate], ["Review Date"]))) },
-      { find: "<Insert Publisher>", value: plain(shortTextOrEmpty(field(e, [FIELDS.publisher], ["Publisher", "Source"])), url) },
-      { find: "<Insert Impact Rating>", value: plain(shortTextOrEmpty(field(e, [CORE.impact], ["Impact"]))) },
+      { find: "<Insert Title>", value: plain(f.title) },
+      { find: "<Insert Competitor>", value: plain(f.competitor) },
+      { find: "<Insert Assets>", value: plain(f.assets) },
+      { find: "<Insert Review Date>", value: plain(dateOrEmpty(f.reviewDate)) },
+      { find: "<Insert Publisher>", value: plain(f.publisher, f.url) },
+      { find: "<Insert Impact Rating>", value: plain(f.impact) },
     ],
     [
-      { find: "<Insert Key Details>", text: text(e, [FIELDS.keyDetails], ["Key Details"]), bulletNumId: bullets },
-      { find: "<Insert CI Perspective>", text: text(e, [FIELDS.ciPerspective], ["CI Perspective"]), bulletNumId: bullets },
-      { find: "<Insert Tell Me More>", text: text(e, more ? [more] : [], ["Tell Me More"]), bulletNumId: bullets },
+      { find: "<Insert Key Details>", text: f.keyDetails, bulletNumId: bullets },
+      { find: "<Insert CI Perspective>", text: f.ciPerspective, bulletNumId: bullets },
+      { find: "<Insert Tell Me More>", text: f.tellMeMore, bulletNumId: bullets },
     ],
   );
   return d.pack();

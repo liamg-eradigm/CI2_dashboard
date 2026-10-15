@@ -47,6 +47,8 @@ export interface GraphEntry {
   colour: string;
   /** New (request 40): its Event Date is within the "new" window; it pulses. */
   fresh?: boolean;
+  /** Request 61: entries of the same group (a competitor, or a Macrotrend) sit together, tightly, in the orbit. */
+  group?: string;
 }
 export interface GraphSpec {
   layout: "trends" | "competitors";
@@ -64,6 +66,8 @@ export interface GraphSpec {
   frame?: boolean;
   /** No "All Tracker entries" core (request 35): the level-1 hubs are held at the centre instead. */
   noCore?: boolean;
+  /** Request 61: an entry in orbit to go to (ringed; the camera flies to it, so its cluster is in view). */
+  focus?: string | null;
 }
 
 interface GNode {
@@ -95,6 +99,8 @@ interface GNode {
   pinned?: boolean;
   /** Competitors: the direction from the core of this hub's place on the orbit. */
   slot?: [number, number, number];
+  /** Request 61: an entry's direction from its hub, shared by its group (so the group sits together). */
+  cluster?: [number, number, number];
 }
 interface GLink {
   source: string | GNode;
@@ -107,7 +113,7 @@ interface GLink {
 interface Parts {
   group: ThreeNS.Group;
   materials: { m: ThreeNS.Material & { opacity: number }; base: number }[];
-  ring: ThreeNS.Mesh | null;
+  ring: ThreeNS.Object3D | null;
   /** A new entry's dot and the halo that pulses around it (request 40). */
   pulse?: { dot: ThreeNS.Object3D; halo: ThreeNS.Sprite; ripple: ThreeNS.Sprite; size: number; phase: number };
 }
@@ -236,8 +242,10 @@ export function Graph3D({
       // The core is pinned and every hub is linked to it, so the graph holds together.
       g.d3Force("center", null);
       g.d3Force("slots", slotForce(0.12) as never);
+      g.d3Force("clusters", clusterForce(0.6) as never);
+      // Request 61: grouped entries barely push each other, so each group sits tightly together.
       g.d3Force("charge")?.strength?.((n: GNode) =>
-        n.kind === "entry" ? -18 : n.kind === "core" ? -40 : comp() ? -(40 + n.r * 5) : n.level === 1 ? -170 : -110,
+        n.kind === "entry" ? (n.cluster ? -2.5 : -18) : n.kind === "core" ? -40 : comp() ? -(40 + n.r * 5) : n.level === 1 ? -170 : -110,
       );
       // Every level-1 hub hangs off the core on the same short orbit (so dragging
       // the core brings them along). Competitor ties are only drawn: each
@@ -252,7 +260,7 @@ export function Graph3D({
           // Entries orbit well clear of their hub, spread out rather than in a tight cluster.
           return 26 + s.r * 1.9;
         })
-        ?.strength?.((l: GLink) => (l.kind === "core" ? 0.6 : l.kind === "tie" ? 0 : l.kind === "entry" ? 0.5 : 0.9));
+        ?.strength?.((l: GLink) => (l.kind === "core" ? 0.6 : l.kind === "tie" ? 0 : l.kind === "entry" ? ((l.target as GNode).cluster ? 0.3 : 0.5) : 0.9));
 
       // Lighting: a soft fill plus a key light, so spheres read as spheres.
       const key = new T.DirectionalLight(0xffffff, 2.6);
@@ -478,8 +486,17 @@ export function Graph3D({
     for (const t of spec.ties) if (byId.has(t.a) && byId.has(t.b)) links.push({ source: t.a, target: t.b, kind: "tie", weight: t.weight });
     if (spec.orbit && byId.has(spec.orbit.hub)) {
       const hub = spec.orbit.hub;
-      for (const e of spec.orbit.entries.slice(-ENTRIES_SHOWN)) {
-        want.push(node({ id: `e:${e.id}`, kind: "entry", level: 0, root: hub, name: e.title, title: e.title, date: e.date, fresh: !!e.fresh, count: 1, colour: e.colour, r: 1.5, dots: [], labelScale: 0 }));
+      const shown = spec.orbit.entries.slice(-ENTRIES_SHOWN);
+      // Request 61: each group its own direction from the hub, the biggest groups far apart.
+      const sizes = new Map<string, number>();
+      for (const e of shown) if (e.group) sizes.set(e.group, (sizes.get(e.group) ?? 0) + 1);
+      const groups = [...sizes].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([k]) => k);
+      const spread = spreadSlots(groups.map((g) => sizes.get(g)!));
+      const dirs = new Map(groups.map((k, i) => [k, spread[i]!]));
+      for (const e of shown) {
+        const n = node({ id: `e:${e.id}`, kind: "entry", level: 0, root: hub, name: e.title, title: e.title, date: e.date, fresh: !!e.fresh, count: 1, colour: e.colour, r: 1.5, dots: [], labelScale: 0 });
+        n.cluster = e.group ? dirs.get(e.group) : undefined;
+        want.push(n);
         links.push({ source: hub, target: `e:${e.id}`, kind: "entry", weight: 1 });
       }
     }
@@ -517,6 +534,7 @@ export function Graph3D({
     const key = spec.selected ?? "";
     if (key === lastSel.current) return;
     lastSel.current = key;
+    selAt.current = Date.now();
     const target = spec.selected ? nodes.current.get(spec.selected) : null;
     const fly = () => {
       if (!target) return void g.cameraPosition({ x: 0, y: 40, z: spec.layout === "competitors" ? 420 : 360 }, { x: 0, y: 0, z: 0 }, 1400);
@@ -544,7 +562,8 @@ export function Graph3D({
     // Entries spread out in orbit around the selected hub: then frame them all.
     // So is a framed Macrotrend with its Subtrends.
     const framed = !!target && !!spec.frame && target.level === 1 && spec.orbit?.hub !== target.id;
-    if (target && (spec.orbit?.hub === target.id || framed)) {
+    // (Not when an entry is to be gone to: the focus flight below takes over.)
+    if (target && !spec.focus && (spec.orbit?.hub === target.id || framed)) {
       const id = target.id;
       setTimeout(() => {
         if (graph.current !== g || lastSel.current !== key) return;
@@ -569,6 +588,33 @@ export function Graph3D({
       }, 2200);
     }
   }, [spec, ready]);
+
+  // Request 61: go to an entry in orbit (opened from the signals list), close enough to see the entries it is clustered with.
+  const selAt = useRef(0);
+  const lastFocus = useRef<string | null>(null);
+  const focusId = spec.focus && spec.orbit?.entries.some((e) => e.id === spec.focus) ? spec.focus : null;
+  useEffect(() => {
+    const g = graph.current;
+    if (!g || !ready || focusId === lastFocus.current) return;
+    lastFocus.current = focusId;
+    if (!focusId) return;
+    let tries = 0;
+    const go = () => {
+      if (graph.current !== g || lastFocus.current !== focusId) return;
+      const n = nodes.current.get(`e:${focusId}`);
+      const hub = n ? nodes.current.get(n.root) : undefined;
+      if (!n || n.x == null || !hub || hub.x == null) {
+        if (tries++ < 6) setTimeout(go, 400);
+        return;
+      }
+      const { x = 0, y = 0, z = 0 } = n;
+      const [ux, uy, uz] = away(x - hub.x, y - (hub.y ?? 0), z - (hub.z ?? 0));
+      const back = 95;
+      g.cameraPosition({ x: x + ux * back, y: y + uy * back + 8, z: z + uz * back }, { x, y, z }, 1200);
+    };
+    // After the flight to a just-selected Subtrend (and the new entries' first steps).
+    setTimeout(go, Math.max(0, selAt.current + 1500 - Date.now()) + 150);
+  }, [focusId, ready]);
 
   function buildNode(T: Three, n: GNode) {
     const group = new T.Group();
@@ -623,8 +669,15 @@ export function Graph3D({
         group.add(label);
       }
     }
-    let ring: ThreeNS.Mesh | null = null;
-    if (n.kind === "hub") {
+    let ring: ThreeNS.Object3D | null = null;
+    if (n.kind === "entry") {
+      // Request 61: rings the entry gone to (a ring that always faces the camera).
+      const halo = rippleSprite(T, "#ffffff", n.r * 7);
+      (halo.material as ThreeNS.SpriteMaterial).opacity = 1;
+      halo.visible = false;
+      ring = halo;
+      group.add(halo);
+    } else if (n.kind === "hub") {
       ring = new T.Mesh(new T.TorusGeometry(Math.max(n.r * 1.55, n.r + 2.5), Math.max(0.18, n.r * 0.03), 8, 96), new T.MeshBasicMaterial({ color: 0x7fd3d8, transparent: true, opacity: 0.7 }));
       ring.rotation.x = Math.PI / 2.6;
       ring.visible = false;
@@ -658,7 +711,7 @@ function emphasise(n: GNode, p: Parts, spec: GraphSpec, lit: Set<string> | null)
   const recede = selLevel2 && n.kind === "hub" && n.id !== spec.selected;
   const k = !on ? 0.2 : recede ? 0.45 : 1;
   for (const { m, base } of p.materials) m.opacity = base * k;
-  if (p.ring) p.ring.visible = n.id === spec.selected;
+  if (p.ring) p.ring.visible = n.kind === "entry" ? !!spec.focus && n.id === `e:${spec.focus}` : n.id === spec.selected;
 }
 
 /** One dot per entry, scattered through the sphere (the same place every time), coloured by Impact. */
@@ -858,6 +911,33 @@ function away(dx: number, dy: number, dz: number): [number, number, number] {
 
 /** How far a level-1 hub sits from the core: the same orbit for Macrotrends and competitors. */
 const orbitOf = (n: GNode) => 66 + n.r * 2.2;
+
+/**
+ * Request 61: pulls each grouped entry towards its group's place around its
+ * hub (the hub's position plus the group's direction at the entries' orbit),
+ * so a group sits together, tightly.
+ */
+function clusterForce(strength: number) {
+  let nodes: GNode[] = [];
+  let byId = new Map<string, GNode>();
+  const force = (alpha: number) => {
+    for (const n of nodes) {
+      if (!n.cluster || n.x == null) continue;
+      const hub = byId.get(n.root);
+      if (!hub || hub.x == null) continue;
+      const d = 30 + hub.r * 2.1;
+      const k = strength * alpha;
+      n.vx = (n.vx ?? 0) + (hub.x + n.cluster[0] * d - n.x) * k;
+      n.vy = (n.vy ?? 0) + ((hub.y ?? 0) + n.cluster[1] * d - (n.y ?? 0)) * k;
+      n.vz = (n.vz ?? 0) + ((hub.z ?? 0) + n.cluster[2] * d - (n.z ?? 0)) * k;
+    }
+  };
+  force.initialize = (ns: GNode[]) => {
+    nodes = ns;
+    byId = new Map(ns.map((n) => [n.id, n]));
+  };
+  return force;
+}
 
 /** Pulls each hub with a `slot` towards its place on the orbit around the core (a d3-force-3d compatible force). */
 function slotForce(strength: number) {
