@@ -893,6 +893,16 @@ analyst-entered information distinguishable; in the prototype every value is
   "✓ Data synced" there for a moment when a sync changes the test space. A
   forced run that changes nothing says "Already up to date with the workbook"
   with the workbook's last save time.
+- **Request 63** (CI SQUARED; contract 2.3.0; migration 0026): **the Test tab
+  is gone**, with the SharePoint workbook sync behind it (requests 55–57):
+  the Test menu group, the `/test` pages and their Sync now buttons, the
+  Admin card, the `/api/excel/*` routes, the every-minute workbook check and
+  the `x-eradigm-space` header. Migration 0026 switches the test spaces off
+  (`tenants.active = 0`) and drops `excel_sync`. Old `/test/…` addresses open
+  the same live page; a saved menu with the Test group drops it. The Microsoft
+  Graph client (`services/sharepoint.ts`) stays for the Epilepsy project,
+  which names its workbook by link: `SHAREPOINT_DRIVE_ID` and
+  `SHAREPOINT_ITEM_ID` are no longer read.
 - **Request 62** (CI SQUARED, web only): **signal clusters spread out** in the
   Explore Signals graphs. Each grouped entry has its own place in its
   cluster (`clusterLayout`, megatrends/model.ts): clusters fill shells around

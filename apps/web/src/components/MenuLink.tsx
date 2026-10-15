@@ -3,9 +3,9 @@ import type { ReactNode } from "react";
 import { routerPath } from "../api/space";
 
 /**
- * A menu link (request 55): within this space, a link of the app; into the
- * other space (the Test tab from the live pages, or back), a page load of its
- * own, so nothing cached in one space shows in the other.
+ * A menu link: within this project, a link of the app; into another project
+ * (request 61), a page load of its own, so nothing cached in one project shows
+ * in the other.
  */
 export function MenuLink({ path, children, ...rest }: { path: string; children: ReactNode; className?: string; "aria-label"?: string; "aria-current"?: "page" }) {
   const to = routerPath(path);

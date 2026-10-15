@@ -3,7 +3,7 @@
  * which role. Resolved on every request; every repository call takes the
  * tenant id from here, never from request data.
  */
-import { PROJECT_HEADER, can, type Action, type Role, type Space } from "@eradigm/shared";
+import { PROJECT_HEADER, can, type Action, type Role } from "@eradigm/shared";
 import type { Env } from "../env.js";
 import { ApiError, forbidden } from "../lib/errors.js";
 import { nowIso } from "../lib/ids.js";
@@ -20,10 +20,6 @@ export interface Principal {
   role: Role;
   /** Every workspace (project, request 61) the caller can open, their first (the site's root) first. */
   tenants: { id: string; name: string; role: Role; slug: string; kind: string }[];
-  /** Request 55: "test" when the request is answered from the Test tab's test space (tenantId is then the test space's). */
-  space?: Space;
-  /** The live workspace (the same as tenantId outside the test space). */
-  liveTenantId?: string;
   /** Request 61: the project (tenants.kind) of the workspace, which decides the routes it may use. */
   projectKind?: string;
   /** Request 61: the workspace's slug (its web address /p/<slug> when it is not the caller's first). */

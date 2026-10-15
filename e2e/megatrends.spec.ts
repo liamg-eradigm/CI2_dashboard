@@ -86,12 +86,12 @@ test.describe("tab order", () => {
     await expect(card.getByRole("heading", { name: "Menu" })).toBeVisible();
     // Every group, including the tabs of their own (Database; Admin since request 52; the Megatrends Dashboard since request 56).
     const groups = () => navOf(page).locator(".nav-group > .nav-parent > span:first-child, .nav-group > .nav-solo > span").allInnerTexts();
-    await expect.poll(groups).toEqual(["Inputs", "Megatrends Dashboard", "Database", "Admin", "Test"]);
+    await expect.poll(groups).toEqual(["Inputs", "Megatrends Dashboard", "Database", "Admin"]);
     // Groups move; tabs move within their group (Admin moves past the Database tab, then the Megatrends Dashboard).
     await card.getByRole("button", { name: "Move group Admin up" }).click();
     await expect(page.locator(".toast").last()).toContainText("Moved");
     await card.getByRole("button", { name: "Move group Admin up" }).click();
-    await expect.poll(groups).toEqual(["Inputs", "Admin", "Megatrends Dashboard", "Database", "Test"]);
+    await expect.poll(groups).toEqual(["Inputs", "Admin", "Megatrends Dashboard", "Database"]);
     await card.getByTestId("menu-group-inputs").getByRole("button", { name: "Move tab Inputs: Client Inbox up" }).click();
     await expect(page.locator(".toast").last()).toContainText("Moved");
     // Renamed: a group and a tab.
@@ -103,7 +103,7 @@ test.describe("tab order", () => {
     await expect(page.locator(".toast").last()).toContainText("Tab renamed to “Client questions”");
     await expect(card.getByTestId("menu-item-clientinbox")).toContainText("was Client Inbox");
     await expectAccessible(page, "Administration with the menu editor");
-    expect(await menuOf(page)).toEqual(["Sources: Input, Client questions, Eradigm Inbox", "Admin", "Megatrends Dashboard", "Database", "Test: Database, Megatrends"]);
+    expect(await menuOf(page)).toEqual(["Sources: Input, Client questions, Eradigm Inbox", "Admin", "Megatrends Dashboard", "Database"]);
     await goTab(page, "Sources", "Client questions");
     await expect(page).toHaveURL(/\/client-inbox/);
     // A client sees the same order and names (without the staff tabs and the Admin group).
@@ -116,7 +116,7 @@ test.describe("tab order", () => {
     // Restore.
     await page.goto("/admin");
     await card.getByRole("button", { name: "Restore the usual menu" }).click();
-    await expect.poll(groups).toEqual(["Inputs", "Megatrends Dashboard", "Database", "Admin", "Test"]);
+    await expect.poll(groups).toEqual(["Inputs", "Megatrends Dashboard", "Database", "Admin"]);
     await expect(card.getByLabel("Name of the Inputs tab Client Inbox")).toHaveValue("");
   });
 

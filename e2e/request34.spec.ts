@@ -45,8 +45,6 @@ test.describe("request 34", () => {
       "Megatrends Dashboard",
       "Database",
       "Admin",
-      // Request 55: the Test tab (admins only).
-      "Test: Database, Megatrends",
     ]);
     await expect(page.getByRole("heading", { level: 1, name: "Megatrends Dashboard" })).toBeVisible();
     // Request 48: the Databases group is gone; the Database tab has them all.

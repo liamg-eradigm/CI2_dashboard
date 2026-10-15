@@ -9,13 +9,12 @@ import { failItem, runJob } from "./pipeline/process.js";
 import { prefillMode } from "./pipeline/prefill.js";
 import { snapshotBackend } from "./pipeline/snapshots.js";
 import { ciSquaredRoutes } from "./routes.js";
-import { EXCEL_CRON, ensureTestSpace, runExcelCron } from "./services/excelSync.js";
 import { RETENTION_CRON, runRetention } from "./services/retention.js";
 
 const MAX_DELIVERIES = 3;
 
 /** POSTs that only read (nothing to bump). */
-const READ_ONLY_POSTS = new Set(["POST /api/trend-test", "POST /api/excel/sync", "POST /api/excel/upload"]);
+const READ_ONLY_POSTS = new Set(["POST /api/trend-test"]);
 /**
  * Changes that never reach the Tracker, Phantoms, Dashboard, Megatrends or
  * Competitors (entries still in the Inbox, comments, saved views): they leave
@@ -60,7 +59,6 @@ export const ciSquared: ProjectModule = {
   inboxOnly: INBOX_ONLY,
   features: (env) => ({ prefill: prefillMode(env) }),
   configChecks,
-  testSpace: ensureTestSpace,
 
   async queue(batch, env) {
     const deadLetter = batch.queue.includes("-dlq");
@@ -84,7 +82,6 @@ export const ciSquared: ProjectModule = {
   },
 
   scheduled(cron, env, ctx) {
-    if (cron === EXCEL_CRON) ctx.waitUntil(runExcelCron(env));
-    else if (cron === RETENTION_CRON) ctx.waitUntil(runRetention(env));
+    if (cron === RETENTION_CRON) ctx.waitUntil(runRetention(env));
   },
 };

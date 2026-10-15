@@ -34,7 +34,6 @@ import {
   ClearDecidedRequest,
   SplitRequest,
   DeleteItemRequest,
-  ExcelSyncRequest,
   CreateSavedViewRequest,
   CreateSubmissionRequest,
   DeleteOptionRequest,
@@ -119,8 +118,6 @@ import { listPages, pageSnapshotId } from "./services/pages.js";
 import { addComment, backToEradigm, clientPush, listComments, sendToClient, updateComment } from "./services/clientInbox.js";
 import { alertEdit, databaseExtras, deleteDeliverable, generateNewsletter, listNewsletters, readDeliverable, saveAlertEdit } from "./services/deliverables.js";
 import { getDiscussionSummary, regenerateDiscussionSummary, writeDiscussionSummary } from "./services/discussionSummaries.js";
-import { excelStatus, syncStep } from "./services/excelSync.js";
-import { checkWorkbook } from "../../services/sharepoint.js";
 import { body, cachedJson, ctxOf, P, routes, versionsOf, type C } from "../../lib/http.js";
 
 export const ciSquaredRoutes = routes();
@@ -185,42 +182,6 @@ async function todayFor(c: C): Promise<string> {
     return todayIso(new Date(), "UTC");
   }
 }
-
-// ---------------------------------------------------------------------------
-// Request 55: the Test tab's SharePoint workbook (always the live workspace's, whichever space asks)
-// ---------------------------------------------------------------------------
-
-/** The live workspace of the caller (an admin). */
-function liveOf(c: C): { id: string; name: string } {
-  const p = P(c);
-  if (p.role !== "admin") throw forbidden("The Test tab is for admins only");
-  return { id: p.liveTenantId ?? p.tenantId, name: p.space === "test" ? p.tenantName.replace(/ · Test$/, "") : p.tenantName };
-}
-
-app.get("/api/excel/check", async (c) => {
-  liveOf(c);
-  return c.json(await checkWorkbook(c.env));
-});
-
-app.get("/api/excel/status", async (c) => c.json(await excelStatus(c.env, liveOf(c).id)));
-
-app.post("/api/excel/sync", async (c) => {
-  const live = liveOf(c);
-  const b = await body(c, ExcelSyncRequest);
-  const p = P(c);
-  return c.json(await syncStep(c.env, live, { userId: p.userId, email: p.email, name: p.name }, { force: !!b.force }));
-});
-
-/** Development and tests only: the workbook from an upload instead of SharePoint. */
-app.post("/api/excel/upload", async (c) => {
-  const live = liveOf(c);
-  if (c.env.ENVIRONMENT !== "dev" && c.env.ENVIRONMENT !== "test") throw notFound("Endpoint");
-  const form = await c.req.formData().catch(() => null);
-  const file = form?.get("file") as unknown as File | string | null | undefined;
-  if (!file || typeof file === "string") throw badRequest("Send the workbook as the multipart field “file”");
-  const p = P(c);
-  return c.json(await syncStep(c.env, live, { userId: p.userId, email: p.email, name: p.name }, { upload: { bytes: new Uint8Array(await file.arrayBuffer()), name: file.name || "upload.xlsx" } }));
-});
 
 // ---------------------------------------------------------------------------
 // Schema

@@ -23,7 +23,6 @@ import { api, type ApiError } from "../../../../api/client";
 import { useInvalidate } from "../../api/hooks";
 import { useToast } from "../../../../state/toast";
 import { localDateTime } from "../../../../lib/format";
-import { TestSyncButton } from "../ExcelSync";
 
 // The knowledge graph carries three.js: loaded when Explore Signals is first opened.
 const CompetitorsPage = lazy(() => import("../../pages/CompetitorsPage").then((m) => ({ default: m.CompetitorsPage })));
@@ -151,7 +150,6 @@ export function CompetitorDashboard({
           <h1 data-testid="ta-name">{graph ? "Explore Signals" : name}</h1>
         </div>
         {graph && <div className="md-head-up">{up}</div>}
-        <TestSyncButton />
       </header>
       <div className="cd-window" data-testid="cd-window">
         <div className="cd-track" data-view={graph ? SIGNALS : "profile"}>

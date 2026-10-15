@@ -7,7 +7,7 @@
  * every query comes from the verified principal, never from the body.
  */
 import { Hono } from "hono";
-import { ACTIONS, AddPersonRequest, CONTRACT_VERSION, CreateUserRequest, PROJECT_PATH_PREFIX, RenameProjectRequest, SPACE_HEADER, SetAccessRequest, UpdateUserRequest, can } from "@eradigm/shared";
+import { ACTIONS, AddPersonRequest, CONTRACT_VERSION, CreateUserRequest, PROJECT_PATH_PREFIX, RenameProjectRequest, SetAccessRequest, UpdateUserRequest, can } from "@eradigm/shared";
 import { requirePermission, resolvePrincipal, type Principal } from "./auth/context.js";
 import { allowedTenants, entraConfigured } from "./auth/entra.js";
 import { registerAuthRoutes } from "./auth/routes.js";
@@ -109,15 +109,7 @@ app.use("/api/*", async (c, next) => {
   if (c.env.AUTH_MODE === "entra" && !["GET", "HEAD", "OPTIONS"].includes(c.req.method) && c.req.header("x-eci-request") !== "1") {
     throw forbidden("Request blocked (missing X-ECI-Request header)");
   }
-  let p = await resolvePrincipal(c.req.raw, c.env);
-  // Request 55: the Test tab's pages read and write the workspace's test space (admins only).
-  if (c.req.header(SPACE_HEADER) === "test") {
-    const testSpace = projectFor(p).testSpace;
-    if (p.role !== "admin") throw forbidden("The Test tab is for admins only");
-    if (!testSpace) throw notFound("Test space");
-    const test = await testSpace(c.env, { id: p.tenantId, name: p.tenantName }, p.userId);
-    p = { ...p, tenantId: test, tenantName: `${p.tenantName} · Test`, space: "test", liveTenantId: p.tenantId };
-  }
+  const p = await resolvePrincipal(c.req.raw, c.env);
   c.set("principal", p);
   // Request 61: a project's routes answer only for its own workspaces (the platform's answer for any).
   const owner = ownerOf(c.req.path);
@@ -154,16 +146,14 @@ app.get("/api/me", async (c) => {
     environment: c.env.ENVIRONMENT,
     timezone: await tenantTimezone(c.env, p.tenantId),
     features: project.features?.(c.env) ?? { prefill: "manual" },
-    space: p.space ?? "live",
     project: projectOfPrincipal(p),
     projects: p.tenants.map((t, i) => ({ id: t.id, slug: t.slug, name: t.name, kind: t.kind, role: t.role, path: i === 0 ? "" : `${PROJECT_PATH_PREFIX}/${t.slug}` })),
   });
 });
 
-/** The project the request is for (in the Test tab: the live project's). */
+/** The project the request is for. */
 function projectOfPrincipal(p: Principal) {
-  const live = p.liveTenantId ?? p.tenantId;
-  const i = p.tenants.findIndex((t) => t.id === live);
+  const i = p.tenants.findIndex((t) => t.id === p.tenantId);
   const t = p.tenants[i];
   if (!t) return undefined;
   return { id: t.id, slug: t.slug, name: t.name, kind: t.kind, role: t.role, path: i === 0 ? "" : `${PROJECT_PATH_PREFIX}/${t.slug}` };

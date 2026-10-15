@@ -22,7 +22,7 @@ const managed = (p: Principal): Managed[] => p.tenants.filter((t) => t.role === 
 function asIn(p: Principal, projectId: string): Principal {
   const t = p.tenants.find((x) => x.id === projectId);
   if (!t) throw notFound("Project");
-  return { ...p, tenantId: t.id, tenantName: t.name, role: t.role, projectKind: t.kind, projectSlug: t.slug, space: undefined, liveTenantId: undefined };
+  return { ...p, tenantId: t.id, tenantName: t.name, role: t.role, projectKind: t.kind, projectSlug: t.slug };
 }
 
 export async function listAccess(env: Env, p: Principal): Promise<Access> {

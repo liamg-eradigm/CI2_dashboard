@@ -32,8 +32,8 @@ at the root (a `/p/epilepsy/…` link opens the same page there).
 
 ## Access
 
-- `tenants.kind` says which project a workspace is (`test`: a CI SQUARED Test
-  tab space, never listed).
+- `tenants.kind` says which project a workspace is (`test`: a space of
+  CI SQUARED's former Test tab, switched off since request 63).
 - A person's access is their role in that workspace (`role_assignments`):
   admin, analyst or client, or none ("No access": the project is not listed
   for them and its addresses send them back to their first project).
@@ -61,12 +61,12 @@ Profiles” and “4. Platform Trials & Assets” (matched loosely: “3, Platfo
 is fine; each must start “Platform” after its number). Columns are matched by
 name, ignoring case, spacing and punctuation.
 
-It is read with the same Microsoft app as CI SQUARED's Test tab
-(`SHAREPOINT_TENANT_ID`, `SHAREPOINT_CLIENT_ID`, `SHAREPOINT_CLIENT_SECRET`;
-see docs/TEST-TAB-SHAREPOINT.md). With **Sites.Selected**, that app can read
-only the sites it was given: give it read on the Epilepsy site
-(`16-42UCBEpilepsyCI2026-2027`) the same way it was given the CI2 site
-(Graph Explorer: `GET https://graph.microsoft.com/v1.0/sites/eradigm.sharepoint.com:/sites/16-42UCBEpilepsyCI2026-2027`
+It is read by a Microsoft app registration in Eradigm's directory
+(`SHAREPOINT_TENANT_ID`, `SHAREPOINT_CLIENT_ID`, `SHAREPOINT_CLIENT_SECRET`,
+set with `wrangler secret put`), with the Microsoft Graph application
+permission **Sites.Selected** (admin consent granted). That permission reads
+only the sites the app was given: give it read on the Epilepsy site
+(`16-42UCBEpilepsyCI2026-2027`) (Graph Explorer: `GET https://graph.microsoft.com/v1.0/sites/eradigm.sharepoint.com:/sites/16-42UCBEpilepsyCI2026-2027`
 for the site id, then `POST …/sites/{site-id}/permissions` with
 `{"roles":["read"],"grantedToIdentities":[{"application":{"id":"<client id>","displayName":"<app name>"}}]}`).
 
