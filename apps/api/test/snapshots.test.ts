@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { deleteSnapshots, readSnapshot, snapshotBackend, storeSnapshot } from "../src/pipeline/snapshots";
+import { deleteSnapshots, readSnapshot, snapshotBackend, storeSnapshot } from "../src/projects/ci-squared/pipeline/snapshots";
 import { env, ingest, seedWorld, type World } from "./helpers";
 
 let w: World;

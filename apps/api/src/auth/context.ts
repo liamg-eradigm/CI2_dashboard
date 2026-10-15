@@ -3,7 +3,7 @@
  * which role. Resolved on every request; every repository call takes the
  * tenant id from here, never from request data.
  */
-import { can, type Action, type Role, type Space } from "@eradigm/shared";
+import { PROJECT_HEADER, can, type Action, type Role, type Space } from "@eradigm/shared";
 import type { Env } from "../env.js";
 import { ApiError, forbidden } from "../lib/errors.js";
 import { nowIso } from "../lib/ids.js";
@@ -18,11 +18,16 @@ export interface Principal {
   tenantId: string;
   tenantName: string;
   role: Role;
-  tenants: { id: string; name: string; role: Role }[];
+  /** Every workspace (project, request 61) the caller can open, their first (the site's root) first. */
+  tenants: { id: string; name: string; role: Role; slug: string; kind: string }[];
   /** Request 55: "test" when the request is answered from the Test tab's test space (tenantId is then the test space's). */
   space?: Space;
   /** The live workspace (the same as tenantId outside the test space). */
   liveTenantId?: string;
+  /** Request 61: the project (tenants.kind) of the workspace, which decides the routes it may use. */
+  projectKind?: string;
+  /** Request 61: the workspace's slug (its web address /p/<slug> when it is not the caller's first). */
+  projectSlug?: string;
 }
 
 const DEV_SESSION_START = Math.floor(Date.now() / 1000);
@@ -58,18 +63,20 @@ interface MembershipRow {
   last_sign_in_at: string | null;
   tenant_id: string;
   tenant_name: string;
+  tenant_slug: string;
+  tenant_kind: string;
   role: Role;
 }
 
 export async function resolvePrincipal(req: Request, env: Env): Promise<Principal> {
   const id = await identify(req, env);
   const rows = await env.DB.prepare(
-    `SELECT u.id AS user_id, u.email, u.name, u.sessions_valid_after, u.last_sign_in_at, t.id AS tenant_id, t.name AS tenant_name, r.role
+    `SELECT u.id AS user_id, u.email, u.name, u.sessions_valid_after, u.last_sign_in_at, t.id AS tenant_id, t.name AS tenant_name, t.slug AS tenant_slug, t.kind AS tenant_kind, r.role
        FROM users u
        JOIN role_assignments r ON r.user_id = u.id AND r.revoked_at IS NULL AND r.active = 1
-       JOIN tenants t ON t.id = r.tenant_id AND t.active = 1
+       JOIN tenants t ON t.id = r.tenant_id AND t.active = 1 AND t.kind != 'test'
       WHERE ${id.userId ? "u.id = ?1" : "u.email = ?1"}
-      ORDER BY t.name`,
+      ORDER BY (t.kind = 'ci2') DESC, t.created_at, t.id`,
   )
     .bind(id.userId ?? id.email)
     .all<MembershipRow>();
@@ -83,10 +90,12 @@ export async function resolvePrincipal(req: Request, env: Env): Promise<Principa
     throw new ApiError("UNAUTHENTICATED", "This session was ended. Please sign in again.");
   }
 
+  // Request 61: the project the page is for (its slug); else (older clients) a workspace id; else the caller's first project.
+  const slug = req.headers.get(PROJECT_HEADER);
   const requested = req.headers.get("x-tenant-id");
-  const chosen = requested ? memberships.find((m) => m.tenant_id === requested) : first;
+  const chosen = slug ? memberships.find((m) => m.tenant_slug === slug) : requested ? memberships.find((m) => m.tenant_id === requested) : first;
   // Unknown or unauthorised tenant ids are indistinguishable from each other.
-  if (!chosen) throw forbidden("You do not have access to this workspace");
+  if (!chosen) throw forbidden(slug ? "You do not have access to this project" : "You do not have access to this workspace");
 
   // Dev sign-ins are audited here once per identity token; Microsoft sign-ins
   // are audited by the callback when the session is created.
@@ -111,7 +120,9 @@ export async function resolvePrincipal(req: Request, env: Env): Promise<Principa
     tenantId: chosen.tenant_id,
     tenantName: chosen.tenant_name,
     role: chosen.role,
-    tenants: memberships.map((m) => ({ id: m.tenant_id, name: m.tenant_name, role: m.role })),
+    tenants: memberships.map((m) => ({ id: m.tenant_id, name: m.tenant_name, role: m.role, slug: m.tenant_slug, kind: m.tenant_kind })),
+    projectKind: chosen.tenant_kind,
+    projectSlug: chosen.tenant_slug,
   };
 }
 

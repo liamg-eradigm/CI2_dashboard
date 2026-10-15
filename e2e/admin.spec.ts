@@ -3,7 +3,7 @@ import { expect, expectAccessible, signInAs, test } from "./fixtures";
 test.describe("admin role", () => {
   test.beforeEach(async ({ page }) => signInAs(page, "admin"));
 
-  test("manages users (the audit log is no longer shown here)", async ({ page }) => {
+  test("manages people and their access to each project (the audit log is no longer shown here)", async ({ page }) => {
     await page.goto("/admin");
     await expect(page.getByRole("heading", { level: 1, name: "Admin", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Deployment status" })).toBeVisible();
@@ -12,8 +12,9 @@ test.describe("admin role", () => {
     const email = `e2e.${Date.now()}@example.com`;
     await page.getByLabel("Email", { exact: true }).fill(email);
     await page.getByLabel("Name", { exact: true }).fill("E2E Person");
+    await expect(page.getByRole("combobox", { name: "Project", exact: true })).toHaveValue("t_demo");
     await page.getByRole("combobox", { name: "Role", exact: true }).selectOption("client");
-    await page.getByRole("button", { name: "+ Add user" }).click();
+    await page.getByRole("button", { name: "+ Add person" }).click();
     await expect(page.getByRole("cell", { name: email })).toBeVisible();
     // A one-time Microsoft sign-in invite link is shown to send to the new user.
     const box = page.locator(".invite-box");
@@ -36,8 +37,16 @@ test.describe("admin role", () => {
     await invitePage.close();
     await page.getByRole("button", { name: "Done" }).click();
 
-    await row.getByRole("button", { name: "Deactivate" }).click();
-    await expect(row.getByText("Deactivated")).toBeVisible();
+    // Request 61: their access per project — a client of CI SQUARED, nothing in Epilepsy; then none at all.
+    const ci = row.getByRole("combobox", { name: "E2E Person: access to CI SQUARED" });
+    await expect(ci).toHaveValue("client");
+    await expect(row.getByRole("combobox", { name: "E2E Person: access to Epilepsy" })).toHaveValue("");
+    await row.getByRole("combobox", { name: "E2E Person: access to Epilepsy" }).selectOption("analyst");
+    await expect(page.locator(".toast").last()).toContainText("is now Analyst in Epilepsy");
+    page.once("dialog", (d) => void d.accept());
+    await ci.selectOption("");
+    await expect(page.locator(".toast").last()).toContainText("no longer has access to CI SQUARED");
+    await expect(ci).toHaveValue("");
     await expectAccessible(page, "/admin");
   });
 

@@ -18,7 +18,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const OUT = path.join(root, "apps/api/src/templates/docxTemplates.generated.ts");
+const OUT = path.join(root, "apps/api/src/projects/ci-squared/templates/docxTemplates.generated.ts");
 const TEMPLATES = [
   { name: "ALERT_TEMPLATE", file: "Alert Template.docx" },
   { name: "NEWSLETTER_TEMPLATE", file: "Newsletter Template.docx" },
@@ -79,7 +79,7 @@ const check = process.argv.includes("--check");
 const current = existsSync(OUT) ? readFileSync(OUT, "utf8") : "";
 if (current === out) process.exit(0);
 if (check) {
-  console.error("apps/api/src/templates/docxTemplates.generated.ts is out of date: run `node scripts/build-docx-templates.mjs`.");
+  console.error("apps/api/src/projects/ci-squared/templates/docxTemplates.generated.ts is out of date: run `node scripts/build-docx-templates.mjs`.");
   process.exit(1);
 }
 writeFileSync(OUT, out);

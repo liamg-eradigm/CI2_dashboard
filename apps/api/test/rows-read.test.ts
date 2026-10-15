@@ -123,7 +123,8 @@ const BUDGETS: [string, number, boolean?][] = [
   [`/api/tracker?stream=primary&${RANGE}&pageSize=10`, 1000],
   [`/api/phantoms?stream=primary&${RANGE}&pageSize=10`, 1800],
   [`/api/dashboard?${RANGE}`, 12000],
-  ["/api/megatrends?stream=all", 2500],
+  // Request 61: plus each entry's competitors (the Explore Signals graph clusters by competitor).
+  ["/api/megatrends?stream=all", 3500],
   ["/api/competitors?stream=all", 9000],
   ["/api/primary-sources", 800],
   ["/api/trend-analyses", 50],

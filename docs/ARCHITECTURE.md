@@ -893,6 +893,57 @@ analyst-entered information distinguishable; in the prototype every value is
   "✓ Data synced" there for a moment when a sync changes the test space. A
   forced run that changes nothing says "Already up to date with the workbook"
   with the workbook's last save time.
+- **Request 61** (contract 2.2.0; migrations 0023, 0024, 0025): **projects**
+  (see docs/PROJECTS.md).
+  - The platform (sign-in, people and access, audit, incidents, the shell,
+    the Admin page) holds projects. Everything built before is the **CI
+    SQUARED** project, in `apps/api/src/projects/ci-squared` and
+    `apps/web/src/projects/ci-squared`; the second is **Epilepsy**
+    (`projects/epilepsy`). The platform reaches a project only through its
+    registry (`projects/registry.ts`, `ProjectModule` / `WebProject`); a
+    project never imports another.
+  - Workspaces have a kind (`tenants.kind`: `ci2`, `epilepsy`, `test`).
+    Migration 0024 names the first CI workspace CI SQUARED, marks the Test
+    tab's spaces `test` (never listed), and makes the Epilepsy workspace
+    (`tnt_epilepsy`, slug `epilepsy`) with CI SQUARED's admins as its admins.
+  - A request names its project by slug (`x-project`); without it, the
+    caller's first project (CI SQUARED first). The web app keeps a person's
+    first project at the root and any other at `/p/<slug>/…`. A project's
+    routes answer only for its own workspaces (`/api/epilepsy/*` for
+    Epilepsy, the rest of `/api/*` for CI SQUARED, the platform's for any).
+  - `/api/me` gives `project` and `projects`; the sidebar shows the
+    project's name under the logo (the subtitles' cyan) and the logo opens a
+    menu of the person's projects.
+  - Admin → **Projects and access** (`/api/access`, `/api/projects/:id`):
+    one account per person, a role or No access per project, rename a
+    project, add a person (a one-time sign-in link when they have never
+    signed in), sign-in links and End sessions; then a toggle to each
+    project's own settings (`WebProject.Admin`).
+  - **Epilepsy**: the SharePoint workbook (Admin → Epilepsy settings: its
+    link, resolved once to drive and item ids by `/shares`, else by name on
+    the link's site) is checked every minute and its four sheets read when it
+    changes (`epilepsy_rows`, JSON chunks; numbers shown as Excel shows them:
+    percentages and dates). Pages: News (Primary with Full Discussion and KIQ
+    Archive, Secondary), Competitor Profiles, Asset Launches, RCA and Trial
+    Tracker with its data viewer, built in the browser from
+    `/api/epilepsy/data`. Company colours are set on the Admin page.
+  - CI SQUARED: Explore Signals keeps the signals list open before a
+    Subtrend is chosen, puts a heading per month over it (by Recency),
+    clusters a Subtrend's signals by competitor (and a competitor's by
+    Macrotrend) in the graph, and flies to a signal opened from the list.
+    An alert generated for a Database entry can be reworded in its viewer and
+    saved (`/api/deliverables/:id/alert`, migration 0023).
+- **Request 60** (no contract change, no migration): numbered lists in
+  formatted text (`richText`, `richDoc`, `BulletText`, `RichTextField`).
+  - A list split by blank lines keeps counting: the shown list starts at its
+    first item's number (`<ol start>`), as the editor already did.
+  - A second line in an item (Shift+Enter, or another paragraph in it) is
+    stored indented one level past the item, read back as more of it (a `p`
+    block with `cont`), shown in the item after a line break, and opened in
+    the editor as a line break in the item. Before, it was stored as a plain
+    line, which ended the list (the next item started again at 1).
+  - Typing "2. " at the start of an item of a numbered list keeps the list's
+    own number instead of adding a second one ("2. 2.").
 - **Request 59** (web only): in the signals list, a signal's tags read, from
   the right: its date at the far right, then New, then CI Perspective.
 - **Request 58** (no contract change, no migration, web only): **Explore

@@ -118,8 +118,34 @@ function colIndex(ref: string): number {
   return n - 1;
 }
 
-/** A worksheet's cells as a grid of strings (shared strings resolved). */
-function sheetGrid(xml: string, shared: string[]): Grid {
+/** How a numeric cell is shown (request 61, `formats`): a percentage, a date, or as stored. */
+type NumberStyle = "percent" | "date" | null;
+
+/** Each cell style's kind (styles.xml cellXfs → its number format). */
+function numberStyles(xml: string): NumberStyle[] {
+  if (!xml) return [];
+  const custom = new Map<number, string>();
+  for (const m of xml.matchAll(/<numFmt\b[^>]*\bnumFmtId="(\d+)"[^>]*\bformatCode="([^"]*)"/g)) custom.set(Number(m[1]), xmlText(m[2] ?? ""));
+  const xfs = /<cellXfs\b[^>]*>([\s\S]*?)<\/cellXfs>/.exec(xml)?.[1] ?? "";
+  return [...xfs.matchAll(/<xf\b([^>]*?)(?:\/>|>)/g)].map((m) => {
+    const id = Number(/\bnumFmtId="(\d+)"/.exec(m[1] ?? "")?.[1] ?? 0);
+    if (id === 9 || id === 10) return "percent";
+    if ((id >= 14 && id <= 17) || id === 22) return "date";
+    const code = custom.get(id);
+    if (!code) return null;
+    // Quoted text and [colour]/[locale] parts are not the format itself.
+    const bare = code.replace(/"[^"]*"|\[[^\]]*\]|\\./g, "");
+    if (bare.includes("%")) return "percent";
+    if (/[dy]/i.test(bare) || /m{3,}/i.test(bare) || (/m/i.test(bare) && !/[hs]/i.test(bare) && /[dy/-]/i.test(bare))) return "date";
+    return null;
+  });
+}
+
+/** A stored number tidied for reading: no floating-point noise (0.30000000000000004 → 0.3). */
+const tidyNumber = (n: number) => String(Number(n.toPrecision(12)));
+
+/** A worksheet's cells as a grid of strings (shared strings resolved; with `styles`, percentages and dates as Excel shows them). */
+function sheetGrid(xml: string, shared: string[], styles?: NumberStyle[]): Grid {
   const grid: Grid = [];
   for (const rm of xml.matchAll(/<row\b([^>]*)>([\s\S]*?)<\/row>/g)) {
     const rAttr = /\br="(\d+)"/.exec(rm[1] ?? "");
@@ -139,6 +165,11 @@ function sheetGrid(xml: string, shared: string[]): Grid {
       else if (t === "inlineStr") value = runs(body);
       else if (t === "b") value = v === "1" ? "TRUE" : v === "0" ? "FALSE" : "";
       else value = v != null ? xmlText(v) : "";
+      if (styles && (t == null || t === "n") && v != null && value !== "" && Number.isFinite(Number(value))) {
+        const style = styles[Number(/\bs="(\d+)"/.exec(attrs)?.[1] ?? 0)] ?? null;
+        const n = Number(value);
+        value = style === "percent" ? `${tidyNumber(n * 100)}%` : style === "date" ? excelDate(value) : tidyNumber(n);
+      }
       while (row.length < idx) row.push("");
       row[idx] = value;
     }
@@ -149,8 +180,11 @@ function sheetGrid(xml: string, shared: string[]): Grid {
 }
 
 /** Every worksheet of an .xlsx workbook, in workbook order, by name (request 55: the SharePoint workbook). */
-export async function parseXlsxBook(bytes: Uint8Array, only?: (name: string) => boolean): Promise<{ name: string; grid: Grid }[]> {
-  const parts = await unzip(bytes, (n) => n === "xl/workbook.xml" || n === "xl/_rels/workbook.xml.rels" || n === "xl/sharedStrings.xml" || /^xl\/worksheets\/[^/]+\.xml$/.test(n));
+export async function parseXlsxBook(bytes: Uint8Array, only?: (name: string) => boolean, opts: { formats?: boolean } = {}): Promise<{ name: string; grid: Grid }[]> {
+  const parts = await unzip(
+    bytes,
+    (n) => n === "xl/workbook.xml" || n === "xl/_rels/workbook.xml.rels" || n === "xl/sharedStrings.xml" || (!!opts.formats && n === "xl/styles.xml") || /^xl\/worksheets\/[^/]+\.xml$/.test(n),
+  );
   const dec = new TextDecoder();
   const text = (n: string) => (parts.has(n) ? dec.decode(parts.get(n)) : "");
   const rels = text("xl/_rels/workbook.xml.rels");
@@ -169,7 +203,8 @@ export async function parseXlsxBook(bytes: Uint8Array, only?: (name: string) => 
     sheets.push({ name: "Sheet1", path: any });
   }
   const shared = [...text("xl/sharedStrings.xml").matchAll(/<si>([\s\S]*?)<\/si>/g)].map((m) => runs(m[1] ?? ""));
-  return sheets.filter((sh) => !only || only(sh.name)).map((sh) => ({ name: sh.name, grid: parts.has(sh.path) ? sheetGrid(text(sh.path), shared) : [] }));
+  const styles = opts.formats ? numberStyles(text("xl/styles.xml")) : undefined;
+  return sheets.filter((sh) => !only || only(sh.name)).map((sh) => ({ name: sh.name, grid: parts.has(sh.path) ? sheetGrid(text(sh.path), shared, styles) : [] }));
 }
 
 /** The first worksheet of an .xlsx workbook as a grid of strings. */

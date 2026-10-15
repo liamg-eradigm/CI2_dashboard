@@ -5,7 +5,9 @@
  *
  * - one line per paragraph; a blank line between paragraphs
  * - `### ` starts a title line
- * - `- ` (or `* `, `+ `, `1. `) starts a bullet, nested by two spaces a level
+ * - `- ` (or `* `, `+ `, `1. `) starts a bullet, nested by two spaces a level;
+ *   an indented line right after a bullet is more of that bullet (a second
+ *   line in it), not a new paragraph (request 60)
  * - `**bold**`, `<u>underline</u>` and
  *   `<span style="font-size:1.3em">larger</span>` inside a line
  *
@@ -27,7 +29,8 @@ export interface RichRun {
 }
 
 export type RichBlock =
-  | { kind: "p"; runs: RichRun[] }
+  /** `cont`: the depth of the bullet this line belongs to (a second line in it, request 60). */
+  | { kind: "p"; runs: RichRun[]; cont?: number }
   | { kind: "title"; runs: RichRun[] }
   | { kind: "item"; depth: number; ordered: boolean; marker: string; runs: RichRun[] };
 
@@ -100,30 +103,39 @@ export function serializeInline(runs: RichRun[]): string {
 
 /** Lines of formatted text as blocks: paragraphs (an empty one for a blank line), titles and bullets. */
 export function parseRich(text: string): RichBlock[] {
+  // The bullet the lines are in: an indented line right after it (or after its other lines) is more of it.
+  let inItem: number | null = null;
   return (text ?? "")
     .replace(/\r\n?/g, "\n")
     .split("\n")
     .map((line): RichBlock => {
       const t = TITLE.exec(line);
-      if (t) return { kind: "title", runs: parseInline(t[1] ?? "") };
+      if (t) {
+        inItem = null;
+        return { kind: "title", runs: parseInline(t[1] ?? "") };
+      }
       const it = ITEM.exec(line);
       if (it) {
         const marker = it[2] ?? "-";
-        return { kind: "item", depth: Math.floor((it[1] ?? "").replace(/\t/g, "  ").length / 2), ordered: /\d/.test(marker), marker, runs: parseInline(it[3] ?? "") };
+        const depth = Math.floor((it[1] ?? "").replace(/\t/g, "  ").length / 2);
+        inItem = depth;
+        return { kind: "item", depth, ordered: /\d/.test(marker), marker, runs: parseInline(it[3] ?? "") };
       }
+      if (inItem != null && /^[ \t]+\S/.test(line)) return { kind: "p", runs: parseInline(line.replace(/^[ \t]+/, "")), cont: inItem };
+      inItem = null;
       return { kind: "p", runs: parseInline(line) };
     });
 }
 
+/** A line of markup for a block (a bullet's second line indented one level past it). */
+function blockLine(b: RichBlock, inline: string): string {
+  if (b.kind === "title") return `### ${inline}`;
+  if (b.kind === "item") return `${"  ".repeat(b.depth)}${b.ordered ? b.marker : "-"} ${inline}`;
+  return b.cont != null && inline ? `${"  ".repeat(b.cont + 1)}${inline}` : inline;
+}
+
 export function serializeRich(blocks: RichBlock[]): string {
-  return blocks
-    .map((b) => {
-      const inline = serializeInline(b.runs);
-      if (b.kind === "title") return `### ${inline}`;
-      if (b.kind === "item") return `${"  ".repeat(b.depth)}${b.ordered ? b.marker : "-"} ${inline}`;
-      return inline;
-    })
-    .join("\n");
+  return blocks.map((b) => blockLine(b, serializeInline(b.runs))).join("\n");
 }
 
 /** The text without its formatting (bullets kept), for tables, searches, exports to plain text and the AI writer. */
@@ -133,8 +145,7 @@ export function plainText(text: string | null | undefined): string {
   return parseRich(text)
     .map((b) => {
       const inline = b.runs.map((r) => r.text).join("");
-      if (b.kind === "item") return `${"  ".repeat(b.depth)}${b.ordered ? b.marker : "-"} ${inline}`;
-      return inline;
+      return b.kind === "title" ? inline : blockLine(b, inline);
     })
     .join("\n");
 }

@@ -40,3 +40,22 @@ describe("formatted text (request 46)", () => {
     expect(stepFontSize(1.3, -1)).toBe(1.15);
   });
 });
+
+describe("numbered lists and a bullet's second line (request 60)", () => {
+  it("reads an indented line right after a bullet as more of that bullet", () => {
+    const blocks = parseRich("1. First\n  more of it\n2. Second\nAfter");
+    expect(blocks.map((b) => b.kind)).toEqual(["item", "p", "item", "p"]);
+    expect(blocks[1]).toEqual({ kind: "p", runs: [{ text: "more of it" }], cont: 0 });
+    expect(blocks[3]).toEqual({ kind: "p", runs: [{ text: "After" }] });
+    // Nested: the line belongs to the bullet at its own depth.
+    expect(parseRich("- a\n  - b\n    deeper")[2]).toEqual({ kind: "p", runs: [{ text: "deeper" }], cont: 1 });
+  });
+  it("keeps it indented when written back, and in the plain text", () => {
+    const text = "1. First\n  more of **it**\n2. Second";
+    expect(serializeRich(parseRich(text))).toBe(text);
+    expect(plainText(text)).toBe("1. First\n  more of it\n2. Second");
+  });
+  it("keeps each item's number, also across a blank line", () => {
+    expect(parseRich("1. a\n\n2. b").filter((b) => b.kind === "item").map((b) => (b.kind === "item" ? b.marker : ""))).toEqual(["1.", "2."]);
+  });
+});

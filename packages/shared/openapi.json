@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Eradigm Competitive Intelligence API",
-    "version": "2.1.0",
+    "version": "2.2.0",
     "description": "Generated from packages/shared/src/api.ts. Every request is checked for both role and tenant server-side. Send X-Tenant-Id to select a tenant when the user belongs to more than one."
   },
   "components": {
@@ -675,6 +675,84 @@
                         "live",
                         "test"
                       ]
+                    },
+                    "project": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "slug": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "type": "string"
+                        },
+                        "role": {
+                          "type": "string",
+                          "enum": [
+                            "admin",
+                            "analyst",
+                            "client"
+                          ]
+                        },
+                        "path": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "slug",
+                        "name",
+                        "kind",
+                        "role",
+                        "path"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "projects": {
+                      "default": [],
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "slug": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "role": {
+                            "type": "string",
+                            "enum": [
+                              "admin",
+                              "analyst",
+                              "client"
+                            ]
+                          },
+                          "path": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "slug",
+                          "name",
+                          "kind",
+                          "role",
+                          "path"
+                        ],
+                        "additionalProperties": false
+                      }
                     }
                   },
                   "required": [
@@ -687,7 +765,8 @@
                     "environment",
                     "timezone",
                     "features",
-                    "space"
+                    "space",
+                    "projects"
                   ],
                   "additionalProperties": false
                 }
@@ -8004,6 +8083,568 @@
         ]
       }
     },
+    "/api/deliverables/{id}/alert": {
+      "get": {
+        "summary": "An alert's text (as written now, as generated, and the reworded parts)",
+        "description": "Roles: admin, analyst",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "fields": {
+                      "type": "object",
+                      "properties": {
+                        "title": {
+                          "type": "string",
+                          "maxLength": 20000
+                        },
+                        "competitor": {
+                          "type": "string",
+                          "maxLength": 20000
+                        },
+                        "assets": {
+                          "type": "string",
+                          "maxLength": 20000
+                        },
+                        "reviewDate": {
+                          "type": "string",
+                          "maxLength": 20000
+                        },
+                        "publisher": {
+                          "type": "string",
+                          "maxLength": 20000
+                        },
+                        "url": {
+                          "type": "string",
+                          "maxLength": 20000
+                        },
+                        "impact": {
+                          "type": "string",
+                          "maxLength": 20000
+                        },
+                        "keyDetails": {
+                          "type": "string",
+                          "maxLength": 20000
+                        },
+                        "ciPerspective": {
+                          "type": "string",
+                          "maxLength": 20000
+                        },
+                        "tellMeMore": {
+                          "type": "string",
+                          "maxLength": 20000
+                        }
+                      },
+                      "required": [
+                        "title",
+                        "competitor",
+                        "assets",
+                        "reviewDate",
+                        "publisher",
+                        "url",
+                        "impact",
+                        "keyDetails",
+                        "ciPerspective",
+                        "tellMeMore"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "generated": {
+                      "type": "object",
+                      "properties": {
+                        "title": {
+                          "type": "string",
+                          "maxLength": 20000
+                        },
+                        "competitor": {
+                          "type": "string",
+                          "maxLength": 20000
+                        },
+                        "assets": {
+                          "type": "string",
+                          "maxLength": 20000
+                        },
+                        "reviewDate": {
+                          "type": "string",
+                          "maxLength": 20000
+                        },
+                        "publisher": {
+                          "type": "string",
+                          "maxLength": 20000
+                        },
+                        "url": {
+                          "type": "string",
+                          "maxLength": 20000
+                        },
+                        "impact": {
+                          "type": "string",
+                          "maxLength": 20000
+                        },
+                        "keyDetails": {
+                          "type": "string",
+                          "maxLength": 20000
+                        },
+                        "ciPerspective": {
+                          "type": "string",
+                          "maxLength": 20000
+                        },
+                        "tellMeMore": {
+                          "type": "string",
+                          "maxLength": 20000
+                        }
+                      },
+                      "required": [
+                        "title",
+                        "competitor",
+                        "assets",
+                        "reviewDate",
+                        "publisher",
+                        "url",
+                        "impact",
+                        "keyDetails",
+                        "ciPerspective",
+                        "tellMeMore"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "edited": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "title",
+                          "competitor",
+                          "assets",
+                          "reviewDate",
+                          "publisher",
+                          "url",
+                          "impact",
+                          "keyDetails",
+                          "ciPerspective",
+                          "tellMeMore"
+                        ]
+                      }
+                    },
+                    "editedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "editedBy": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "fields",
+                    "generated",
+                    "edited",
+                    "editedAt",
+                    "editedBy"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      },
+      "put": {
+        "summary": "Reword an alert (request 61): the parts equal to the generated text follow the entry again",
+        "description": "Roles: admin, analyst",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "fields": {
+                      "type": "object",
+                      "properties": {
+                        "title": {
+                          "type": "string",
+                          "maxLength": 20000
+                        },
+                        "competitor": {
+                          "type": "string",
+                          "maxLength": 20000
+                        },
+                        "assets": {
+                          "type": "string",
+                          "maxLength": 20000
+                        },
+                        "reviewDate": {
+                          "type": "string",
+                          "maxLength": 20000
+                        },
+                        "publisher": {
+                          "type": "string",
+                          "maxLength": 20000
+                        },
+                        "url": {
+                          "type": "string",
+                          "maxLength": 20000
+                        },
+                        "impact": {
+                          "type": "string",
+                          "maxLength": 20000
+                        },
+                        "keyDetails": {
+                          "type": "string",
+                          "maxLength": 20000
+                        },
+                        "ciPerspective": {
+                          "type": "string",
+                          "maxLength": 20000
+                        },
+                        "tellMeMore": {
+                          "type": "string",
+                          "maxLength": 20000
+                        }
+                      },
+                      "required": [
+                        "title",
+                        "competitor",
+                        "assets",
+                        "reviewDate",
+                        "publisher",
+                        "url",
+                        "impact",
+                        "keyDetails",
+                        "ciPerspective",
+                        "tellMeMore"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "generated": {
+                      "type": "object",
+                      "properties": {
+                        "title": {
+                          "type": "string",
+                          "maxLength": 20000
+                        },
+                        "competitor": {
+                          "type": "string",
+                          "maxLength": 20000
+                        },
+                        "assets": {
+                          "type": "string",
+                          "maxLength": 20000
+                        },
+                        "reviewDate": {
+                          "type": "string",
+                          "maxLength": 20000
+                        },
+                        "publisher": {
+                          "type": "string",
+                          "maxLength": 20000
+                        },
+                        "url": {
+                          "type": "string",
+                          "maxLength": 20000
+                        },
+                        "impact": {
+                          "type": "string",
+                          "maxLength": 20000
+                        },
+                        "keyDetails": {
+                          "type": "string",
+                          "maxLength": 20000
+                        },
+                        "ciPerspective": {
+                          "type": "string",
+                          "maxLength": 20000
+                        },
+                        "tellMeMore": {
+                          "type": "string",
+                          "maxLength": 20000
+                        }
+                      },
+                      "required": [
+                        "title",
+                        "competitor",
+                        "assets",
+                        "reviewDate",
+                        "publisher",
+                        "url",
+                        "impact",
+                        "keyDetails",
+                        "ciPerspective",
+                        "tellMeMore"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "edited": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "title",
+                          "competitor",
+                          "assets",
+                          "reviewDate",
+                          "publisher",
+                          "url",
+                          "impact",
+                          "keyDetails",
+                          "ciPerspective",
+                          "tellMeMore"
+                        ]
+                      }
+                    },
+                    "editedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "editedBy": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "fields",
+                    "generated",
+                    "edited",
+                    "editedAt",
+                    "editedBy"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "fields": {
+                    "type": "object",
+                    "properties": {
+                      "title": {
+                        "type": "string",
+                        "maxLength": 20000
+                      },
+                      "competitor": {
+                        "type": "string",
+                        "maxLength": 20000
+                      },
+                      "assets": {
+                        "type": "string",
+                        "maxLength": 20000
+                      },
+                      "reviewDate": {
+                        "type": "string",
+                        "maxLength": 20000
+                      },
+                      "publisher": {
+                        "type": "string",
+                        "maxLength": 20000
+                      },
+                      "url": {
+                        "type": "string",
+                        "maxLength": 20000
+                      },
+                      "impact": {
+                        "type": "string",
+                        "maxLength": 20000
+                      },
+                      "keyDetails": {
+                        "type": "string",
+                        "maxLength": 20000
+                      },
+                      "ciPerspective": {
+                        "type": "string",
+                        "maxLength": 20000
+                      },
+                      "tellMeMore": {
+                        "type": "string",
+                        "maxLength": 20000
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "fields"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
     "/api/megatrends": {
       "get": {
         "summary": "Megatrends: Tracker entries per Macrotrend and Subtrend (query: stream all|primary|secondary, from, to), their summaries, and the entries for the timeline",
@@ -8252,6 +8893,12 @@
                           },
                           "ci": {
                             "type": "boolean"
+                          },
+                          "competitors": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
                           }
                         },
                         "required": [
@@ -21457,9 +22104,6 @@
                             "items": [
                               {
                                 "key": "dashboard"
-                              },
-                              {
-                                "key": "primary-tracker"
                               }
                             ]
                           },
@@ -21487,9 +22131,6 @@
                               },
                               {
                                 "key": "test-megatrends"
-                              },
-                              {
-                                "key": "test-primary-tracker"
                               }
                             ]
                           }
@@ -21980,9 +22621,6 @@
                             "items": [
                               {
                                 "key": "dashboard"
-                              },
-                              {
-                                "key": "primary-tracker"
                               }
                             ]
                           },
@@ -22010,9 +22648,6 @@
                               },
                               {
                                 "key": "test-megatrends"
-                              },
-                              {
-                                "key": "test-primary-tracker"
                               }
                             ]
                           }
@@ -22817,9 +23452,6 @@
                             "items": [
                               {
                                 "key": "dashboard"
-                              },
-                              {
-                                "key": "primary-tracker"
                               }
                             ]
                           },
@@ -22847,9 +23479,6 @@
                               },
                               {
                                 "key": "test-megatrends"
-                              },
-                              {
-                                "key": "test-primary-tracker"
                               }
                             ]
                           }
@@ -23511,6 +24140,1903 @@
                   "email",
                   "name",
                   "role"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/access": {
+      "get": {
+        "summary": "Request 61: people and their access to each project the caller manages",
+        "description": "Roles: admin, analyst",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "projects": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "slug": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "role": {
+                            "type": "string",
+                            "enum": [
+                              "admin",
+                              "analyst",
+                              "client"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "slug",
+                          "name",
+                          "kind",
+                          "role"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "people": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "signIn": {
+                            "type": "string",
+                            "enum": [
+                              "linked",
+                              "invited",
+                              "not_invited"
+                            ]
+                          },
+                          "lastSeenAt": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "access": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "object",
+                              "properties": {
+                                "role": {
+                                  "type": "string",
+                                  "enum": [
+                                    "admin",
+                                    "analyst",
+                                    "client"
+                                  ]
+                                },
+                                "active": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "role",
+                                "active"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "email",
+                          "name",
+                          "signIn",
+                          "lastSeenAt",
+                          "access"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "projects",
+                    "people"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      },
+      "post": {
+        "summary": "Request 61: add a person to a project (a one-time sign-in link when they have not signed in yet)",
+        "description": "Roles: admin, analyst",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "projects": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "slug": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "role": {
+                            "type": "string",
+                            "enum": [
+                              "admin",
+                              "analyst",
+                              "client"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "slug",
+                          "name",
+                          "kind",
+                          "role"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "people": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "signIn": {
+                            "type": "string",
+                            "enum": [
+                              "linked",
+                              "invited",
+                              "not_invited"
+                            ]
+                          },
+                          "lastSeenAt": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "access": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "object",
+                              "properties": {
+                                "role": {
+                                  "type": "string",
+                                  "enum": [
+                                    "admin",
+                                    "analyst",
+                                    "client"
+                                  ]
+                                },
+                                "active": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "role",
+                                "active"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "email",
+                          "name",
+                          "signIn",
+                          "lastSeenAt",
+                          "access"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "projects",
+                    "people"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "maxLength": 254,
+                    "format": "email",
+                    "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "projectId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "admin",
+                      "analyst",
+                      "client"
+                    ]
+                  }
+                },
+                "required": [
+                  "email",
+                  "name",
+                  "projectId",
+                  "role"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/access/{userId}": {
+      "put": {
+        "summary": "Request 61: give a person a role in a project, change it, or take their access away (admins of that project)",
+        "description": "Roles: admin",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "projects": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "slug": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "role": {
+                            "type": "string",
+                            "enum": [
+                              "admin",
+                              "analyst",
+                              "client"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "slug",
+                          "name",
+                          "kind",
+                          "role"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "people": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "signIn": {
+                            "type": "string",
+                            "enum": [
+                              "linked",
+                              "invited",
+                              "not_invited"
+                            ]
+                          },
+                          "lastSeenAt": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "access": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "object",
+                              "properties": {
+                                "role": {
+                                  "type": "string",
+                                  "enum": [
+                                    "admin",
+                                    "analyst",
+                                    "client"
+                                  ]
+                                },
+                                "active": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "role",
+                                "active"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "email",
+                          "name",
+                          "signIn",
+                          "lastSeenAt",
+                          "access"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "projects",
+                    "people"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "projectId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "role": {
+                    "nullable": true,
+                    "type": "string",
+                    "enum": [
+                      "admin",
+                      "analyst",
+                      "client"
+                    ]
+                  }
+                },
+                "required": [
+                  "projectId",
+                  "role"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/access/{userId}/invite": {
+      "post": {
+        "summary": "Request 61: a one-time sign-in link for a person in a project the caller manages",
+        "description": "Roles: admin, analyst",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string"
+                    },
+                    "expiresAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "url",
+                    "expiresAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/access/{userId}/sessions/revoke": {
+      "post": {
+        "summary": "Request 61: end a person's sessions (admins of a project they are in)",
+        "description": "Roles: admin",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/epilepsy/data": {
+      "get": {
+        "summary": "Request 61 (Epilepsy): the workbook's four sheets, the companies' colours and when it was last read",
+        "description": "Roles: admin, analyst, client",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sheets": {
+                      "type": "object",
+                      "properties": {
+                        "secondary": {
+                          "nullable": true,
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string"
+                            },
+                            "columns": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "rows": {
+                              "type": "array",
+                              "items": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          },
+                          "required": [
+                            "name",
+                            "columns",
+                            "rows"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "primary": {
+                          "nullable": true,
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string"
+                            },
+                            "columns": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "rows": {
+                              "type": "array",
+                              "items": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          },
+                          "required": [
+                            "name",
+                            "columns",
+                            "rows"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "profiles": {
+                          "nullable": true,
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string"
+                            },
+                            "columns": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "rows": {
+                              "type": "array",
+                              "items": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          },
+                          "required": [
+                            "name",
+                            "columns",
+                            "rows"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "assets": {
+                          "nullable": true,
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string"
+                            },
+                            "columns": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "rows": {
+                              "type": "array",
+                              "items": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          },
+                          "required": [
+                            "name",
+                            "columns",
+                            "rows"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "secondary",
+                        "primary",
+                        "profiles",
+                        "assets"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "colours": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "syncedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "sheets",
+                    "colours",
+                    "syncedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/epilepsy/status": {
+      "get": {
+        "summary": "Request 61 (Epilepsy): the workbook's sync status",
+        "description": "Roles: admin, analyst, client",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "never",
+                        "idle",
+                        "syncing",
+                        "error"
+                      ]
+                    },
+                    "message": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "link": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "fileName": {
+                      "type": "string"
+                    },
+                    "file": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "url": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "modifiedAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "modifiedBy": {
+                          "nullable": true,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "url",
+                        "modifiedAt",
+                        "modifiedBy"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "lastCheckedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "lastSyncedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "counts": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "nullable": true,
+                        "type": "number"
+                      }
+                    },
+                    "problem": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "stage": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "hint": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "nullable": true,
+                          "type": "number"
+                        },
+                        "code": {
+                          "nullable": true,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "stage",
+                        "message",
+                        "hint",
+                        "status",
+                        "code"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "message",
+                    "link",
+                    "fileName",
+                    "file",
+                    "lastCheckedAt",
+                    "lastSyncedAt",
+                    "counts",
+                    "problem"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/epilepsy/settings": {
+      "put": {
+        "summary": "Request 61 (Epilepsy): the workbook's link and file name, and the companies' colours",
+        "description": "Roles: admin",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "never",
+                        "idle",
+                        "syncing",
+                        "error"
+                      ]
+                    },
+                    "message": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "link": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "fileName": {
+                      "type": "string"
+                    },
+                    "file": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "url": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "modifiedAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "modifiedBy": {
+                          "nullable": true,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "url",
+                        "modifiedAt",
+                        "modifiedBy"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "lastCheckedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "lastSyncedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "counts": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "nullable": true,
+                        "type": "number"
+                      }
+                    },
+                    "problem": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "stage": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "hint": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "nullable": true,
+                          "type": "number"
+                        },
+                        "code": {
+                          "nullable": true,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "stage",
+                        "message",
+                        "hint",
+                        "status",
+                        "code"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "message",
+                    "link",
+                    "fileName",
+                    "file",
+                    "lastCheckedAt",
+                    "lastSyncedAt",
+                    "counts",
+                    "problem"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "link": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "fileName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "colours": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string",
+                      "pattern": "^#[0-9a-f]{6}$"
+                    }
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/epilepsy/sync": {
+      "post": {
+        "summary": "Request 61 (Epilepsy): Sync now (read the workbook when it changed; force: anyway)",
+        "description": "Roles: admin, analyst",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "never",
+                        "idle",
+                        "syncing",
+                        "error"
+                      ]
+                    },
+                    "message": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "link": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "fileName": {
+                      "type": "string"
+                    },
+                    "file": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "url": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "modifiedAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "modifiedBy": {
+                          "nullable": true,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "url",
+                        "modifiedAt",
+                        "modifiedBy"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "lastCheckedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "lastSyncedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "counts": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "nullable": true,
+                        "type": "number"
+                      }
+                    },
+                    "problem": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "stage": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "hint": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "nullable": true,
+                          "type": "number"
+                        },
+                        "code": {
+                          "nullable": true,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "stage",
+                        "message",
+                        "hint",
+                        "status",
+                        "code"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "message",
+                    "link",
+                    "fileName",
+                    "file",
+                    "lastCheckedAt",
+                    "lastSyncedAt",
+                    "counts",
+                    "problem"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "force": {
+                    "type": "boolean"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{id}": {
+      "patch": {
+        "summary": "Request 61: rename a project (its admins)",
+        "description": "Roles: admin",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "slug": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string"
+                    },
+                    "role": {
+                      "type": "string",
+                      "enum": [
+                        "admin",
+                        "analyst",
+                        "client"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "slug",
+                    "name",
+                    "kind",
+                    "role"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  }
+                },
+                "required": [
+                  "name"
                 ],
                 "additionalProperties": false
               }

@@ -1,176 +1,20 @@
-import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
-import {
-  type DiscussionSummary,
-  IN_PROGRESS_STATUSES,
-  filtersToParams,
-  type ArchivedResponses,
-  type MacroSection,
-  type AuditEvent,
-  type CaptureLogEntry,
-  type DashboardData,
-  type DateBounds,
-  type FilterState,
-  type Incident,
-  type ItemComment,
-  type ItemDetail,
-  type ItemSummary,
-  type Me,
-  type Competitors,
-  type Megatrends,
-  type Newsletter,
-  type PrimarySource,
-  type QualityMetrics,
-  type SavedView,
-  type SignalDetail,
-  type Stream,
-  type TenantSettings,
-  type TrackerPage,
-  type TrackerSchema,
-  type TrendAnalysis,
-  type User,
-} from "@eradigm/shared";
-import { api, request } from "./client";
-
-export type SchemaWithUsage = TrackerSchema & { usage?: Record<string, Record<string, number>> };
+/**
+ * Platform hooks (request 61): what every project uses — who is signed in,
+ * people and their access, the audit log and the API's health.
+ * A project's own data hooks live in its folder (projects/<project>/api).
+ */
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import type { Access, AuditEvent, Incident, Me, User } from "@eradigm/shared";
+import { api } from "./client";
 
 export const useMe = () => useQuery({ queryKey: ["me"], queryFn: () => api<Me>("/api/me"), retry: false, staleTime: 60_000 });
-/** A stream's column set, or "all" (both merged, read-only: the Dashboard). */
-export const useSchema = (stream: Stream | "all" = "primary", withUsage = false) =>
-  useQuery({
-    queryKey: ["schema", stream, withUsage],
-    queryFn: () => api<SchemaWithUsage>(`/api/schema?stream=${stream}${withUsage ? "&usage=1" : ""}`),
-    staleTime: 30_000,
-  });
-/** Oldest and newest Tracker entry dates (the default date filter). */
-export const useDateBounds = () => useQuery({ queryKey: ["bounds"], queryFn: () => api<DateBounds>("/api/tracker/bounds"), staleTime: 60_000 });
-export const useSettings = () => useQuery({ queryKey: ["settings"], queryFn: () => api<TenantSettings>("/api/settings"), staleTime: 60_000 });
-
-const qs = (f: FilterState, extra: Record<string, string | number> = {}) => {
-  const p = filtersToParams(f);
-  for (const [k, v] of Object.entries(extra)) p.set(k, String(v));
-  return p.toString();
-};
-
-export const useDashboard = (f: FilterState, enabled = true) =>
-  useQuery({ queryKey: ["dashboard", f], queryFn: () => api<DashboardData>(`/api/dashboard?${qs(f)}`), placeholderData: keepPreviousData, enabled });
-
-/** The Tracker and Phantoms tables; database: the Database page (request 43). */
-export type TableView = "tracker" | "phantoms" | "database";
-const TABLE_PATH: Record<TableView, string> = { tracker: "/api/tracker", phantoms: "/api/phantoms", database: "/api/database" };
-
-export const useTracker = (f: FilterState, sort: { key: string; dir: "asc" | "desc" }, page: number, pageSize = 10, stream: Stream = "primary", view: TableView = "tracker", enabled = true) =>
-  useQuery({
-    queryKey: ["tracker", view, stream, f, sort, page, pageSize],
-    queryFn: () => api<TrackerPage>(`${TABLE_PATH[view]}?${qs(f, { sort: sort.key, dir: sort.dir, page, pageSize, stream })}`),
-    placeholderData: keepPreviousData,
-    enabled,
-  });
-
-export const exportUrl = (f: FilterState, sort: { key: string; dir: string }, scope: "filtered" | "all", format: string, stream: Stream = "primary", view: TableView = "tracker") =>
-  `/api/tracker/export?${qs(f, { sort: sort.key, dir: sort.dir, scope, format, stream, view })}`;
-
-export const useMegatrends = (stream: Stream | "all", from: string | null, to: string | null) =>
-  useQuery({
-    queryKey: ["megatrends", stream, from, to],
-    queryFn: () => api<Megatrends>(`/api/megatrends?${new URLSearchParams({ stream, ...(from ? { from } : {}), ...(to ? { to } : {}) })}`),
-    placeholderData: keepPreviousData,
-  });
-export const useCompetitors = () =>
-  useQuery({ queryKey: ["competitors"], queryFn: () => api<Competitors>("/api/competitors?stream=all"), placeholderData: keepPreviousData });
-/** The distinct values of text columns among a stream's Tracker entries (Primary Tracker filter dropdowns, request 41). */
-export const useTrackerValues = (stream: Stream, keys: string[]) =>
-  useQuery({
-    queryKey: ["tracker", "values", stream, keys.join(",")],
-    queryFn: () => api<Record<string, string[]>>(`/api/tracker/values?${new URLSearchParams([["stream", stream], ...keys.map((k) => ["key", k])])}`),
-    enabled: keys.length > 0,
-  });
-/** Newsletters (Database → Newsletter, request 52), newest first. */
-export const useNewsletters = (enabled = true) => useQuery({ queryKey: ["newsletters"], queryFn: () => api<Newsletter[]>("/api/newsletters"), enabled });
-
-/** The Phantoms Markdown of an entry (text). */
-export const useMarkdown = (id: string | null) =>
-  useQuery({
-    queryKey: ["signal", id, "markdown"],
-    queryFn: async () => {
-      const res = await request(`/api/signals/${id}/markdown`);
-      return res.text();
-    },
-    enabled: !!id,
-  });
-
-/** Items awaiting the analyst in each inbox (the red badges). */
-export const useClientInboxCount = (enabled: boolean) =>
-  useQuery({ queryKey: ["client-inbox", "count"], queryFn: () => api<{ count: number }>("/api/client-inbox/count"), enabled, refetchInterval: enabled ? 20_000 : false });
-export const useClientInbox = () => useQuery({ queryKey: ["client-inbox", "list"], queryFn: () => api<ItemSummary[]>("/api/client-inbox"), refetchInterval: 20_000 });
-export const useComments = (itemId: string | null, enabled = true) =>
-  useQuery({ queryKey: ["comments", itemId], queryFn: () => api<ItemComment[]>(`/api/items/${itemId}/comments`), enabled: !!itemId && enabled });
-export const useInboxCounts = (enabled: boolean) =>
-  useQuery({ queryKey: ["counts"], queryFn: () => api<Record<Stream, number>>("/api/items/counts"), enabled, refetchInterval: enabled ? 20_000 : false });
-
-/** Approved Primary entries with a source (Source Role + Source Company), for "This Source Has Prior Primary Information". */
-export const usePrimarySources = (enabled: boolean) =>
-  useQuery({ queryKey: ["primary-sources"], queryFn: () => api<PrimarySource[]>("/api/primary-sources"), enabled, staleTime: 30_000 });
-
-/** Trend Analyses (contract 1.18): every analysis submitted, newest first. */
-export const useTrendAnalyses = () => useQuery({ queryKey: ["trend-analyses"], queryFn: () => api<TrendAnalysis[]>("/api/trend-analyses") });
-
-/** Every Macrotrend's analysis sections (request 34). */
-export const useMacroSections = () => useQuery({ queryKey: ["macro-sections"], queryFn: () => api<MacroSection[]>("/api/macrotrends/sections") });
-
-/** A submitted trend analysis as Markdown (text). */
-export const useTrendAnalysisMarkdown = (id: string | null) =>
-  useQuery({
-    queryKey: ["trend-analyses", id, "markdown"],
-    queryFn: async () => {
-      const res = await request(`/api/trend-analyses/${id}/markdown`);
-      return res.text();
-    },
-    enabled: !!id,
-  });
-
-/** Archived Responses (request 34): earlier Primary entries from the same source. */
-/** Full Discussion (the same source), or with `kiq` the KIQ Archive (also the same Insight Topic and KIQ, request 42). */
-export const useArchived = (id: string | null, match: "source" | "kiq" = "source") =>
-  useQuery({ queryKey: ["signal", id, "archived", match], queryFn: () => api<ArchivedResponses>(`/api/signals/${id}/archived${match === "kiq" ? "?match=kiq" : ""}`), enabled: !!id });
-
-/** The Primary Tracker's AI Summary of a Full Discussion or KIQ Archive (request 43); may be written by the AI writer on first read. */
-export const useDiscussionSummary = (id: string | null, mode: "source" | "kiq") =>
-  useQuery({
-    queryKey: ["signal", id, "summary", mode],
-    queryFn: () => api<DiscussionSummary>(`/api/signals/${id}/summary${mode === "kiq" ? "?match=kiq" : ""}`),
-    enabled: !!id,
-    staleTime: 60_000,
-  });
-
-export const useSignal = (id: string | null) =>
-  useQuery({ queryKey: ["signal", id], queryFn: () => api<SignalDetail>(`/api/signals/${id}`), enabled: !!id });
-
-export const useItems = (statuses: string[], enabled = true, poll = false, stream?: Stream) =>
-  useQuery({
-    queryKey: ["items", statuses, stream ?? "both"],
-    queryFn: () => api<ItemSummary[]>(`/api/items?status=${statuses.join(",")}${stream ? `&stream=${stream}` : ""}`),
-    enabled,
-    // Every 3 s while something is being captured (to show it arrive), else every 8 s (unchanged answers cost the API one D1 row).
-    refetchInterval: poll ? (q) => (q.state.data?.some((i) => (IN_PROGRESS_STATUSES as readonly string[]).includes(i.status)) ? 3000 : 8000) : false,
-  });
-
-export const useItem = (id: string | null, poll = false) =>
-  useQuery({
-    queryKey: ["item", id],
-    queryFn: () => api<ItemDetail>(`/api/items/${id}`),
-    enabled: !!id,
-    // While it is being captured; once it has arrived (or failed) there is nothing more to wait for.
-    refetchInterval: poll ? (q) => (q.state.data && !(IN_PROGRESS_STATUSES as readonly string[]).includes(q.state.data.status) ? false : 2000) : false,
-  });
-
-export const useCaptureLog = (enabled: boolean) => useQuery({ queryKey: ["capture-log"], queryFn: () => api<CaptureLogEntry[]>("/api/capture-log"), enabled });
-export const useViews = () => useQuery({ queryKey: ["views"], queryFn: () => api<SavedView[]>("/api/views") });
+/** Request 61: people and their access to the projects the caller manages. */
+export const useAccess = (enabled: boolean) => useQuery({ queryKey: ["access"], queryFn: () => api<Access>("/api/access"), enabled });
 export const useUsers = (enabled: boolean) => useQuery({ queryKey: ["users"], queryFn: () => api<User[]>("/api/users"), enabled });
 export const useAudit = (enabled: boolean) => useQuery({ queryKey: ["audit"], queryFn: () => api<AuditEvent[]>("/api/audit?limit=100"), enabled });
 export const useIncidents = (enabled: boolean) => useQuery({ queryKey: ["incidents"], queryFn: () => api<Incident[]>("/api/incidents"), enabled });
 export const useNotifications = (enabled: boolean) =>
   useQuery({ queryKey: ["notifications"], queryFn: () => api<{ id: string; kind: string; message: string; at: string; read: boolean }[]>("/api/notifications"), enabled });
-export const useQuality = (enabled: boolean) => useQuery({ queryKey: ["quality"], queryFn: () => api<QualityMetrics>("/api/metrics/quality"), enabled });
 export const useConfigStatus = (enabled: boolean) =>
   useQuery({
     queryKey: ["config-status"],
@@ -178,14 +22,8 @@ export const useConfigStatus = (enabled: boolean) =>
     enabled,
   });
 
-
-/** Invalidate everything derived from published signals or the schema. */
+/** Read again what these query keys hold (none: everything). */
 export function useInvalidate() {
   const qc = useQueryClient();
-  return (...keys: string[]) => Promise.all((keys.length ? keys : ["dashboard", "tracker", "items", "item", "signal", "schema", "counts", "megatrends", "competitors", "bounds", "client-inbox", "comments", "primary-sources", "trend-analyses", "macro-sections"]).map((k) => qc.invalidateQueries({ queryKey: [k] })));
-}
-
-export function useApiMutation<TVars, TRes>(fn: (v: TVars) => Promise<TRes>, invalidate: string[] = []) {
-  const inv = useInvalidate();
-  return useMutation({ mutationFn: fn, onSuccess: () => inv(...invalidate) });
+  return (...keys: string[]) => (keys.length ? Promise.all(keys.map((k) => qc.invalidateQueries({ queryKey: [k] }))) : qc.invalidateQueries());
 }

@@ -43,6 +43,29 @@ describe("Deliverables (alerts and newsletters)", () => {
     expect((await call(w.b.admin, "GET", `/api/deliverables/${r.alertId}/docx`)).status).toBe(404);
   });
 
+  it("request 61: an alert's text is reworded and saved, shows in the .docx, and goes back to the generated text", async () => {
+    const id = await entry("secondary", "Original alert title", "High");
+    const { alertId } = await row("secondary", id);
+    // Staff open the alert's text to reword it (clients read the .docx).
+    expect((await call(w.a.client, "GET", `/api/deliverables/${alertId}/alert`)).status).toBe(403);
+    const first = await json(call(w.a.analyst, "GET", `/api/deliverables/${alertId}/alert`));
+    expect(first.fields.title).toBe("Original alert title");
+    expect(first.edited).toEqual([]);
+    expect((await call(w.a.client, "PUT", `/api/deliverables/${alertId}/alert`, { body: { fields: { title: "No" } } })).status).toBe(403);
+    const saved = await json(call(w.a.analyst, "PUT", `/api/deliverables/${alertId}/alert`, { body: { fields: { title: "Reworded <title>", ciPerspective: "Our view" } } }));
+    expect(saved.fields).toMatchObject({ title: "Reworded <title>", ciPerspective: "Our view" });
+    expect(saved.generated.title).toBe("Original alert title");
+    expect([...saved.edited].sort()).toEqual(["ciPerspective", "title"]);
+    expect(saved.editedAt).toBeTruthy();
+    const xml = await docxText(await call(w.a.client, "GET", `/api/deliverables/${alertId}/docx`));
+    expect(xml).toContain("Reworded &lt;title&gt;");
+    expect(xml).not.toContain("Original alert title");
+    // A part set back to the generated text is no longer reworded.
+    const back = await json(call(w.a.analyst, "PUT", `/api/deliverables/${alertId}/alert`, { body: { fields: { title: "Original alert title" } } }));
+    expect(back.edited).toEqual(["ciPerspective"]);
+    expect((await call(w.b.admin, "GET", `/api/deliverables/${alertId}/alert`)).status).toBe(404);
+  });
+
   it("the removed Deliverables endpoints are gone", async () => {
     expect((await call(w.a.client, "GET", `/api/deliverables/alerts?stream=primary&${RANGE}`)).status).toBe(404);
     expect((await call(w.a.client, "GET", `/api/deliverables/newsletter?stream=primary&${RANGE}`)).status).toBe(404);
