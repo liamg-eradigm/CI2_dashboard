@@ -893,6 +893,15 @@ analyst-entered information distinguishable; in the prototype every value is
   "✓ Data synced" there for a moment when a sync changes the test space. A
   forced run that changes nothing says "Already up to date with the workbook"
   with the workbook's last save time.
+- **Request 62** (CI SQUARED, web only): **signal clusters spread out** in the
+  Explore Signals graphs. Each grouped entry has its own place in its
+  cluster (`clusterLayout`, megatrends/model.ts): clusters fill shells around
+  their centre with every entry about a gap (`CLUSTER_GAP`) from the next, so
+  a big cluster grows outwards; its centre sits further from the hub the
+  bigger it is, and further still while it would touch another cluster.
+  Grouped entries no longer push or pull each other (no charge, no link
+  pull); the pointer finds an entry anywhere in its own bubble (an unseen hit
+  sphere) and never through a neighbour's glow.
 - **Request 61** (contract 2.2.0; migrations 0023, 0024, 0025): **projects**
   (see docs/PROJECTS.md).
   - The platform (sign-in, people and access, audit, incidents, the shell,
