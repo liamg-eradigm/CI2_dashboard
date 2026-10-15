@@ -1,47 +1,13 @@
-import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
-import {
-  DEFAULT_MENU,
-  MENU_ITEM_PATH,
-  ROLE_LABEL,
-  can,
-  canSeeTab,
-  groupLabel,
-  isMenuItemAt,
-  isStandaloneGroup,
-  itemLabel,
-  visibleMenu,
-  type Me,
-  type MenuGroupKey,
-  type MenuGroupSetting,
-  type MenuItemKey,
-} from "@eradigm/shared";
-import { useClientInboxCount, useInboxCounts, useSettings } from "../api/hooks";
-import { DEV_AUTH, devUserStore, signOut, tenantStore } from "../api/client";
-import { SPACE, appHref, routerPath } from "../api/space";
-import type { ReactNode } from "react";
-
-/** Whether a menu item is the page shown (by its full path: the Test tab's pages are under /test). */
-const isHere = (item: MenuItemKey, pathname: string) => isMenuItemAt(item, appHref(pathname));
-
 /**
- * A menu link (request 55): within this space, a link of the app; into the
- * other space (the Test tab from the live pages, or back), a page load of its
- * own, so nothing cached in one space shows in the other.
+ * The platform's sidebar (request 61): the Eradigm logo, the project's name
+ * under it, and a menu of the caller's projects behind the logo; the
+ * project's own menu (projects/registry.ts); who is signed in.
  */
-function MenuLink({ path, children, ...rest }: { path: string; children: ReactNode; className?: string; "aria-label"?: string; "aria-current"?: "page" }) {
-  const to = routerPath(path);
-  return to != null ? (
-    <Link to={to} {...rest}>
-      {children}
-    </Link>
-  ) : (
-    <a href={path} {...rest}>
-      {children}
-    </a>
-  );
-}
+import { useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { ROLE_LABEL, type Me, type Project } from "@eradigm/shared";
+import { DEV_AUTH, devUserStore, signOut } from "../api/client";
+import { projectFor } from "../projects/registry";
 
 const DEV_USERS = [
   ["l.griffith@example.com", "L. Griffith · Analyst"],
@@ -50,89 +16,69 @@ const DEV_USERS = [
   ["analyst@northwind.example.com", "N. Analyst · other tenant"],
 ];
 
-/**
- * A menu group (Inputs, Analytics; requests 28 and 31): a button that opens
- * its subtabs. Open while one of its pages is open, unless the user closed it.
- * Names and order are an admin setting (Admin → Menu).
- */
-function NavGroup({
-  group,
-  open,
-  onToggle,
-  badge,
-}: {
-  group: MenuGroupSetting;
-  open: boolean;
-  onToggle: (open: boolean) => void;
-  badge: (item: MenuItemKey) => { n: number; label: string } | null;
-}) {
-  const loc = useLocation();
-  const within = group.items.some((it) => isHere(it.key, loc.pathname));
-  const id = `nav-sub-${group.key}`;
-  const label = groupLabel(group);
-  const total = group.items.reduce((sum, it) => sum + (badge(it.key)?.n ?? 0), 0);
+/** A project's first page as the browser shows it (a page load of its own). */
+const projectHref = (p: Project) => `${p.path}${projectFor({ project: p }).home}`;
+
+/** Request 61: the Eradigm logo opens a menu of the caller's projects; the project's name is under it. */
+function Brand({ me }: { me: Me }) {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  const projects = me.projects ?? [];
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: PointerEvent) => {
+      if (!box.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const esc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", away);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("pointerdown", away);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [open]);
+  const name = me.project?.name ?? me.tenant.name;
   return (
-    <div className={`nav-group${within ? " within" : ""}`} data-testid={`nav-group-${group.key}`}>
-      <button className="nav-parent" aria-expanded={open} aria-controls={id} onClick={() => onToggle(!open)}>
-        <span>{label}</span>
-        {!open && total > 0 && (
-          <span className="badge" aria-label={`${total} waiting`}>
-            {total}
-          </span>
-        )}
-        <span className="nav-chev" aria-hidden="true" />
+    <div className="brand-box" ref={box}>
+      <button className="brand" aria-haspopup="menu" aria-expanded={open} aria-controls="project-menu" onClick={() => setOpen((o) => !o)} title="Change project" data-testid="brand">
+        <div className="logo-tile">
+          <img src="/eradigm-logo.webp" alt="" />
+        </div>
+        <div className="wordmark">
+          <b>ERADIGM</b>
+          <span>CONSULTING</span>
+          <span className="sr-only">: change project</span>
+        </div>
       </button>
+      <div className="side-project" data-testid="project-name">
+        {name}
+      </div>
       {open && (
-        <div className="nav-sub" id={id} role="group" aria-label={label}>
-          {group.items.map((it) => {
-            const b = badge(it.key);
+        <div className="project-menu" id="project-menu" role="menu" aria-label="Projects">
+          <div className="project-menu-head">Your projects</div>
+          {projects.map((p) => {
+            const here = p.id === me.project?.id;
             return (
-              <MenuLink
-                key={it.key}
-                path={MENU_ITEM_PATH[it.key]}
-                aria-label={`${label}: ${itemLabel(it)}`}
-                aria-current={isHere(it.key, loc.pathname) ? "page" : undefined}
-                className={isHere(it.key, loc.pathname) ? "active" : ""}
-              >
-                <span>{itemLabel(it)}</span>
-                {b && b.n > 0 && (
-                  <span className="badge" aria-label={b.label}>
-                    {b.n}
-                  </span>
-                )}
-              </MenuLink>
+              <a key={p.id} role="menuitemradio" aria-checked={here} className={here ? "here" : ""} href={projectHref(p)} onClick={(e) => (here ? (e.preventDefault(), setOpen(false)) : undefined)}>
+                <span>{p.name}</span>
+                <small>{ROLE_LABEL[p.role]}</small>
+                {here && <span className="project-check" aria-hidden="true">✓</span>}
+              </a>
             );
           })}
+          {!projects.length && <div className="project-menu-none">No other projects</div>}
         </div>
       )}
     </div>
   );
 }
 
-/** A group that is a tab of its own (request 43): one link, named as the group. */
-function SoloTab({ group, item }: { group: MenuGroupSetting; item: MenuItemKey }) {
-  const loc = useLocation();
-  const here = isHere(item, loc.pathname);
-  return (
-    <div className={`nav-group solo${here ? " within" : ""}`} data-testid={`nav-group-${group.key}`}>
-      <MenuLink className={`nav-solo${here ? " active" : ""}`} path={MENU_ITEM_PATH[item]} aria-current={here ? "page" : undefined}>
-        <span>{groupLabel(group)}</span>
-      </MenuLink>
-    </div>
-  );
-}
-
 export function Sidebar({ me }: { me: Me }) {
   const [open, setOpen] = useState(true);
-  // Groups the user opened or closed (else open while on one of their pages).
-  const [expanded, setExpanded] = useState<Partial<Record<MenuGroupKey, boolean>>>({});
   const qc = useQueryClient();
-  const staff = can(me.role, "inbox:read");
-  const counts = useInboxCounts(staff);
-  const clientCount = useClientInboxCount(canSeeTab(me.role, "clientinbox"));
-  const settings = useSettings();
-  const n = (counts.data?.primary ?? 0) + (counts.data?.secondary ?? 0);
-  const loc = useLocation();
+  const Nav = projectFor(me).Nav;
   if (!open) {
     return (
       <aside className="sidebar closed" aria-label="Main menu (collapsed)">
@@ -142,66 +88,23 @@ export function Sidebar({ me }: { me: Me }) {
       </aside>
     );
   }
-  // The groups and their subtabs, in the order and with the names an admin set (Admin → Menu); each role sees only its own.
-  const groups = visibleMenu(settings.data?.menu ?? DEFAULT_MENU, me.role);
-  const waiting = clientCount.data?.count ?? 0;
   return (
     <aside className="sidebar" aria-label="Main menu">
       <button className="side-close" onClick={() => setOpen(false)} title="Close menu" aria-label="Close menu" aria-expanded="true">
         «
       </button>
-      <MenuLink path="/dashboard" className="brand" aria-label="Eradigm Consulting — Dashboard">
-        <div className="logo-tile">
-          <img src="/eradigm-logo.webp" alt="" />
-        </div>
-        <div className="wordmark" aria-hidden="true">
-          <b>ERADIGM</b>
-          <span>CONSULTING</span>
-        </div>
-      </MenuLink>
+      <Brand me={me} />
       <div className="side-label" id="nav-label">
         COMPETITIVE INTELLIGENCE
       </div>
       <nav className="nav" aria-labelledby="nav-label">
-        {groups.map((g) =>
-          // A tab of its own (Database, request 43; Admin, request 52): a link straight to its page, no subtabs.
-          isStandaloneGroup(g.key) && g.items[0] ? (
-            <SoloTab key={g.key} group={g} item={g.items[0].key} />
-          ) : (
-            <NavGroup
-              key={g.key}
-              group={g}
-              open={expanded[g.key] ?? g.items.some((it) => isHere(it.key, loc.pathname))}
-              onToggle={(o) => setExpanded((e) => ({ ...e, [g.key]: o }))}
-              badge={(k) => (k === "inbox" ? { n, label: `${n} unprocessed` } : k === "clientinbox" ? { n: waiting, label: `${waiting} to check` } : null)}
-            />
-          ),
-        )}
+        <Nav me={me} />
       </nav>
       <div className="side-foot">
         <div className="who">{me.user.name}</div>
         <div className="role">
-          {ROLE_LABEL[me.role]} · {me.tenant.name}
+          {ROLE_LABEL[me.role]}
         </div>
-        {me.tenants.length > 1 && SPACE === "live" && (
-          <label className="field">
-            <span className="sr-only">Workspace</span>
-            <select
-              value={me.tenant.id}
-              onChange={(e) => {
-                tenantStore.set(e.target.value);
-                qc.clear();
-                window.location.assign("/dashboard");
-              }}
-            >
-              {me.tenants.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
         {DEV_AUTH ? (
           <label className="field">
             <span style={{ color: "var(--on-dark-4)" }}>Dev sign-in</span>
@@ -209,8 +112,8 @@ export function Sidebar({ me }: { me: Me }) {
               value={devUserStore.get() ?? ""}
               onChange={(e) => {
                 devUserStore.set(e.target.value);
-                tenantStore.set(null);
-                window.location.assign("/dashboard");
+                qc.clear();
+                window.location.assign("/");
               }}
             >
               {DEV_USERS.map(([v, l]) => (

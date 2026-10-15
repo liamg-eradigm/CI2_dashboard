@@ -1,7 +1,7 @@
 import { env, exports } from "cloudflare:workers";
 import { newId, nowIso } from "../src/lib/ids";
-import { drainTestQueue } from "../src/pipeline/process";
-import { tenantBootstrapStatements } from "../src/services/schema";
+import { drainTestQueue } from "../src/projects/ci-squared/pipeline/process";
+import { tenantBootstrapStatements } from "../src/projects/ci-squared/services/schema";
 
 export { env };
 

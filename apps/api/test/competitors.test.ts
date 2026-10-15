@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { DEFAULT_COMPETITOR_SUMMARIES, competitorRadius, defaultCompetitorName, defaultCompetitorSummary, isPlaceholderCompetitor, normaliseNavOrder } from "@eradigm/shared";
 import { app } from "../src/app";
-import { competitorEntryScore } from "../src/services/megatrends";
+import { competitorEntryScore } from "../src/projects/ci-squared/services/megatrends";
 import { approveWith, call, env, json, seedWorld, type World } from "./helpers";
 
 let w: World;

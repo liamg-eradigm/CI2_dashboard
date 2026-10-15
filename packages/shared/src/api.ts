@@ -15,6 +15,7 @@ import { DEFAULT_NAV_ORDER, MAX_SUMMARY_LENGTH, NAV_TABS, SUMMARY_MODELS, SUMMAR
 import { MACRO_SECTION_KEYS, TREND_ANALYSIS_CATEGORIES, TREND_ANALYSIS_SOURCES, type MacroSectionKey } from "./trendAnalyses.js";
 import { DEFAULT_COMPETITOR_TIERS } from "./competitors.js";
 import { KiqTopicsSchema } from "./kiq.js";
+import { AccessSchema, AddPersonRequest, ProjectSchema, RenameProjectRequest, SetAccessRequest } from "./projects.js";
 import { DEFAULT_MENU, MAX_MENU_LABEL, MENU_GROUPS, MENU_ITEMS } from "./menu.js";
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD");
@@ -153,6 +154,9 @@ export const MeSchema = z.object({
   features: z.object({ prefill: z.enum(["manual", "llm"]) }).default({ prefill: "manual" }),
   /** Request 55 (contract 2.1): the space the request was answered in (the Test tab's is "test"). */
   space: z.enum(SPACES).default("live"),
+  /** Request 61 (contract 2.2): the project this request was answered for, and every project the caller can open. */
+  project: ProjectSchema.optional(),
+  projects: z.array(ProjectSchema).default([]),
 });
 
 export const UserSchema = z.object({
@@ -1069,6 +1073,12 @@ export const ENDPOINTS: EndpointDef[] = [
   { method: "patch", path: "/api/settings", summary: "Update tenant settings", roles: ADMIN, request: UpdateSettingsRequest, response: TenantSettingsSchema },
   { method: "put", path: "/api/settings/text-size", summary: "Set the size of a title or heading, for everyone", roles: STAFF, request: SetTextSizeRequest, response: TenantSettingsSchema },
   { method: "get", path: "/api/users", summary: "Users in this tenant", roles: STAFF, response: z.array(UserSchema) },
+  { method: "get", path: "/api/access", summary: "Request 61: people and their access to each project the caller manages", roles: STAFF, response: AccessSchema },
+  { method: "post", path: "/api/access", summary: "Request 61: add a person to a project (a one-time sign-in link when they have not signed in yet)", roles: STAFF, request: AddPersonRequest, response: AccessSchema },
+  { method: "put", path: "/api/access/{userId}", summary: "Request 61: give a person a role in a project, change it, or take their access away (admins of that project)", roles: ADMIN, request: SetAccessRequest, response: AccessSchema },
+  { method: "post", path: "/api/access/{userId}/invite", summary: "Request 61: a one-time sign-in link for a person in a project the caller manages", roles: STAFF, response: InviteSchema },
+  { method: "post", path: "/api/access/{userId}/sessions/revoke", summary: "Request 61: end a person's sessions (admins of a project they are in)", roles: ADMIN },
+  { method: "patch", path: "/api/projects/{id}", summary: "Request 61: rename a project (its admins)", roles: ADMIN, request: RenameProjectRequest, response: ProjectSchema.omit({ path: true }) },
   { method: "post", path: "/api/users", summary: "Create a user and a one-time Microsoft sign-in invite link (analysts: analyst/client only)", roles: STAFF, request: CreateUserRequest, response: UserWithInviteSchema },
   { method: "post", path: "/api/users/{id}/invite", summary: "Issue a new one-time sign-in link (also re-links a changed Microsoft account)", roles: STAFF, response: InviteSchema },
   { method: "patch", path: "/api/users/{id}", summary: "Change role or deactivate (admin only)", roles: ADMIN, request: UpdateUserRequest, response: UserSchema },

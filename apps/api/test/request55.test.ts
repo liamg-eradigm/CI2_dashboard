@@ -1,7 +1,7 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { toXlsxSheets } from "@eradigm/shared";
 import { app } from "../src/app";
-import { runExcelCron } from "../src/services/excelSync";
+import { runExcelCron } from "../src/projects/ci-squared/services/excelSync";
 import { checkWorkbook } from "../src/services/sharepoint";
 import { COMPLETE, call, env, json, seedWorld, type World } from "./helpers";
 

@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { captureUrlIsolated, parseUploadIsolated, setInlineCaptureFetcher } from "../src/pipeline/capture-client";
-import { peekTestQueue, runJob } from "../src/pipeline/process";
+import { captureUrlIsolated, parseUploadIsolated, setInlineCaptureFetcher } from "../src/projects/ci-squared/pipeline/capture-client";
+import { peekTestQueue, runJob } from "../src/projects/ci-squared/pipeline/process";
 import { COMPLETE, WITH_LLM, approveWith, nextRecordId, articleHtml, call, drain, env, ingest, ingestTo, json, seedWorld, upload, type World } from "./helpers";
 
 let w: World;

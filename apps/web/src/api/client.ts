@@ -2,8 +2,8 @@
  * The dashboard's only way to reach data: the processing service's /api.
  * It never talks to the database, storage or the LLM directly.
  */
-import { CONTRACT_VERSION, SPACE_HEADER, isContractCompatible, type ApiError as ApiErrorBody } from "@eradigm/shared";
-import { SPACE } from "./space";
+import { CONTRACT_VERSION, PROJECT_HEADER, SPACE_HEADER, isContractCompatible, type ApiError as ApiErrorBody } from "@eradigm/shared";
+import { PROJECT_SLUG, SPACE } from "./space";
 
 /** Whether version `a` is older than `b` (major.minor.patch). */
 function contractOlder(a: string, b: string): boolean {
@@ -48,7 +48,8 @@ function safeSet(key: string, v: string | null) {
   }
 }
 
-export const tenantStore = { get: () => safeGet(TENANT_KEY), set: (v: string | null) => safeSet(TENANT_KEY, v) };
+// Request 61: the project is in the address now (/p/<slug>); a workspace chosen in the old menu no longer applies.
+if (typeof window !== "undefined" && safeGet(TENANT_KEY)) safeSet(TENANT_KEY, null);
 
 /** Development sign-in only (the API ignores this header outside dev/test). */
 export const DEV_AUTH = import.meta.env.DEV || import.meta.env.VITE_DEV_AUTH === "1";
@@ -64,8 +65,8 @@ export async function request(path: string, init: RequestInit & { json?: unknown
   const headers = new Headers(init.headers);
   // Required by the API on every state-changing request (cross-site request forgery protection).
   headers.set("x-eci-request", "1");
-  const t = tenantStore.get();
-  if (t) headers.set("x-tenant-id", t);
+  // Request 61: the project the page is for (the API answers for the caller's first project without it).
+  if (PROJECT_SLUG) headers.set(PROJECT_HEADER, PROJECT_SLUG);
   const dev = devUserStore.get();
   if (dev) headers.set("x-dev-user", dev);
   // Request 55: the Test tab's pages read and write the test space.

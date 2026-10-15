@@ -63,7 +63,7 @@ const GEN_AT = new Date().toISOString();
 // Tenants, schema, settings, users
 // ---------------------------------------------------------------------------
 const TENANTS = [
-  { id: "t_demo", name: "Eradigm Demo Client", slug: "demo" },
+  { id: "t_demo", name: "CI SQUARED", slug: "demo" },
   { id: "t_north", name: "Northwind Pharma (demo)", slug: "northwind" },
 ];
 const DEFAULT_SETTINGS = {
@@ -112,6 +112,9 @@ for (const u of USERS) {
 }
 // L. Griffith also works on the Northwind workspace (multi-tenant analyst).
 out.push(`INSERT INTO role_assignments (id, tenant_id, user_id, role, assigned_at) VALUES ('rol_u_lg_north', 't_north', 'u_lg', 'analyst', ${q(GEN_AT)});`);
+// Request 61: the Epilepsy project (made by migration 0024): the demo admin administers it, L. Griffith works on it.
+out.push(`INSERT INTO role_assignments (id, tenant_id, user_id, role, assigned_at) VALUES ('rol_u_admin_epi', 'tnt_epilepsy', 'u_admin', 'admin', ${q(GEN_AT)});`);
+out.push(`INSERT INTO role_assignments (id, tenant_id, user_id, role, assigned_at) VALUES ('rol_u_lg_epi', 'tnt_epilepsy', 'u_lg', 'analyst', ${q(GEN_AT)});`);
 
 // ---------------------------------------------------------------------------
 // Audit chain (computed here so seeded items also have an audit trail)

@@ -1,42 +1,20 @@
 /**
- * API worker entry point: HTTP (Hono app), background queue consumer, the
- * daily retention cron and (request 55) the every-minute Test tab workbook check.
+ * API worker entry point: HTTP (the platform's Hono app, with every project's
+ * routes), background queue consumer and cron triggers, each handed to the
+ * projects (request 61: projects/registry.ts).
  */
 import { app } from "./app.js";
 import type { Env, JobMessage } from "./env.js";
-import { log } from "./lib/log.js";
-import { failItem, runJob } from "./pipeline/process.js";
-import { runRetention } from "./services/retention.js";
-import { EXCEL_CRON, runExcelCron } from "./services/excelSync.js";
-
-const MAX_DELIVERIES = 3;
+import { PROJECTS } from "./projects/registry.js";
 
 export default {
   fetch: app.fetch,
 
   async queue(batch: MessageBatch<JobMessage>, env: Env): Promise<void> {
-    const deadLetter = batch.queue.includes("-dlq");
-    for (const msg of batch.messages) {
-      const job = msg.body;
-      try {
-        if (deadLetter) {
-          // Every retry was used up: make the failure visible and retryable by an analyst.
-          await failItem(env, job, "RETRIES_EXHAUSTED", "Processing failed repeatedly · use Retry to try again", null);
-          msg.ack();
-          continue;
-        }
-        const r = await runJob(env, job, msg.attempts, MAX_DELIVERIES);
-        if (r === "retry") msg.retry({ delaySeconds: Math.min(300, 15 * 2 ** (msg.attempts - 1)) });
-        else msg.ack();
-      } catch (err) {
-        log("error", "queue_message_error", { item: job.itemId, message: (err as Error).message });
-        msg.retry({ delaySeconds: 60 });
-      }
-    }
+    for (const m of PROJECTS) if (m.queue) await m.queue(batch, env);
   },
 
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-    if (controller.cron === EXCEL_CRON) ctx.waitUntil(runExcelCron(env));
-    else ctx.waitUntil(runRetention(env));
+    for (const m of PROJECTS) m.scheduled?.(controller.cron, env, ctx);
   },
 } satisfies ExportedHandler<Env, JobMessage>;
