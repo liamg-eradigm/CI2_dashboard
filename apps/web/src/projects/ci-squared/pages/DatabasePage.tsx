@@ -6,8 +6,10 @@ import { useStickUnderFilters } from "../../../lib/stickUnderFilters";
 import { useStreamParam } from "../state/stream";
 import { TrackerPage } from "./TrackerPage";
 import { TrendAnalysesPage } from "./TrendAnalysesPage";
+import { EarningsCallsPage } from "./EarningsCallsPage";
 
-type Pick = Stream | "ci" | "newsletters";
+type Pick = Stream | "ci" | "newsletters" | "earnings";
+const OTHER: readonly string[] = ["ci", "newsletters", "earnings"];
 
 /**
  * The Database's tables (request 53): Primary / Secondary Tracker, CI Analysis
@@ -21,6 +23,7 @@ function DatabaseTabs({ value, onChange, note }: { value: Pick; onChange: (v: Pi
     ["secondary", "Secondary Tracker", "stream-secondary"],
     ["ci", "CI Analysis", "db-ci"],
     ["newsletters", "Newsletter", "db-newsletters"],
+    ["earnings", "Earnings Calls", "db-earnings"],
   ];
   return (
     <section className="db-tabs" aria-label="Database tables" data-testid="db-tabs" data-sticky-under="" ref={stick}>
@@ -41,6 +44,7 @@ const NOTE: Record<Pick, string> = {
   secondary: "Every Secondary Tracker entry with all its fields, its saved page, Markdown, alert and newsletters",
   ci: "Every trend analysis submitted on the Input page, newest first, each a Markdown file",
   newsletters: "Every newsletter made with Generate Newsletter, newest first: open one to read or download it",
+  earnings: "Every earnings call submitted on the Input page, newest first: its report, its Markdown and each field",
 };
 
 /**
@@ -49,20 +53,21 @@ const NOTE: Record<Pick, string> = {
  * entry with all its fields, its saved page, Markdown, alert and newsletters;
  * CI Analysis is the CI analyses database as it is (no filters); Newsletter
  * (request 52, moved from Admin → Deliverables) lists the newsletters made
- * with Generate Newsletter, to open, download or delete.
+ * with Generate Newsletter, to open, download or delete; Earnings Calls
+ * (request 64) lists the earnings calls submitted on the Input page.
  */
 export function DatabasePage({ me }: { me: Me }) {
   const [params, setParams] = useSearchParams();
   const [stream] = useStreamParam();
   const which = params.get("db");
-  const other: Pick | null = which === "ci" || which === "newsletters" ? which : null;
+  const other = which && OTHER.includes(which) ? (which as Pick) : null;
   const go = (v: Pick) => {
     setParams(
       (prev) => {
         const p = new URLSearchParams(prev);
         // Open panels, pop-ups and paging belong to the table being left.
         for (const k of ["page", "md", "signal", "edit", "saved", "savedPage", "docx", "all", "row", "pp", "arch", "am", "ap"]) p.delete(k);
-        if (v === "ci" || v === "newsletters") p.set("db", v);
+        if (OTHER.includes(v)) p.set("db", v);
         else {
           p.delete("db");
           if (v === "secondary") p.delete("stream");
@@ -77,6 +82,7 @@ export function DatabasePage({ me }: { me: Me }) {
   const toggle = <DatabaseTabs value={value} onChange={go} note={NOTE[value]} />;
   if (other === "ci") return <TrendAnalysesPage me={me} title="Database" eyebrow="Every database in one place" strip={toggle} />;
   if (other === "newsletters") return <NewslettersDatabase me={me} toggle={toggle} />;
+  if (other === "earnings") return <EarningsCallsPage me={me} strip={toggle} />;
   // Request 56: the Primary Tracker here is the Primary Tracker page, with the Markdown, Alert and Newsletter columns.
   if (stream === "primary") return <TrackerPage key="database-primary" me={me} view="database" title="Database" switcher={toggle} primaryOnly />;
   return <TrackerPage key="database" me={me} view="database" title="Database" switcher={toggle} />;

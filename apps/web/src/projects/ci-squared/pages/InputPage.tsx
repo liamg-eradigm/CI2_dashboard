@@ -6,6 +6,7 @@ import { api } from "../../../api/client";
 import { useCaptureLog, useInvalidate, useItem, useSchema } from "../api/hooks";
 import { ImportCard } from "../components/ImportCard";
 import { TrendAnalysisInput } from "../components/TrendAnalysisInput";
+import { EarningsCallInput } from "../components/EarningsCallInput";
 import { StreamSwitch } from "../../../components/StreamSwitch";
 import { ModelOutputTable } from "../components/ModelOutput";
 import { localDateTime } from "../../../lib/format";
@@ -395,6 +396,7 @@ export function InputPage({ me }: { me: Me }) {
           </div>
           <ImportCard />
           <TrendAnalysisInput />
+          <EarningsCallInput />
         </div>
         <section className="card flush" aria-labelledby="log-title">
           <div style={{ padding: "16px 20px 12px" }}>

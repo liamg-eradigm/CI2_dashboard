@@ -20,6 +20,7 @@ import {
   SaveAlertRequest,
   UpdateDiscussionSummaryRequest,
   DOCX_MIME,
+  EarningsCallValuesSchema,
   GenerateTrendSummaryRequest,
   CreateCommentRequest,
   UpdateCommentRequest,
@@ -73,6 +74,7 @@ import {
   type TrackerSchema,
   type TenantSettings,
 } from "@eradigm/shared";
+import { createEarningsCall, deleteEarningsCall, earningsCallMarkdownFile, earningsCallReport, listEarningsCalls } from "./services/earningsCalls.js";
 import { requirePermission, type Principal } from "../../auth/context.js";
 import { memo } from "../../lib/cache.js";
 import { ApiError, badRequest, forbidden, notFound } from "../../lib/errors.js";
@@ -434,6 +436,71 @@ app.delete("/api/trend-analyses/:id", async (c) => {
   const p = P(c);
   requirePermission(p, "item:edit");
   await deleteTrendAnalysis(c.env, p, c.req.param("id"));
+  return c.json({ ok: true as const });
+});
+
+// ---------------------------------------------------------------------------
+// Request 64: earnings calls (Input → Earnings Call; Database → Earnings Calls)
+// ---------------------------------------------------------------------------
+
+/** A Content-Disposition with the file's name (plain ASCII, and in full as UTF-8). */
+const disposition = (download: boolean, name: string) =>
+  `${download ? "attachment" : "inline"}; filename="${name.replace(/[^\x20-\x7e]|["\\]/g, "_")}"; filename*=UTF-8''${encodeURIComponent(name)}`;
+
+app.get("/api/earnings-calls", async (c) => {
+  requirePermission(P(c), "tracker:read");
+  return cachedJson(c, () => listEarningsCalls(c.env, P(c).tenantId), "all");
+});
+
+app.post("/api/earnings-calls", async (c) => {
+  const p = P(c);
+  requirePermission(p, "item:edit");
+  const form = await c.req.formData().catch(() => null);
+  const file = form?.get("file") as unknown as File | string | null | undefined;
+  if (!file || typeof file === "string") throw badRequest("Attach the report (.docx) as the multipart field “file”");
+  let raw: unknown;
+  try {
+    raw = JSON.parse(String(form?.get("values") ?? "{}"));
+  } catch {
+    throw badRequest("The field values must be JSON");
+  }
+  const parsed = EarningsCallValuesSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new ApiError(
+      "VALIDATION",
+      "Some fields are invalid",
+      parsed.error.issues.map((i) => ({ key: i.path.join(".") || "values", label: i.path.join(".") || "Fields", code: "invalid", message: i.message })),
+    );
+  }
+  return c.json(await createEarningsCall(c.env, p, parsed.data, { name: file.name || "report.docx", bytes: new Uint8Array(await file.arrayBuffer()) }), 201);
+});
+
+app.get("/api/earnings-calls/:id/report", async (c) => {
+  const p = P(c);
+  requirePermission(p, "tracker:read");
+  const r = await earningsCallReport(c.env, p.tenantId, c.req.param("id"));
+  const download = c.req.query("download") === "1";
+  if (download) await audit(c.env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "deliverable.downloaded", targetType: "earnings_call", targetId: c.req.param("id"), details: { kind: "Earnings call report", file: r.name } });
+  return new Response(r.bytes, {
+    headers: { "Content-Type": DOCX_MIME, "Content-Disposition": disposition(download, r.name), "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" },
+  });
+});
+
+app.get("/api/earnings-calls/:id/markdown", async (c) => {
+  const p = P(c);
+  requirePermission(p, "tracker:read");
+  const md = await earningsCallMarkdownFile(c.env, p.tenantId, c.req.param("id"));
+  const download = c.req.query("download") === "1";
+  if (download) await audit(c.env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "markdown.downloaded", targetType: "earnings_call", targetId: c.req.param("id"), details: { file: md.fileName } });
+  return new Response(md.text, {
+    headers: { "Content-Type": "text/markdown; charset=utf-8", "Content-Disposition": disposition(download, md.fileName), "X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store" },
+  });
+});
+
+app.delete("/api/earnings-calls/:id", async (c) => {
+  const p = P(c);
+  requirePermission(p, "item:edit");
+  await deleteEarningsCall(c.env, p, c.req.param("id"));
   return c.json({ ok: true as const });
 });
 

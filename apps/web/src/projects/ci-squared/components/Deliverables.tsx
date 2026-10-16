@@ -10,8 +10,21 @@ import { useFocusTrap } from "./RecordDrawer";
 import { useFitToScreen } from "../../../lib/fitToScreen";
 
 /** Save a stored alert or newsletter .docx. Returns the file name. */
-export async function downloadDocx(id: string): Promise<string> {
-  const res = await request(`/api/deliverables/${id}/docx?download=1`);
+/** A file this browser holds, saved as it is. */
+async function saveFile(file: File): Promise<string> {
+  const url = URL.createObjectURL(file);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = file.name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  return file.name;
+}
+
+export async function downloadDocx(id: string, src = `/api/deliverables/${id}/docx`): Promise<string> {
+  const res = await request(`${src}?download=1`);
   const name = /filename="([^"]+)"/.exec(res.headers.get("content-disposition") ?? "")?.[1] ?? "deliverable.docx";
   const url = URL.createObjectURL(await res.blob());
   const a = document.createElement("a");
@@ -52,7 +65,22 @@ export function DocxButton({ label, onClick }: { label: string; onClick: () => v
  * the whole pane is the document (rendered in the browser, scrollable), with
  * Download at the top right.
  */
-export function DocxPane({ id, title, kind, onClose }: { id: string; title: string; kind: string; onClose: () => void }) {
+export function DocxPane({
+  id,
+  title,
+  kind,
+  onClose,
+  src,
+  file,
+}: {
+  id: string;
+  title: string;
+  kind: string;
+  onClose: () => void;
+  /** Request 64: where the .docx is (default: the deliverable's); or `file`, one attached in this browser and not sent yet. */
+  src?: string;
+  file?: File;
+}) {
   const ref = useFocusTrap(true, onClose);
   // Request 61: analysts and admins reword an alert here and save it.
   const me = useMe().data;
@@ -104,9 +132,16 @@ export function DocxPane({ id, title, kind, onClose }: { id: string; title: stri
     setState({ loading: true });
     void (async () => {
       try {
-        const res = await request(`/api/deliverables/${id}/docx`);
-        const fileName = /filename="([^"]+)"/.exec(res.headers.get("content-disposition") ?? "")?.[1];
-        const buf = await res.arrayBuffer();
+        let fileName: string | undefined;
+        let buf: ArrayBuffer;
+        if (file) {
+          fileName = file.name;
+          buf = await file.arrayBuffer();
+        } else {
+          const res = await request(src ?? `/api/deliverables/${id}/docx`);
+          fileName = /filename="([^"]+)"/.exec(res.headers.get("content-disposition") ?? "")?.[1];
+          buf = await res.arrayBuffer();
+        }
         // Loaded on first use, so the rest of the dashboard does not carry the renderer.
         const { renderAsync } = await import("docx-preview");
         if (gone || !host.current) return;
@@ -122,7 +157,7 @@ export function DocxPane({ id, title, kind, onClose }: { id: string; title: stri
     return () => {
       gone = true;
     };
-  }, [id, reload]);
+  }, [id, reload, src, file]);
 
   return (
     <>
@@ -171,7 +206,7 @@ export function DocxPane({ id, title, kind, onClose }: { id: string; title: stri
             <button
               className="link-btn"
               onClick={() =>
-                void downloadDocx(id).then(
+                void (file ? saveFile(file) : downloadDocx(id, src)).then(
                   (name) => toast(`Downloaded ${name}`),
                   (e: Error) => toast(`Download failed · ${e.message}`, false),
                 )

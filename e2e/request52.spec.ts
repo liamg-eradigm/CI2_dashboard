@@ -48,7 +48,7 @@ test.describe("request 52", () => {
 
     await page.goto("/database");
     const toggle = page.getByRole("group", { name: "Database to show" });
-    await expect(toggle.getByRole("button")).toHaveText(["Primary Tracker", "Secondary Tracker", "CI Analysis", "Newsletter"]);
+    await expect(toggle.getByRole("button")).toHaveText(["Primary Tracker", "Secondary Tracker", "CI Analysis", "Newsletter", "Earnings Calls"]);
     await toggle.getByRole("button", { name: "Newsletter" }).click();
     await expect(page).toHaveURL(/[?&]db=newsletters/);
     await expect(toggle.getByRole("button", { name: "Newsletter" })).toHaveAttribute("aria-pressed", "true");

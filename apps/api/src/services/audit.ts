@@ -56,6 +56,8 @@ export type AuditAction =
   | "export.created"
   | "snapshot.downloaded"
   | "markdown.downloaded"
+  | "earnings_call.created"
+  | "earnings_call.deleted"
   | "import.completed"
   | "snapshot.attached"
   | "deliverable.created"
