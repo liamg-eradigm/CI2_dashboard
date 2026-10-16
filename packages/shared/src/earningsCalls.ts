@@ -10,7 +10,7 @@ import { z } from "zod";
 /** The text fields, in order (the Database's columns after Report and Markdown). */
 export const EARNINGS_CALL_FIELDS = [
   { key: "quarter", label: "Quarter", long: false },
-  { key: "company", label: "Company", long: false },
+  { key: "competitor", label: "Competitor", long: false },
   { key: "tagline", label: "Main Tagline", long: false },
   { key: "loe", label: "Patent Expiry / LOE Response", long: true },
   { key: "aiTools", label: "AI & Automation Tools", long: true },
@@ -29,7 +29,8 @@ export const MAX_EARNINGS_FIELD = 20_000;
 const text = z.string().max(MAX_EARNINGS_FIELD);
 export const EarningsCallValuesSchema = z.object({
   quarter: z.string().trim().min(1, "Give the quarter").max(40),
-  company: z.string().trim().min(1, "Give the company").max(200),
+  /** Request 64b: one of the Secondary Tracker's Competitors options (the API checks). */
+  competitor: z.string().trim().min(1, "Choose the competitor").max(200),
   tagline: text.default(""),
   loe: text.default(""),
   aiTools: text.default(""),
@@ -58,8 +59,8 @@ export function earningsCallMarkdown(v: Partial<Record<EarningsCallField, string
   return `${EARNINGS_CALL_FIELDS.map((f) => `${f.label}\n${(v[f.key] ?? "").trim()}`).join("\n\n")}\n`;
 }
 
-/** The Markdown file's name: company and quarter (“J&J Q3 2024.md”), safe on any computer. */
-export function earningsCallFileName(v: Pick<EarningsCallValues, "company" | "quarter">): string {
-  const base = `${v.company} ${v.quarter}`.replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim();
+/** The Markdown file's name: competitor and quarter (“J&J Q3 2024.md”), safe on any computer. */
+export function earningsCallFileName(v: Pick<EarningsCallValues, "competitor" | "quarter">): string {
+  const base = `${v.competitor} ${v.quarter}`.replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim();
   return `${base || "earnings-call"}.md`;
 }
