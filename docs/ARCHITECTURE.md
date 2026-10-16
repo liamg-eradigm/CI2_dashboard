@@ -893,12 +893,19 @@ analyst-entered information distinguishable; in the prototype every value is
   "✓ Data synced" there for a moment when a sync changes the test space. A
   forced run that changes nothing says "Already up to date with the workbook"
   with the workbook's last save time.
+- **Request 64b** (CI SQUARED; contract 2.5.0; migration 0028): an earnings
+  call names its **Competitor** instead of a Company. On the Input card it is
+  picked from the same searchable dropdown as the Secondary Tracker, with that
+  tracker's Competitors options (`/api/schema?stream=secondary`); the API
+  refuses any other value (422 on `competitor`) and stores the option's own
+  spelling. Migration 0028 renames `earnings_calls.company` to `competitor` and
+  the "Company" heading in the Markdown already written to "Competitor".
 - **Request 64** (CI SQUARED; contract 2.4.0; migration 0027): **Earnings
   Calls**. Input → *Input Earnings Call*: drag and drop (or choose) the call's
   report, a `.docx` up to 10 MB, which *View report* opens in the same side
   pane as the newsletters and alerts before anything is sent (`DocxPane` now
   takes a stored `src` or a local `file`); then a text box per field —
-  Quarter and Company (needed), Main Tagline, Patent Expiry / LOE Response,
+  Quarter and Company (needed; Competitor since request 64b), Main Tagline, Patent Expiry / LOE Response,
   AI & Automation Tools, Direct-to-Patient Strategy, IRA Pricing / Tariffs,
   Strategic Investment & Redeployment, Observed Trends. Submit posts
   multipart (`file` + `values` JSON) to `POST /api/earnings-calls` (analysts

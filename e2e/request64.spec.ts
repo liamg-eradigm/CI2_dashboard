@@ -1,4 +1,4 @@
-import { expect, expectAccessible, signInAs, test } from "./fixtures";
+import { choose, expect, expectAccessible, signInAs, test } from "./fixtures";
 import type { Locator, Page } from "@playwright/test";
 import { titleDocx } from "../packages/shared/src/docx";
 
@@ -38,16 +38,16 @@ test.describe("request 64", () => {
     await pane.getByRole("button", { name: "Close document" }).click();
     await expect(pane).toHaveCount(0);
 
-    // Quarter and Company are needed.
+    // Quarter and Competitor are needed.
     await card.getByTestId("ec-submit").click();
-    await expect(card.getByRole("alert")).toHaveText("Fill in the Quarter and the Company.");
+    await expect(card.getByRole("alert")).toHaveText("Fill in the Quarter and choose the Competitor.");
     await expect(card.getByTestId("ec-quarter")).toHaveAttribute("aria-invalid", "true");
 
     // One text box per column (not Report or Markdown).
-    const labels = await card.locator("label.field > span:first-child").allTextContents();
+    const labels = await card.locator(".field > span:first-child").allTextContents();
     expect(labels).toEqual([
       "Quarter *",
-      "Company *",
+      "Competitor *",
       "Main Tagline",
       "Patent Expiry / LOE Response",
       "AI & Automation Tools",
@@ -56,15 +56,21 @@ test.describe("request 64", () => {
       "Strategic Investment & Redeployment",
       "Observed Trends",
     ]);
-    await card.getByTestId("ec-quarter").fill("Q3 2024");
-    await card.getByTestId("ec-company").fill(`J&J ${tag}`);
+    // Request 64b: the competitor comes from the Secondary Tracker's Competitors dropdown, with the same options.
+    const secondary = await (await page.request.get("/api/schema?stream=secondary", { headers: { "x-dev-user": "admin@example.com" } })).json();
+    const options: string[] = secondary.columns.find((c: { key: string }) => c.key === "competitors").options;
+    await card.getByTestId("ec-competitor").click();
+    await expect(page.getByRole("listbox").getByRole("option")).toHaveText(options);
+    await page.keyboard.press("Escape");
+    await card.getByTestId("ec-quarter").fill(`Q3 2024 ${tag}`);
+    await choose(card.getByTestId("ec-competitor"), "Roche");
     await card.getByTestId("ec-tagline").fill("Growth despite Stelara LOE");
     await card.getByTestId("ec-loe").fill("Biosimilar erosion offset by Tremfya.");
     await card.getByTestId("ec-trends").fill("More direct-to-patient.\nFewer tariffs worries.");
     await expectAccessible(page, "Input → Earnings Call, filled in");
     await card.getByTestId("ec-submit").click();
-    await expect(card.getByTestId("ec-saved")).toContainText(`Saved the earnings call J&J ${tag} Q3 2024`);
-    await expect(card.getByTestId("ec-company")).toHaveValue("");
+    await expect(card.getByTestId("ec-saved")).toContainText(`Saved the earnings call Roche Q3 2024 ${tag}`);
+    await expect(card.getByTestId("ec-competitor")).toHaveValue("");
     await expect(card.getByTestId("drop-zone-earnings")).toContainText("Drag and drop the report");
 
     // Database → Earnings Calls.
@@ -76,7 +82,7 @@ test.describe("request 64", () => {
       "Report",
       "Markdown",
       "Quarter",
-      "Company",
+      "Competitor",
       "Main Tagline",
       "Patent Expiry / LOE Response",
       "AI & Automation Tools",
@@ -94,19 +100,19 @@ test.describe("request 64", () => {
     await expectAccessible(page, "Database → Earnings Calls");
 
     // The report, in the same side pane.
-    await row.getByRole("button", { name: `Open the report of the earnings call J&J ${tag} Q3 2024` }).click();
+    await row.getByRole("button", { name: `Open the report of the earnings call Roche Q3 2024 ${tag}` }).click();
     await expect(page).toHaveURL(/docx=/);
     await expect(page.getByRole("dialog").locator(".docx-host")).toContainText(`Report ${tag}`);
     await expect(page.getByRole("dialog")).toContainText("J&J Q3 2024 call.docx");
     await page.getByRole("dialog").getByRole("button", { name: "Close document" }).click();
 
     // The Markdown: each column's name, its text below, an empty line between.
-    await row.getByRole("button", { name: `Open the Markdown of the earnings call J&J ${tag} Q3 2024` }).click();
+    await row.getByRole("button", { name: `Open the Markdown of the earnings call Roche Q3 2024 ${tag}` }).click();
     const md = page.getByTestId("earnings-call-md");
     await expect(md.locator("pre.md-raw")).toHaveText(
       [
-        "Quarter\nQ3 2024",
-        `Company\nJ&J ${tag}`,
+        `Quarter\nQ3 2024 ${tag}`,
+        "Competitor\nRoche",
         "Main Tagline\nGrowth despite Stelara LOE",
         "Patent Expiry / LOE Response\nBiosimilar erosion offset by Tremfya.",
         "AI & Automation Tools\n",
@@ -119,12 +125,12 @@ test.describe("request 64", () => {
     await expectAccessible(page, "Database → Earnings Calls, Markdown open");
     const download = page.waitForEvent("download");
     await md.getByRole("button", { name: "Download Markdown" }).click();
-    expect((await download).suggestedFilename()).toBe(`J&J ${tag} Q3 2024.md`);
+    expect((await download).suggestedFilename()).toBe(`Roche Q3 2024 ${tag}.md`);
     await md.getByRole("button", { name: "Close Markdown" }).click();
 
     // Removed (analysts and admins).
     page.once("dialog", (d) => void d.accept());
-    await row.getByRole("button", { name: `Remove the earnings call J&J ${tag} Q3 2024` }).click();
+    await row.getByRole("button", { name: `Remove the earnings call Roche Q3 2024 ${tag}` }).click();
     await expect(table.locator("tbody tr", { hasText: tag })).toHaveCount(0);
   });
 

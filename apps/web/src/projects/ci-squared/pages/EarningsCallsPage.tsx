@@ -11,7 +11,7 @@ import { localDateTime } from "../../../lib/format";
 import { useToast } from "../../../state/toast";
 import "../styles/earnings.css";
 
-const name = (c: EarningsCall) => `${c.company} ${c.quarter}`;
+const name = (c: EarningsCall) => `${c.competitor} ${c.quarter}`;
 
 function MdIcon() {
   return (
@@ -91,7 +91,7 @@ export function EarningsCallsPage({ me, strip }: { me: Me; strip: ReactNode }) {
               <span className="card-sub">{q.data ? `${list.length} of ${q.data.length} submitted · open the report or the Markdown from its icon` : "Loading…"}</span>
             </div>
             <div className="tas-tools">
-              <input className="control tas-find" type="search" placeholder="Find a company, quarter or text…" aria-label="Find earnings calls" value={find} onChange={(e) => setFind(e.target.value)} />
+              <input className="control tas-find" type="search" placeholder="Find a competitor, quarter or text…" aria-label="Find earnings calls" value={find} onChange={(e) => setFind(e.target.value)} />
               {staff && (
                 <Link className="btn secondary small" to="/input#earnings-call">
                   + Input an earnings call
@@ -155,7 +155,7 @@ export function EarningsCallsPage({ me, strip }: { me: Me; strip: ReactNode }) {
                         </td>
                       ) : (
                         <td key={f.key} className={f.key === "tagline" ? undefined : "nowrap"}>
-                          {f.key === "company" ? <b>{c.company}</b> : c[f.key] || <span className="empty-val">—</span>}
+                          {f.key === "competitor" ? <b>{c.competitor}</b> : c[f.key] || <span className="empty-val">—</span>}
                         </td>
                       ),
                     )}

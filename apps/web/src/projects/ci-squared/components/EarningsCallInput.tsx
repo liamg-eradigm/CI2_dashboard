@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState, type DragEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { EARNINGS_CALL_FIELDS, MAX_EARNINGS_FIELD, MAX_EARNINGS_REPORT_BYTES, type EarningsCall, type EarningsCallField } from "@eradigm/shared";
+import { CORE, EARNINGS_CALL_FIELDS, MAX_EARNINGS_FIELD, MAX_EARNINGS_REPORT_BYTES, type EarningsCall, type EarningsCallField } from "@eradigm/shared";
 import { api, type ApiError } from "../../../api/client";
-import { useInvalidate } from "../api/hooks";
+import { useInvalidate, useSchema } from "../api/hooks";
+import { Combobox } from "../../../components/Combobox";
 import { DocxPane } from "./Deliverables";
 import "../styles/earnings.css";
 
@@ -11,8 +12,8 @@ const isDocx = (f: File) => /\.docx$/i.test(f.name);
 const EMPTY = Object.fromEntries(EARNINGS_CALL_FIELDS.map((f) => [f.key, ""])) as Record<EarningsCallField, string>;
 const SHORT = EARNINGS_CALL_FIELDS.filter((f) => !f.long);
 const LONG = EARNINGS_CALL_FIELDS.filter((f) => f.long);
-const REQUIRED: readonly EarningsCallField[] = ["quarter", "company"];
-const PLACEHOLDER: Partial<Record<EarningsCallField, string>> = { quarter: "Q3 2024", company: "J&J", tagline: "The call's headline in a sentence" };
+const REQUIRED: readonly EarningsCallField[] = ["quarter", "competitor"];
+const PLACEHOLDER: Partial<Record<EarningsCallField, string>> = { quarter: "Q3 2024", competitor: "Find a competitor…", tagline: "The call's headline in a sentence" };
 
 /**
  * Input → Earnings Call (request 64): attach the call's report (.docx, drag
@@ -34,6 +35,9 @@ export function EarningsCallInput() {
   const card = useRef<HTMLElement>(null);
   const inv = useInvalidate();
   const loc = useLocation();
+  // Request 64b: the Secondary Tracker's Competitors options, as its dropdown lists them.
+  const secondary = useSchema("secondary");
+  const competitors = useMemo(() => secondary.data?.columns.find((c) => c.key === CORE.competitors)?.options ?? [], [secondary.data]);
 
   // Database → Earnings Calls links here (“+ Input an earnings call”).
   useEffect(() => {
@@ -54,12 +58,12 @@ export function EarningsCallInput() {
 
   const submit = async () => {
     setErr(null);
-    const missing = Object.fromEntries(REQUIRED.filter((k) => !values[k].trim()).map((k) => [k, `Give the ${k}`]));
+    const missing = Object.fromEntries(REQUIRED.filter((k) => !values[k].trim()).map((k) => [k, k === "competitor" ? "Choose the competitor" : `Give the ${k}`]));
     setFieldErr(missing);
     if (!file) return setErr("Attach the report (.docx) first.");
     if (!isDocx(file)) return setErr("Only Word documents (.docx) are accepted.");
     if (file.size > MAX_EARNINGS_REPORT_BYTES) return setErr(`The report is over the ${MAX_EARNINGS_REPORT_BYTES / 1048576} MB limit.`);
-    if (Object.keys(missing).length) return setErr("Fill in the Quarter and the Company.");
+    if (Object.keys(missing).length) return setErr("Fill in the Quarter and choose the Competitor.");
     setSaving(true);
     try {
       const fd = new FormData();
@@ -92,6 +96,30 @@ export function EarningsCallInput() {
       "aria-describedby": bad ? `${id}-err` : undefined,
       "data-testid": id,
     };
+    const error = bad && (
+      <span className="err-text" id={`${id}-err`} style={{ textTransform: "none", letterSpacing: 0, fontSize: 12, color: "var(--error)" }}>
+        {bad}
+      </span>
+    );
+    // Request 64b: the competitor is picked from the Secondary Tracker's Competitors dropdown.
+    if (f.key === "competitor") {
+      return (
+        <div className="field" key={f.key}>
+          <span aria-hidden="true">{f.label} *</span>
+          <Combobox
+            options={competitors}
+            value={values.competitor}
+            onChange={(v) => set("competitor", v)}
+            label={`${f.label} (required)`}
+            placeholder={secondary.isLoading ? "Loading competitors…" : PLACEHOLDER.competitor}
+            invalid={!!bad}
+            describedBy={bad ? `${id}-err` : undefined}
+            testId={id}
+          />
+          {error}
+        </div>
+      );
+    }
     return (
       <label className="field" key={f.key} htmlFor={id}>
         <span>
@@ -103,11 +131,7 @@ export function EarningsCallInput() {
         ) : (
           <input className="control" type="text" {...common} maxLength={f.key === "quarter" ? 40 : 200} onChange={(e) => set(f.key, e.target.value)} />
         )}
-        {bad && (
-          <span className="err-text" id={`${id}-err`} style={{ textTransform: "none", letterSpacing: 0, fontSize: 12, color: "var(--error)" }}>
-            {bad}
-          </span>
-        )}
+        {error}
       </label>
     );
   };
@@ -188,7 +212,7 @@ export function EarningsCallInput() {
       <div className="ec-short">{SHORT.map(field)}</div>
       <div className="ec-long">{LONG.map(field)}</div>
       <div className="ec-foot">
-        <span className="card-sub">* Quarter and Company are needed · the other fields may be left empty</span>
+        <span className="card-sub">* Quarter and Competitor are needed · the other fields may be left empty</span>
         <button className="btn" onClick={() => void submit()} disabled={saving} data-testid="ec-submit">
           {saving ? "Submitting…" : "Submit earnings call"}
         </button>
@@ -201,7 +225,7 @@ export function EarningsCallInput() {
       {saved && (
         <div className="import-done" role="status" data-testid="ec-saved">
           <b>
-            ✓ Saved the earnings call {saved.company} {saved.quarter}, with its Markdown
+            ✓ Saved the earnings call {saved.competitor} {saved.quarter}, with its Markdown
           </b>
           <span>
             <Link to="/database?db=earnings">Database · Earnings Calls →</Link>
