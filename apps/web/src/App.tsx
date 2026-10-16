@@ -8,7 +8,7 @@ import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { canSeeTab } from "@eradigm/shared";
 import { useMe } from "./api/hooks";
 import { getContractWarning } from "./api/client";
-import { PROJECT_SLUG, SPACE } from "./api/space";
+import { PROJECT_SLUG } from "./api/space";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Sidebar } from "./components/Sidebar";
 import { AdminPage } from "./pages/AdminPage";
@@ -35,14 +35,14 @@ function SignedIn() {
   const project = projectFor(me.data);
   useEffect(() => {
     const name = me.data?.project?.name;
-    document.title = `${SPACE === "test" ? "Test · " : ""}${loc.pathname === "/admin" ? "Admin" : (project.title(loc.pathname) ?? "Eradigm")}${name ? ` · ${name}` : ""} · Eradigm Competitive Intelligence`;
+    document.title = `${loc.pathname === "/admin" ? "Admin" : (project.title(loc.pathname) ?? "Eradigm")}${name ? ` · ${name}` : ""} · Eradigm Competitive Intelligence`;
   }, [loc.pathname, project, me.data?.project?.name]);
 
   if (me.isLoading) return <div className="empty" role="status">Loading…</div>;
   if (me.isError || !me.data) {
     const e = me.error as { status?: number } | null;
-    // Request 55: the Test tab is for admins only; request 61: a project the caller cannot open. Back to their first project.
-    if ((SPACE === "test" || PROJECT_SLUG) && (e?.status === 403 || e?.status === 404)) {
+    // Request 61: a project the caller cannot open. Back to their first project.
+    if (PROJECT_SLUG && (e?.status === 403 || e?.status === 404)) {
       window.location.replace("/");
       return null;
     }
@@ -53,11 +53,6 @@ function SignedIn() {
   // Request 61: the caller's first project lives at the site's root (an old /p/<slug> address of it still opens it).
   if (PROJECT_SLUG && data.project?.path === "") {
     window.location.replace((window.location.pathname.replace(/^\/p\/[^/]+/, "") || "/") + window.location.search);
-    return null;
-  }
-  // Request 55: the Test tab is for admins only (the API refuses the test space to anyone else).
-  if (SPACE === "test" && data.role !== "admin") {
-    window.location.replace(project.home);
     return null;
   }
   const warning = getContractWarning();
@@ -80,13 +75,8 @@ function SignedIn() {
       <Sidebar me={data} />
       <main id="main" tabIndex={-1}>
         {warning && <div className="banner" role="alert">{warning}</div>}
-        {SPACE === "test" && data.space !== "test" && (
-          <div className="banner" role="alert">
-            The API does not know the Test tab yet: deploy the API (and apply its migrations), then reload.
-          </div>
-        )}
         <ErrorBoundary key={loc.pathname} label="This page">
-          {loc.pathname === "/admin" && SPACE === "live" ? (
+          {loc.pathname === "/admin" ? (
             canSeeTab(data.role, "admin") ? <AdminPage me={data} /> : <Navigate to={project.home} replace />
           ) : (
             <project.App me={data} />

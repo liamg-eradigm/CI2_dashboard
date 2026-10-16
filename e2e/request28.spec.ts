@@ -14,8 +14,8 @@ test.describe("request 28", () => {
     await expect(nav.getByRole("button", { name: /^Inputs\b/ })).toHaveAttribute("aria-expanded", "true");
     await navOf(page).getByRole("link", { name: "Admin", exact: true }).click();
     await expect(page).toHaveURL(/\/admin$/);
-    // Two groups and the Database and Admin tabs (request 43; the Databases group went in request 48; Admin is one tab since request 52).
-    expect(await menuOf(page)).toHaveLength(5);
+    // Inputs, and the Megatrends Dashboard, Database and Admin tabs (request 63: the Test group is gone).
+    expect(await menuOf(page)).toEqual(["Inputs: Input, Eradigm Inbox, Client Inbox", "Megatrends Dashboard", "Database", "Admin"]);
     await expectAccessible(page, "Menu with every group open");
   });
 

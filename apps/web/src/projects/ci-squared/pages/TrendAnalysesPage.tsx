@@ -8,7 +8,6 @@ import { FrontMatter, parseMarkdown, saveMarkdown } from "../components/Markdown
 import { useFocusTrap } from "../components/RecordDrawer";
 import { localDateTime } from "../../../lib/format";
 import { useToast } from "../../../state/toast";
-import { TestSyncButton } from "../components/ExcelSync";
 
 const download = (a: TrendAnalysis) => saveMarkdown(`/api/trend-analyses/${a.id}/markdown?download=1`, `${a.id}.md`);
 
@@ -77,7 +76,6 @@ export function TrendAnalysesPage({ me, title = "CI analyses", eyebrow = "Databa
             <span className="eyebrow">{eyebrow}</span>
             <h1 id="page-title">{title}</h1>
           </div>
-          <TestSyncButton />
         </div>
       </section>
       {strip}

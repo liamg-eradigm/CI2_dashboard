@@ -1,0 +1,26 @@
+/* Request 64: Input → Earnings Call and Database → Earnings Calls. */
+.ec-input { display: flex; flex-direction: column; gap: 14px; }
+.ec-input.drag-target { outline: 2px dashed var(--focus); outline-offset: 4px; }
+.ec-report { display: flex; gap: 12px; align-items: stretch; }
+.ec-report .drop-wrap { flex: 1 1 auto; }
+.ec-report > .btn { align-self: center; }
+.ec-short { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 2fr); gap: 12px 16px; }
+.ec-long { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; }
+.ec-text { height: auto; min-height: 110px; padding: 8px 10px; line-height: 1.5; resize: vertical; }
+.ec-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+@media (max-width: 760px) {
+  .ec-report { flex-direction: column; }
+  .ec-report > .btn { align-self: flex-start; }
+  .ec-short, .ec-long { grid-template-columns: minmax(0, 1fr); }
+}
+
+.ec-table td { vertical-align: top; }
+.ec-table th.ec-long-col { min-width: 260px; }
+.ec-table th.ec-tag-col { min-width: 220px; }
+.ec-cell { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-wrap; max-width: 420px; font-size: 13px; line-height: 1.45; }
+.ec-cell.empty-val { color: var(--muted); }
+.ec-by span { display: block; font-size: 12px; color: var(--muted); }
+.ec-icons { display: flex; gap: 4px; }
+.ec-md-body .md-preview h3 { margin: 18px 0 4px; }
+.ec-md-body .md-preview h3:first-child { margin-top: 0; }
+.ec-md-body .md-preview p { white-space: pre-wrap; }

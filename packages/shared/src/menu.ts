@@ -7,11 +7,11 @@
 import { canSeeTab, type NavTab } from "./megatrends.js";
 import type { Role } from "./permissions.js";
 
-export const MENU_GROUPS = ["inputs", "analytics", "database", "admin", "test"] as const;
+export const MENU_GROUPS = ["inputs", "analytics", "database", "admin"] as const;
 export type MenuGroupKey = (typeof MENU_GROUPS)[number];
 
 /** Request 53: "knowledge-graph" is in no group any more (the graphs are in the Megatrends Dashboard); kept so menus saved with it still read. */
-export const MENU_ITEMS = ["input", "inbox", "clientinbox", "dashboard", "knowledge-graph", "primary-tracker", "database", "admin", "test-database", "test-megatrends", "test-primary-tracker"] as const;
+export const MENU_ITEMS = ["input", "inbox", "clientinbox", "dashboard", "knowledge-graph", "primary-tracker", "database", "admin"] as const;
 export type MenuItemKey = (typeof MENU_ITEMS)[number];
 
 /**
@@ -27,19 +27,17 @@ export type MenuItemKey = (typeof MENU_ITEMS)[number];
  * Request 52: Admin → Deliverables is gone (its newsletters are on the
  * Database page), so Admin is a tab of its own, as Database is. Request 53:
  * Analytics → Knowledge Graph is gone (the knowledge graphs are part of the
- * Megatrends Dashboard); a menu saved with it drops it. Request 55: Test
- * (admins only): the Database, Megatrends Dashboard and Primary Tracker in the
- * test space, whose contents come from the SharePoint workbook. Request 56:
- * the Primary Tracker is the Database's (Analytics → Primary Tracker and Test →
- * Primary Tracker are gone), so the Megatrends Dashboard is a tab of its own.
- * Their keys stay in MENU_ITEMS so menus saved with them still read.
+ * Megatrends Dashboard); a menu saved with it drops it. Request 56: the
+ * Primary Tracker is the Database's (Analytics → Primary Tracker is gone), so
+ * the Megatrends Dashboard is a tab of its own. Their keys stay in MENU_ITEMS
+ * so menus saved with them still read. Request 63: the Test tab (request 55)
+ * is gone; a menu saved with it drops it.
  */
 export const MENU_GROUP_ITEMS: Record<MenuGroupKey, readonly MenuItemKey[]> = {
   inputs: ["input", "inbox", "clientinbox"],
   analytics: ["dashboard"],
   database: ["database"],
   admin: ["admin"],
-  test: ["test-database", "test-megatrends"],
 };
 
 export const MENU_GROUP_LABEL: Record<MenuGroupKey, string> = {
@@ -48,7 +46,6 @@ export const MENU_GROUP_LABEL: Record<MenuGroupKey, string> = {
   analytics: "Megatrends Dashboard",
   database: "Database",
   admin: "Admin",
-  test: "Test",
 };
 
 export const MENU_ITEM_LABEL: Record<MenuItemKey, string> = {
@@ -60,9 +57,6 @@ export const MENU_ITEM_LABEL: Record<MenuItemKey, string> = {
   "primary-tracker": "Primary Tracker",
   database: "Database",
   admin: "Admin",
-  "test-database": "Database",
-  "test-megatrends": "Megatrends",
-  "test-primary-tracker": "Primary Tracker",
 };
 
 export const MENU_ITEM_PATH: Record<MenuItemKey, string> = {
@@ -74,10 +68,6 @@ export const MENU_ITEM_PATH: Record<MenuItemKey, string> = {
   "primary-tracker": "/analytics/primary",
   database: "/database",
   admin: "/admin",
-  // Request 55: the same pages under /test, in the test space (TEST_PATH_PREFIX).
-  "test-database": "/test/database",
-  "test-megatrends": "/test/dashboard",
-  "test-primary-tracker": "/test/analytics/primary",
 };
 
 /** Groups that are a tab of their own: a link straight to their one page, with no subtabs (request 43). */
@@ -87,7 +77,6 @@ export const isStandaloneGroup = (key: MenuGroupKey) => STANDALONE_GROUPS.includ
 /** Other pages a subtab is current on: the Trends Analysis pages and (request 53) the full-page knowledge graphs, all part of the Megatrends Dashboard. */
 export const MENU_ITEM_ALSO: Partial<Record<MenuItemKey, readonly string[]>> = {
   dashboard: ["/analytics/megatrends", "/analytics/competitors", "/megatrends", "/competitors"],
-  "test-megatrends": ["/test/analytics/megatrends", "/test/analytics/competitors", "/test/megatrends", "/test/competitors"],
 };
 
 /** Whether a subtab is the current page. */
@@ -103,10 +92,6 @@ export const MENU_ITEM_TAB: Record<MenuItemKey, NavTab> = {
   "primary-tracker": "tracker",
   database: "tracker",
   admin: "admin",
-  // The Test tab is for admins only (as Admin is).
-  "test-database": "admin",
-  "test-megatrends": "admin",
-  "test-primary-tracker": "admin",
 };
 
 /** The longest name an admin can give a group or subtab. */

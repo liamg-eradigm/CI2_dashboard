@@ -28,7 +28,6 @@ import { ImpactMix, RecordFromTimeline, SignalTimeline, useAnalytics, useRecordP
 import { RichTextField } from "../../../../components/RichTextField";
 import { RichText } from "../../../../components/BulletText";
 import { SizedHeading } from "../TextSize";
-import { TestSyncButton } from "../ExcelSync";
 
 // The knowledge graph carries three.js: loaded when row 5 is first shown.
 const MegatrendsPage = lazy(() => import("../../pages/MegatrendsPage").then((m) => ({ default: m.MegatrendsPage })));
@@ -175,7 +174,6 @@ export function MacroDashboard({ me, macro, onBack }: { me: Me; macro: string; o
               </button>
             ))}
           </nav>
-          <TestSyncButton />
         </div>
       </header>
       <div className={`md-body${last ? " last" : ""}`} ref={body} style={{ ["--bar" as string]: `${bar}px` }}>

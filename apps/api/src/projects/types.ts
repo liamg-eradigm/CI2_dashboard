@@ -24,8 +24,6 @@ export type ProjectModule = {
   features?: (env: Env) => { prefill: "manual" | "llm" };
   /** Its lines in Admin → Configuration. */
   configChecks?: (env: Env) => ConfigCheck[];
-  /** Request 55: the workspace's isolated test space (admins' Test tab), created when first asked for. */
-  testSpace?: (env: Env, live: { id: string; name: string }, userId: string) => Promise<string>;
   /** Background work from the queue. */
   queue?: (batch: MessageBatch<JobMessage>, env: Env) => Promise<void>;
   /** Cron triggers (each module ignores the crons that are not its own). */

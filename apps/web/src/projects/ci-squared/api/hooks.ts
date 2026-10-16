@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import {
+  type EarningsCall,
   type DiscussionSummary,
   IN_PROGRESS_STATUSES,
   filtersToParams,
@@ -111,6 +112,17 @@ export const usePrimarySources = (enabled: boolean) =>
 
 /** Trend Analyses (contract 1.18): every analysis submitted, newest first. */
 export const useTrendAnalyses = () => useQuery({ queryKey: ["trend-analyses"], queryFn: () => api<TrendAnalysis[]>("/api/trend-analyses") });
+
+/** Request 64: every earnings call, newest first. */
+export const useEarningsCalls = () => useQuery({ queryKey: ["earnings-calls"], queryFn: () => api<EarningsCall[]>("/api/earnings-calls") });
+
+/** An earnings call's Markdown (text). */
+export const useEarningsCallMarkdown = (id: string | null) =>
+  useQuery({
+    queryKey: ["earnings-calls", id, "markdown"],
+    queryFn: async () => (await request(`/api/earnings-calls/${id}/markdown`)).text(),
+    enabled: !!id,
+  });
 
 /** Every Macrotrend's analysis sections (request 34). */
 export const useMacroSections = () => useQuery({ queryKey: ["macro-sections"], queryFn: () => api<MacroSection[]>("/api/macrotrends/sections") });

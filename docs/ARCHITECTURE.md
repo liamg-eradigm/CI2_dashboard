@@ -893,6 +893,33 @@ analyst-entered information distinguishable; in the prototype every value is
   "✓ Data synced" there for a moment when a sync changes the test space. A
   forced run that changes nothing says "Already up to date with the workbook"
   with the workbook's last save time.
+- **Request 64** (CI SQUARED; contract 2.4.0; migration 0027): **Earnings
+  Calls**. Input → *Input Earnings Call*: drag and drop (or choose) the call's
+  report, a `.docx` up to 10 MB, which *View report* opens in the same side
+  pane as the newsletters and alerts before anything is sent (`DocxPane` now
+  takes a stored `src` or a local `file`); then a text box per field —
+  Quarter and Company (needed), Main Tagline, Patent Expiry / LOE Response,
+  AI & Automation Tools, Direct-to-Patient Strategy, IRA Pricing / Tariffs,
+  Strategic Investment & Redeployment, Observed Trends. Submit posts
+  multipart (`file` + `values` JSON) to `POST /api/earnings-calls` (analysts
+  and admins); the API checks the file is a Word document (ZIP), stores it in
+  D1 in 1 MB chunks (`earnings_call_files`, as the saved pages are) and
+  writes the Markdown with `earningsCallMarkdown` (each field's name on one
+  line, its text below, an empty line between fields). Database → *Earnings
+  Calls* (`?db=earnings`) lists them newest first: Report (the `.docx` in the
+  side pane, `?docx=`), Markdown (`?md=`, Copy and Download, named
+  “Company Quarter.md”), then one column per field; analysts and admins can
+  remove one. Field definitions live in `packages/shared/src/earningsCalls.ts`.
+- **Request 63** (CI SQUARED; contract 2.3.0; migration 0026): **the Test tab
+  is gone**, with the SharePoint workbook sync behind it (requests 55–57):
+  the Test menu group, the `/test` pages and their Sync now buttons, the
+  Admin card, the `/api/excel/*` routes, the every-minute workbook check and
+  the `x-eradigm-space` header. Migration 0026 switches the test spaces off
+  (`tenants.active = 0`) and drops `excel_sync`. Old `/test/…` addresses open
+  the same live page; a saved menu with the Test group drops it. The Microsoft
+  Graph client (`services/sharepoint.ts`) stays for the Epilepsy project,
+  which names its workbook by link: `SHAREPOINT_DRIVE_ID` and
+  `SHAREPOINT_ITEM_ID` are no longer read.
 - **Request 62** (CI SQUARED, web only): **signal clusters spread out** in the
   Explore Signals graphs. Each grouped entry has its own place in its
   cluster (`clusterLayout`, megatrends/model.ts): clusters fill shells around

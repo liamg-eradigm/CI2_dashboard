@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Eradigm Competitive Intelligence API",
-    "version": "2.2.0",
+    "version": "2.4.0",
     "description": "Generated from packages/shared/src/api.ts. Every request is checked for both role and tenant server-side. Send X-Tenant-Id to select a tenant when the user belongs to more than one."
   },
   "components": {
@@ -668,14 +668,6 @@
                       ],
                       "additionalProperties": false
                     },
-                    "space": {
-                      "default": "live",
-                      "type": "string",
-                      "enum": [
-                        "live",
-                        "test"
-                      ]
-                    },
                     "project": {
                       "type": "object",
                       "properties": {
@@ -765,7 +757,6 @@
                     "environment",
                     "timezone",
                     "features",
-                    "space",
                     "projects"
                   ],
                   "additionalProperties": false
@@ -22122,24 +22113,13 @@
                                 "key": "admin"
                               }
                             ]
-                          },
-                          {
-                            "key": "test",
-                            "items": [
-                              {
-                                "key": "test-database"
-                              },
-                              {
-                                "key": "test-megatrends"
-                              }
-                            ]
                           }
                         ]
                       },
                       "type": "object",
                       "properties": {
                         "groups": {
-                          "maxItems": 5,
+                          "maxItems": 4,
                           "type": "array",
                           "items": {
                             "type": "object",
@@ -22150,8 +22130,7 @@
                                   "inputs",
                                   "analytics",
                                   "database",
-                                  "admin",
-                                  "test"
+                                  "admin"
                                 ]
                               },
                               "label": {
@@ -22159,7 +22138,7 @@
                                 "maxLength": 80
                               },
                               "items": {
-                                "maxItems": 11,
+                                "maxItems": 8,
                                 "type": "array",
                                 "items": {
                                   "type": "object",
@@ -22174,10 +22153,7 @@
                                         "knowledge-graph",
                                         "primary-tracker",
                                         "database",
-                                        "admin",
-                                        "test-database",
-                                        "test-megatrends",
-                                        "test-primary-tracker"
+                                        "admin"
                                       ]
                                     },
                                     "label": {
@@ -22639,24 +22615,13 @@
                                 "key": "admin"
                               }
                             ]
-                          },
-                          {
-                            "key": "test",
-                            "items": [
-                              {
-                                "key": "test-database"
-                              },
-                              {
-                                "key": "test-megatrends"
-                              }
-                            ]
                           }
                         ]
                       },
                       "type": "object",
                       "properties": {
                         "groups": {
-                          "maxItems": 5,
+                          "maxItems": 4,
                           "type": "array",
                           "items": {
                             "type": "object",
@@ -22667,8 +22632,7 @@
                                   "inputs",
                                   "analytics",
                                   "database",
-                                  "admin",
-                                  "test"
+                                  "admin"
                                 ]
                               },
                               "label": {
@@ -22676,7 +22640,7 @@
                                 "maxLength": 80
                               },
                               "items": {
-                                "maxItems": 11,
+                                "maxItems": 8,
                                 "type": "array",
                                 "items": {
                                   "type": "object",
@@ -22691,10 +22655,7 @@
                                         "knowledge-graph",
                                         "primary-tracker",
                                         "database",
-                                        "admin",
-                                        "test-database",
-                                        "test-megatrends",
-                                        "test-primary-tracker"
+                                        "admin"
                                       ]
                                     },
                                     "label": {
@@ -23094,7 +23055,7 @@
                     "type": "object",
                     "properties": {
                       "groups": {
-                        "maxItems": 5,
+                        "maxItems": 4,
                         "type": "array",
                         "items": {
                           "type": "object",
@@ -23105,8 +23066,7 @@
                                 "inputs",
                                 "analytics",
                                 "database",
-                                "admin",
-                                "test"
+                                "admin"
                               ]
                             },
                             "label": {
@@ -23114,7 +23074,7 @@
                               "maxLength": 80
                             },
                             "items": {
-                              "maxItems": 11,
+                              "maxItems": 8,
                               "type": "array",
                               "items": {
                                 "type": "object",
@@ -23129,10 +23089,7 @@
                                       "knowledge-graph",
                                       "primary-tracker",
                                       "database",
-                                      "admin",
-                                      "test-database",
-                                      "test-megatrends",
-                                      "test-primary-tracker"
+                                      "admin"
                                     ]
                                   },
                                   "label": {
@@ -23470,24 +23427,13 @@
                                 "key": "admin"
                               }
                             ]
-                          },
-                          {
-                            "key": "test",
-                            "items": [
-                              {
-                                "key": "test-database"
-                              },
-                              {
-                                "key": "test-megatrends"
-                              }
-                            ]
                           }
                         ]
                       },
                       "type": "object",
                       "properties": {
                         "groups": {
-                          "maxItems": 5,
+                          "maxItems": 4,
                           "type": "array",
                           "items": {
                             "type": "object",
@@ -23498,8 +23444,7 @@
                                   "inputs",
                                   "analytics",
                                   "database",
-                                  "admin",
-                                  "test"
+                                  "admin"
                                 ]
                               },
                               "label": {
@@ -23507,7 +23452,7 @@
                                 "maxLength": 80
                               },
                               "items": {
-                                "maxItems": 11,
+                                "maxItems": 8,
                                 "type": "array",
                                 "items": {
                                   "type": "object",
@@ -23522,10 +23467,7 @@
                                         "knowledge-graph",
                                         "primary-tracker",
                                         "database",
-                                        "admin",
-                                        "test-database",
-                                        "test-megatrends",
-                                        "test-primary-tracker"
+                                        "admin"
                                       ]
                                     },
                                     "label": {
@@ -24936,6 +24878,623 @@
         "parameters": [
           {
             "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/earnings-calls": {
+      "get": {
+        "summary": "Request 64: every earnings call submitted, newest first",
+        "description": "Roles: admin, analyst, client",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "quarter": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 40
+                      },
+                      "company": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      },
+                      "tagline": {
+                        "default": "",
+                        "type": "string",
+                        "maxLength": 20000
+                      },
+                      "loe": {
+                        "default": "",
+                        "type": "string",
+                        "maxLength": 20000
+                      },
+                      "aiTools": {
+                        "default": "",
+                        "type": "string",
+                        "maxLength": 20000
+                      },
+                      "dtp": {
+                        "default": "",
+                        "type": "string",
+                        "maxLength": 20000
+                      },
+                      "ira": {
+                        "default": "",
+                        "type": "string",
+                        "maxLength": 20000
+                      },
+                      "investment": {
+                        "default": "",
+                        "type": "string",
+                        "maxLength": 20000
+                      },
+                      "trends": {
+                        "default": "",
+                        "type": "string",
+                        "maxLength": 20000
+                      },
+                      "id": {
+                        "type": "string"
+                      },
+                      "reportName": {
+                        "type": "string"
+                      },
+                      "reportSize": {
+                        "type": "number"
+                      },
+                      "submittedAt": {
+                        "type": "string"
+                      },
+                      "submittedBy": {
+                        "nullable": true,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "quarter",
+                      "company",
+                      "tagline",
+                      "loe",
+                      "aiTools",
+                      "dtp",
+                      "ira",
+                      "investment",
+                      "trends",
+                      "id",
+                      "reportName",
+                      "reportSize",
+                      "submittedAt",
+                      "submittedBy"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      },
+      "post": {
+        "summary": "Request 64: submit an earnings call: its report (.docx, multipart field file) and its text fields (multipart field values, JSON)",
+        "description": "Roles: admin, analyst",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "quarter": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 40
+                    },
+                    "company": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    },
+                    "tagline": {
+                      "default": "",
+                      "type": "string",
+                      "maxLength": 20000
+                    },
+                    "loe": {
+                      "default": "",
+                      "type": "string",
+                      "maxLength": 20000
+                    },
+                    "aiTools": {
+                      "default": "",
+                      "type": "string",
+                      "maxLength": 20000
+                    },
+                    "dtp": {
+                      "default": "",
+                      "type": "string",
+                      "maxLength": 20000
+                    },
+                    "ira": {
+                      "default": "",
+                      "type": "string",
+                      "maxLength": 20000
+                    },
+                    "investment": {
+                      "default": "",
+                      "type": "string",
+                      "maxLength": 20000
+                    },
+                    "trends": {
+                      "default": "",
+                      "type": "string",
+                      "maxLength": 20000
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "reportName": {
+                      "type": "string"
+                    },
+                    "reportSize": {
+                      "type": "number"
+                    },
+                    "submittedAt": {
+                      "type": "string"
+                    },
+                    "submittedBy": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "quarter",
+                    "company",
+                    "tagline",
+                    "loe",
+                    "aiTools",
+                    "dtp",
+                    "ira",
+                    "investment",
+                    "trends",
+                    "id",
+                    "reportName",
+                    "reportSize",
+                    "submittedAt",
+                    "submittedBy"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/earnings-calls/{id}/report": {
+      "get": {
+        "summary": "Request 64: an earnings call's report (.docx); ?download=1 as a file",
+        "description": "Roles: admin, analyst, client",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/earnings-calls/{id}/markdown": {
+      "get": {
+        "summary": "Request 64: an earnings call's Markdown; ?download=1 as a file",
+        "description": "Roles: admin, analyst, client",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/earnings-calls/{id}": {
+      "delete": {
+        "summary": "Request 64: remove an earnings call",
+        "description": "Roles: admin, analyst",
+        "parameters": [
+          {
+            "name": "id",
             "in": "path",
             "required": true,
             "schema": {
@@ -26798,1283 +27357,6 @@
         "responses": {
           "200": {
             "description": "OK"
-          },
-          "default": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "fields": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "key": {
-                                "type": "string"
-                              },
-                              "label": {
-                                "type": "string"
-                              },
-                              "code": {
-                                "type": "string"
-                              },
-                              "message": {
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "key",
-                              "label",
-                              "code",
-                              "message"
-                            ],
-                            "additionalProperties": false
-                          }
-                        },
-                        "details": {
-                          "type": "object",
-                          "additionalProperties": {}
-                        },
-                        "requestId": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "message"
-                      ],
-                      "additionalProperties": false
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "cloudflareAccess": []
-          }
-        ]
-      }
-    },
-    "/api/excel/check": {
-      "get": {
-        "summary": "Test tab: sign in to Microsoft Graph as the app (client credentials), read the SharePoint workbook (SHAREPOINT_DRIVE_ID / SHAREPOINT_ITEM_ID) and list its worksheets with their columns; each step says how it went, and a failure what to fix (also logged)",
-        "description": "Roles: admin",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean"
-                    },
-                    "steps": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": "string"
-                          },
-                          "ok": {
-                            "type": "boolean"
-                          },
-                          "detail": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "name",
-                          "ok",
-                          "detail"
-                        ],
-                        "additionalProperties": false
-                      }
-                    },
-                    "file": {
-                      "nullable": true,
-                      "type": "object",
-                      "properties": {
-                        "name": {
-                          "type": "string"
-                        },
-                        "size": {
-                          "nullable": true,
-                          "type": "number"
-                        },
-                        "lastModified": {
-                          "nullable": true,
-                          "type": "string"
-                        },
-                        "lastModifiedBy": {
-                          "nullable": true,
-                          "type": "string"
-                        },
-                        "webUrl": {
-                          "nullable": true,
-                          "type": "string"
-                        },
-                        "version": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "name",
-                        "size",
-                        "lastModified",
-                        "lastModifiedBy",
-                        "webUrl",
-                        "version"
-                      ],
-                      "additionalProperties": false
-                    },
-                    "sheets": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": "string"
-                          },
-                          "columns": {
-                            "type": "array",
-                            "items": {
-                              "type": "string"
-                            }
-                          },
-                          "rows": {
-                            "type": "number"
-                          }
-                        },
-                        "required": [
-                          "name",
-                          "columns",
-                          "rows"
-                        ],
-                        "additionalProperties": false
-                      }
-                    },
-                    "error": {
-                      "nullable": true,
-                      "type": "object",
-                      "properties": {
-                        "stage": {
-                          "type": "string",
-                          "enum": [
-                            "config",
-                            "token",
-                            "file",
-                            "download",
-                            "read"
-                          ]
-                        },
-                        "status": {
-                          "nullable": true,
-                          "type": "number"
-                        },
-                        "code": {
-                          "nullable": true,
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "hint": {
-                          "type": "string"
-                        },
-                        "requestId": {
-                          "nullable": true,
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "stage",
-                        "status",
-                        "code",
-                        "message",
-                        "hint",
-                        "requestId"
-                      ],
-                      "additionalProperties": false
-                    }
-                  },
-                  "required": [
-                    "ok",
-                    "steps",
-                    "file",
-                    "sheets",
-                    "error"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "fields": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "key": {
-                                "type": "string"
-                              },
-                              "label": {
-                                "type": "string"
-                              },
-                              "code": {
-                                "type": "string"
-                              },
-                              "message": {
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "key",
-                              "label",
-                              "code",
-                              "message"
-                            ],
-                            "additionalProperties": false
-                          }
-                        },
-                        "details": {
-                          "type": "object",
-                          "additionalProperties": {}
-                        },
-                        "requestId": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "message"
-                      ],
-                      "additionalProperties": false
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "cloudflareAccess": []
-          }
-        ]
-      }
-    },
-    "/api/excel/status": {
-      "get": {
-        "summary": "Test tab: the sync from the SharePoint workbook into the test space (last run, sheets, rows skipped and why)",
-        "description": "Roles: admin",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "configured": {
-                      "type": "boolean"
-                    },
-                    "missing": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      }
-                    },
-                    "linked": {
-                      "type": "boolean"
-                    },
-                    "status": {
-                      "type": "string",
-                      "enum": [
-                        "never",
-                        "idle",
-                        "syncing",
-                        "error"
-                      ]
-                    },
-                    "message": {
-                      "nullable": true,
-                      "type": "string"
-                    },
-                    "problem": {
-                      "nullable": true,
-                      "type": "object",
-                      "properties": {
-                        "stage": {
-                          "type": "string",
-                          "enum": [
-                            "config",
-                            "token",
-                            "file",
-                            "download",
-                            "read"
-                          ]
-                        },
-                        "status": {
-                          "nullable": true,
-                          "type": "number"
-                        },
-                        "code": {
-                          "nullable": true,
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "hint": {
-                          "type": "string"
-                        },
-                        "requestId": {
-                          "nullable": true,
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "stage",
-                        "status",
-                        "code",
-                        "message",
-                        "hint",
-                        "requestId"
-                      ],
-                      "additionalProperties": false
-                    },
-                    "file": {
-                      "nullable": true,
-                      "type": "object",
-                      "properties": {
-                        "name": {
-                          "type": "string"
-                        },
-                        "url": {
-                          "nullable": true,
-                          "type": "string"
-                        },
-                        "modifiedAt": {
-                          "nullable": true,
-                          "type": "string"
-                        },
-                        "modifiedBy": {
-                          "nullable": true,
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "name",
-                        "url",
-                        "modifiedAt",
-                        "modifiedBy"
-                      ],
-                      "additionalProperties": false
-                    },
-                    "lastCheckedAt": {
-                      "nullable": true,
-                      "type": "string"
-                    },
-                    "lastSyncedAt": {
-                      "nullable": true,
-                      "type": "string"
-                    },
-                    "lastChangeAt": {
-                      "nullable": true,
-                      "type": "string"
-                    },
-                    "more": {
-                      "type": "boolean"
-                    },
-                    "applied": {
-                      "type": "object",
-                      "properties": {
-                        "created": {
-                          "type": "number"
-                        },
-                        "updated": {
-                          "type": "number"
-                        },
-                        "deleted": {
-                          "type": "number"
-                        },
-                        "trends": {
-                          "type": "number"
-                        }
-                      },
-                      "required": [
-                        "created",
-                        "updated",
-                        "deleted",
-                        "trends"
-                      ],
-                      "additionalProperties": false
-                    },
-                    "sheets": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": "string"
-                          },
-                          "kind": {
-                            "type": "string",
-                            "enum": [
-                              "primary",
-                              "secondary",
-                              "competitor",
-                              "macrotrend",
-                              "ignored"
-                            ]
-                          },
-                          "rows": {
-                            "type": "number"
-                          },
-                          "columns": {
-                            "type": "array",
-                            "items": {
-                              "type": "string"
-                            }
-                          },
-                          "ignored": {
-                            "type": "array",
-                            "items": {
-                              "type": "string"
-                            }
-                          }
-                        },
-                        "required": [
-                          "name",
-                          "kind",
-                          "rows",
-                          "columns",
-                          "ignored"
-                        ],
-                        "additionalProperties": false
-                      }
-                    },
-                    "issues": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "sheet": {
-                            "type": "string"
-                          },
-                          "row": {
-                            "nullable": true,
-                            "type": "number"
-                          },
-                          "column": {
-                            "nullable": true,
-                            "type": "string"
-                          },
-                          "message": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "sheet",
-                          "row",
-                          "column",
-                          "message"
-                        ],
-                        "additionalProperties": false
-                      }
-                    },
-                    "counts": {
-                      "nullable": true,
-                      "type": "object",
-                      "properties": {
-                        "primary": {
-                          "type": "number"
-                        },
-                        "secondary": {
-                          "type": "number"
-                        },
-                        "competitors": {
-                          "type": "number"
-                        },
-                        "macrotrends": {
-                          "type": "number"
-                        }
-                      },
-                      "required": [
-                        "primary",
-                        "secondary",
-                        "competitors",
-                        "macrotrends"
-                      ],
-                      "additionalProperties": false
-                    }
-                  },
-                  "required": [
-                    "configured",
-                    "missing",
-                    "linked",
-                    "status",
-                    "message",
-                    "problem",
-                    "file",
-                    "lastCheckedAt",
-                    "lastSyncedAt",
-                    "lastChangeAt",
-                    "more",
-                    "applied",
-                    "sheets",
-                    "issues",
-                    "counts"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "fields": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "key": {
-                                "type": "string"
-                              },
-                              "label": {
-                                "type": "string"
-                              },
-                              "code": {
-                                "type": "string"
-                              },
-                              "message": {
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "key",
-                              "label",
-                              "code",
-                              "message"
-                            ],
-                            "additionalProperties": false
-                          }
-                        },
-                        "details": {
-                          "type": "object",
-                          "additionalProperties": {}
-                        },
-                        "requestId": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "message"
-                      ],
-                      "additionalProperties": false
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "cloudflareAccess": []
-          }
-        ]
-      }
-    },
-    "/api/excel/sync": {
-      "post": {
-        "summary": "Test tab: sync the test space from the workbook now (one run: when more is true, call again)",
-        "description": "Roles: admin",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "configured": {
-                      "type": "boolean"
-                    },
-                    "missing": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      }
-                    },
-                    "linked": {
-                      "type": "boolean"
-                    },
-                    "status": {
-                      "type": "string",
-                      "enum": [
-                        "never",
-                        "idle",
-                        "syncing",
-                        "error"
-                      ]
-                    },
-                    "message": {
-                      "nullable": true,
-                      "type": "string"
-                    },
-                    "problem": {
-                      "nullable": true,
-                      "type": "object",
-                      "properties": {
-                        "stage": {
-                          "type": "string",
-                          "enum": [
-                            "config",
-                            "token",
-                            "file",
-                            "download",
-                            "read"
-                          ]
-                        },
-                        "status": {
-                          "nullable": true,
-                          "type": "number"
-                        },
-                        "code": {
-                          "nullable": true,
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "hint": {
-                          "type": "string"
-                        },
-                        "requestId": {
-                          "nullable": true,
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "stage",
-                        "status",
-                        "code",
-                        "message",
-                        "hint",
-                        "requestId"
-                      ],
-                      "additionalProperties": false
-                    },
-                    "file": {
-                      "nullable": true,
-                      "type": "object",
-                      "properties": {
-                        "name": {
-                          "type": "string"
-                        },
-                        "url": {
-                          "nullable": true,
-                          "type": "string"
-                        },
-                        "modifiedAt": {
-                          "nullable": true,
-                          "type": "string"
-                        },
-                        "modifiedBy": {
-                          "nullable": true,
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "name",
-                        "url",
-                        "modifiedAt",
-                        "modifiedBy"
-                      ],
-                      "additionalProperties": false
-                    },
-                    "lastCheckedAt": {
-                      "nullable": true,
-                      "type": "string"
-                    },
-                    "lastSyncedAt": {
-                      "nullable": true,
-                      "type": "string"
-                    },
-                    "lastChangeAt": {
-                      "nullable": true,
-                      "type": "string"
-                    },
-                    "more": {
-                      "type": "boolean"
-                    },
-                    "applied": {
-                      "type": "object",
-                      "properties": {
-                        "created": {
-                          "type": "number"
-                        },
-                        "updated": {
-                          "type": "number"
-                        },
-                        "deleted": {
-                          "type": "number"
-                        },
-                        "trends": {
-                          "type": "number"
-                        }
-                      },
-                      "required": [
-                        "created",
-                        "updated",
-                        "deleted",
-                        "trends"
-                      ],
-                      "additionalProperties": false
-                    },
-                    "sheets": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": "string"
-                          },
-                          "kind": {
-                            "type": "string",
-                            "enum": [
-                              "primary",
-                              "secondary",
-                              "competitor",
-                              "macrotrend",
-                              "ignored"
-                            ]
-                          },
-                          "rows": {
-                            "type": "number"
-                          },
-                          "columns": {
-                            "type": "array",
-                            "items": {
-                              "type": "string"
-                            }
-                          },
-                          "ignored": {
-                            "type": "array",
-                            "items": {
-                              "type": "string"
-                            }
-                          }
-                        },
-                        "required": [
-                          "name",
-                          "kind",
-                          "rows",
-                          "columns",
-                          "ignored"
-                        ],
-                        "additionalProperties": false
-                      }
-                    },
-                    "issues": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "sheet": {
-                            "type": "string"
-                          },
-                          "row": {
-                            "nullable": true,
-                            "type": "number"
-                          },
-                          "column": {
-                            "nullable": true,
-                            "type": "string"
-                          },
-                          "message": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "sheet",
-                          "row",
-                          "column",
-                          "message"
-                        ],
-                        "additionalProperties": false
-                      }
-                    },
-                    "counts": {
-                      "nullable": true,
-                      "type": "object",
-                      "properties": {
-                        "primary": {
-                          "type": "number"
-                        },
-                        "secondary": {
-                          "type": "number"
-                        },
-                        "competitors": {
-                          "type": "number"
-                        },
-                        "macrotrends": {
-                          "type": "number"
-                        }
-                      },
-                      "required": [
-                        "primary",
-                        "secondary",
-                        "competitors",
-                        "macrotrends"
-                      ],
-                      "additionalProperties": false
-                    }
-                  },
-                  "required": [
-                    "configured",
-                    "missing",
-                    "linked",
-                    "status",
-                    "message",
-                    "problem",
-                    "file",
-                    "lastCheckedAt",
-                    "lastSyncedAt",
-                    "lastChangeAt",
-                    "more",
-                    "applied",
-                    "sheets",
-                    "issues",
-                    "counts"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "fields": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "key": {
-                                "type": "string"
-                              },
-                              "label": {
-                                "type": "string"
-                              },
-                              "code": {
-                                "type": "string"
-                              },
-                              "message": {
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "key",
-                              "label",
-                              "code",
-                              "message"
-                            ],
-                            "additionalProperties": false
-                          }
-                        },
-                        "details": {
-                          "type": "object",
-                          "additionalProperties": {}
-                        },
-                        "requestId": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "message"
-                      ],
-                      "additionalProperties": false
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "force": {
-                    "type": "boolean"
-                  }
-                },
-                "additionalProperties": false
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "cloudflareAccess": []
-          }
-        ]
-      }
-    },
-    "/api/excel/upload": {
-      "post": {
-        "summary": "Development and tests only: sync the test space from an uploaded workbook instead of SharePoint (multipart field file)",
-        "description": "Roles: admin",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "configured": {
-                      "type": "boolean"
-                    },
-                    "missing": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      }
-                    },
-                    "linked": {
-                      "type": "boolean"
-                    },
-                    "status": {
-                      "type": "string",
-                      "enum": [
-                        "never",
-                        "idle",
-                        "syncing",
-                        "error"
-                      ]
-                    },
-                    "message": {
-                      "nullable": true,
-                      "type": "string"
-                    },
-                    "problem": {
-                      "nullable": true,
-                      "type": "object",
-                      "properties": {
-                        "stage": {
-                          "type": "string",
-                          "enum": [
-                            "config",
-                            "token",
-                            "file",
-                            "download",
-                            "read"
-                          ]
-                        },
-                        "status": {
-                          "nullable": true,
-                          "type": "number"
-                        },
-                        "code": {
-                          "nullable": true,
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "hint": {
-                          "type": "string"
-                        },
-                        "requestId": {
-                          "nullable": true,
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "stage",
-                        "status",
-                        "code",
-                        "message",
-                        "hint",
-                        "requestId"
-                      ],
-                      "additionalProperties": false
-                    },
-                    "file": {
-                      "nullable": true,
-                      "type": "object",
-                      "properties": {
-                        "name": {
-                          "type": "string"
-                        },
-                        "url": {
-                          "nullable": true,
-                          "type": "string"
-                        },
-                        "modifiedAt": {
-                          "nullable": true,
-                          "type": "string"
-                        },
-                        "modifiedBy": {
-                          "nullable": true,
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "name",
-                        "url",
-                        "modifiedAt",
-                        "modifiedBy"
-                      ],
-                      "additionalProperties": false
-                    },
-                    "lastCheckedAt": {
-                      "nullable": true,
-                      "type": "string"
-                    },
-                    "lastSyncedAt": {
-                      "nullable": true,
-                      "type": "string"
-                    },
-                    "lastChangeAt": {
-                      "nullable": true,
-                      "type": "string"
-                    },
-                    "more": {
-                      "type": "boolean"
-                    },
-                    "applied": {
-                      "type": "object",
-                      "properties": {
-                        "created": {
-                          "type": "number"
-                        },
-                        "updated": {
-                          "type": "number"
-                        },
-                        "deleted": {
-                          "type": "number"
-                        },
-                        "trends": {
-                          "type": "number"
-                        }
-                      },
-                      "required": [
-                        "created",
-                        "updated",
-                        "deleted",
-                        "trends"
-                      ],
-                      "additionalProperties": false
-                    },
-                    "sheets": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": "string"
-                          },
-                          "kind": {
-                            "type": "string",
-                            "enum": [
-                              "primary",
-                              "secondary",
-                              "competitor",
-                              "macrotrend",
-                              "ignored"
-                            ]
-                          },
-                          "rows": {
-                            "type": "number"
-                          },
-                          "columns": {
-                            "type": "array",
-                            "items": {
-                              "type": "string"
-                            }
-                          },
-                          "ignored": {
-                            "type": "array",
-                            "items": {
-                              "type": "string"
-                            }
-                          }
-                        },
-                        "required": [
-                          "name",
-                          "kind",
-                          "rows",
-                          "columns",
-                          "ignored"
-                        ],
-                        "additionalProperties": false
-                      }
-                    },
-                    "issues": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "sheet": {
-                            "type": "string"
-                          },
-                          "row": {
-                            "nullable": true,
-                            "type": "number"
-                          },
-                          "column": {
-                            "nullable": true,
-                            "type": "string"
-                          },
-                          "message": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "sheet",
-                          "row",
-                          "column",
-                          "message"
-                        ],
-                        "additionalProperties": false
-                      }
-                    },
-                    "counts": {
-                      "nullable": true,
-                      "type": "object",
-                      "properties": {
-                        "primary": {
-                          "type": "number"
-                        },
-                        "secondary": {
-                          "type": "number"
-                        },
-                        "competitors": {
-                          "type": "number"
-                        },
-                        "macrotrends": {
-                          "type": "number"
-                        }
-                      },
-                      "required": [
-                        "primary",
-                        "secondary",
-                        "competitors",
-                        "macrotrends"
-                      ],
-                      "additionalProperties": false
-                    }
-                  },
-                  "required": [
-                    "configured",
-                    "missing",
-                    "linked",
-                    "status",
-                    "message",
-                    "problem",
-                    "file",
-                    "lastCheckedAt",
-                    "lastSyncedAt",
-                    "lastChangeAt",
-                    "more",
-                    "applied",
-                    "sheets",
-                    "issues",
-                    "counts"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
           },
           "default": {
             "description": "Error",

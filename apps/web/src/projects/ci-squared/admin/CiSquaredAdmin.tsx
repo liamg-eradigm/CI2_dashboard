@@ -1,7 +1,6 @@
 /**
  * CI Squared's part of the Admin page (request 61: Admin is the platform's;
- * each project brings its own settings): the Test tab's workbook sync,
- * extraction quality, the menu, competitor tiers and the workspace settings.
+ * each project brings its own settings): extraction quality, the menu, competitor tiers and the workspace settings.
  */
 import { useEffect, useState } from "react";
 import {
@@ -28,7 +27,6 @@ import { api } from "../../../api/client";
 import { useInvalidate, useQuality, useSchema, useSettings } from "../api/hooks";
 import { Combobox } from "../../../components/Combobox";
 import { ErrorBoundary } from "../../../components/ErrorBoundary";
-import { ExcelSyncCard } from "../components/ExcelSync";
 import { ReorderList } from "../components/SchemaEditor";
 import { pct } from "../../../lib/format";
 import { useToast } from "../../../state/toast";
@@ -38,12 +36,6 @@ export function CiSquaredAdmin({ me }: { me: Me }) {
   const isAdmin = me.role === "admin";
   return (
     <>
-      {/* Request 56: the Test tab's workbook sync (it was the Test pages' bar), with any rows it left out. */}
-      {isAdmin && (
-        <ErrorBoundary label="Test tab · SharePoint workbook">
-          <ExcelSyncCard />
-        </ErrorBoundary>
-      )}
       <ErrorBoundary label="Extraction quality">
         <Quality manual={me.features.prefill === "manual"} />
       </ErrorBoundary>

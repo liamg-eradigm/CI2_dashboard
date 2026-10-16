@@ -20,6 +20,7 @@ import {
   SaveAlertRequest,
   UpdateDiscussionSummaryRequest,
   DOCX_MIME,
+  EarningsCallValuesSchema,
   GenerateTrendSummaryRequest,
   CreateCommentRequest,
   UpdateCommentRequest,
@@ -34,7 +35,6 @@ import {
   ClearDecidedRequest,
   SplitRequest,
   DeleteItemRequest,
-  ExcelSyncRequest,
   CreateSavedViewRequest,
   CreateSubmissionRequest,
   DeleteOptionRequest,
@@ -74,6 +74,7 @@ import {
   type TrackerSchema,
   type TenantSettings,
 } from "@eradigm/shared";
+import { createEarningsCall, deleteEarningsCall, earningsCallMarkdownFile, earningsCallReport, listEarningsCalls } from "./services/earningsCalls.js";
 import { requirePermission, type Principal } from "../../auth/context.js";
 import { memo } from "../../lib/cache.js";
 import { ApiError, badRequest, forbidden, notFound } from "../../lib/errors.js";
@@ -119,8 +120,6 @@ import { listPages, pageSnapshotId } from "./services/pages.js";
 import { addComment, backToEradigm, clientPush, listComments, sendToClient, updateComment } from "./services/clientInbox.js";
 import { alertEdit, databaseExtras, deleteDeliverable, generateNewsletter, listNewsletters, readDeliverable, saveAlertEdit } from "./services/deliverables.js";
 import { getDiscussionSummary, regenerateDiscussionSummary, writeDiscussionSummary } from "./services/discussionSummaries.js";
-import { excelStatus, syncStep } from "./services/excelSync.js";
-import { checkWorkbook } from "../../services/sharepoint.js";
 import { body, cachedJson, ctxOf, P, routes, versionsOf, type C } from "../../lib/http.js";
 
 export const ciSquaredRoutes = routes();
@@ -185,42 +184,6 @@ async function todayFor(c: C): Promise<string> {
     return todayIso(new Date(), "UTC");
   }
 }
-
-// ---------------------------------------------------------------------------
-// Request 55: the Test tab's SharePoint workbook (always the live workspace's, whichever space asks)
-// ---------------------------------------------------------------------------
-
-/** The live workspace of the caller (an admin). */
-function liveOf(c: C): { id: string; name: string } {
-  const p = P(c);
-  if (p.role !== "admin") throw forbidden("The Test tab is for admins only");
-  return { id: p.liveTenantId ?? p.tenantId, name: p.space === "test" ? p.tenantName.replace(/ · Test$/, "") : p.tenantName };
-}
-
-app.get("/api/excel/check", async (c) => {
-  liveOf(c);
-  return c.json(await checkWorkbook(c.env));
-});
-
-app.get("/api/excel/status", async (c) => c.json(await excelStatus(c.env, liveOf(c).id)));
-
-app.post("/api/excel/sync", async (c) => {
-  const live = liveOf(c);
-  const b = await body(c, ExcelSyncRequest);
-  const p = P(c);
-  return c.json(await syncStep(c.env, live, { userId: p.userId, email: p.email, name: p.name }, { force: !!b.force }));
-});
-
-/** Development and tests only: the workbook from an upload instead of SharePoint. */
-app.post("/api/excel/upload", async (c) => {
-  const live = liveOf(c);
-  if (c.env.ENVIRONMENT !== "dev" && c.env.ENVIRONMENT !== "test") throw notFound("Endpoint");
-  const form = await c.req.formData().catch(() => null);
-  const file = form?.get("file") as unknown as File | string | null | undefined;
-  if (!file || typeof file === "string") throw badRequest("Send the workbook as the multipart field “file”");
-  const p = P(c);
-  return c.json(await syncStep(c.env, live, { userId: p.userId, email: p.email, name: p.name }, { upload: { bytes: new Uint8Array(await file.arrayBuffer()), name: file.name || "upload.xlsx" } }));
-});
 
 // ---------------------------------------------------------------------------
 // Schema
@@ -473,6 +436,71 @@ app.delete("/api/trend-analyses/:id", async (c) => {
   const p = P(c);
   requirePermission(p, "item:edit");
   await deleteTrendAnalysis(c.env, p, c.req.param("id"));
+  return c.json({ ok: true as const });
+});
+
+// ---------------------------------------------------------------------------
+// Request 64: earnings calls (Input → Earnings Call; Database → Earnings Calls)
+// ---------------------------------------------------------------------------
+
+/** A Content-Disposition with the file's name (plain ASCII, and in full as UTF-8). */
+const disposition = (download: boolean, name: string) =>
+  `${download ? "attachment" : "inline"}; filename="${name.replace(/[^\x20-\x7e]|["\\]/g, "_")}"; filename*=UTF-8''${encodeURIComponent(name)}`;
+
+app.get("/api/earnings-calls", async (c) => {
+  requirePermission(P(c), "tracker:read");
+  return cachedJson(c, () => listEarningsCalls(c.env, P(c).tenantId), "all");
+});
+
+app.post("/api/earnings-calls", async (c) => {
+  const p = P(c);
+  requirePermission(p, "item:edit");
+  const form = await c.req.formData().catch(() => null);
+  const file = form?.get("file") as unknown as File | string | null | undefined;
+  if (!file || typeof file === "string") throw badRequest("Attach the report (.docx) as the multipart field “file”");
+  let raw: unknown;
+  try {
+    raw = JSON.parse(String(form?.get("values") ?? "{}"));
+  } catch {
+    throw badRequest("The field values must be JSON");
+  }
+  const parsed = EarningsCallValuesSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new ApiError(
+      "VALIDATION",
+      "Some fields are invalid",
+      parsed.error.issues.map((i) => ({ key: i.path.join(".") || "values", label: i.path.join(".") || "Fields", code: "invalid", message: i.message })),
+    );
+  }
+  return c.json(await createEarningsCall(c.env, p, parsed.data, { name: file.name || "report.docx", bytes: new Uint8Array(await file.arrayBuffer()) }), 201);
+});
+
+app.get("/api/earnings-calls/:id/report", async (c) => {
+  const p = P(c);
+  requirePermission(p, "tracker:read");
+  const r = await earningsCallReport(c.env, p.tenantId, c.req.param("id"));
+  const download = c.req.query("download") === "1";
+  if (download) await audit(c.env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "deliverable.downloaded", targetType: "earnings_call", targetId: c.req.param("id"), details: { kind: "Earnings call report", file: r.name } });
+  return new Response(r.bytes, {
+    headers: { "Content-Type": DOCX_MIME, "Content-Disposition": disposition(download, r.name), "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" },
+  });
+});
+
+app.get("/api/earnings-calls/:id/markdown", async (c) => {
+  const p = P(c);
+  requirePermission(p, "tracker:read");
+  const md = await earningsCallMarkdownFile(c.env, p.tenantId, c.req.param("id"));
+  const download = c.req.query("download") === "1";
+  if (download) await audit(c.env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "markdown.downloaded", targetType: "earnings_call", targetId: c.req.param("id"), details: { file: md.fileName } });
+  return new Response(md.text, {
+    headers: { "Content-Type": "text/markdown; charset=utf-8", "Content-Disposition": disposition(download, md.fileName), "X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store" },
+  });
+});
+
+app.delete("/api/earnings-calls/:id", async (c) => {
+  const p = P(c);
+  requirePermission(p, "item:edit");
+  await deleteEarningsCall(c.env, p, c.req.param("id"));
   return c.json({ ok: true as const });
 });
 

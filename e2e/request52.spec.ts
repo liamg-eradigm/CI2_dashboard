@@ -28,7 +28,7 @@ test.describe("request 52", () => {
   test("Admin is one tab (no Deliverables), named Admin", async ({ page }) => {
     await signInAs(page, "admin");
     await page.goto("/dashboard");
-    expect(await menuOf(page)).toEqual(["Inputs: Input, Eradigm Inbox, Client Inbox", "Megatrends Dashboard", "Database", "Admin", "Test: Database, Megatrends"]);
+    expect(await menuOf(page)).toEqual(["Inputs: Input, Eradigm Inbox, Client Inbox", "Megatrends Dashboard", "Database", "Admin"]);
     const nav = navOf(page);
     await expect(nav.getByRole("button", { name: /^Admin\b/ })).toHaveCount(0);
     await expect(nav.getByRole("link", { name: /Deliverables|Administration/ })).toHaveCount(0);
@@ -48,7 +48,7 @@ test.describe("request 52", () => {
 
     await page.goto("/database");
     const toggle = page.getByRole("group", { name: "Database to show" });
-    await expect(toggle.getByRole("button")).toHaveText(["Primary Tracker", "Secondary Tracker", "CI Analysis", "Newsletter"]);
+    await expect(toggle.getByRole("button")).toHaveText(["Primary Tracker", "Secondary Tracker", "CI Analysis", "Newsletter", "Earnings Calls"]);
     await toggle.getByRole("button", { name: "Newsletter" }).click();
     await expect(page).toHaveURL(/[?&]db=newsletters/);
     await expect(toggle.getByRole("button", { name: "Newsletter" })).toHaveAttribute("aria-pressed", "true");

@@ -21,7 +21,7 @@ test.describe("request 53", () => {
     await page.goto("/database");
     const strip = page.getByTestId("db-tabs");
     const tabs = strip.getByRole("group", { name: "Database to show" });
-    await expect(tabs.getByRole("button")).toHaveText(["Primary Tracker", "Secondary Tracker", "CI Analysis", "Newsletter"]);
+    await expect(tabs.getByRole("button")).toHaveText(["Primary Tracker", "Secondary Tracker", "CI Analysis", "Newsletter", "Earnings Calls"]);
     await expect(tabs.getByRole("button", { name: "Secondary Tracker" })).toHaveAttribute("aria-pressed", "true");
     // Right under the page's band (the filters start hidden).
     const band = (await page.locator(".band").first().boundingBox())!;
