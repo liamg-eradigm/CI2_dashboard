@@ -1,5 +1,7 @@
 import { useEffect, useRef, type CSSProperties, type FocusEvent, type MouseEvent as ReactMouseEvent } from "react";
 import { Extension, EditorContent, InputRule, useEditor, useEditorState, type Editor } from "@tiptap/react";
+import { Plugin } from "@tiptap/pm/state";
+import type { Node as PmNode } from "@tiptap/pm/model";
 import { BubbleMenu } from "@tiptap/react/menus";
 import StarterKit from "@tiptap/starter-kit";
 import { FontSize, TextStyle } from "@tiptap/extension-text-style";
@@ -101,14 +103,34 @@ const ListKeys = Extension.create({
   },
 });
 
+/** The words of a document (its text without spaces or line breaks). */
+const wordsOf = (doc: PmNode) => doc.textBetween(0, doc.content.size, "", "").replace(/\s+/g, "");
+
+/**
+ * Request 69: formatting only. Bold, size, titles, bullets and line breaks
+ * can change; the words cannot (typing, pasting and deleting text do
+ * nothing). A new value from outside is let through (`bypass`).
+ */
+const LockText = Extension.create({
+  name: "lockText",
+  addStorage() {
+    return { bypass: false };
+  },
+  addProseMirrorPlugins() {
+    const storage = this.storage as { bypass: boolean };
+    return [new Plugin({ filterTransaction: (tr, state) => storage.bypass || !tr.docChanged || wordsOf(tr.doc) === wordsOf(state.doc) })];
+  },
+});
+
 /** The buttons over a selection: only while text is selected in an editable field. */
-function FormatBar({ editor }: { editor: Editor }) {
+function FormatBar({ editor, bullets = false }: { editor: Editor; bullets?: boolean }) {
   const st = useEditorState({
     editor,
     selector: ({ editor: e }) => ({
       bold: e.isActive("bold"),
       underline: e.isActive("underline"),
       title: e.isActive("heading", { level: 3 }),
+      list: e.isActive("bulletList"),
       size: sizeOf(e),
     }),
   });
@@ -138,6 +160,12 @@ function FormatBar({ editor }: { editor: Editor }) {
       {btn("Larger text (Ctrl+Shift+>)", "A+", undefined, () => stepSize(editor, 1), "fmt-larger", "big")}
       <span className="fmt-sep" aria-hidden="true" />
       {btn("Title (make the line a title)", "Title", st.title, () => editor.chain().focus().toggleHeading({ level: 3 }).run(), "fmt-title", "title")}
+      {bullets && (
+        <>
+          <span className="fmt-sep" aria-hidden="true" />
+          {btn("Bullet points (Enter starts a new one)", "• List", st.list, () => editor.chain().focus().toggleBulletList().run(), "fmt-bullets", "title")}
+        </>
+      )}
     </BubbleMenu>
   );
 }
@@ -160,6 +188,10 @@ export interface RichTextFieldProps {
   "aria-labelledby"?: string;
   "aria-describedby"?: string;
   "aria-invalid"?: boolean | "true" | "false";
+  /** Request 69: only the formatting can change, not the words. */
+  lockText?: boolean;
+  /** A bullet points button on the bar (as Tab does). */
+  bullets?: boolean;
 }
 
 /**
@@ -170,7 +202,7 @@ export interface RichTextFieldProps {
  * light markup (see `@eradigm/shared` richText), so it is read as text
  * everywhere else.
  */
-export function RichTextField({ value, onValueChange, id, className = "", style, disabled = false, rows = 4, autoFocus = false, placeholder, testId, onBlur, ...aria }: RichTextFieldProps) {
+export function RichTextField({ value, onValueChange, id, className = "", style, disabled = false, rows = 4, autoFocus = false, placeholder, testId, onBlur, lockText = false, bullets = false, ...aria }: RichTextFieldProps) {
   const placeholderRef = useRef(placeholder ?? "");
   placeholderRef.current = placeholder ?? "";
   const last = useRef(value);
@@ -214,6 +246,7 @@ export function RichTextField({ value, onValueChange, id, className = "", style,
         },
       }),
       Placeholder.configure({ placeholder: () => placeholderRef.current }),
+      ...(lockText ? [LockText] : []),
     ],
     content: toDoc(value),
     editable: !disabled,
@@ -231,7 +264,10 @@ export function RichTextField({ value, onValueChange, id, className = "", style,
   useEffect(() => {
     if (!editor || value === last.current) return;
     last.current = value;
+    const lock = (editor.storage as unknown as Record<string, { bypass: boolean } | undefined>).lockText;
+    if (lock) lock.bypass = true;
     editor.commands.setContent(toDoc(value), { emitUpdate: false });
+    if (lock) lock.bypass = false;
   }, [editor, value]);
   useEffect(() => {
     editor?.setEditable(!disabled, false);
@@ -244,7 +280,7 @@ export function RichTextField({ value, onValueChange, id, className = "", style,
   return (
     <div className={`rt-field${disabled ? " disabled" : ""}`} style={{ ["--rt-rows" as string]: String(rows), ...style }} onBlur={onBlur}>
       <EditorContent editor={editor} />
-      {editor && !disabled && <FormatBar editor={editor} />}
+      {editor && !disabled && <FormatBar editor={editor} bullets={bullets} />}
     </div>
   );
 }

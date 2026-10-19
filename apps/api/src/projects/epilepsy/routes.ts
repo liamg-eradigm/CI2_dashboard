@@ -3,10 +3,10 @@
  * platform's middleware has resolved the caller and checked the workspace is
  * an Epilepsy one.
  */
-import { EpilepsySettingsRequest, EpilepsySyncRequest, can } from "@eradigm/shared";
+import { EpilepsyFormatRequest, EpilepsySettingsRequest, EpilepsySyncRequest, can } from "@eradigm/shared";
 import { badRequest, forbidden, notFound } from "../../lib/errors.js";
 import { body, cachedJson, P, routes } from "../../lib/http.js";
-import { epilepsyData, epilepsyStatus, saveEpilepsySettings, syncEpilepsy } from "./services/workbook.js";
+import { epilepsyData, epilepsyStatus, saveEpilepsySettings, saveNsoFormat, syncEpilepsy } from "./services/workbook.js";
 
 export const epilepsyRoutes = routes();
 const app = epilepsyRoutes;
@@ -20,6 +20,14 @@ app.get("/api/epilepsy/status", async (c) => c.json(await epilepsyStatus(c.env, 
 app.put("/api/epilepsy/settings", async (c) => {
   const b = await body(c, EpilepsySettingsRequest);
   return c.json(await saveEpilepsySettings(c.env, P(c), b));
+});
+
+/** Request 69: format (not reword) an NSO Comparator text (staff). */
+app.put("/api/epilepsy/formats", async (c) => {
+  const p = P(c);
+  if (!can(p.role, "item:edit")) throw forbidden("Only Eradigm staff can format the text");
+  const b = await body(c, EpilepsyFormatRequest);
+  return c.json(await saveNsoFormat(c.env, p, b));
 });
 
 /** Sync now (staff): check the workbook and read it when it changed (force: read it anyway). */

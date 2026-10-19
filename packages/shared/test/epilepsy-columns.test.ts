@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EPI_COLUMNS, EPI_TABLES, EPI_TABLE_KEYS, EpilepsySettingsRequest, orderColumns, abbreviate, acceptedOptions, columnHeader, columnIndex, epiLabel, headerScale, parseXlsxBook, toXlsxSheets, withColumnNames } from "../src/index.js";
+import { EPI_COLUMNS, nsoFormatKey, sameWords, EPI_TABLES, EPI_TABLE_KEYS, EpilepsySettingsRequest, orderColumns, abbreviate, acceptedOptions, columnHeader, columnIndex, epiLabel, headerScale, parseXlsxBook, toXlsxSheets, withColumnNames } from "../src/index.js";
 
 describe("request 65: Epilepsy column names", () => {
   it("abbreviates amounts: 1,000,000,000 is “1 bn”", () => {
@@ -86,5 +86,16 @@ describe("request 67: Epilepsy table columns", () => {
 
   it("names the same tables in the settings as on the pages", () => {
     expect(Object.keys(EpilepsySettingsRequest.shape.columnOrder.unwrap().def.keyType.enum).sort()).toEqual([...EPI_TABLE_KEYS].sort());
+  });
+});
+
+describe("request 69: formatting without rewording", () => {
+  it("compares the words only (formatting, bullets and spacing aside)", () => {
+    const text = "Cognition and attention. Memory too.";
+    expect(sameWords("- **Cognition** and attention.\n- <span style=\"font-size:1.3em\">Memory</span> too.", text)).toBe(true);
+    expect(sameWords("### Cognition and attention.\nMemory too.", text)).toBe(true);
+    expect(sameWords("**Cognition** and focus. Memory too.", text)).toBe(false);
+    expect(sameWords("Cognition and attention.", text)).toBe(false);
+    expect(nsoFormatKey("UCB", ["Fintepla", "Briviact"], "NSO Focus")).toBe("ucb|finteplabriviact|nsofocus");
   });
 });

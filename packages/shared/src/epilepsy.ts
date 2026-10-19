@@ -7,6 +7,7 @@
  * punctuation do not matter).
  */
 import { z } from "zod";
+import { parseRich } from "./richText.js";
 
 export const EPILEPSY_SHEETS = ["secondary", "primary", "profiles", "assets"] as const;
 export type EpilepsySheet = (typeof EPILEPSY_SHEETS)[number];
@@ -71,12 +72,36 @@ export const EPI_PROFILE_FIELDS = [
 export const EPI_QUARTERS = ["Q1", "Q2", "Q3", "Q4"] as const;
 
 /** Request 68: NSO Comparator (non-seizure outcomes), from the Competitor Profiles sheet: each company's text fields, in order. */
-export const EPI_NSO_TEXT = ["NSO Focus", "NSO Activity", "Core Messaging", "Channels Used", "Imagery and Marketing"] as const;
+/** (Request 69: Evidence, just before the chart.) */
+export const EPI_NSO_TEXT = ["NSO Focus", "NSO Activity", "Core Messaging", "Channels Used", "Imagery and Marketing", "Evidence"] as const;
 /** The chart's y-axis (its metric and unit). */
 export const EPI_NSO_METRIC = "Data Metric (Unit)";
+/** Request 69: the chart's x-axis title (each bar is named by its x… name below it). */
+export const EPI_NSO_XAXIS = "x-axis name";
 /** The chart's bars: x1 to x6, each a name and a value. */
 export const EPI_NSO_BARS = [1, 2, 3, 4, 5, 6].map((n) => ({ name: `x${n} name`, value: `x${n} value` }));
-export const EPI_NSO_FIELDS = [...EPI_NSO_TEXT, EPI_NSO_METRIC, ...EPI_NSO_BARS.flatMap((b) => [b.name, b.value])];
+/**
+ * Request 69: the NSO Comparator's text can be formatted (bold, size,
+ * bullets) but not reworded: its words always come from the workbook. A
+ * formatting is kept per company, asset and field, and shown only while its
+ * words are still the workbook's (`sameWords`).
+ */
+export const richWords = (text: string | null | undefined) =>
+  parseRich(text ?? "")
+    .map((b) => b.runs.map((r) => r.text).join(""))
+    .join("")
+    .replace(/\s+/g, "");
+export const sameWords = (formatted: string | null | undefined, text: string | null | undefined) => richWords(formatted) === richWords(text);
+/** A list written in one cell (commas, semicolons, new lines, bullets). */
+export const splitCellList = (v: string) =>
+  v
+    .split(/[\n;,•]+/)
+    .map((x) => x.replace(/^\s*[-–*]\s*/, "").trim())
+    .filter(Boolean);
+/** Where a formatting is kept: company, the row's assets and the field (loosely). */
+export const nsoFormatKey = (company: string, assets: readonly string[], field: string) => [company, assets.join(", "), field].map(normaliseHeader).join("|");
+
+export const EPI_NSO_FIELDS = [...EPI_NSO_TEXT, EPI_NSO_METRIC, EPI_NSO_XAXIS, ...EPI_NSO_BARS.flatMap((b) => [b.name, b.value])];
 
 /** Asset Launches (sheet 4). */
 export const EPI_LAUNCH_FIELDS = ["Company/competitor", "Asset Name", "MoA", "RoA", "FDA Approval Date", "Approval Date (calculated)"] as const;
@@ -351,6 +376,8 @@ export const EpilepsyDataSchema = z.object({
   addedOptions: z.partialRecord(z.enum(EPILEPSY_SHEETS), z.record(z.string(), z.array(z.string()))),
   /** Request 67: table → its columns in the order set in Admin → Table columns (none: the default order). */
   columnOrder: z.partialRecord(z.enum(["newsPrimary", "newsSecondary", "rca", "trials"]), z.array(z.string())),
+  /** Request 69: the NSO Comparator's formatted text, by `nsoFormatKey`. */
+  formats: z.record(z.string(), z.string()),
   syncedAt: z.string().nullable(),
 });
 export type EpilepsyData = z.infer<typeof EpilepsyDataSchema>;
@@ -390,6 +417,14 @@ export const EpilepsySettingsRequest = z.object({
     .optional(),
   /** Request 67: table → its columns in order (each a column of that table). Sent in full: a table left out takes its default order. */
   columnOrder: z.partialRecord(z.enum(["newsPrimary", "newsSecondary", "rca", "trials"]), z.array(z.string().min(1).max(300)).max(200)).optional(),
+});
+
+/** Request 69: format (not reword) one NSO field of a company's row; empty markup goes back to the workbook's text as it is. */
+export const EpilepsyFormatRequest = z.object({
+  company: z.string().trim().min(1).max(300),
+  assets: z.array(z.string().max(300)).max(50),
+  field: z.enum(EPI_NSO_TEXT),
+  markup: z.string().max(40_000),
 });
 
 /** Request 65: the options a dropdown column accepts: the workbook's, then those added in Admin (each once). */

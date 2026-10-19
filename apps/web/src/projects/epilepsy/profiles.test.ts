@@ -14,6 +14,7 @@ const data = (profiles: string[][], assets: string[][]): EpilepsyData => ({
   dropdowns: {},
   addedOptions: {},
   columnOrder: {},
+  formats: {},
   syncedAt: null,
 });
 

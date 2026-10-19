@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Eradigm Competitive Intelligence API",
-    "version": "2.7.0",
+    "version": "2.8.0",
     "description": "Generated from packages/shared/src/api.ts. Every request is checked for both role and tenant server-side. Send X-Tenant-Id to select a tenant when the user belongs to more than one."
   },
   "components": {
@@ -25809,6 +25809,12 @@
                         }
                       }
                     },
+                    "formats": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
                     "syncedAt": {
                       "nullable": true,
                       "type": "string"
@@ -25821,6 +25827,7 @@
                     "dropdowns",
                     "addedOptions",
                     "columnOrder",
+                    "formats",
                     "syncedAt"
                   ],
                   "additionalProperties": false
@@ -26353,6 +26360,157 @@
                     }
                   }
                 },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/epilepsy/formats": {
+      "put": {
+        "summary": "Request 69 (Epilepsy): format (not reword) an NSO Comparator text",
+        "description": "Roles: admin, analyst",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "markup": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "markup"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "company": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 300
+                  },
+                  "assets": {
+                    "maxItems": 50,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 300
+                    }
+                  },
+                  "field": {
+                    "type": "string",
+                    "enum": [
+                      "NSO Focus",
+                      "NSO Activity",
+                      "Core Messaging",
+                      "Channels Used",
+                      "Imagery and Marketing",
+                      "Evidence"
+                    ]
+                  },
+                  "markup": {
+                    "type": "string",
+                    "maxLength": 40000
+                  }
+                },
+                "required": [
+                  "company",
+                  "assets",
+                  "field",
+                  "markup"
+                ],
                 "additionalProperties": false
               }
             }

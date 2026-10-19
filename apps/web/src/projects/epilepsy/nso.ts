@@ -5,7 +5,7 @@
  * A company's block of rows may give one profile per asset (Epilepsy Assets
  * on the same row), or one for the company.
  */
-import { EPI_NSO_BARS, EPI_NSO_METRIC, EPI_NSO_TEXT, normaliseHeader, type EpilepsyData } from "@eradigm/shared";
+import { EPI_NSO_BARS, EPI_NSO_METRIC, EPI_NSO_TEXT, EPI_NSO_XAXIS, normaliseHeader, type EpilepsyData } from "@eradigm/shared";
 import { parseAmount, records, splitList } from "./model";
 
 export type NsoBar = { name: string; raw: string; value: number };
@@ -15,6 +15,8 @@ export type NsoProfile = {
   text: Record<(typeof EPI_NSO_TEXT)[number], string>;
   /** The y-axis: the metric and its unit. */
   metric: string;
+  /** Request 69: the x-axis title. */
+  xAxis: string;
   bars: NsoBar[];
 };
 
@@ -33,8 +35,9 @@ export function nsoOf(data: EpilepsyData | undefined, company: string): NsoProfi
       if ((name || raw) && value != null) bars.push({ name: name || b.name.replace(" name", ""), raw, value });
     }
     const metric = r.get(EPI_NSO_METRIC);
+    const xAxis = r.get(EPI_NSO_XAXIS);
     if (!Object.values(text).some(Boolean) && !bars.length && !metric) continue;
-    out.push({ assets: splitList(r.get("Epilepsy Assets")), text, metric, bars });
+    out.push({ assets: splitList(r.get("Epilepsy Assets")), text, metric, xAxis, bars });
   }
   return out;
 }

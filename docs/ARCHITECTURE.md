@@ -893,6 +893,16 @@ analyst-entered information distinguishable; in the prototype every value is
   "✓ Data synced" there for a moment when a sync changes the test space. A
   forced run that changes nothing says "Already up to date with the workbook"
   with the workbook's last save time.
+- **Request 69** (EPILEPSY; contract 2.8.0; migration 0031): the NSO
+  Comparator gains **Evidence** (a row just before the chart) and **x-axis
+  name** (the chart's x-axis title, under the bars' own names). Staff can
+  **format the text** of each row (bold, underline, size, title, bullet
+  points; "✎ Format text" on a card) but not reword it: the editor's
+  `lockText` lets only formatting and line breaks change, and the API
+  (`PUT /api/epilepsy/formats`) refuses markup whose words (`sameWords`) are
+  not the workbook's. A formatting is kept per company, row (its assets) and
+  field (`epilepsy_formats`), and is shown only while the workbook's words
+  are unchanged; otherwise the workbook's text shows as it is.
 - **Request 68** (EPILEPSY, no migration): **NSO Comparator** (non-seizure
   outcomes), a tab after Competitor Profiles (`/nso`), from new columns of
   “3. Platform Competitor Profiles” (`EPI_NSO_FIELDS`). One button per
