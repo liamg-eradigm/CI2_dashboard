@@ -65,7 +65,7 @@ export const EPI_PROFILE_FIELDS = [
   "Epilepsy Assets",
   "Recent Relevant Updates",
   "Number of Pipeline Assets",
-  "Asset Name",
+  // Request 66: no “Asset Name” here: “Epilepsy Assets” lists a company's assets (several in a cell, or one per row).
   "Pod (FFA/STAP)",
 ] as const;
 export const EPI_QUARTERS = ["Q1", "Q2", "Q3", "Q4"] as const;

@@ -252,7 +252,14 @@ function ColumnsCard() {
 
   const save = async () => {
     try {
-      await api("/api/epilepsy/settings", { method: "PUT", json: { columnNames: names } });
+      // Only the columns the pages read now (a column they no longer read is dropped).
+      const current = Object.fromEntries(
+        EPILEPSY_SHEETS.map((k) => {
+          const known = new Set(EPI_COLUMNS[k].map((c) => normaliseHeader(c.name)));
+          return [k, Object.fromEntries(Object.entries(names[k] ?? {}).filter(([n]) => known.has(normaliseHeader(n))))];
+        }),
+      );
+      await api("/api/epilepsy/settings", { method: "PUT", json: { columnNames: current } });
       await qc.invalidateQueries({ queryKey: ["epilepsy", "data"] });
       setDraft(null);
       toast("Column names saved");
