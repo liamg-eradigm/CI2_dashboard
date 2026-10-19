@@ -893,6 +893,16 @@ analyst-entered information distinguishable; in the prototype every value is
   "✓ Data synced" there for a moment when a sync changes the test space. A
   forced run that changes nothing says "Already up to date with the workbook"
   with the workbook's last save time.
+- **Request 68** (EPILEPSY, no migration): **NSO Comparator** (non-seizure
+  outcomes), a tab after Competitor Profiles (`/nso`), from new columns of
+  “3. Platform Competitor Profiles” (`EPI_NSO_FIELDS`). One button per
+  company; each picked opens its card: NSO Focus, NSO Activity, Core
+  Messaging, Channels Used, Imagery and Marketing, and a bar chart of x1–x6
+  (name and value) against Data Metric (Unit) as its y-axis. Each row has an
+  icon in its own colour and a light shade of it behind the row. A company
+  whose block of rows gives several profiles (one per Epilepsy Assets row)
+  switches between them by asset. Several companies sit side by side, each
+  chart on its own axis (`MetricBars`).
 - **Request 67** (EPILEPSY; contract 2.7.0; migration 0030): **Study Name**
   (sheet 4) is a column of the RCA table and panel and of the Trial Tracker
   table (and in the RCA panel's and data viewer's titles). **Admin → Table

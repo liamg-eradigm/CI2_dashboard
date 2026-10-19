@@ -70,6 +70,14 @@ export const EPI_PROFILE_FIELDS = [
 ] as const;
 export const EPI_QUARTERS = ["Q1", "Q2", "Q3", "Q4"] as const;
 
+/** Request 68: NSO Comparator (non-seizure outcomes), from the Competitor Profiles sheet: each company's text fields, in order. */
+export const EPI_NSO_TEXT = ["NSO Focus", "NSO Activity", "Core Messaging", "Channels Used", "Imagery and Marketing"] as const;
+/** The chart's y-axis (its metric and unit). */
+export const EPI_NSO_METRIC = "Data Metric (Unit)";
+/** The chart's bars: x1 to x6, each a name and a value. */
+export const EPI_NSO_BARS = [1, 2, 3, 4, 5, 6].map((n) => ({ name: `x${n} name`, value: `x${n} value` }));
+export const EPI_NSO_FIELDS = [...EPI_NSO_TEXT, EPI_NSO_METRIC, ...EPI_NSO_BARS.flatMap((b) => [b.name, b.value])];
+
 /** Asset Launches (sheet 4). */
 export const EPI_LAUNCH_FIELDS = ["Company/competitor", "Asset Name", "MoA", "RoA", "FDA Approval Date", "Approval Date (calculated)"] as const;
 
@@ -236,6 +244,7 @@ const USED_ON = {
   rca: "RCA",
   trials: "Trial Tracker",
   assets: "Competitor Profiles · Assets",
+  nso: "NSO Comparator",
 } as const;
 
 function columnsOf(lists: [readonly string[], string][]): { name: string; usedOn: string[] }[] {
@@ -260,7 +269,10 @@ function columnsOf(lists: [readonly string[], string][]): { name: string; usedOn
 export const EPI_COLUMNS: Record<EpilepsySheet, { name: string; usedOn: string[] }[]> = {
   secondary: columnsOf([[EPI_SECONDARY_FIELDS, USED_ON.secondary]]),
   primary: columnsOf([[EPI_PRIMARY_FIELDS, USED_ON.primary]]),
-  profiles: columnsOf([[EPI_PROFILE_FIELDS, USED_ON.profiles]]),
+  profiles: columnsOf([
+    [EPI_PROFILE_FIELDS, USED_ON.profiles],
+    [["Company/competitor", "Epilepsy Assets", ...EPI_NSO_FIELDS], USED_ON.nso],
+  ]),
   assets: columnsOf([
     [["Company/competitor", "Asset Name", "MoA", "RoA", "RoA (+frequency)", "Current Phase"], USED_ON.assets],
     [EPI_LAUNCH_FIELDS, USED_ON.launches],

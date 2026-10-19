@@ -18,6 +18,7 @@ import {
   type EpiTableKey,
   type SheetLists,
   EPI_LAUNCH_FIELDS,
+  EPI_NSO_FIELDS,
   EPI_PRIMARY_FIELDS,
   EPI_PROFILE_FIELDS,
   EPI_RCA_PANEL,
@@ -44,7 +45,7 @@ import { GraphError, downloadWorkbook, readWorkbook, resolveWorkbookLink, workbo
 const EXPECTED: Record<EpilepsySheet, readonly string[]> = {
   secondary: EPI_SECONDARY_FIELDS,
   primary: EPI_PRIMARY_FIELDS,
-  profiles: EPI_PROFILE_FIELDS,
+  profiles: [...EPI_PROFILE_FIELDS, ...EPI_NSO_FIELDS],
   assets: [...EPI_LAUNCH_FIELDS, ...EPI_RCA_PANEL],
 };
 /** Sheets whose company is written once for a block of rows (merged cells): later rows take it from above. */
