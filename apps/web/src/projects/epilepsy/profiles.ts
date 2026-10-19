@@ -45,12 +45,16 @@ export function profileOf(data: EpilepsyData | undefined, company: string): Prof
   };
 }
 
-/** A company's epilepsy assets: those listed in Epilepsy Assets (and Asset Name) in its profile, with MoA, RoA and phase from Trials & Assets. */
+/**
+ * A company's epilepsy assets: those listed in Epilepsy Assets in its profile
+ * (several in a cell, or one per row of its block; request 66: the profile's
+ * Asset Name column is not read), with MoA, RoA and phase from Trials & Assets.
+ */
 export function assetsOf(data: EpilepsyData | undefined, company: string): Asset[] {
   const prof = records(data?.sheets.profiles).filter((r) => key(r.get("Company/competitor")) === key(company));
   const trials = records(data?.sheets.assets);
   const names = new Map<string, string>();
-  for (const r of prof) for (const n of [...splitList(r.get("Epilepsy Assets")), ...splitList(r.get("Asset Name"))]) if (!names.has(key(n))) names.set(key(n), n);
+  for (const r of prof) for (const n of splitList(r.get("Epilepsy Assets"))) if (!names.has(key(n))) names.set(key(n), n);
   const detail = (asset: string, name: string, rowsOf: Rec[]) => rowsOf.filter((t) => key(t.get("Asset Name")) === key(asset)).map((t) => t.get(name)).find(Boolean) ?? "";
   return [...names.values()].map((n) => {
     const own = trials.filter((t) => key(t.get("Company/competitor")) === key(company));

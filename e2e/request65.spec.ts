@@ -13,9 +13,9 @@ const SHEETS = [
   {
     name: "3. Platform Competitor Profiles",
     table: [
-      ["Company/competitor", "HQ", "Size", "Market Capitalisation", "2025 Total Revenue (USD)", "Q1 2026 Epilepsy Revenue (USD m)", "Epilepsy Assets", "Asset Name"],
-      ["UCB", "Brussels, Belgium", "9,000", "30,000,000,000", "6500000000", "540", "Fintepla", "Fintepla"],
-      ["Xenon", "Vancouver, Canada", "300", "$3B", "", "10", "XEN1101", "XEN1101"],
+      ["Company/competitor", "HQ", "Size", "Market Capitalisation", "2025 Total Revenue (USD)", "Q1 2026 Epilepsy Revenue (USD m)", "Epilepsy Assets"],
+      ["UCB", "Brussels, Belgium", "9,000", "30,000,000,000", "6500000000", "540", "Fintepla"],
+      ["Xenon", "Vancouver, Canada", "300", "$3B", "", "10", "XEN1101"],
     ],
   },
   {

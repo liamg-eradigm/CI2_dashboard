@@ -893,6 +893,11 @@ analyst-entered information distinguishable; in the prototype every value is
   "✓ Data synced" there for a moment when a sync changes the test space. A
   forced run that changes nothing says "Already up to date with the workbook"
   with the workbook's last save time.
+- **Request 66** (EPILEPSY, no migration): Competitor Profiles no longer
+  reads the profile sheet's **Asset Name** column. A company's assets come
+  from **Epilepsy Assets** alone (several in a cell, or one per row of the
+  company's block), with MoA, RoA and phase from Trials & Assets (whose own
+  Asset Name stays). Admin → Column names no longer lists it.
 - **Request 65** (EPILEPSY; contract 2.6.0; migration 0029): **money in USD, column names
   and dropdown options**. The revenue figures and market cap
   (`EPI_USD_FIELDS`) show “(USD)” after their names and are abbreviated
