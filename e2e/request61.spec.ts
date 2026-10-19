@@ -25,10 +25,10 @@ const WORKBOOK: Record<string, string[][]> = {
     ["Xenon", "Focal seizures", "Vancouver, Canada", "300", "$3B", "$0.1B", "$0", "", "", "$10M", "$20M", "", "$0", "XEN1101", "Phase 3 readout", "2", "XEN1101", "STAP"],
   ],
   "4. Platform Trials & Assets": [
-    ["Company/competitor", "Asset Name", "RoA", "RoA (+frequency)", "MoA", "Current Phase", "Current Trial Status", "FDA Approval Date", "Approval Date (calculated)", "NCT Number", "Epilepsy Indication/ Syndrome", "Study Duration", "Primary Endpoint Timeframes", "Change in Seizure Frequency from Baseline vs Placebo", "Caregiver Sleep"],
-    ["UCB", "Fintepla", "Oral", "Oral, BID", "5-HT release", "Approved", "Completed", "2020-06-25", "", "NCT0001", "Dravet syndrome", "14 weeks", "14 weeks", "-54% at week 6; -62% at week 14", "Improved"],
-    ["", "Briviact", "Oral", "Oral, BID", "SV2A", "Approved", "Completed", "2016-02-18", "", "NCT0002", "Focal seizures", "12 weeks", "12 weeks", "-23%", ""],
-    ["Xenon", "XEN1101", "Oral", "Oral, QD", "Kv7 opener", "Phase 3", "Recruiting", "", "2028-06-30", "NCT0003", "Focal seizures", "12 weeks", "12 weeks", "-33% at week 12", ""],
+    ["Company/competitor", "Asset Name", "Study Name", "RoA", "RoA (+frequency)", "MoA", "Current Phase", "Current Trial Status", "FDA Approval Date", "Approval Date (calculated)", "NCT Number", "Epilepsy Indication/ Syndrome", "Study Duration", "Primary Endpoint Timeframes", "Change in Seizure Frequency from Baseline vs Placebo", "Caregiver Sleep"],
+    ["UCB", "Fintepla", "FAIRE-Dravet", "Oral", "Oral, BID", "5-HT release", "Approved", "Completed", "2020-06-25", "", "NCT0001", "Dravet syndrome", "14 weeks", "14 weeks", "-54% at week 6; -62% at week 14", "Improved"],
+    ["", "Briviact", "BRV-N01358", "Oral", "Oral, BID", "SV2A", "Approved", "Completed", "2016-02-18", "", "NCT0002", "Focal seizures", "12 weeks", "12 weeks", "-23%", ""],
+    ["Xenon", "XEN1101", "X-TOLE2", "Oral", "Oral, QD", "Kv7 opener", "Phase 3", "Recruiting", "", "2028-06-30", "NCT0003", "Focal seizures", "12 weeks", "12 weeks", "-33% at week 12", ""],
   ],
 };
 
@@ -182,7 +182,7 @@ test.describe("request 61: the Epilepsy project", () => {
     await expect(table.locator("tbody tr")).toHaveCount(3);
     await table.getByRole("button", { name: "Open: XEN1101" }).click();
     const panel = page.getByTestId("rca-panel");
-    await expect(panel.locator(".epi-field")).toHaveCount(85);
+    await expect(panel.locator(".epi-field")).toHaveCount(86);
     await expect(panel.locator(".epi-field").first()).toContainText("Company/competitor");
     await expect(panel.locator(".epi-field").last()).toContainText("Caregiver Sleep");
     const box = (await panel.boundingBox())!;

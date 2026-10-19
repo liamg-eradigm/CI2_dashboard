@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EPI_COLUMNS, abbreviate, acceptedOptions, columnHeader, columnIndex, epiLabel, headerScale, parseXlsxBook, toXlsxSheets, withColumnNames } from "../src/index.js";
+import { EPI_COLUMNS, EPI_TABLES, EPI_TABLE_KEYS, EpilepsySettingsRequest, orderColumns, abbreviate, acceptedOptions, columnHeader, columnIndex, epiLabel, headerScale, parseXlsxBook, toXlsxSheets, withColumnNames } from "../src/index.js";
 
 describe("request 65: Epilepsy column names", () => {
   it("abbreviates amounts: 1,000,000,000 is “1 bn”", () => {
@@ -65,5 +65,26 @@ describe("request 65: Epilepsy column names", () => {
 
   it("accepts the workbook's options and those added in Admin, each once", () => {
     expect(acceptedOptions(["Phase 1", "Approved"], ["Phase 4", "approved", " "])).toEqual(["Phase 1", "Approved", "Phase 4"]);
+  });
+});
+
+describe("request 67: Epilepsy table columns", () => {
+  it("has Study Name in the RCA and Trial Tracker tables", () => {
+    expect(EPI_TABLES.rca.columns.slice(0, 2)).toEqual(["Asset Name", "Study Name"]);
+    expect(EPI_TABLES.trials.columns.slice(0, 3)).toEqual(["Company/competitor", "Asset Name", "Study Name"]);
+    expect(EPI_COLUMNS.assets.find((c) => c.name === "Study Name")?.usedOn).toEqual(["RCA", "Trial Tracker"]);
+  });
+
+  it("orders a table's columns as saved, with columns added since in their default place", () => {
+    const defaults = ["A", "B", "C", "D"];
+    expect(orderColumns(defaults, undefined)).toEqual(defaults);
+    expect(orderColumns(defaults, ["D", "a", "C", "B"])).toEqual(["D", "A", "C", "B"]);
+    // Unknown and repeated names are dropped; a missing column goes after the one before it by default.
+    expect(orderColumns(defaults, ["C", "Gone", "A", "C"])).toEqual(["C", "D", "A", "B"]);
+    expect(orderColumns(defaults, ["B", "C", "D"])).toEqual(["A", "B", "C", "D"]);
+  });
+
+  it("names the same tables in the settings as on the pages", () => {
+    expect(Object.keys(EpilepsySettingsRequest.shape.columnOrder.unwrap().def.keyType.enum).sort()).toEqual([...EPI_TABLE_KEYS].sort());
   });
 });

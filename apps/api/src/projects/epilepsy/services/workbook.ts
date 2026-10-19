@@ -11,7 +11,11 @@ import {
   EPILEPSY_SHEETS,
   EPILEPSY_SHEET_NAME,
   EPI_COLUMNS,
+  EPI_TABLES,
+  EPI_TABLE_KEYS,
   acceptedOptions,
+  orderColumns,
+  type EpiTableKey,
   type SheetLists,
   EPI_LAUNCH_FIELDS,
   EPI_PRIMARY_FIELDS,
@@ -70,6 +74,7 @@ interface Row {
   column_names_json: string | null;
   lists_json: string | null;
   added_options_json: string | null;
+  column_order_json: string | null;
   last_checked_at: string | null;
   last_synced_at: string | null;
 }
@@ -136,11 +141,25 @@ function cleanOptions(b: BySheet<string[]>): BySheet<string[]> {
   return out;
 }
 
+/** Request 67: each table's columns in order: only the table's own columns, each once (a table left out takes its default order). */
+function cleanOrder(b: Partial<Record<EpiTableKey, string[]>>): Partial<Record<EpiTableKey, string[]>> {
+  const out: Partial<Record<EpiTableKey, string[]>> = {};
+  for (const k of EPI_TABLE_KEYS) if (b[k]?.length) out[k] = orderColumns(EPI_TABLES[k].columns, b[k]);
+  return out;
+}
+
 /** Admins set the workbook's link and file name, the companies' colours, and (request 65) the column names and added dropdown options. */
 export async function saveEpilepsySettings(
   env: Env,
   p: Principal,
-  b: { link?: string; fileName?: string; colours?: Record<string, string>; columnNames?: BySheet<string>; addedOptions?: BySheet<string[]> },
+  b: {
+    link?: string;
+    fileName?: string;
+    colours?: Record<string, string>;
+    columnNames?: BySheet<string>;
+    addedOptions?: BySheet<string[]>;
+    columnOrder?: Partial<Record<EpiTableKey, string[]>>;
+  },
 ): Promise<EpilepsySyncStatus> {
   if (p.role !== "admin") throw forbidden("Only admins change the Epilepsy settings");
   const r = await ensureRow(env, p.tenantId);
@@ -166,6 +185,10 @@ export async function saveEpilepsySettings(
   }
   if (b.addedOptions) {
     await env.DB.prepare("UPDATE epilepsy_workbook SET added_options_json = ?2, updated_at = ?3, updated_by = ?4 WHERE tenant_id = ?1").bind(p.tenantId, JSON.stringify(cleanOptions(b.addedOptions)), now, p.userId).run();
+    await bumpDataVersion(env, p.tenantId);
+  }
+  if (b.columnOrder) {
+    await env.DB.prepare("UPDATE epilepsy_workbook SET column_order_json = ?2, updated_at = ?3, updated_by = ?4 WHERE tenant_id = ?1").bind(p.tenantId, JSON.stringify(cleanOrder(b.columnOrder)), now, p.userId).run();
     await bumpDataVersion(env, p.tenantId);
   }
   await audit(env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "settings.changed", targetType: "settings", details: { sections: Object.keys(b).map((k) => `epilepsy.${k}`) } });
@@ -301,6 +324,7 @@ export async function epilepsyData(env: Env, tenantId: string): Promise<Epilepsy
     columnNames: parse(r?.column_names_json ?? null, {}),
     dropdowns: parse(r?.lists_json ?? null, {}),
     addedOptions: parse(r?.added_options_json ?? null, {}),
+    columnOrder: parse(r?.column_order_json ?? null, {}),
     syncedAt: r?.last_synced_at ?? null,
   };
 }

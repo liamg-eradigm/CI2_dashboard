@@ -3,7 +3,7 @@
  * column name (loosely matched), numbers and money as written, dates, and
  * each company's colour.
  */
-import { EPI_PALETTE, abbreviate, cellOf, columnIndex, normaliseHeader, type EpilepsyData, type EpilepsySheet, type EpilepsySheetData } from "@eradigm/shared";
+import { EPI_PALETTE, EPI_TABLES, abbreviate, orderColumns, type EpiTableKey, cellOf, columnIndex, normaliseHeader, type EpilepsyData, type EpilepsySheet, type EpilepsySheetData } from "@eradigm/shared";
 
 /** Request 65: the data as the pages read it, with each dropdown column's accepted options (by the column's place in its sheet). */
 export type EpiData = EpilepsyData & { accepted?: Partial<Record<EpilepsySheet, Record<number, string[]>>> };
@@ -14,6 +14,9 @@ export function acceptedFor(data: EpiData | undefined, sheet: EpilepsySheet, nam
   if (!s) return [];
   return data?.accepted?.[sheet]?.[columnIndex(s, name)] ?? [];
 }
+
+/** Request 67: a table's columns in the order set in Admin → Table columns. */
+export const tableColumns = (data: EpilepsyData | undefined, table: EpiTableKey): string[] => orderColumns(EPI_TABLES[table].columns, data?.columnOrder?.[table]);
 
 /** A sheet's row: its values by column name, and its place in the sheet. */
 export type Rec = { i: number; get: (name: string) => string };

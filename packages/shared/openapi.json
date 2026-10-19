@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Eradigm Competitive Intelligence API",
-    "version": "2.6.0",
+    "version": "2.7.0",
     "description": "Generated from packages/shared/src/api.ts. Every request is checked for both role and tenant server-side. Send X-Tenant-Id to select a tenant when the user belongs to more than one."
   },
   "components": {
@@ -25800,6 +25800,15 @@
                         }
                       }
                     },
+                    "columnOrder": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
                     "syncedAt": {
                       "nullable": true,
                       "type": "string"
@@ -25811,6 +25820,7 @@
                     "columnNames",
                     "dropdowns",
                     "addedOptions",
+                    "columnOrder",
                     "syncedAt"
                   ],
                   "additionalProperties": false
@@ -26327,6 +26337,18 @@
                           "minLength": 1,
                           "maxLength": 300
                         }
+                      }
+                    }
+                  },
+                  "columnOrder": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "maxItems": 200,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 300
                       }
                     }
                   }
