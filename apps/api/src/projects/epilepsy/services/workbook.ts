@@ -9,6 +9,10 @@
 import {
   EPILEPSY_DEFAULT_FILE,
   EPILEPSY_SHEETS,
+  EPILEPSY_SHEET_NAME,
+  EPI_COLUMNS,
+  acceptedOptions,
+  type SheetLists,
   EPI_LAUNCH_FIELDS,
   EPI_PRIMARY_FIELDS,
   EPI_PROFILE_FIELDS,
@@ -26,7 +30,7 @@ import {
 import type { Principal } from "../../../auth/context.js";
 import type { Env } from "../../../env.js";
 import { bumpDataVersion } from "../../../lib/cache.js";
-import { forbidden } from "../../../lib/errors.js";
+import { badRequest, forbidden } from "../../../lib/errors.js";
 import { nowIso } from "../../../lib/ids.js";
 import { log } from "../../../lib/log.js";
 import { audit } from "../../../services/audit.js";
@@ -63,6 +67,9 @@ interface Row {
   file_modified_by: string | null;
   counts_json: string | null;
   colours_json: string | null;
+  column_names_json: string | null;
+  lists_json: string | null;
+  added_options_json: string | null;
   last_checked_at: string | null;
   last_synced_at: string | null;
 }
@@ -103,8 +110,38 @@ export async function epilepsyStatus(env: Env, tenantId: string): Promise<Epilep
   return statusOf(await ensureRow(env, tenantId));
 }
 
-/** Admins set the workbook's link and file name, and the companies' colours. */
-export async function saveEpilepsySettings(env: Env, p: Principal, b: { link?: string; fileName?: string; colours?: Record<string, string> }): Promise<EpilepsySyncStatus> {
+type BySheet<T> = Partial<Record<EpilepsySheet, Record<string, T>>>;
+
+/** Request 65: only the sheets and columns that mean something (a page's column; a value given). */
+function cleanColumnNames(b: BySheet<string>): BySheet<string> {
+  const out: BySheet<string> = {};
+  for (const k of EPILEPSY_SHEETS) {
+    const known = new Map(EPI_COLUMNS[k].map((c) => [normaliseHeader(c.name), c.name]));
+    for (const [want, header] of Object.entries(b[k] ?? {})) {
+      const name = known.get(normaliseHeader(want));
+      if (!name) throw badRequest(`“${want}” is not a column the pages read from ${EPILEPSY_SHEET_NAME[k]}`);
+      if (header.trim()) (out[k] ??= {})[name] = header.trim();
+    }
+  }
+  return out;
+}
+function cleanOptions(b: BySheet<string[]>): BySheet<string[]> {
+  const out: BySheet<string[]> = {};
+  for (const k of EPILEPSY_SHEETS) {
+    for (const [col, opts] of Object.entries(b[k] ?? {})) {
+      const list = acceptedOptions([], opts);
+      if (col.trim() && list.length) (out[k] ??= {})[col.trim()] = list;
+    }
+  }
+  return out;
+}
+
+/** Admins set the workbook's link and file name, the companies' colours, and (request 65) the column names and added dropdown options. */
+export async function saveEpilepsySettings(
+  env: Env,
+  p: Principal,
+  b: { link?: string; fileName?: string; colours?: Record<string, string>; columnNames?: BySheet<string>; addedOptions?: BySheet<string[]> },
+): Promise<EpilepsySyncStatus> {
   if (p.role !== "admin") throw forbidden("Only admins change the Epilepsy settings");
   const r = await ensureRow(env, p.tenantId);
   const now = nowIso();
@@ -121,6 +158,14 @@ export async function saveEpilepsySettings(env: Env, p: Principal, b: { link?: s
   if (b.colours) {
     const colours = Object.fromEntries(Object.entries(b.colours).map(([k, v]) => [k.trim(), v.toLowerCase()]));
     await env.DB.prepare("UPDATE epilepsy_workbook SET colours_json = ?2, updated_at = ?3, updated_by = ?4 WHERE tenant_id = ?1").bind(p.tenantId, JSON.stringify(colours), now, p.userId).run();
+    await bumpDataVersion(env, p.tenantId);
+  }
+  if (b.columnNames) {
+    await env.DB.prepare("UPDATE epilepsy_workbook SET column_names_json = ?2, updated_at = ?3, updated_by = ?4 WHERE tenant_id = ?1").bind(p.tenantId, JSON.stringify(cleanColumnNames(b.columnNames)), now, p.userId).run();
+    await bumpDataVersion(env, p.tenantId);
+  }
+  if (b.addedOptions) {
+    await env.DB.prepare("UPDATE epilepsy_workbook SET added_options_json = ?2, updated_at = ?3, updated_by = ?4 WHERE tenant_id = ?1").bind(p.tenantId, JSON.stringify(cleanOptions(b.addedOptions)), now, p.userId).run();
     await bumpDataVersion(env, p.tenantId);
   }
   await audit(env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "settings.changed", targetType: "settings", details: { sections: Object.keys(b).map((k) => `epilepsy.${k}`) } });
@@ -149,7 +194,7 @@ function headerAt(grid: Grid, expected: readonly string[]): number {
 }
 
 /** A worksheet as the pages read it: its columns and the rows under them (dates as YYYY-MM-DD). */
-export function sheetData(name: string, kind: EpilepsySheet, grid: Grid): EpilepsySheetData {
+export function sheetData(name: string, kind: EpilepsySheet, grid: Grid, lists?: SheetLists): EpilepsySheetData {
   const at = headerAt(grid, EXPECTED[kind]);
   if (at < 0) return { name, columns: [], rows: [] };
   const header = (grid[at] ?? []).map((v) => (v ?? "").replace(/\s+/g, " ").trim());
@@ -175,16 +220,22 @@ export function sheetData(name: string, kind: EpilepsySheet, grid: Grid): Epilep
     }
     rows.push(row);
   }
-  return { name, columns, rows };
+  // Request 65: the dropdowns of the columns (by name).
+  const byName: Record<string, string[]> = {};
+  for (const [col, options] of Object.entries(lists ?? {})) {
+    const header = columns[Number(col)];
+    if (header) byName[header] = options;
+  }
+  return { name, columns, rows, ...(lists ? { lists: byName } : {}) };
 }
 
 /** The four sheets of a workbook (null: not in it). */
 export async function readSheets(bytes: Uint8Array): Promise<Record<EpilepsySheet, EpilepsySheetData | null>> {
-  const book = await readWorkbook(bytes, (n) => epilepsySheetOf(n) != null, { formats: true });
+  const book = await readWorkbook(bytes, (n) => epilepsySheetOf(n) != null, { formats: true, lists: true });
   const out: Record<EpilepsySheet, EpilepsySheetData | null> = { secondary: null, primary: null, profiles: null, assets: null };
   for (const s of book) {
     const kind = epilepsySheetOf(s.name);
-    if (kind && !out[kind]) out[kind] = sheetData(s.name, kind, s.grid);
+    if (kind && !out[kind]) out[kind] = sheetData(s.name, kind, s.grid, s.lists);
   }
   return out;
 }
@@ -221,7 +272,12 @@ async function store(env: Env, tenantId: string, sheets: Record<EpilepsySheet, E
       ),
     );
   }
-  if (stmts.length) await env.DB.batch(stmts);
+  // Request 65: each sheet's dropdowns (a sheet missing keeps the ones read before).
+  const r = await rowOf(env, tenantId);
+  const lists = parse<Partial<Record<EpilepsySheet, Record<string, string[]>>>>(r?.lists_json ?? null, {});
+  for (const kind of EPILEPSY_SHEETS) if (sheets[kind]) lists[kind] = sheets[kind]!.lists ?? {};
+  stmts.push(env.DB.prepare("UPDATE epilepsy_workbook SET lists_json = ?2 WHERE tenant_id = ?1").bind(tenantId, JSON.stringify(lists)));
+  await env.DB.batch(stmts);
 }
 
 /** Everything the pages show: the four sheets, the companies' colours and when the workbook was last read. */
@@ -239,7 +295,14 @@ export async function epilepsyData(env: Env, tenantId: string): Promise<Epilepsy
     if (have) have.rows.push(...rows);
     else sheets[c.sheet] = { name: c.name, columns: JSON.parse(c.columns_json) as string[], rows };
   }
-  return { sheets, colours: parse(r?.colours_json ?? null, {}), syncedAt: r?.last_synced_at ?? null };
+  return {
+    sheets,
+    colours: parse(r?.colours_json ?? null, {}),
+    columnNames: parse(r?.column_names_json ?? null, {}),
+    dropdowns: parse(r?.lists_json ?? null, {}),
+    addedOptions: parse(r?.added_options_json ?? null, {}),
+    syncedAt: r?.last_synced_at ?? null,
+  };
 }
 
 // ---------------------------------------------------------------------------

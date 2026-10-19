@@ -179,8 +179,72 @@ function sheetGrid(xml: string, shared: string[], styles?: NumberStyle[]): Grid 
   return grid;
 }
 
-/** Every worksheet of an .xlsx workbook, in workbook order, by name (request 55: the SharePoint workbook). */
-export async function parseXlsxBook(bytes: Uint8Array, only?: (name: string) => boolean, opts: { formats?: boolean } = {}): Promise<{ name: string; grid: Grid }[]> {
+/** A cell reference's column and row (“$AB$12” → 27, 11), 0-based; the row is null for a whole column. */
+function cellRef(ref: string): { col: number; row: number | null } | null {
+  const m = /^\$?([A-Z]{1,3})\$?(\d+)?$/i.exec(ref.trim());
+  if (!m) return null;
+  return { col: colIndex(m[1]!.toUpperCase()), row: m[2] ? Number(m[2]) - 1 : null };
+}
+
+/** Request 65: one sheet's dropdowns: column (0-based) → the options its data validation list allows. */
+export type SheetLists = Record<number, string[]>;
+
+/**
+ * Request 65: each worksheet's dropdowns (data validation of type “list”):
+ * the options typed into the rule (“A,B,C”), or the cells of the range it
+ * names (on any sheet, directly or by a defined name). Rules Excel works out
+ * as it goes (INDIRECT, OFFSET…) are left out.
+ */
+function sheetLists(xml: string, sheetName: string, gridOf: (name: string) => Grid | null, names: Map<string, string>): SheetLists {
+  const out: SheetLists = {};
+  const rules: { sqref: string; formula: string }[] = [];
+  for (const m of xml.matchAll(/<dataValidation\b([^>]*)>([\s\S]*?)<\/dataValidation>/g)) {
+    if (!/\btype="list"/.test(m[1] ?? "")) continue;
+    rules.push({ sqref: /\bsqref="([^"]+)"/.exec(m[1] ?? "")?.[1] ?? "", formula: xmlText(/<formula1>([\s\S]*?)<\/formula1>/.exec(m[2] ?? "")?.[1] ?? "") });
+  }
+  // Excel 2010+ writes rules that point at another sheet in an extension.
+  for (const m of xml.matchAll(/<x14:dataValidation\b([^>]*)>([\s\S]*?)<\/x14:dataValidation>/g)) {
+    if (!/\btype="list"/.test(m[1] ?? "")) continue;
+    const body = m[2] ?? "";
+    rules.push({ sqref: /<xm:sqref>([\s\S]*?)<\/xm:sqref>/.exec(body)?.[1] ?? "", formula: xmlText(/<x14:formula1>\s*<xm:f>([\s\S]*?)<\/xm:f>/.exec(body)?.[1] ?? "") });
+  }
+  const resolve = (formula: string, depth = 0): string[] | null => {
+    const f = formula.trim().replace(/^=/, "");
+    if (!f) return null;
+    const literal = /^"([\s\S]*)"$/.exec(f);
+    if (literal) return literal[1]!.split(",").map((x) => x.trim());
+    const named = names.get(f.toLowerCase());
+    if (named && depth < 3) return resolve(named, depth + 1);
+    const r = /^(?:'((?:[^']|'')+)'|([^!'"()]+))?!?(\$?[A-Z]{1,3}\$?\d*)(?::(\$?[A-Z]{1,3}\$?\d*))?$/i.exec(f);
+    if (!r || /[()]/.test(f)) return null;
+    const sheet = r[1] ? r[1].replace(/''/g, "'") : r[2] && f.includes("!") ? r[2] : sheetName;
+    const grid = gridOf(sheet);
+    const from = cellRef(r[3]!);
+    const to = r[4] ? cellRef(r[4]) : from;
+    if (!grid || !from || !to) return null;
+    const values: string[] = [];
+    const lastRow = Math.min(to.row ?? grid.length - 1, grid.length - 1);
+    for (let row = from.row ?? 0; row <= lastRow; row++) for (let col = from.col; col <= to.col; col++) values.push(grid[row]?.[col] ?? "");
+    return values;
+  };
+  for (const rule of rules) {
+    const options = resolve(rule.formula);
+    if (!options) continue;
+    const clean = [...new Set(options.map((o) => o.trim()).filter(Boolean))];
+    if (!clean.length) continue;
+    for (const part of rule.sqref.split(/\s+/).filter(Boolean)) {
+      const [a, b] = part.split(":");
+      const from = cellRef(a ?? "");
+      const to = b ? cellRef(b) : from;
+      if (!from || !to) continue;
+      for (let col = from.col; col <= to.col; col++) out[col] = [...new Set([...(out[col] ?? []), ...clean])];
+    }
+  }
+  return out;
+}
+
+/** Every worksheet of an .xlsx workbook, in workbook order, by name (request 55: the SharePoint workbook). With `lists`, each sheet's dropdowns too (request 65). */
+export async function parseXlsxBook(bytes: Uint8Array, only?: (name: string) => boolean, opts: { formats?: boolean; lists?: boolean } = {}): Promise<{ name: string; grid: Grid; lists?: SheetLists }[]> {
   const parts = await unzip(
     bytes,
     (n) => n === "xl/workbook.xml" || n === "xl/_rels/workbook.xml.rels" || n === "xl/sharedStrings.xml" || (!!opts.formats && n === "xl/styles.xml") || /^xl\/worksheets\/[^/]+\.xml$/.test(n),
@@ -204,7 +268,18 @@ export async function parseXlsxBook(bytes: Uint8Array, only?: (name: string) => 
   }
   const shared = [...text("xl/sharedStrings.xml").matchAll(/<si>([\s\S]*?)<\/si>/g)].map((m) => runs(m[1] ?? ""));
   const styles = opts.formats ? numberStyles(text("xl/styles.xml")) : undefined;
-  return sheets.filter((sh) => !only || only(sh.name)).map((sh) => ({ name: sh.name, grid: parts.has(sh.path) ? sheetGrid(text(sh.path), shared, styles) : [] }));
+  const grids = new Map<string, Grid>();
+  const gridOf = (name: string): Grid | null => {
+    const sh = sheets.find((x) => x.name.toLowerCase() === name.toLowerCase());
+    if (!sh) return null;
+    if (!grids.has(sh.name)) grids.set(sh.name, parts.has(sh.path) ? sheetGrid(text(sh.path), shared, styles) : []);
+    return grids.get(sh.name)!;
+  };
+  const names = new Map<string, string>();
+  if (opts.lists) for (const m of text("xl/workbook.xml").matchAll(/<definedName\b([^>]*)>([\s\S]*?)<\/definedName>/g)) names.set(xmlText(/\bname="([^"]*)"/.exec(m[1] ?? "")?.[1] ?? "").toLowerCase(), xmlText(m[2] ?? ""));
+  return sheets
+    .filter((sh) => !only || only(sh.name))
+    .map((sh) => ({ name: sh.name, grid: gridOf(sh.name)!, ...(opts.lists ? { lists: parts.has(sh.path) ? sheetLists(text(sh.path), sh.name, gridOf, names) : {} } : {}) }));
 }
 
 /** The first worksheet of an .xlsx workbook as a grid of strings. */

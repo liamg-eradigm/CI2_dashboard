@@ -11,7 +11,7 @@
  * which works with read access alone. Errors are logged (never the secret or
  * the token) with a hint on what to fix, and returned to the admin who asked.
  */
-import { parseXlsxBook, type Grid } from "@eradigm/shared";
+import { parseXlsxBook, type Grid, type SheetLists } from "@eradigm/shared";
 import type { Env } from "../env.js";
 import { log } from "../lib/log.js";
 
@@ -204,8 +204,8 @@ export async function downloadWorkbook(env: Env, target: WorkbookTarget): Promis
   return bytes;
 }
 
-/** Every sheet of a workbook's bytes (or, with `only`, the sheets it picks). */
-export async function readWorkbook(bytes: Uint8Array, only?: (name: string) => boolean, opts?: { formats?: boolean }): Promise<{ name: string; grid: Grid }[]> {
+/** Every sheet of a workbook's bytes (or, with `only`, the sheets it picks); with `lists`, each sheet's dropdowns (request 65). */
+export async function readWorkbook(bytes: Uint8Array, only?: (name: string) => boolean, opts?: { formats?: boolean; lists?: boolean }): Promise<{ name: string; grid: Grid; lists?: SheetLists }[]> {
   try {
     return await parseXlsxBook(bytes, only, opts);
   } catch (err) {

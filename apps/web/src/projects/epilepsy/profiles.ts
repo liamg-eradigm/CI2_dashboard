@@ -1,11 +1,13 @@
 /** Request 61: a company's profile (sheet 3) and its assets (sheet 3's lists, with sheet 4's details). */
-import { EPI_QUARTERS, normaliseHeader, type EpilepsyData } from "@eradigm/shared";
-import { parseAmount, records, splitList, type Rec } from "./model";
+import { EPI_QUARTERS, columnHeader, headerScale, isUsdField, normaliseHeader, type EpilepsyData } from "@eradigm/shared";
+import { moneyText, parseAmount, records, splitList, type Rec } from "./model";
 
 export type Profile = {
   name: string;
   /** The first value the company's rows give for a column. */
   field: (name: string) => string;
+  /** Request 65: a figure for reading (money abbreviated: “1 bn”). */
+  figure: (name: string) => string;
   marketCap: number | null;
   /** Q1–Q4 2026 epilepsy revenue. */
   revenue: (number | null)[];
@@ -30,11 +32,15 @@ export function profileCompanies(data: EpilepsyData | undefined): string[] {
 export function profileOf(data: EpilepsyData | undefined, company: string): Profile {
   const rows = records(data?.sheets.profiles).filter((r) => key(r.get("Company/competitor")) === key(company));
   const field = (name: string) => rows.map((r) => r.get(name)).find(Boolean) ?? "";
+  // Request 65: a money column named “… (USD m)” counts its plain numbers in millions.
+  const scale = (name: string) => headerScale(columnHeader(data?.sheets.profiles, name));
+  const amount = (name: string) => parseAmount(field(name), scale(name));
   return {
     name: company,
     field,
-    marketCap: parseAmount(field("Market Cap")),
-    revenue: EPI_QUARTERS.map((q) => parseAmount(field(`${q} 2026 Epilepsy Revenue`))),
+    figure: (name: string) => (isUsdField(name) ? moneyText(field(name), scale(name)) : field(name)),
+    marketCap: amount("Market Cap"),
+    revenue: EPI_QUARTERS.map((q) => amount(`${q} 2026 Epilepsy Revenue`)),
     growth: EPI_QUARTERS.map((q) => field(`${q} 2026 Marketed Epilepsy Asset Growth`) || null),
   };
 }

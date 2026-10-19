@@ -108,3 +108,29 @@ table.epi-table tbody tr.open td { background: var(--tint); }
 .epi-colour { display: grid; grid-template-columns: 34px minmax(0, 1fr) 96px; align-items: center; gap: 10px; }
 .epi-colour input[type="color"] { width: 34px; height: 30px; padding: 0; border: 1px solid var(--border-input); border-radius: 6px; background: #fff; }
 .epi-colour-name { font-size: 13.5px; font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Request 65: Admin → Column names and dropdown options. */
+.epi-sheet-seg { flex-wrap: wrap; }
+.epi-cols-note { margin: 0; }
+.epi-missing { color: var(--error); }
+.epi-cols-wrap { max-height: 520px; }
+.epi-cols th.epi-col-name { font-weight: 700; color: var(--ink); text-align: left; white-space: nowrap; }
+.epi-cols td { vertical-align: middle; }
+.epi-cols select { min-width: 240px; max-width: 340px; }
+.epi-col-used { font-size: 12px; color: var(--muted); max-width: 220px; }
+.epi-col-missing th.epi-col-name { color: var(--error); }
+.epi-col-status { display: block; margin-top: 3px; font-size: 12px; font-weight: 700; color: var(--error); }
+.epi-col-first { font-size: 12.5px; max-width: 260px; }
+.epi-col-first span:first-child { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.epi-col-reads { display: block; font-size: 12px; color: var(--muted); }
+.epi-dropdowns { display: flex; flex-direction: column; gap: 12px; padding-top: 14px; border-top: 1px solid var(--rule); }
+.epi-sub-title { margin: 0; font: 800 14px var(--sans); color: var(--navy-700); }
+.epi-dropdown { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border: 1px solid var(--rule); border-radius: 8px; }
+.epi-dropdown-head { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.epi-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.epi-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: var(--page); border: 1px solid var(--rule); font-size: 12.5px; color: var(--ink); }
+.epi-chip.added { background: var(--tint); border-color: var(--focus); }
+.epi-chip-x { border: 0; background: none; padding: 0 2px; cursor: pointer; color: var(--muted); font-size: 11px; }
+.epi-chip-x:hover { color: var(--error); }
+.epi-outside { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12.5px; color: var(--warning); }
+.epi-add-option { display: flex; gap: 8px; align-items: center; max-width: 420px; }

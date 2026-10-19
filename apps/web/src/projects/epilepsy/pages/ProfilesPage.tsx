@@ -7,7 +7,7 @@
  */
 import { useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
-import { EPI_QUARTERS, type Me } from "@eradigm/shared";
+import { EPI_QUARTERS, epiLabel, type Me } from "@eradigm/shared";
 import { useEpilepsyData } from "../api/hooks";
 import { Donut, GroupedBars, Legend } from "../components/Charts";
 import { PageHead } from "../components/PageHead";
@@ -31,7 +31,8 @@ function PeopleIcon() {
   );
 }
 
-const FIGURES = ["2025 Total Revenue", "2025 epilepsy revenue", "Total Indication revenue", "Number of Pipeline Assets", "Pod (FFA/STAP)"];
+// Request 65: money in US dollars (“(USD)” after the name, the amount abbreviated: “1 bn”).
+const FIGURES = ["Market Cap", "2025 Total Revenue", "2025 epilepsy revenue", "Total Indication revenue", "Number of Pipeline Assets", "Pod (FFA/STAP)"];
 
 export function ProfilesPage({ me }: { me: Me }) {
   const data = useEpilepsyData();
@@ -95,8 +96,8 @@ export function ProfilesPage({ me }: { me: Me }) {
                   <dl className="epi-figures">
                     {FIGURES.map((f) => (
                       <div key={f}>
-                        <dt>{f}</dt>
-                        <dd>{p.field(f) || "—"}</dd>
+                        <dt>{epiLabel(f)}</dt>
+                        <dd>{p.figure(f) || "—"}</dd>
                       </div>
                     ))}
                   </dl>
@@ -114,7 +115,7 @@ export function ProfilesPage({ me }: { me: Me }) {
               <section className="card" aria-labelledby="cap-title">
                 <div>
                   <h2 className="card-title" id="cap-title">
-                    Market cap
+                    Market cap (USD)
                   </h2>
                   <span className="card-sub">{caps.length > 1 ? "Their market caps relative to each other" : "As given in the workbook"}</span>
                 </div>
@@ -131,14 +132,14 @@ export function ProfilesPage({ me }: { me: Me }) {
               <section className="card" aria-labelledby="rev-title">
                 <div>
                   <h2 className="card-title" id="rev-title">
-                    Epilepsy revenue by quarter, 2026
+                    Epilepsy revenue by quarter, 2026 (USD)
                   </h2>
                   <span className="card-sub">{profiles.length > 1 ? "Grouped by company" : "Q1 to Q4"} · hover a bar for the quarter's marketed asset growth</span>
                 </div>
                 {anyRevenue ? (
                   <>
                     <GroupedBars
-                      label={`Epilepsy revenue by quarter in 2026 for ${picked.join(", ")}`}
+                      label={`Epilepsy revenue (USD) by quarter in 2026 for ${picked.join(", ")}`}
                       categories={EPI_QUARTERS.map((q) => `${q} 2026`)}
                       series={profiles.map((p) => ({ name: p.name, colour: colour(p.name), values: p.revenue, notes: p.growth }))}
                       format={money}

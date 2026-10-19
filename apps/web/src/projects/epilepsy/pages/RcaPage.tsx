@@ -10,7 +10,7 @@ import { EpiTable, cellText, type EpiColumn } from "../components/EpiTable";
 import { Filters, distinct } from "../components/Filters";
 import { PageHead } from "../components/PageHead";
 import { FieldList, SidePanel } from "../components/SidePanel";
-import { records, type Rec } from "../model";
+import { acceptedFor, records, type Rec } from "../model";
 
 const COLUMNS: EpiColumn[] = EPI_RCA_TABLE.map((name) => ({ name, kind: /date/i.test(name) ? "date" : name === "Asset Name" ? "title" : "plain", width: name === "Epilepsy Indication/ Syndrome" ? 240 : /date/i.test(name) ? 150 : 170 }));
 const FILTERS = ["Asset Name", "RoA (+frequency)", "MoA", "Current Phase", "Epilepsy Indication/ Syndrome"];
@@ -38,7 +38,7 @@ export function RcaPage({ me }: { me: Me }) {
         <Filters
           search={q}
           onSearch={setQ}
-          choices={FILTERS.map((name) => ({ name, options: distinct(all.map((r) => r.get(name))), value: picked[name] ?? [] }))}
+          choices={FILTERS.map((name) => ({ name, options: distinct([...all.map((r) => r.get(name)), ...acceptedFor(data.data, "assets", name)]), value: picked[name] ?? [] }))}
           onChoice={(name, v) => setPicked((p) => ({ ...p, [name]: v }))}
           onClear={() => {
             setQ("");

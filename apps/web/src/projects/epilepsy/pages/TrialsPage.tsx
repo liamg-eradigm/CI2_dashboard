@@ -12,7 +12,7 @@ import { useTip } from "../components/Charts";
 import { EpiTable, type EpiColumn } from "../components/EpiTable";
 import { Filters, distinct } from "../components/Filters";
 import { PageHead } from "../components/PageHead";
-import { colourMap, records, type Rec } from "../model";
+import { acceptedFor, colourMap, records, type Rec } from "../model";
 import { trialSeries } from "../trialSeries";
 
 const LONG = new Set(["Key Inclusion Criteria", "Dosing & Regimen", "Primary Endpoints", "Efficacy Notes (source, method)", "other Demographics"].map(normaliseHeader));
@@ -43,7 +43,7 @@ export function TrialsPage({ me }: { me: Me }) {
         <Filters
           search={q}
           onSearch={setQ}
-          choices={FILTERS.map((name) => ({ name, options: distinct(all.map((r) => r.get(name))), value: picked[name] ?? [] }))}
+          choices={FILTERS.map((name) => ({ name, options: distinct([...all.map((r) => r.get(name)), ...acceptedFor(data.data, "assets", name)]), value: picked[name] ?? [] }))}
           onChoice={(name, v) => setPicked((p) => ({ ...p, [name]: v }))}
           onClear={() => {
             setQ("");

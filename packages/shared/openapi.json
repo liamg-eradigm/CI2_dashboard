@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Eradigm Competitive Intelligence API",
-    "version": "2.5.0",
+    "version": "2.6.0",
     "description": "Generated from packages/shared/src/api.ts. Every request is checked for both role and tenant server-side. Send X-Tenant-Id to select a tenant when the user belongs to more than one."
   },
   "components": {
@@ -25617,6 +25617,15 @@
                                   "type": "string"
                                 }
                               }
+                            },
+                            "lists": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
                             }
                           },
                           "required": [
@@ -25642,6 +25651,15 @@
                             "rows": {
                               "type": "array",
                               "items": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "lists": {
+                              "type": "object",
+                              "additionalProperties": {
                                 "type": "array",
                                 "items": {
                                   "type": "string"
@@ -25677,6 +25695,15 @@
                                   "type": "string"
                                 }
                               }
+                            },
+                            "lists": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
                             }
                           },
                           "required": [
@@ -25707,6 +25734,15 @@
                                   "type": "string"
                                 }
                               }
+                            },
+                            "lists": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
                             }
                           },
                           "required": [
@@ -25731,6 +25767,39 @@
                         "type": "string"
                       }
                     },
+                    "columnNames": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "dropdowns": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "addedOptions": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
                     "syncedAt": {
                       "nullable": true,
                       "type": "string"
@@ -25739,6 +25808,9 @@
                   "required": [
                     "sheets",
                     "colours",
+                    "columnNames",
+                    "dropdowns",
+                    "addedOptions",
                     "syncedAt"
                   ],
                   "additionalProperties": false
@@ -26230,6 +26302,32 @@
                     "additionalProperties": {
                       "type": "string",
                       "pattern": "^#[0-9a-f]{6}$"
+                    }
+                  },
+                  "columnNames": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 300
+                      }
+                    }
+                  },
+                  "addedOptions": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "maxItems": 500,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 300
+                        }
+                      }
                     }
                   }
                 },

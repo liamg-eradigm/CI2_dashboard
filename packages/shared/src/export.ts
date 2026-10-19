@@ -169,7 +169,10 @@ export function toXlsx(table: string[][], sheetName = "Tracker"): Uint8Array {
 /** Excel sheet names: at most 31 characters, none of : \\ / ? * [ ]. */
 const sheetName = (s: string) => s.replace(/[:\\/?*[\]]/g, " ").slice(0, 31) || "Sheet";
 
-function sheetXml(table: string[][]): string {
+/** Request 65: a dropdown on a sheet (Excel data validation of type “list”): the cells it covers, and its options (“"A,B"”) or the range they are in. */
+export type XlsxList = { sqref: string; formula: string };
+
+function sheetXml(table: string[][], lists: XlsxList[] = []): string {
   const width = Math.max(...table.map((r) => r.length), 1);
   const cols = Array.from({ length: width }, (_, i) => {
     const w = Math.min(60, Math.max(...table.map((r) => (r[i] ?? "").length), 4) + 2);
@@ -187,11 +190,15 @@ function sheetXml(table: string[][]): string {
     )
     .join("");
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${cols}</cols><sheetData>${rows}</sheetData></worksheet>`;
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${cols}</cols><sheetData>${rows}</sheetData>${
+    lists.length
+      ? `<dataValidations count="${lists.length}">${lists.map((l) => `<dataValidation type="list" allowBlank="1" showErrorMessage="1" sqref="${xmlEscape(l.sqref)}"><formula1>${xmlEscape(l.formula)}</formula1></dataValidation>`).join("")}</dataValidations>`
+      : ""
+  }</worksheet>`;
 }
 
 /** A workbook with one or more sheets (the first row of each in bold, frozen). */
-export function toXlsxSheets(sheets: { name: string; table: string[][] }[]): Uint8Array {
+export function toXlsxSheets(sheets: { name: string; table: string[][]; lists?: XlsxList[] }[]): Uint8Array {
   const n = sheets.length;
   const idx = Array.from({ length: n }, (_, i) => i + 1);
   const files = [
@@ -220,7 +227,7 @@ export function toXlsxSheets(sheets: { name: string; table: string[][] }[]): Uin
       xml: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs></styleSheet>`,
     },
-    ...sheets.map((s, i) => ({ name: `xl/worksheets/sheet${i + 1}.xml`, xml: sheetXml(s.table) })),
+    ...sheets.map((s, i) => ({ name: `xl/worksheets/sheet${i + 1}.xml`, xml: sheetXml(s.table, s.lists) })),
   ];
   return zipStore(files.map((f) => ({ name: f.name, data: enc.encode(f.xml) })));
 }
