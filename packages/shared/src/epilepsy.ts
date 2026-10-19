@@ -190,6 +190,82 @@ export const EPI_TRIAL_TABLE = [
   ...EPI_RESULTS,
 ] as const;
 
+/**
+ * Request 65: the revenue figures (and market cap), in US dollars in the
+ * workbook. The pages put “(USD)” after their names and abbreviate them
+ * (1,000,000,000 → “1 bn”).
+ */
+export const EPI_USD_FIELDS = [
+  "Market Cap",
+  "2025 Total Revenue",
+  "2025 epilepsy revenue",
+  "Q1 2026 Epilepsy Revenue",
+  "Q2 2026 Epilepsy Revenue",
+  "Q3 2026 Epilepsy Revenue",
+  "Q4 2026 Epilepsy Revenue",
+  "Total Indication revenue",
+] as const;
+export const isUsdField = (name: string) => EPI_USD_FIELDS.some((f) => normaliseHeader(f) === normaliseHeader(name));
+/** A figure's name as the pages show it: “Market Cap (USD)” for the money ones. */
+export const epiLabel = (name: string) => (isUsdField(name) ? `${name} (USD)` : name);
+
+/**
+ * Request 65: an amount written short for reading: 1,000,000,000 → “1 bn”,
+ * 30,500,000,000 → “30.5 bn”, 540,000,000 → “540 m”, 12,500 → “12.5 k”
+ * (three significant figures at most).
+ */
+export function abbreviate(n: number): string {
+  const a = Math.abs(n);
+  const [d, u] = a >= 1e12 ? [1e12, " tn"] : a >= 1e9 ? [1e9, " bn"] : a >= 1e6 ? [1e6, " m"] : a >= 1e3 ? [1e3, " k"] : [1, ""];
+  const v = n / d;
+  const av = Math.abs(v);
+  const text = v.toFixed(av >= 100 ? 0 : av >= 10 ? 1 : 2).replace(/\.0+$|(\.\d*?)0+$/, "$1");
+  return `${text}${u}`;
+}
+
+/** Where each column the pages read is used (Admin → Column names). */
+const USED_ON = {
+  secondary: "News · Secondary",
+  primary: "News · Primary",
+  profiles: "Competitor Profiles",
+  launches: "Asset Launches",
+  rca: "RCA",
+  trials: "Trial Tracker",
+  assets: "Competitor Profiles · Assets",
+} as const;
+
+function columnsOf(lists: [readonly string[], string][]): { name: string; usedOn: string[] }[] {
+  const out = new Map<string, { name: string; usedOn: string[] }>();
+  for (const [names, page] of lists) {
+    for (const name of names) {
+      const k = normaliseHeader(name);
+      const have = out.get(k) ?? { name, usedOn: [] };
+      if (!have.usedOn.includes(page)) have.usedOn.push(page);
+      out.set(k, have);
+    }
+  }
+  return [...out.values()];
+}
+
+/**
+ * Request 65: every column the Epilepsy pages read, sheet by sheet, and the
+ * pages that use it. Admin → Column names lists them: each is found in the
+ * sheet by its name (case, spacing, punctuation and a currency note like
+ * “(USD)” do not matter), or an admin picks the workbook's column for it.
+ */
+export const EPI_COLUMNS: Record<EpilepsySheet, { name: string; usedOn: string[] }[]> = {
+  secondary: columnsOf([[EPI_SECONDARY_FIELDS, USED_ON.secondary]]),
+  primary: columnsOf([[EPI_PRIMARY_FIELDS, USED_ON.primary]]),
+  profiles: columnsOf([[EPI_PROFILE_FIELDS, USED_ON.profiles]]),
+  assets: columnsOf([
+    [["Company/competitor", "Asset Name", "MoA", "RoA", "RoA (+frequency)", "Current Phase"], USED_ON.assets],
+    [EPI_LAUNCH_FIELDS, USED_ON.launches],
+    [EPI_RCA_TABLE, USED_ON.rca],
+    [EPI_RCA_PANEL, USED_ON.rca],
+    [EPI_TRIAL_TABLE, USED_ON.trials],
+  ]),
+};
+
 // ---------------------------------------------------------------------------
 // API
 // ---------------------------------------------------------------------------
@@ -201,6 +277,8 @@ export const EpilepsySheetDataSchema = z.object({
   columns: z.array(z.string()),
   /** Its rows, one value per column (dates as YYYY-MM-DD). */
   rows: z.array(z.array(z.string())),
+  /** Request 65: when read from the workbook, its dropdowns: column → the options its data validation list allows. */
+  lists: z.record(z.string(), z.array(z.string())).optional(),
 });
 export type EpilepsySheetData = z.infer<typeof EpilepsySheetDataSchema>;
 
@@ -208,6 +286,12 @@ export const EpilepsyDataSchema = z.object({
   sheets: z.object({ secondary: EpilepsySheetDataSchema.nullable(), primary: EpilepsySheetDataSchema.nullable(), profiles: EpilepsySheetDataSchema.nullable(), assets: EpilepsySheetDataSchema.nullable() }),
   /** Company → hex colour (Admin → Epilepsy settings). */
   colours: z.record(z.string(), z.string()),
+  /** Request 65: sheet → (column the pages read → the workbook's column), set in Admin → Column names. */
+  columnNames: z.partialRecord(z.enum(EPILEPSY_SHEETS), z.record(z.string(), z.string())),
+  /** Request 65: sheet → (the workbook's column → the options its dropdown allows), as last read. */
+  dropdowns: z.partialRecord(z.enum(EPILEPSY_SHEETS), z.record(z.string(), z.array(z.string()))),
+  /** Request 65: sheet → (the workbook's column → options added in Admin): the platform accepts them too (the workbook is not changed). */
+  addedOptions: z.partialRecord(z.enum(EPILEPSY_SHEETS), z.record(z.string(), z.array(z.string()))),
   syncedAt: z.string().nullable(),
 });
 export type EpilepsyData = z.infer<typeof EpilepsyDataSchema>;
@@ -236,7 +320,26 @@ export const EpilepsySettingsRequest = z.object({
   fileName: z.string().trim().min(1).max(200).optional(),
   /** Company → hex colour (#rrggbb); a company left out takes its default colour. */
   colours: z.record(z.string().min(1).max(200), z.string().regex(HEX_COLOUR, "Use a hex colour like #1c9ca5")).optional(),
+  /**
+   * Request 65: sheet → (column the pages read → the workbook's column for
+   * it). Sent in full: a column left out is found by its own name again.
+   */
+  columnNames: z.partialRecord(z.enum(EPILEPSY_SHEETS), z.record(z.string().min(1).max(200), z.string().trim().min(1).max(300))).optional(),
+  /** Request 65: sheet → (the workbook's dropdown column → options added in Admin). Sent in full. */
+  addedOptions: z
+    .partialRecord(z.enum(EPILEPSY_SHEETS), z.record(z.string().min(1).max(300), z.array(z.string().trim().min(1, "An option cannot be empty").max(300)).max(500)))
+    .optional(),
 });
+
+/** Request 65: the options a dropdown column accepts: the workbook's, then those added in Admin (each once). */
+export function acceptedOptions(workbook: readonly string[] | undefined, added: readonly string[] | undefined): string[] {
+  const out = new Map<string, string>();
+  for (const o of [...(workbook ?? []), ...(added ?? [])]) {
+    const t = o.trim();
+    if (t && !out.has(t.toLowerCase())) out.set(t.toLowerCase(), t);
+  }
+  return [...out.values()];
+}
 export const EpilepsySyncRequest = z.object({ force: z.boolean().optional() });
 
 /** Default company colours, in order (a company without one set takes the next). */
@@ -248,17 +351,66 @@ export function cellOf(sheet: Pick<EpilepsySheetData, "columns">, row: readonly 
   return i < 0 ? "" : (row[i] ?? "").trim();
 }
 
-const indexCache = new WeakMap<object, Map<string, number>>();
-/** Where a column named (loosely) like `name` is, or -1. */
+/**
+ * Request 65: a currency note in a column's name — “(USD)”, “($)”, “(USD bn)”,
+ * “[US$ m]”, “in USD” — and the unit it gives the column's plain numbers.
+ */
+const CURRENCY_NOTE = /\s*(?:[([]\s*(?:in\s+)?(?:(?:usd|us\$|\$|eur|€|gbp|£)\s*(k|m|mn|mm|bn|b|thousands?|millions?|billions?)?|(k|m|mn|mm|bn|b|thousands?|millions?|billions?)\s*(?:usd|us\$|\$|eur|€|gbp|£))\s*[)\]]|\s+in\s+(?:usd|us\$|\$)\s*$|\s+usd\s*$)/i;
+const UNIT: Record<string, number> = { k: 1e3, thousand: 1e3, thousands: 1e3, m: 1e6, mn: 1e6, mm: 1e6, million: 1e6, millions: 1e6, b: 1e9, bn: 1e9, billion: 1e9, billions: 1e9 };
+/** A column's name without its currency note (“Market Cap (USD)” → “Market Cap”). */
+export const withoutCurrencyNote = (header: string) => header.replace(CURRENCY_NOTE, "").trim();
+/** What a column's plain numbers are worth, from its currency note (“Revenue (USD m)” → 1,000,000; else 1). */
+export function headerScale(header: string | null | undefined): number {
+  const m = CURRENCY_NOTE.exec(header ?? "");
+  const u = (m?.[1] ?? m?.[2] ?? "").toLowerCase();
+  return UNIT[u] ?? 1;
+}
+
+const indexCache = new WeakMap<object, { exact: Map<string, number>; loose: Map<string, number> }>();
+/** Where a column named (loosely) like `name` is, or -1: its own name first, then its name without a currency note. */
 export function columnIndex(sheet: Pick<EpilepsySheetData, "columns">, name: string): number {
   let m = indexCache.get(sheet.columns);
   if (!m) {
-    m = new Map();
+    m = { exact: new Map(), loose: new Map() };
     sheet.columns.forEach((c, i) => {
       const k = normaliseHeader(c);
-      if (k && !m!.has(k)) m!.set(k, i);
+      if (k && !m!.exact.has(k)) m!.exact.set(k, i);
+      const l = normaliseHeader(withoutCurrencyNote(c));
+      if (l && l !== k && !m!.loose.has(l)) m!.loose.set(l, i);
     });
     indexCache.set(sheet.columns, m);
   }
-  return m.get(normaliseHeader(name)) ?? -1;
+  const k = normaliseHeader(name);
+  return m.exact.get(k) ?? m.loose.get(k) ?? -1;
+}
+
+/** The workbook's name of the column the pages read as `name`, or null. */
+export function columnHeader(sheet: Pick<EpilepsySheetData, "columns"> | null | undefined, name: string): string | null {
+  if (!sheet) return null;
+  const i = columnIndex(sheet, name);
+  return i < 0 ? null : (sheet.columns[i] ?? null);
+}
+
+/**
+ * Request 65: a sheet with the columns an admin named (Admin → Column names)
+ * under the names the pages read, keeping any currency note (so its unit
+ * still counts). A column the sheet has under the page's name, but which is
+ * not the one picked, is set aside.
+ */
+export function withColumnNames(sheet: EpilepsySheetData, names: Record<string, string> | undefined): EpilepsySheetData {
+  const pairs = Object.entries(names ?? {}).filter(([k, v]) => k && v);
+  if (!pairs.length) return sheet;
+  const columns = [...sheet.columns];
+  const norm = columns.map(normaliseHeader);
+  for (const [want, header] of pairs) {
+    const at = norm.indexOf(normaliseHeader(header));
+    if (at < 0) continue;
+    const note = CURRENCY_NOTE.exec(columns[at] ?? "")?.[0]?.trim();
+    const w = normaliseHeader(want);
+    columns.forEach((c, i) => {
+      if (i !== at && (normaliseHeader(c) === w || normaliseHeader(withoutCurrencyNote(c)) === w)) columns[i] = `${c} [not used]`;
+    });
+    columns[at] = note && !isUsdField(want) ? want : note ? `${want} ${note}` : want;
+  }
+  return { ...sheet, columns };
 }

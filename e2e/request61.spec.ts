@@ -148,13 +148,13 @@ test.describe("request 61: the Epilepsy project", () => {
     await expect(head).toContainText("Brussels, Belgium");
     await expect(head).toContainText("Headcount");
     await expect(head).toContainText("9,000");
-    await expect(page.getByRole("img", { name: /market cap: UCB \$30B/ })).toBeVisible();
+    await expect(page.getByRole("img", { name: /market cap: UCB 30 bn/ })).toBeVisible();
     await expect(page.getByTestId("profile-assets").locator("tbody tr")).toHaveText([/UCB\s*Fintepla\s*5-HT release\s*Oral, BID\s*Approved/, /UCB\s*Briviact\s*SV2A\s*Oral, BID\s*Approved/]);
     await expect(page.getByTestId("on-market")).toContainText("Fintepla, Briviact");
     await page.getByRole("button", { name: "Xenon", exact: true }).click();
     await expect(head).toHaveCount(2);
-    await expect(page.getByRole("img", { name: /combined: UCB \$30B, Xenon \$3B/ })).toBeVisible();
-    await expect(page.getByRole("img", { name: /Epilepsy revenue by quarter in 2026 for UCB, Xenon/ })).toBeVisible();
+    await expect(page.getByRole("img", { name: /combined: UCB 30 bn, Xenon 3 bn/ })).toBeVisible();
+    await expect(page.getByRole("img", { name: /Epilepsy revenue \(USD\) by quarter in 2026 for UCB, Xenon/ })).toBeVisible();
     await expect(page.getByTestId("profile-assets").locator("tbody tr")).toHaveCount(3);
     await expect(page.getByTestId("on-market")).toContainText("Fintepla, Briviact");
     await expect(page.getByTestId("on-market")).not.toContainText("XEN1101");

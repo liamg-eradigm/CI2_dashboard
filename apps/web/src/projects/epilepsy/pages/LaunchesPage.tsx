@@ -10,7 +10,7 @@ import { useEpilepsyData } from "../api/hooks";
 import { useTip } from "../components/Charts";
 import { Filters, distinct } from "../components/Filters";
 import { PageHead } from "../components/PageHead";
-import { looseDate, records } from "../model";
+import { acceptedFor, looseDate, records } from "../model";
 
 type Launch = { company: string; asset: string; moa: string; roa: string; t: number; label: string; confirmed: boolean };
 
@@ -61,8 +61,8 @@ export function LaunchesPage({ me }: { me: Me }) {
       <div className="content">
         <Filters
           choices={[
-            { name: "Competitor", options: distinct(all.map((l) => l.company)), value: picked.Competitor ?? [] },
-            { name: "MoA", options: distinct(all.map((l) => l.moa)), value: picked.MoA ?? [] },
+            { name: "Competitor", options: distinct([...all.map((l) => l.company), ...acceptedFor(data.data, "assets", "Company/competitor")]), value: picked.Competitor ?? [] },
+            { name: "MoA", options: distinct([...all.map((l) => l.moa), ...acceptedFor(data.data, "assets", "MoA")]), value: picked.MoA ?? [] },
           ]}
           onChoice={(name, v) => setPicked((p) => ({ ...p, [name]: v }))}
           onClear={() => setPicked({})}

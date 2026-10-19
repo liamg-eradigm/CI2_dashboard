@@ -1,17 +1,33 @@
 /**
  * Epilepsy's settings on the Admin page (request 61): the SharePoint
  * workbook the pages are built from (its link, and whether it can be read),
- * and each company's colour.
+ * each company's colour, and (request 65) the names of the columns the pages
+ * read, with the options of the dropdown columns.
  */
 import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { EPILEPSY_SHEETS, EPILEPSY_SHEET_NAME, HEX_COLOUR, type EpilepsySyncStatus, type Me } from "@eradigm/shared";
+import {
+  EPILEPSY_SHEETS,
+  EPILEPSY_SHEET_NAME,
+  EPI_COLUMNS,
+  HEX_COLOUR,
+  acceptedOptions,
+  columnHeader,
+  epiLabel,
+  headerScale,
+  isUsdField,
+  normaliseHeader,
+  type EpilepsyData,
+  type EpilepsySheet,
+  type EpilepsySyncStatus,
+  type Me,
+} from "@eradigm/shared";
 import { api } from "../../../api/client";
 import { ErrorBoundary } from "../../../components/ErrorBoundary";
 import { localDateTime } from "../../../lib/format";
 import { useToast } from "../../../state/toast";
-import { useEpilepsyData, useEpilepsyStatus, useEpilepsySync } from "../api/hooks";
-import { colourMap, companies } from "../model";
+import { useEpilepsyData, useEpilepsyRawData, useEpilepsyStatus, useEpilepsySync } from "../api/hooks";
+import { colourMap, companies, moneyText } from "../model";
 import "../styles/epilepsy.css";
 
 export function EpilepsyAdmin({ me }: { me: Me }) {
@@ -20,6 +36,9 @@ export function EpilepsyAdmin({ me }: { me: Me }) {
     <>
       <ErrorBoundary label="Epilepsy workbook">
         <WorkbookCard />
+      </ErrorBoundary>
+      <ErrorBoundary label="Column names">
+        <ColumnsCard />
       </ErrorBoundary>
       <ErrorBoundary label="Company colours">
         <ColoursCard />
@@ -184,5 +203,261 @@ function ColoursCard() {
         {bad && <span className="err-msg">Use a hex colour like #2a78d6.</span>}
       </div>
     </section>
+  );
+}
+
+type BySheet<T> = Partial<Record<EpilepsySheet, Record<string, T>>>;
+
+/**
+ * Request 65: Admin → Column names. Sheet by sheet, every column the pages
+ * read: where it is used, the workbook's column it is read from (found by
+ * its name, or picked here) and its first value. Then the sheet's dropdown
+ * columns: the options the workbook's dropdown allows, and options added
+ * here that the platform accepts too (the workbook is not changed).
+ */
+function ColumnsCard() {
+  const raw = useEpilepsyRawData();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const [sheet, setSheet] = useState<EpilepsySheet>("profiles");
+  const [draft, setDraft] = useState<BySheet<string> | null>(null);
+  const d = raw.data;
+  if (!d) return null;
+  const saved = d.columnNames ?? {};
+  const names = draft ?? saved;
+  const s = d.sheets[sheet];
+  const pickedOf = (name: string) => names[sheet]?.[name] ?? "";
+  const setPick = (name: string, header: string) => {
+    const next: BySheet<string> = { ...names, [sheet]: { ...(names[sheet] ?? {}) } };
+    if (header) next[sheet]![name] = header;
+    else delete next[sheet]![name];
+    setDraft(next);
+  };
+  const dirty = draft != null && JSON.stringify(draft) !== JSON.stringify(saved);
+  const firstValue = (header: string | null) => {
+    if (!s || !header) return "";
+    const i = s.columns.indexOf(header);
+    return i < 0 ? "" : (s.rows.map((r) => (r[i] ?? "").trim()).find(Boolean) ?? "");
+  };
+  const read = new Set<string>();
+  const rows = EPI_COLUMNS[sheet].map((c) => {
+    const picked = pickedOf(c.name);
+    const pickedHere = picked ? (s?.columns.find((h) => normaliseHeader(h) === normaliseHeader(picked)) ?? null) : null;
+    const header = picked ? pickedHere : columnHeader(s, c.name);
+    if (header) read.add(header);
+    return { ...c, picked, header };
+  });
+  const missing = rows.filter((r) => !r.header).length;
+  const unused = (s?.columns ?? []).filter((h) => h && !read.has(h));
+
+  const save = async () => {
+    try {
+      await api("/api/epilepsy/settings", { method: "PUT", json: { columnNames: names } });
+      await qc.invalidateQueries({ queryKey: ["epilepsy", "data"] });
+      setDraft(null);
+      toast("Column names saved");
+    } catch (e) {
+      toast((e as Error).message, false);
+    }
+  };
+
+  return (
+    <section className="card" aria-labelledby="epi-cols-title" data-testid="epi-columns">
+      <div>
+        <h2 className="card-title" id="epi-cols-title">
+          Column names
+        </h2>
+        <span className="card-sub">
+          What each column must be called in the workbook for the Epilepsy pages to read it. A column is found by its name: capitals, spaces, punctuation and a currency note such as “(USD)” do not matter. If the
+          workbook calls a column something else, pick it under “Read from”. Money columns are in US dollars; a note such as “(USD m)” in the name counts plain numbers in millions.
+        </span>
+      </div>
+      <div className="seg epi-sheet-seg" role="group" aria-label="Sheet">
+        {EPILEPSY_SHEETS.map((k) => (
+          <button key={k} aria-pressed={sheet === k} onClick={() => setSheet(k)}>
+            {EPILEPSY_SHEET_NAME[k]}
+          </button>
+        ))}
+      </div>
+      <p className="card-sub epi-cols-note">
+        {s ? (
+          <>
+            Read from the sheet “{s.name}” · {EPI_COLUMNS[sheet].length} columns read by the pages
+            {missing ? (
+              <b className="epi-missing">
+                {" "}
+                · {missing} not found in the sheet
+              </b>
+            ) : (
+              " · all found"
+            )}
+          </>
+        ) : (
+          <>Not in the workbook yet: the sheet's name must start with its number and “Platform”, as in “{EPILEPSY_SHEET_NAME[sheet]}”.</>
+        )}
+      </p>
+      <div className="table-wrap epi-cols-wrap">
+        <table className="data epi-cols" data-testid="epi-columns-table">
+          <caption className="sr-only">Columns read from {EPILEPSY_SHEET_NAME[sheet]}</caption>
+          <thead>
+            <tr>
+              <th scope="col">Column name the pages read</th>
+              <th scope="col">Used on</th>
+              <th scope="col">Read from (the workbook's column)</th>
+              <th scope="col">First value</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => {
+              const first = firstValue(r.header);
+              return (
+                <tr key={r.name} className={r.header ? undefined : "epi-col-missing"}>
+                  <th scope="row" className="epi-col-name">
+                    {epiLabel(r.name)}
+                  </th>
+                  <td className="epi-col-used">{r.usedOn.join(" · ")}</td>
+                  <td>
+                    <select className="control" value={r.picked} onChange={(e) => setPick(r.name, e.target.value)} aria-label={`Workbook column for ${r.name}`} disabled={!s}>
+                      <option value="">{r.picked ? "Find it by its name" : r.header ? `Found by its name: “${r.header}”` : "Not found by its name: pick its column"}</option>
+                      {(s?.columns ?? []).filter(Boolean).map((h) => (
+                        <option key={h} value={h}>
+                          {h}
+                        </option>
+                      ))}
+                      {r.picked && !r.header && <option value={r.picked}>{r.picked} (not in the sheet now)</option>}
+                    </select>
+                    {!r.header && <span className="epi-col-status">✕ Not found</span>}
+                  </td>
+                  <td className="epi-col-first">
+                    {first ? (
+                      <>
+                        <span>{first}</span>
+                        {isUsdField(r.name) && <span className="epi-col-reads">reads as {moneyText(first, headerScale(r.header))} (USD)</span>}
+                      </>
+                    ) : (
+                      <span className="epi-col-reads">{r.header ? "empty" : "—"}</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {unused.length > 0 && <p className="card-sub">Other columns in this sheet (not read by the pages): {unused.join(", ")}</p>}
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <button className="btn" disabled={!dirty} onClick={() => void save()} data-testid="epi-columns-save">
+          Save column names
+        </button>
+        {dirty && (
+          <button className="btn secondary" onClick={() => setDraft(null)}>
+            Undo changes
+          </button>
+        )}
+      </div>
+      <DropdownOptions data={d} sheet={sheet} />
+    </section>
+  );
+}
+
+/** Request 65: a sheet's dropdown columns: the workbook's options, and options added here (the platform accepts them; the workbook is not changed). */
+function DropdownOptions({ data, sheet }: { data: EpilepsyData; sheet: EpilepsySheet }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const [typed, setTyped] = useState<Record<string, string>>({});
+  const s = data.sheets[sheet];
+  const workbook = data.dropdowns?.[sheet];
+  const added = data.addedOptions?.[sheet] ?? {};
+  const columns = [...new Set([...Object.keys(workbook ?? {}), ...Object.keys(added)])].sort((a, b) => (s?.columns.indexOf(a) ?? 0) - (s?.columns.indexOf(b) ?? 0));
+  const send = async (column: string, options: string[], done: string) => {
+    const next = { ...(data.addedOptions ?? {}), [sheet]: { ...added, [column]: options } };
+    if (!options.length) delete next[sheet]![column];
+    try {
+      await api("/api/epilepsy/settings", { method: "PUT", json: { addedOptions: next } });
+      await qc.invalidateQueries({ queryKey: ["epilepsy", "data"] });
+      toast(done);
+      return true;
+    } catch (e) {
+      toast((e as Error).message, false);
+      return false;
+    }
+  };
+  const add = async (column: string, option: string) => {
+    const o = option.trim();
+    if (!o) return;
+    if (acceptedOptions(workbook?.[column], added[column]).some((x) => x.toLowerCase() === o.toLowerCase())) return toast(`“${o}” is already an option of ${column}`, false);
+    if (await send(column, [...(added[column] ?? []), o], `“${o}” added to ${column}`)) setTyped((t) => ({ ...t, [column]: "" }));
+  };
+  return (
+    <div className="epi-dropdowns" data-testid="epi-dropdowns">
+      <h3 className="epi-sub-title">Dropdown columns</h3>
+      <p className="card-sub">
+        The options each dropdown column allows in the workbook, read with the sheet. Options added here are accepted by the platform too (the page filters offer them); the workbook is not changed, so use the value in
+        Excel when you need it.
+      </p>
+      {workbook === undefined && <div className="empty">This sheet's dropdowns have not been read yet: use “↻ Read it now” above.</div>}
+      {workbook !== undefined && !columns.length && <div className="empty">This sheet has no dropdown columns in the workbook.</div>}
+      {columns.map((column) => {
+        const own = workbook?.[column] ?? [];
+        const extra = added[column] ?? [];
+        const accepted = acceptedOptions(own, extra);
+        const i = s?.columns.indexOf(column) ?? -1;
+        const used = i < 0 ? [] : [...new Set((s?.rows ?? []).map((r) => (r[i] ?? "").trim()).filter(Boolean))];
+        const outside = used.filter((v) => !accepted.some((a) => a.toLowerCase() === v.toLowerCase()));
+        const id = `epi-dd-${normaliseHeader(column)}`;
+        return (
+          <div className="epi-dropdown" key={column} data-testid="epi-dropdown">
+            <div className="epi-dropdown-head">
+              <b>{column}</b>
+              <span className="card-sub">
+                {accepted.length} {accepted.length === 1 ? "option" : "options"}
+                {extra.length ? ` · ${extra.length} added here` : ""}
+                {i < 0 ? " · not in the sheet now" : ""}
+              </span>
+            </div>
+            <ul className="epi-chips" aria-label={`Options of ${column}`}>
+              {own.map((o) => (
+                <li key={`w-${o}`} className="epi-chip" title="In the workbook's dropdown">
+                  {o}
+                </li>
+              ))}
+              {extra.map((o) => (
+                <li key={`a-${o}`} className="epi-chip added" title="Added here (accepted by the platform)">
+                  {o}
+                  <button className="epi-chip-x" onClick={() => void send(column, extra.filter((x) => x !== o), `“${o}” removed from ${column}`)} aria-label={`Remove the option ${o} from ${column}`}>
+                    ✕
+                  </button>
+                </li>
+              ))}
+            </ul>
+            {outside.length > 0 && (
+              <div className="epi-outside" role="note">
+                <span>In the sheet but not an option:</span>
+                {outside.map((v) => (
+                  <button key={v} className="btn secondary small" onClick={() => void add(column, v)} aria-label={`Add ${v} as an option of ${column}`}>
+                    + {v}
+                  </button>
+                ))}
+              </div>
+            )}
+            <form
+              className="epi-add-option"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void add(column, typed[column] ?? "");
+              }}
+            >
+              <label htmlFor={id} className="sr-only">
+                New option for {column}
+              </label>
+              <input id={id} className="control" value={typed[column] ?? ""} onChange={(e) => setTyped((t) => ({ ...t, [column]: e.target.value }))} placeholder="New option…" maxLength={300} />
+              <button className="btn secondary small" disabled={!(typed[column] ?? "").trim()}>
+                + Add option
+              </button>
+            </form>
+          </div>
+        );
+      })}
+    </div>
   );
 }

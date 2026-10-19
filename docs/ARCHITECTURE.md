@@ -893,6 +893,24 @@ analyst-entered information distinguishable; in the prototype every value is
   "✓ Data synced" there for a moment when a sync changes the test space. A
   forced run that changes nothing says "Already up to date with the workbook"
   with the workbook's last save time.
+- **Request 65** (EPILEPSY; contract 2.6.0; migration 0029): **money in USD, column names
+  and dropdown options**. The revenue figures and market cap
+  (`EPI_USD_FIELDS`) show “(USD)” after their names and are abbreviated
+  (`abbreviate`: 1,000,000,000 → “1 bn”, “30.5 bn”, “540 m”); amounts are
+  read however they are written (“~$30bn (Oct 2025)”, “(1,234)”, “3e+10”),
+  and a column named “… (USD m)” counts its plain numbers in millions.
+  Columns are found by name with case, spacing, punctuation and a currency
+  note ignored (“Market Cap (USD)” is Market Cap). Admin → Column names lists,
+  sheet by sheet, every column the pages read (`EPI_COLUMNS`), where it is
+  used, the workbook's column it is read from and its first value; an admin
+  can pick another workbook column for it (`columnNames`, applied in the
+  browser by `withColumnNames`). Each sheet's dropdowns (Excel data
+  validation lists: typed options, or a range on any sheet, directly or by a
+  defined name) are read with the sheet (`parseXlsxBook(…, { lists: true })`)
+  and listed there; options added in Admin (`addedOptions`) are accepted by
+  the platform too (the page filters offer them; the workbook is not
+  changed), and values the sheet uses outside the options are flagged with
+  a one-click Add.
 - **Request 64b** (CI SQUARED; contract 2.5.0; migration 0028): an earnings
   call names its **Competitor** instead of a Company. On the Input card it is
   picked from the same searchable dropdown as the Secondary Tracker, with that

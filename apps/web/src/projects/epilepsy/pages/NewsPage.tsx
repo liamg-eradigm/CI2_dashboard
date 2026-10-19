@@ -16,7 +16,7 @@ import { EpiTable, UrlLink, cellText, type EpiColumn } from "../components/EpiTa
 import { Filters, distinct } from "../components/Filters";
 import { PageHead } from "../components/PageHead";
 import { FieldList, SidePanel } from "../components/SidePanel";
-import { isoDate, records, showDate, type Rec } from "../model";
+import { acceptedFor, isoDate, records, showDate, type Rec } from "../model";
 
 type Stream = "primary" | "secondary";
 const DATE: Record<Stream, string> = { primary: "Event Date", secondary: "Date of News Article" };
@@ -160,7 +160,7 @@ export function NewsPage({ me }: { me: Me }) {
         <Filters
           search={q}
           onSearch={setQ}
-          choices={filters.map((name) => ({ name, options: distinct(all.map((r) => r.get(name))), value: picked[name] ?? [] }))}
+          choices={filters.map((name) => ({ name, options: distinct([...all.map((r) => r.get(name)), ...acceptedFor(data.data, stream, name)]), value: picked[name] ?? [] }))}
           onChoice={(name, v) => setPicked((p) => ({ ...p, [name]: v }))}
           onClear={() => {
             setQ("");
