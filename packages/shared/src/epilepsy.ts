@@ -74,7 +74,7 @@ export const EPI_QUARTERS = ["Q1", "Q2", "Q3", "Q4"] as const;
 export const EPI_LAUNCH_FIELDS = ["Company/competitor", "Asset Name", "MoA", "RoA", "FDA Approval Date", "Approval Date (calculated)"] as const;
 
 /** RCA table (sheet 4). */
-export const EPI_RCA_TABLE = ["Asset Name", "RoA (+frequency)", "MoA", "Current Phase", "Epilepsy Indication/ Syndrome", "Approval Date (calculated)", "FDA Approval Date", "NCT Number"] as const;
+export const EPI_RCA_TABLE = ["Asset Name", "Study Name", "RoA (+frequency)", "MoA", "Current Phase", "Epilepsy Indication/ Syndrome", "Approval Date (calculated)", "FDA Approval Date", "NCT Number"] as const;
 /** The trial's results: shared by the RCA panel and the Trial Tracker table. */
 const EPI_RESULTS = [
   "Time to Onset of Seizure Response [Response Threshold]",
@@ -118,6 +118,8 @@ const EPI_RESULTS = [
 export const EPI_RCA_PANEL = [
   "Company/competitor",
   "Asset Name",
+  // Request 67.
+  "Study Name",
   "RoA",
   "RoA (+frequency)",
   "MoA",
@@ -171,6 +173,8 @@ export const EPI_RCA_PANEL = [
 export const EPI_TRIAL_TABLE = [
   "Company/competitor",
   "Asset Name",
+  // Request 67.
+  "Study Name",
   "RoA (+frequency)",
   "MoA",
   "Current Phase",
@@ -266,6 +270,47 @@ export const EPI_COLUMNS: Record<EpilepsySheet, { name: string; usedOn: string[]
   ]),
 };
 
+/**
+ * Request 67: the Epilepsy pages' tables, each with its columns in their
+ * default order. Admin → Table columns sets each table's order.
+ */
+export const EPI_TABLES = {
+  newsPrimary: { label: "News · Primary", columns: EPI_PRIMARY_FIELDS },
+  newsSecondary: { label: "News · Secondary", columns: EPI_SECONDARY_FIELDS },
+  rca: { label: "RCA", columns: EPI_RCA_TABLE },
+  trials: { label: "Trial Tracker", columns: EPI_TRIAL_TABLE },
+} as const satisfies Record<string, { label: string; columns: readonly string[] }>;
+export type EpiTableKey = keyof typeof EPI_TABLES;
+export const EPI_TABLE_KEYS = Object.keys(EPI_TABLES) as EpiTableKey[];
+
+/**
+ * A table's columns in the order an admin set (request 67): the saved order
+ * of the columns it still has, then any column not in it (added since) where
+ * it falls by default. Each column once, under its default spelling.
+ */
+export function orderColumns(defaults: readonly string[], saved: readonly string[] | undefined): string[] {
+  const byKey = new Map(defaults.map((c) => [normaliseHeader(c), c]));
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const c of saved ?? []) {
+    const k = normaliseHeader(c);
+    const name = byKey.get(k);
+    if (name && !seen.has(k)) {
+      seen.add(k);
+      out.push(name);
+    }
+  }
+  defaults.forEach((c, i) => {
+    const k = normaliseHeader(c);
+    if (seen.has(k)) return;
+    seen.add(k);
+    // After the column that comes before it by default (else first).
+    const before = defaults.slice(0, i).reverse().find((d) => out.includes(d));
+    out.splice(before ? out.indexOf(before) + 1 : 0, 0, c);
+  });
+  return out;
+}
+
 // ---------------------------------------------------------------------------
 // API
 // ---------------------------------------------------------------------------
@@ -292,6 +337,8 @@ export const EpilepsyDataSchema = z.object({
   dropdowns: z.partialRecord(z.enum(EPILEPSY_SHEETS), z.record(z.string(), z.array(z.string()))),
   /** Request 65: sheet → (the workbook's column → options added in Admin): the platform accepts them too (the workbook is not changed). */
   addedOptions: z.partialRecord(z.enum(EPILEPSY_SHEETS), z.record(z.string(), z.array(z.string()))),
+  /** Request 67: table → its columns in the order set in Admin → Table columns (none: the default order). */
+  columnOrder: z.partialRecord(z.enum(["newsPrimary", "newsSecondary", "rca", "trials"]), z.array(z.string())),
   syncedAt: z.string().nullable(),
 });
 export type EpilepsyData = z.infer<typeof EpilepsyDataSchema>;
@@ -329,6 +376,8 @@ export const EpilepsySettingsRequest = z.object({
   addedOptions: z
     .partialRecord(z.enum(EPILEPSY_SHEETS), z.record(z.string().min(1).max(300), z.array(z.string().trim().min(1, "An option cannot be empty").max(300)).max(500)))
     .optional(),
+  /** Request 67: table → its columns in order (each a column of that table). Sent in full: a table left out takes its default order. */
+  columnOrder: z.partialRecord(z.enum(["newsPrimary", "newsSecondary", "rca", "trials"]), z.array(z.string().min(1).max(300)).max(200)).optional(),
 });
 
 /** Request 65: the options a dropdown column accepts: the workbook's, then those added in Admin (each once). */

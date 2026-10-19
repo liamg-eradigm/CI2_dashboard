@@ -10,9 +10,9 @@ import { EpiTable, cellText, type EpiColumn } from "../components/EpiTable";
 import { Filters, distinct } from "../components/Filters";
 import { PageHead } from "../components/PageHead";
 import { FieldList, SidePanel } from "../components/SidePanel";
-import { acceptedFor, records, type Rec } from "../model";
+import { acceptedFor, records, tableColumns, type Rec } from "../model";
 
-const COLUMNS: EpiColumn[] = EPI_RCA_TABLE.map((name) => ({ name, kind: /date/i.test(name) ? "date" : name === "Asset Name" ? "title" : "plain", width: name === "Epilepsy Indication/ Syndrome" ? 240 : /date/i.test(name) ? 150 : 170 }));
+const columnOf = (name: string): EpiColumn => ({ name, kind: /date/i.test(name) ? "date" : name === "Asset Name" ? "title" : "plain", width: name === "Epilepsy Indication/ Syndrome" ? 240 : /date/i.test(name) ? 150 : 170 });
 const FILTERS = ["Asset Name", "RoA (+frequency)", "MoA", "Current Phase", "Epilepsy Indication/ Syndrome"];
 const isDate = (name: string) => /date|start$|pcd$/i.test(name);
 
@@ -22,6 +22,7 @@ export function RcaPage({ me }: { me: Me }) {
   const [q, setQ] = useState("");
   const [picked, setPicked] = useState<Record<string, string[]>>({});
   const [open, setOpen] = useState<Rec | null>(null);
+  const columns = useMemo(() => tableColumns(data.data, "rca").map(columnOf), [data.data]);
   const rows = all.filter((r) => {
     for (const [name, vals] of Object.entries(picked)) if (vals.length && !vals.includes(r.get(name))) return false;
     const words = q.toLowerCase().split(/\s+/).filter(Boolean);
@@ -34,7 +35,8 @@ export function RcaPage({ me }: { me: Me }) {
   return (
     <>
       <PageHead me={me} title="RCA" intro="Every asset and trial in “4. Platform Trials & Assets”. Open a row for all of its fields." />
-      <div className="content">
+      {/* Request 67: the filters on a strip, the table filling the page below it (as CI SQUARED's Database). */}
+      <div className="epi-strip">
         <Filters
           search={q}
           onSearch={setQ}
@@ -45,7 +47,9 @@ export function RcaPage({ me }: { me: Me }) {
             setPicked({});
           }}
         />
-        <section className="card flush pop-host" aria-label="RCA">
+      </div>
+      <div className="content ptr-content">
+        <section className="card flush ptr-card pop-host" aria-label="RCA">
           <div className="table-top">
             <div className="ptr-head">
               <h2 className="card-title">Assets and trials</h2>
@@ -54,11 +58,11 @@ export function RcaPage({ me }: { me: Me }) {
               </span>
             </div>
           </div>
-          <EpiTable rows={rows} columns={COLUMNS} label="Assets and trials" initialSort={{ name: "Asset Name", dir: "asc" }} onOpen={setOpen} openIndex={open?.i} testId="rca-table" />
+          <EpiTable rows={rows} columns={columns} label="Assets and trials" initialSort={{ name: "Asset Name", dir: "asc" }} onOpen={setOpen} openIndex={open?.i} testId="rca-table" />
         </section>
       </div>
       {open && (
-        <SidePanel title={open.get("Asset Name") || "Asset"} sub={<span>{[open.get("Company/competitor"), open.get("NCT Number")].filter(Boolean).join(" · ")}</span>} onClose={() => setOpen(null)} testId="rca-panel">
+        <SidePanel title={open.get("Asset Name") || "Asset"} sub={<span>{[open.get("Company/competitor"), open.get("Study Name"), open.get("NCT Number")].filter(Boolean).join(" · ")}</span>} onClose={() => setOpen(null)} testId="rca-panel">
           <FieldList
             fields={EPI_RCA_PANEL.map((name) => {
               const v = cellText(open, { name, kind: isDate(name) ? "date" : "plain" });

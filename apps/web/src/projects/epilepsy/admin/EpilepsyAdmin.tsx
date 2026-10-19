@@ -10,6 +10,8 @@ import {
   EPILEPSY_SHEETS,
   EPILEPSY_SHEET_NAME,
   EPI_COLUMNS,
+  EPI_TABLES,
+  EPI_TABLE_KEYS,
   HEX_COLOUR,
   acceptedOptions,
   columnHeader,
@@ -17,6 +19,8 @@ import {
   headerScale,
   isUsdField,
   normaliseHeader,
+  orderColumns,
+  type EpiTableKey,
   type EpilepsyData,
   type EpilepsySheet,
   type EpilepsySyncStatus,
@@ -39,6 +43,9 @@ export function EpilepsyAdmin({ me }: { me: Me }) {
       </ErrorBoundary>
       <ErrorBoundary label="Column names">
         <ColumnsCard />
+      </ErrorBoundary>
+      <ErrorBoundary label="Table columns">
+        <TableOrderCard />
       </ErrorBoundary>
       <ErrorBoundary label="Company colours">
         <ColoursCard />
@@ -466,5 +473,121 @@ function DropdownOptions({ data, sheet }: { data: EpilepsyData; sheet: EpilepsyS
         );
       })}
     </div>
+  );
+}
+
+/**
+ * Request 67: Admin → Table columns. Each Epilepsy table's columns in the
+ * order its page shows them: drag a column (or use its arrows) to move it,
+ * then Save. Reset puts the table back in its default order.
+ */
+function TableOrderCard() {
+  const raw = useEpilepsyRawData();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const [table, setTable] = useState<EpiTableKey>("rca");
+  const [draft, setDraft] = useState<Partial<Record<EpiTableKey, string[]>>>({});
+  const [dragging, setDragging] = useState<number | null>(null);
+  const [over, setOver] = useState<number | null>(null);
+  const d = raw.data;
+  if (!d) return null;
+  const saved = (k: EpiTableKey) => orderColumns(EPI_TABLES[k].columns, d.columnOrder?.[k]);
+  const order = draft[table] ?? saved(table);
+  const isDefault = order.join("|") === [...EPI_TABLES[table].columns].join("|");
+  const dirty = EPI_TABLE_KEYS.some((k) => draft[k] && draft[k]!.join("|") !== saved(k).join("|"));
+  const move = (from: number, to: number) => {
+    if (from === to || to < 0 || to >= order.length) return;
+    const next = [...order];
+    const [c] = next.splice(from, 1);
+    next.splice(to, 0, c!);
+    setDraft((x) => ({ ...x, [table]: next }));
+  };
+  const save = async () => {
+    try {
+      const columnOrder: Partial<Record<EpiTableKey, string[]>> = {};
+      for (const k of EPI_TABLE_KEYS) {
+        const o = draft[k] ?? saved(k);
+        // A table in its default order is not kept (it follows the defaults, new columns included).
+        if (o.join("|") !== [...EPI_TABLES[k].columns].join("|")) columnOrder[k] = o;
+      }
+      await api("/api/epilepsy/settings", { method: "PUT", json: { columnOrder } });
+      await qc.invalidateQueries({ queryKey: ["epilepsy", "data"] });
+      setDraft({});
+      toast("Column order saved");
+    } catch (e) {
+      toast((e as Error).message, false);
+    }
+  };
+  return (
+    <section className="card" aria-labelledby="epi-order-title" data-testid="epi-table-order">
+      <div>
+        <h2 className="card-title" id="epi-order-title">
+          Table columns
+        </h2>
+        <span className="card-sub">The order of the columns in each Epilepsy table. Drag a column to move it (or use its arrows), then save.</span>
+      </div>
+      <div className="seg epi-sheet-seg" role="group" aria-label="Table">
+        {EPI_TABLE_KEYS.map((k) => (
+          <button key={k} aria-pressed={table === k} onClick={() => setTable(k)}>
+            {EPI_TABLES[k].label}
+            {draft[k] && draft[k]!.join("|") !== saved(k).join("|") ? " •" : ""}
+          </button>
+        ))}
+      </div>
+      <ol className="epi-order" aria-label={`Columns of ${EPI_TABLES[table].label}, in order`} data-testid="epi-order-list">
+        {order.map((c, i) => (
+          <li
+            key={c}
+            className={`epi-order-item${dragging === i ? " dragging" : ""}${over === i && dragging !== null && dragging !== i ? " over" : ""}`}
+            draggable
+            onDragStart={(e) => {
+              setDragging(i);
+              e.dataTransfer.effectAllowed = "move";
+              e.dataTransfer.setData("text/plain", c);
+            }}
+            onDragOver={(e) => {
+              if (dragging === null) return;
+              e.preventDefault();
+              setOver(i);
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              if (dragging !== null) move(dragging, i);
+              setDragging(null);
+              setOver(null);
+            }}
+            onDragEnd={() => {
+              setDragging(null);
+              setOver(null);
+            }}
+          >
+            <span className="epi-order-grip" aria-hidden="true">
+              ⋮⋮
+            </span>
+            <span className="epi-order-n">{i + 1}</span>
+            <span className="epi-order-name">{c}</span>
+            <button type="button" className="icon-btn" onClick={() => move(i, i - 1)} disabled={i === 0} aria-label={`Move ${c} up`} title="Move up">
+              ↑
+            </button>
+            <button type="button" className="icon-btn" onClick={() => move(i, i + 1)} disabled={i === order.length - 1} aria-label={`Move ${c} down`} title="Move down">
+              ↓
+            </button>
+          </li>
+        ))}
+      </ol>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <button className="btn" disabled={!dirty} onClick={() => void save()} data-testid="epi-order-save">
+          Save column order
+        </button>
+        {dirty && (
+          <button className="btn secondary" onClick={() => setDraft({})}>
+            Undo changes
+          </button>
+        )}
+        <button className="btn secondary" disabled={isDefault} onClick={() => setDraft((x) => ({ ...x, [table]: [...EPI_TABLES[table].columns] }))}>
+          Reset to the default order
+        </button>
+      </div>
+    </section>
   );
 }

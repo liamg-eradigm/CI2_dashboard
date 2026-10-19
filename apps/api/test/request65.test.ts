@@ -88,3 +88,19 @@ describe("request 65: Epilepsy column names and dropdown options", () => {
     expect(again.dropdowns.assets["Current Phase"]).toHaveLength(4);
   });
 });
+
+describe("request 67: Epilepsy table column order", () => {
+  it("keeps each table's order (admins only), each a column of that table", async () => {
+    const put = (who: string, body: unknown) => call(who, "PUT", "/api/epilepsy/settings", { body, headers: EPI() });
+    expect((await put(w.a.analyst, { columnOrder: { rca: ["Study Name"] } })).status).toBe(403);
+    expect((await put(w.a.admin, { columnOrder: { nope: ["Study Name"] } })).status).toBe(422);
+    const rca = ["study name", "Not a column", "NCT Number", "Asset Name", "RoA (+frequency)", "MoA", "Current Phase", "Epilepsy Indication/ Syndrome", "Approval Date (calculated)", "FDA Approval Date", "NCT Number"];
+    expect((await put(w.a.admin, { columnOrder: { rca, trials: [] } })).status).toBe(200);
+    const d = await json(call(w.a.client, "GET", "/api/epilepsy/data", { headers: EPI() }));
+    expect(d.columnOrder).toEqual({
+      rca: ["Study Name", "NCT Number", "Asset Name", "RoA (+frequency)", "MoA", "Current Phase", "Epilepsy Indication/ Syndrome", "Approval Date (calculated)", "FDA Approval Date"],
+    });
+    await put(w.a.admin, { columnOrder: {} });
+    expect((await json(call(w.a.client, "GET", "/api/epilepsy/data", { headers: EPI() }))).columnOrder).toEqual({});
+  });
+});

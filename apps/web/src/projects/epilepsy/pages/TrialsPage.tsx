@@ -12,11 +12,11 @@ import { useTip } from "../components/Charts";
 import { EpiTable, type EpiColumn } from "../components/EpiTable";
 import { Filters, distinct } from "../components/Filters";
 import { PageHead } from "../components/PageHead";
-import { acceptedFor, colourMap, records, type Rec } from "../model";
+import { acceptedFor, colourMap, records, tableColumns, type Rec } from "../model";
 import { trialSeries } from "../trialSeries";
 
 const LONG = new Set(["Key Inclusion Criteria", "Dosing & Regimen", "Primary Endpoints", "Efficacy Notes (source, method)", "other Demographics"].map(normaliseHeader));
-const COLUMNS: EpiColumn[] = EPI_TRIAL_TABLE.map((name) => ({ name, kind: name === "Asset Name" ? "title" : LONG.has(normaliseHeader(name)) ? "long" : "plain", width: LONG.has(normaliseHeader(name)) ? 300 : name.length > 30 ? 220 : 160 }));
+const columnOf = (name: string): EpiColumn => ({ name, kind: name === "Asset Name" ? "title" : LONG.has(normaliseHeader(name)) ? "long" : "plain", width: LONG.has(normaliseHeader(name)) ? 300 : name.length > 30 ? 220 : 160 });
 const FILTERS = ["Company/competitor", "Asset Name", "Current Phase", "Current Trial Status", "Epilepsy Indication/ Syndrome"];
 const Y_FIELD = "Change in Seizure Frequency from Baseline vs Placebo";
 
@@ -27,6 +27,7 @@ export function TrialsPage({ me }: { me: Me }) {
   const [q, setQ] = useState("");
   const [picked, setPicked] = useState<Record<string, string[]>>({});
   const [open, setOpen] = useState<Rec | null>(null);
+  const columns = useMemo(() => tableColumns(data.data, "trials").map(columnOf), [data.data]);
   const rows = all.filter((r) => {
     for (const [name, vals] of Object.entries(picked)) if (vals.length && !vals.includes(r.get(name))) return false;
     const words = q.toLowerCase().split(/\s+/).filter(Boolean);
@@ -39,7 +40,8 @@ export function TrialsPage({ me }: { me: Me }) {
   return (
     <>
       <PageHead me={me} title="Trial Tracker" intro="Every trial in “4. Platform Trials & Assets”. Open a row for its data viewer." />
-      <div className="content">
+      {/* Request 67: the filters on a strip, the table filling the page below it (as CI SQUARED's Database). */}
+      <div className="epi-strip">
         <Filters
           search={q}
           onSearch={setQ}
@@ -50,7 +52,9 @@ export function TrialsPage({ me }: { me: Me }) {
             setPicked({});
           }}
         />
-        <section className="card flush pop-host" aria-label="Trials">
+      </div>
+      <div className="content ptr-content">
+        <section className="card flush ptr-card pop-host" aria-label="Trials">
           <div className="table-top">
             <div className="ptr-head">
               <h2 className="card-title">Trials</h2>
@@ -59,7 +63,7 @@ export function TrialsPage({ me }: { me: Me }) {
               </span>
             </div>
           </div>
-          <EpiTable rows={rows} columns={COLUMNS} label="Trials" initialSort={{ name: "Company/competitor", dir: "asc" }} onOpen={setOpen} openIndex={open?.i} testId="trial-table" />
+          <EpiTable rows={rows} columns={columns} label="Trials" initialSort={{ name: "Company/competitor", dir: "asc" }} onOpen={setOpen} openIndex={open?.i} testId="trial-table" />
         </section>
       </div>
       {open && <DataViewer r={open} colour={colour(open.get("Company/competitor"))} onClose={() => setOpen(null)} />}
@@ -97,7 +101,7 @@ function DataViewer({ r, colour, onClose }: { r: Rec; colour: string; onClose: (
   const y = (v: number) => T + (H - T - B) * (1 - (v - y0) / (y1 - y0));
   const yTicks = Array.from({ length: Math.round((y1 - y0) / step) + 1 }, (_, i) => y0 + step * i);
   const xTicks = Array.from({ length: 6 }, (_, i) => (maxW * i) / 5);
-  const title = [r.get("Asset Name"), r.get("NCT Number")].filter(Boolean).join(" · ");
+  const title = [r.get("Asset Name"), r.get("Study Name"), r.get("NCT Number")].filter(Boolean).join(" · ");
   return (
     <div ref={ref} className="epi-viewer" role="dialog" aria-modal="true" aria-label={`Data viewer: ${title}`} tabIndex={-1} data-testid="data-viewer">
       <div className="epi-viewer-head">

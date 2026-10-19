@@ -9,14 +9,14 @@
  */
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { EPI_PRIMARY_FIELDS, EPI_SECONDARY_FIELDS, normaliseHeader, type Me } from "@eradigm/shared";
+import { normaliseHeader, type EpilepsyData, type Me } from "@eradigm/shared";
 import { StreamSwitch } from "../../../components/StreamSwitch";
 import { useEpilepsyData } from "../api/hooks";
 import { EpiTable, UrlLink, cellText, type EpiColumn } from "../components/EpiTable";
 import { Filters, distinct } from "../components/Filters";
 import { PageHead } from "../components/PageHead";
 import { FieldList, SidePanel } from "../components/SidePanel";
-import { acceptedFor, isoDate, records, showDate, type Rec } from "../model";
+import { acceptedFor, isoDate, records, showDate, tableColumns, type Rec } from "../model";
 
 type Stream = "primary" | "secondary";
 const DATE: Record<Stream, string> = { primary: "Event Date", secondary: "Date of News Article" };
@@ -25,8 +25,9 @@ const FILTERS: Record<Stream, string[]> = {
   secondary: ["Article Topic"],
 };
 const LONG = new Set(["Key Details", "CI Perspective", "KIQ"].map(normaliseHeader));
-const columnsOf = (stream: Stream): EpiColumn[] =>
-  (stream === "primary" ? EPI_PRIMARY_FIELDS : EPI_SECONDARY_FIELDS).map((name) => ({
+/** Request 67: in the order set in Admin → Table columns. */
+const columnsOf = (stream: Stream, data: EpilepsyData | undefined): EpiColumn[] =>
+  tableColumns(data, stream === "primary" ? "newsPrimary" : "newsSecondary").map((name) => ({
     name,
     kind: /date/i.test(name) ? "date" : name === "URL" ? "url" : LONG.has(normaliseHeader(name)) ? "long" : name === "Article Title" ? "title" : "plain",
     width: LONG.has(normaliseHeader(name)) ? 340 : name === "Article Title" ? 260 : /date/i.test(name) ? 120 : 150,
@@ -72,7 +73,7 @@ export function NewsPage({ me }: { me: Me }) {
   const [to, setTo] = useState("");
   const [open, setOpen] = useState<Rec | null>(null);
   const [arch, setArch] = useState<{ r: Rec; mode: "source" | "kiq" } | null>(null);
-  const columns = columnsOf(stream);
+  const columns = useMemo(() => columnsOf(stream, data.data), [stream, data.data]);
   const filters = FILTERS[stream];
 
   const setStream = (s: Stream) => {
@@ -152,7 +153,8 @@ export function NewsPage({ me }: { me: Me }) {
   return (
     <>
       <PageHead me={me} title="News" intro="Primary research and secondary news on epilepsy, from the project's workbook. Open a row for all its fields." />
-      <div className="content">
+      {/* Request 67: the switch and filters on a strip, the table filling the page below it (as CI SQUARED's Database). */}
+      <div className="epi-strip">
         <div className="stream-bar">
           <StreamSwitch noun="News" value={stream} onChange={(s) => setStream(s as Stream)} label="News to show" />
           <span className="stream-note">{stream === "primary" ? "From “2. Platform Primary”" : "From “1. Platform Secondary”"}</span>
@@ -178,8 +180,10 @@ export function NewsPage({ me }: { me: Me }) {
             <input className="control" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
           </label>
         </Filters>
+      </div>
+      <div className="content ptr-content">
         <div className={arch ? "arch-split" : undefined} data-testid={arch ? "arch-split" : undefined}>
-          <section className="card flush pop-host" aria-label={`${stream === "primary" ? "Primary" : "Secondary"} news`}>
+          <section className="card flush ptr-card pop-host" aria-label={`${stream === "primary" ? "Primary" : "Secondary"} news`}>
             <div className="table-top">
               <div className="ptr-head">
                 <h2 className="card-title">{stream === "primary" ? "Primary News" : "Secondary News"}</h2>

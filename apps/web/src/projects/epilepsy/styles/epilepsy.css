@@ -134,3 +134,20 @@ table.epi-table tbody tr.open td { background: var(--tint); }
 .epi-chip-x:hover { color: var(--error); }
 .epi-outside { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12.5px; color: var(--warning); }
 .epi-add-option { display: flex; gap: 8px; align-items: center; max-width: 420px; }
+
+/* Request 67: as CI SQUARED's Database: the filters on a full-width strip under the page's band, then the table built into the page (no margins), filling the window down to its bottom; only the table scrolls. */
+.epi-strip { display: flex; flex-direction: column; gap: 10px; padding: 14px 32px; background: #fff; border-bottom: 1px solid var(--rule); }
+.epi-strip .stream-bar { padding-top: 0; }
+.epi-strip .epi-filters { border: 0; border-radius: 0; padding: 0; background: none; }
+.ptr-content .epi-wrap { border-top: 0; }
+@media (max-width: 900px) {
+  .epi-strip { padding-left: 16px; padding-right: 16px; }
+}
+.epi-order { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 6px 14px; max-height: 460px; overflow: auto; }
+.epi-order-item { display: grid; grid-template-columns: 18px 26px minmax(0, 1fr) auto auto; align-items: center; gap: 6px; padding: 4px 6px 4px 8px; border: 1px solid var(--rule); border-radius: 6px; background: #fff; font-size: 13px; cursor: grab; }
+.epi-order-item.dragging { opacity: 0.45; }
+.epi-order-item.over { border-color: var(--focus); box-shadow: 0 0 0 2px var(--tint); }
+.epi-order-grip { color: var(--muted); letter-spacing: -2px; }
+.epi-order-n { font: 700 11.5px var(--mono, monospace); color: var(--muted); }
+.epi-order-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.epi-order-item .icon-btn { width: 26px; height: 26px; }

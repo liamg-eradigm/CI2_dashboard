@@ -893,6 +893,17 @@ analyst-entered information distinguishable; in the prototype every value is
   "✓ Data synced" there for a moment when a sync changes the test space. A
   forced run that changes nothing says "Already up to date with the workbook"
   with the workbook's last save time.
+- **Request 67** (EPILEPSY; contract 2.7.0; migration 0030): **Study Name**
+  (sheet 4) is a column of the RCA table and panel and of the Trial Tracker
+  table (and in the RCA panel's and data viewer's titles). **Admin → Table
+  columns** sets the order of each table's columns (News Primary and
+  Secondary, RCA, Trial Tracker): drag a column or use its arrows, then save
+  (`columnOrder`; `orderColumns` keeps a saved order and puts columns added
+  since in their default place). The tables are **built into the page** as
+  CI SQUARED's Database: the switch and filters on a full-width strip under
+  the band (`.epi-strip`), then the table's card edge to edge
+  (`.content.ptr-content`, `.ptr-card`) down to the bottom of the window, so
+  only the table scrolls.
 - **Request 66** (EPILEPSY, no migration): Competitor Profiles no longer
   reads the profile sheet's **Asset Name** column. A company's assets come
   from **Epilepsy Assets** alone (several in a cell, or one per row of the
