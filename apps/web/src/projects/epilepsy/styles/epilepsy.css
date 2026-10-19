@@ -151,3 +151,26 @@ table.epi-table tbody tr.open td { background: var(--tint); }
 .epi-order-n { font: 700 11.5px var(--mono, monospace); color: var(--muted); }
 .epi-order-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
 .epi-order-item .icon-btn { width: 26px; height: 26px; }
+
+/* Request 68: NSO Comparator. Each company picked opens a card; several sit side by side (each chart on its own axis). */
+.nso-hint { padding: 40px 0; }
+.nso-cards { display: flex; gap: 18px; align-items: flex-start; overflow-x: auto; padding-bottom: 6px; }
+.nso-card { flex: 1 0 400px; max-width: 760px; display: flex; flex-direction: column; gap: 12px; border-top: 5px solid var(--c); box-shadow: 0 10px 30px rgba(10, 37, 64, 0.12); animation: nso-pop 0.18s ease-out; }
+@keyframes nso-pop { from { opacity: 0; transform: translateY(6px) scale(0.985); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .nso-card { animation: none; } }
+.nso-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.nso-card-head .eyebrow { color: var(--muted); }
+.nso-assets { flex-wrap: wrap; }
+.nso-asset-note { font-size: 13px; font-weight: 700; color: var(--ink-2); }
+.nso-rows { display: flex; flex-direction: column; gap: 8px; }
+.nso-row { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 12px; align-items: start; padding: 12px 14px; border-radius: 10px; background: color-mix(in srgb, var(--row) 9%, #fff); border: 1px solid color-mix(in srgb, var(--row) 22%, #fff); }
+.nso-icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: var(--row); color: #fff; }
+.nso-row-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.nso-label { font: 800 10.5px var(--sans); letter-spacing: 0.1em; text-transform: uppercase; color: color-mix(in srgb, var(--row) 70%, #0b1f33); }
+.nso-text { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--ink); white-space: pre-wrap; }
+.nso-text.none { color: var(--muted); font-style: italic; }
+.nso-row .epi-chart { background: #fff; border-radius: 8px; margin-top: 6px; padding: 6px 4px 0; }
+.epi-axis-title { font: 700 11px var(--sans); fill: var(--ink-2); }
+@media (max-width: 900px) {
+  .nso-card { flex-basis: 320px; }
+}

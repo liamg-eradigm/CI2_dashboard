@@ -178,3 +178,98 @@ export function GroupedBars({ categories, series, format, tipNote, label }: { ca
     </div>
   );
 }
+
+/** Wrap a label into at most two lines of about `chars` characters (the rest cut with “…”). */
+function wrapLabel(text: string, chars: number): string[] {
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let cur = "";
+  for (const w of words) {
+    if (!cur) cur = w;
+    else if ((cur + " " + w).length <= chars) cur += ` ${w}`;
+    else {
+      lines.push(cur);
+      cur = w;
+    }
+  }
+  if (cur) lines.push(cur);
+  if (lines.length <= 2) return lines.map((l) => (l.length > chars + 2 ? `${l.slice(0, chars)}…` : l));
+  const second = lines.slice(1).join(" ");
+  return [lines[0]!, `${second.slice(0, chars - 1)}…`];
+}
+
+/**
+ * Request 68: one company's metric as bars (NSO Comparator): its own y-axis
+ * (named by the metric and its unit), a bar per named value, each labelled
+ * with its value as written; a tooltip per bar.
+ */
+export function MetricBars({ bars, metric, colour, label, format }: { bars: { name: string; raw: string; value: number }[]; metric: string; colour: string; label: string; format: (n: number) => string }) {
+  const tip = useTip();
+  const W = 460;
+  const H = 280;
+  const L = 74;
+  const B = 44;
+  const T = 22;
+  const vals = bars.map((b) => b.value);
+  const min = Math.min(0, ...vals) < 0 ? -niceMax(-Math.min(0, ...vals)) : 0;
+  // All below zero: the axis stops at zero.
+  const max = Math.max(...vals) > 0 || min === 0 ? niceMax(Math.max(0, ...vals)) : 0;
+  const y = (v: number) => T + (H - T - B) * (1 - (v - min) / (max - min || 1));
+  const band = (W - L - 10) / Math.max(1, bars.length);
+  const bw = Math.min(56, band * 0.62);
+  const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => min + (max - min) * f);
+  const chars = Math.max(6, Math.floor(band / 6.4));
+  return (
+    <div className="epi-chart epi-metric" onPointerLeave={tip.hide}>
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${label}: ${bars.map((b) => `${b.name} ${b.raw}`).join(", ")}`}>
+        <text transform={`translate(14 ${T + (H - T - B) / 2}) rotate(-90)`} textAnchor="middle" className="epi-axis-title">
+          {metric}
+        </text>
+        {ticks.map((t) => (
+          <g key={t}>
+            <line x1={L} x2={W - 6} y1={y(t)} y2={y(t)} className="epi-grid" />
+            <text x={L - 8} y={y(t) + 4} textAnchor="end" className="epi-axis">
+              {format(t)}
+            </text>
+          </g>
+        ))}
+        {bars.map((b, i) => {
+          const cx = L + band * i + band / 2;
+          const x = cx - bw / 2;
+          const top = Math.min(y(b.value), y(0));
+          const h = Math.max(1, Math.abs(y(b.value) - y(0)));
+          const body = (
+            <>
+              <b>{b.name}</b>
+              <br />
+              {b.raw}
+              {metric ? ` · ${metric}` : ""}
+            </>
+          );
+          return (
+            <g key={`${b.name}-${i}`}>
+              <path
+                d={b.value >= 0 ? `M${x},${top + h} V${top + 4} q0,-4 4,-4 H${x + bw - 4} q4,0 4,4 V${top + h} Z` : `M${x},${top} V${top + h - 4} q0,4 4,4 H${x + bw - 4} q4,0 4,-4 V${top} Z`}
+                fill={colour}
+                tabIndex={0}
+                onPointerMove={(e) => tip.show(e, body)}
+                onFocus={(e) => tip.show(e, body)}
+                onBlur={tip.hide}
+              />
+              <text x={cx} y={b.value >= 0 ? top - 5 : top + h + 13} textAnchor="middle" className="epi-val">
+                {b.raw}
+              </text>
+              {wrapLabel(b.name, chars).map((line, li) => (
+                <text key={li} x={cx} y={H - B + 16 + li * 13} textAnchor="middle" className="epi-axis">
+                  {line}
+                </text>
+              ))}
+            </g>
+          );
+        })}
+        <line x1={L} x2={W - 6} y1={y(0)} y2={y(0)} className="epi-base" />
+      </svg>
+      {tip.view}
+    </div>
+  );
+}

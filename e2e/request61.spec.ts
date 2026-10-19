@@ -64,7 +64,7 @@ test.describe("request 61: projects", () => {
     await expect(page).toHaveURL(/\/p\/epilepsy\/news$/);
     await expect(page.getByTestId("project-name")).toHaveText("Epilepsy");
     const nav = page.getByRole("navigation", { name: "COMPETITIVE INTELLIGENCE" });
-    await expect(nav.getByRole("link")).toHaveText(["News", "Competitor Profiles", "Asset Launches", "RCA", "Trial Tracker", "Admin"]);
+    await expect(nav.getByRole("link")).toHaveText(["News", "Competitor Profiles", "NSO Comparator", "Asset Launches", "RCA", "Trial Tracker", "Admin"]);
     // Escape closes the menu.
     await page.getByTestId("brand").click();
     await page.keyboard.press("Escape");
