@@ -203,12 +203,27 @@ function wrapLabel(text: string, chars: number): string[] {
  * (named by the metric and its unit), a bar per named value, each labelled
  * with its value as written; a tooltip per bar.
  */
-export function MetricBars({ bars, metric, colour, label, format }: { bars: { name: string; raw: string; value: number }[]; metric: string; colour: string; label: string; format: (n: number) => string }) {
+export function MetricBars({
+  bars,
+  metric,
+  xAxis,
+  colour,
+  label,
+  format,
+}: {
+  bars: { name: string; raw: string; value: number }[];
+  metric: string;
+  /** Request 69: the x-axis title, under the bars' names. */
+  xAxis?: string;
+  colour: string;
+  label: string;
+  format: (n: number) => string;
+}) {
   const tip = useTip();
   const W = 460;
-  const H = 280;
   const L = 74;
-  const B = 44;
+  const B = xAxis ? 66 : 44;
+  const H = 236 + B;
   const T = 22;
   const vals = bars.map((b) => b.value);
   const min = Math.min(0, ...vals) < 0 ? -niceMax(-Math.min(0, ...vals)) : 0;
@@ -221,7 +236,7 @@ export function MetricBars({ bars, metric, colour, label, format }: { bars: { na
   const chars = Math.max(6, Math.floor(band / 6.4));
   return (
     <div className="epi-chart epi-metric" onPointerLeave={tip.hide}>
-      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${label}: ${bars.map((b) => `${b.name} ${b.raw}`).join(", ")}`}>
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${label}: ${xAxis ? `${xAxis}: ` : ""}${bars.map((b) => `${b.name} ${b.raw}`).join(", ")}`}>
         <text transform={`translate(14 ${T + (H - T - B) / 2}) rotate(-90)`} textAnchor="middle" className="epi-axis-title">
           {metric}
         </text>
@@ -267,6 +282,11 @@ export function MetricBars({ bars, metric, colour, label, format }: { bars: { na
             </g>
           );
         })}
+        {xAxis && (
+          <text x={L + (W - 10 - L) / 2} y={H - 8} textAnchor="middle" className="epi-axis-title" data-testid="nso-x-axis">
+            {xAxis}
+          </text>
+        )}
         <line x1={L} x2={W - 6} y1={y(0)} y2={y(0)} className="epi-base" />
       </svg>
       {tip.view}

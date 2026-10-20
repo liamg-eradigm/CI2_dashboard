@@ -16,7 +16,7 @@ import { DEFAULT_COMPETITOR_TIERS } from "./competitors.js";
 import { KiqTopicsSchema } from "./kiq.js";
 import { AccessSchema, AddPersonRequest, ProjectSchema, RenameProjectRequest, SetAccessRequest } from "./projects.js";
 import { EarningsCallSchema } from "./earningsCalls.js";
-import { EpilepsyDataSchema, EpilepsySettingsRequest, EpilepsySyncRequest, EpilepsySyncStatusSchema } from "./epilepsy.js";
+import { EpilepsyDataSchema, EpilepsyFormatRequest, EpilepsySettingsRequest, EpilepsySyncRequest, EpilepsySyncStatusSchema } from "./epilepsy.js";
 import { DEFAULT_MENU, MAX_MENU_LABEL, MENU_GROUPS, MENU_ITEMS } from "./menu.js";
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD");
@@ -1085,6 +1085,7 @@ export const ENDPOINTS: EndpointDef[] = [
   { method: "get", path: "/api/epilepsy/data", summary: "Request 61 (Epilepsy): the workbook's four sheets, the companies' colours and when it was last read", roles: ALL_ROLES, response: EpilepsyDataSchema },
   { method: "get", path: "/api/epilepsy/status", summary: "Request 61 (Epilepsy): the workbook's sync status", roles: ALL_ROLES, response: EpilepsySyncStatusSchema },
   { method: "put", path: "/api/epilepsy/settings", summary: "Request 61 (Epilepsy): the workbook's link and file name, and the companies' colours", roles: ADMIN, request: EpilepsySettingsRequest, response: EpilepsySyncStatusSchema },
+  { method: "put", path: "/api/epilepsy/formats", summary: "Request 69 (Epilepsy): format (not reword) an NSO Comparator text", roles: STAFF, request: EpilepsyFormatRequest, response: z.object({ key: z.string(), markup: z.string().nullable() }) },
   { method: "post", path: "/api/epilepsy/sync", summary: "Request 61 (Epilepsy): Sync now (read the workbook when it changed; force: anyway)", roles: STAFF, request: EpilepsySyncRequest, response: EpilepsySyncStatusSchema },
   { method: "patch", path: "/api/projects/{id}", summary: "Request 61: rename a project (its admins)", roles: ADMIN, request: RenameProjectRequest, response: ProjectSchema.omit({ path: true }) },
   { method: "post", path: "/api/users", summary: "Create a user and a one-time Microsoft sign-in invite link (analysts: analyst/client only)", roles: STAFF, request: CreateUserRequest, response: UserWithInviteSchema },

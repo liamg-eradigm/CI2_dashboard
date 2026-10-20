@@ -14,6 +14,10 @@ import {
   EPI_TABLES,
   EPI_TABLE_KEYS,
   acceptedOptions,
+  cellOf,
+  nsoFormatKey,
+  sameWords,
+  splitCellList,
   orderColumns,
   type EpiTableKey,
   type SheetLists,
@@ -35,7 +39,7 @@ import {
 import type { Principal } from "../../../auth/context.js";
 import type { Env } from "../../../env.js";
 import { bumpDataVersion } from "../../../lib/cache.js";
-import { badRequest, forbidden } from "../../../lib/errors.js";
+import { ApiError, badRequest, forbidden, notFound } from "../../../lib/errors.js";
 import { nowIso } from "../../../lib/ids.js";
 import { log } from "../../../lib/log.js";
 import { audit } from "../../../services/audit.js";
@@ -306,11 +310,12 @@ async function store(env: Env, tenantId: string, sheets: Record<EpilepsySheet, E
 
 /** Everything the pages show: the four sheets, the companies' colours and when the workbook was last read. */
 export async function epilepsyData(env: Env, tenantId: string): Promise<EpilepsyData> {
-  const [res, r] = await Promise.all([
+  const [res, r, fmt] = await Promise.all([
     env.DB.prepare("SELECT sheet, chunk, name, columns_json, rows_json FROM epilepsy_rows WHERE tenant_id = ?1 ORDER BY sheet, chunk")
       .bind(tenantId)
       .all<{ sheet: EpilepsySheet; chunk: number; name: string; columns_json: string; rows_json: string }>(),
     rowOf(env, tenantId),
+    env.DB.prepare("SELECT item_key, markup FROM epilepsy_formats WHERE tenant_id = ?1").bind(tenantId).all<{ item_key: string; markup: string }>(),
   ]);
   const sheets: EpilepsyData["sheets"] = { secondary: null, primary: null, profiles: null, assets: null };
   for (const c of res.results ?? []) {
@@ -326,6 +331,7 @@ export async function epilepsyData(env: Env, tenantId: string): Promise<Epilepsy
     dropdowns: parse(r?.lists_json ?? null, {}),
     addedOptions: parse(r?.added_options_json ?? null, {}),
     columnOrder: parse(r?.column_order_json ?? null, {}),
+    formats: Object.fromEntries((fmt.results ?? []).map((f) => [f.item_key, f.markup])),
     syncedAt: r?.last_synced_at ?? null,
   };
 }
@@ -413,4 +419,40 @@ export async function runEpilepsyCron(env: Env): Promise<void> {
     if (w.last_checked_at && Date.now() - Date.parse(w.last_checked_at) < RECHECK_MS) continue;
     await syncEpilepsy(env, w.tenant_id, null).catch((err: unknown) => log("error", "epilepsy_cron_failed", { tenant: w.tenant_id, message: (err as Error).message }));
   }
+}
+
+// ---------------------------------------------------------------------------
+// Request 69: NSO Comparator formatting
+// ---------------------------------------------------------------------------
+
+/**
+ * Staff format one NSO field of a company's row (bold, size, bullets): the
+ * words must stay the workbook's. Empty markup removes the formatting.
+ */
+export async function saveNsoFormat(env: Env, p: Principal, b: { company: string; assets: string[]; field: string; markup: string }): Promise<{ key: string; markup: string | null }> {
+  const data = await epilepsyData(env, p.tenantId);
+  const sheet = data.sheets.profiles;
+  const company = normaliseHeader(b.company);
+  const assets = b.assets.join(", ");
+  // The workbook's text of that field on the company's row with those assets.
+  const row = sheet?.rows.find((r) => normaliseHeader(cellOf(sheet, r, "Company/competitor")) === company && splitCellList(cellOf(sheet, r, "Epilepsy Assets")).join(", ") === assets && cellOf(sheet, r, b.field));
+  if (!sheet || !row) throw notFound("That text in the workbook");
+  const text = cellOf(sheet, row, b.field);
+  const key = nsoFormatKey(b.company, b.assets, b.field);
+  const now = nowIso();
+  if (!b.markup.trim() || b.markup === text) {
+    await env.DB.prepare("DELETE FROM epilepsy_formats WHERE tenant_id = ?1 AND item_key = ?2").bind(p.tenantId, key).run();
+  } else {
+    if (!sameWords(b.markup, text)) {
+      throw new ApiError("VALIDATION", "Only the formatting can change: the words come from the workbook", [{ key: "markup", label: b.field, code: "invalid", message: "The words must stay as the workbook has them" }]);
+    }
+    await env.DB.prepare(
+      "INSERT INTO epilepsy_formats (tenant_id, item_key, markup, updated_at, updated_by) VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT(tenant_id, item_key) DO UPDATE SET markup = excluded.markup, updated_at = excluded.updated_at, updated_by = excluded.updated_by",
+    )
+      .bind(p.tenantId, key, b.markup, now, p.userId)
+      .run();
+  }
+  await bumpDataVersion(env, p.tenantId);
+  await audit(env, { tenantId: p.tenantId, actorId: p.userId, actorEmail: p.email, action: "settings.changed", targetType: "settings", details: { sections: ["epilepsy.nsoFormat"], company: b.company, field: b.field } });
+  return { key, markup: b.markup.trim() && b.markup !== text ? b.markup : null };
 }
