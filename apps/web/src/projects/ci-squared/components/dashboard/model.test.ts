@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MegatrendEntry } from "@eradigm/shared";
-import { activityChange, activityOf, activitySeries, addMonths, brightness, bucketsOf, defaultPick, focusSplit, macroStyles, quarters, rangeDates, topWithOthers } from "./model";
+import { activityChange, activityOf, activitySeries, addMonths, bucketsOf, defaultPick, dotSize, focusSplit, macroStyles, quarters, rangeDates, smoothSegments, topWithOthers } from "./model";
 
 const e = (date: string, impact: string | null, growth: string | null, extra: Partial<MegatrendEntry> = {}): MegatrendEntry => ({
   id: `${date}-${impact}-${growth}`,
@@ -24,19 +24,24 @@ describe("request 70: Activity = signals × impact × growth", () => {
     expect(activityOf(e("2026-10-01", null, null))).toBe(1);
   });
 
-  it("sums it by week over three months, by month over longer spans", () => {
+  it("request 71: each point is a month's Activity (the 30 days up to it), a point a week over three months", async () => {
     const { from, to } = rangeDates("3m", [], "2026-10-23");
     expect([from, to]).toEqual(["2026-07-23", "2026-10-23"]);
-    const weeks = bucketsOf(from, to);
-    expect(weeks[0]!.start).toBe("2026-07-20");
-    expect(weeks.every((b, i) => i === 0 || b.start === weeks[i - 1]!.end)).toBe(true);
-    expect(weeks[weeks.length - 1]!.end > to).toBe(true);
-    const months = bucketsOf("2025-10-23", "2026-10-23");
-    expect(months[0]).toMatchObject({ start: "2025-10-01", label: "Oct 2025" });
-    expect(months).toHaveLength(13);
+    const pts = bucketsOf(from, to);
+    expect(pts[pts.length - 1]).toMatchObject({ at: "2026-10-23", start: "2026-09-24", end: "2026-10-24", label: "Month to 23 Oct 2026" });
+    expect(pts[0]!.at <= from).toBe(true);
+    expect(pts.every((p, i) => i === 0 || p.at > pts[i - 1]!.at)).toBe(true);
+    expect(pts.length).toBeGreaterThanOrEqual(13);
+    // A year: a point a fortnight; longer: a month.
+    expect(bucketsOf("2025-10-23", "2026-10-23").length).toBeLessThanOrEqual(28);
     expect(addMonths("2026-03-31", -1)).toBe("2026-02-28");
-    const s = activitySeries([e("2026-10-20", "High", "Stable"), e("2026-10-21", "Low", "Strong Increase"), e("2026-01-01", "High", "Stable")], weeks, (x) => [x.macrotrend]);
-    expect(s.get("AI")!.reduce((a, b) => a + b, 0)).toBe(6);
+    // A signal counts in every point whose month holds it.
+    const s = activitySeries([e("2026-10-20", "High", "Stable"), e("2026-10-21", "Low", "Strong Increase"), e("2026-01-01", "High", "Stable")], pts, (x) => [x.macrotrend]);
+    const row = s.get("AI")!;
+    expect(row[row.length - 1]).toBe(6);
+    expect(row.filter((v) => v === 6).length).toBe(1);
+    // The point before (16 Oct) holds neither: both came later.
+    expect(row[row.length - 2]).toBe(0);
   });
 
   it("keeps the top competitors and sums the rest as Others", () => {
@@ -79,7 +84,20 @@ describe("request 70: Activity = signals × impact × growth", () => {
     expect(m.get("Manufacturing")).toEqual({ colour: m.get("a")!.colour, hatch: true });
     expect(m.get("a")!.hatch).toBe(false);
     expect(m.get("Others")!.colour).toBe("#8b9aa6");
-    expect(brightness(10, 10)).toBe(1);
-    expect(brightness(1, 100)).toBeLessThan(brightness(50, 100));
+  });
+
+  it("request 71: a matrix dot grows a little with Growth Intensity; the chart's line is smooth and never overshoots", () => {
+    expect([dotSize("Stable"), dotSize("Slight Increase"), dotSize("Strong Increase"), dotSize(null)]).toEqual([5, 6.5, 8, 5]);
+    const d = smoothSegments([
+      [0, 10],
+      [10, 0],
+      [20, 0],
+      [30, 5],
+    ]);
+    expect(d.match(/C/g)).toHaveLength(3);
+    // Every control point's y stays within its segment's ends (no bump below 0 on the flat stretch).
+    const ys = [...d.matchAll(/C[\d.-]+,([\d.-]+) [\d.-]+,([\d.-]+)/g)].flatMap((m) => [Number(m[1]), Number(m[2])]);
+    expect(Math.min(...ys)).toBeGreaterThanOrEqual(0);
+    expect(Math.max(...ys)).toBeLessThanOrEqual(10);
   });
 });

@@ -95,10 +95,11 @@ test.describe("request 70: the Dashboard", () => {
     await expect(chart.locator("path.dd-layer").first()).toBeVisible();
     await expect(chart.locator(".dd-axis-title")).toHaveText("Activity");
     await expectAccessible(page, "Dashboard");
-    // Pointing at the chart shows the week's Activity.
+    // Request 71: each point is a month's Activity (the 30 days up to it), the line smooth (curves, not corners).
     const box = (await chart.locator(".dd-area-plot").boundingBox())!;
     await page.mouse.move(box.x + box.width * 0.9, box.y + box.height - 30);
-    await expect(page.locator(".dd-tip")).toContainText("Week of");
+    await expect(page.locator(".dd-tip")).toContainText(/^Month to \d{1,2} \w{3} \d{4}/);
+    expect(await chart.locator("path.dd-layer").first().getAttribute("d")).toContain("C");
     await expect(page.locator(".dd-tip")).toContainText("Total Activity");
     const legend = chart.getByRole("list", { name: /legend/ });
     const first = legend.getByRole("button").first();
@@ -112,9 +113,9 @@ test.describe("request 70: the Dashboard", () => {
     await expectAccessible(page, "Dashboard: a Macrotrend's popup");
     await page.keyboard.press("Escape");
     await expect(pop).toHaveCount(0);
-    // A longer time frame sums by month.
-    await page.getByRole("group", { name: "Time frame" }).getByRole("button", { name: "1 year" }).click();
-    await expect(page.locator("#dd-activity-title + .dd-sub")).toContainText("by month");
+    // The explanation sits behind the "i".
+    await chart.locator("xpath=ancestor::section[1]").getByRole("button", { name: "About this chart" }).focus();
+    await expect(page.locator(".dd-tip")).toContainText("Activity of the month up to it");
   });
 
   test("the scatter matrix: a plot per competitor and Macrotrend, signals counted by Impact; a plot opens larger with zoom, drag and titles", async ({ page }) => {
@@ -126,6 +127,12 @@ test.describe("request 70: the Dashboard", () => {
     expect(await rows.count()).toBeLessThanOrEqual(9);
     expect(await matrix.getByTestId("dd-mx-col").count()).toBeLessThanOrEqual(9);
     await expect(rows.first().locator(".dd-mx-count")).toHaveText(/^\d+ signals? \(\d+H, \d+M, \d+L\)$/);
+    // Request 71: every dot in its full Impact colour; larger the stronger its growth (5, 6.5 or 8 px).
+    const dots = await matrix.getByTestId("dd-mx-dot").evaluateAll((els) => els.map((e) => ({ bg: getComputedStyle(e).backgroundColor, w: e.getBoundingClientRect().width })));
+    expect(new Set(dots.map((d) => d.bg)).size).toBeLessThanOrEqual(4);
+    for (const d of dots) expect(["rgb(63, 179, 127)", "rgb(232, 163, 61)", "rgb(229, 83, 75)", "rgb(139, 154, 166)"]).toContain(d.bg);
+    for (const d of dots) expect([5, 6.5, 8]).toContain(Math.round(d.w * 2) / 2);
+    expect(new Set(dots.map((d) => Math.round(d.w * 2) / 2)).size).toBeGreaterThan(1);
     await rows.first().locator("button.dd-mx-cell").first().click();
     const pop = page.getByTestId("dd-scatter-popup");
     await expect(pop).toBeVisible();
@@ -182,7 +189,7 @@ test.describe("request 70: the Dashboard", () => {
     await expect(page.getByTestId("dd-mx-row")).toHaveCount(9);
   });
 
-  test("the Profiles: five icons and a search, the change in Activity, the analysis, two focus bars, and the full analysis or the Company Profile", async ({ page }) => {
+  test("the Profiles: five icons and a search, the change in Activity, the analysis or Company Profile, two focus bars, and a footer", async ({ page }) => {
     await signInAs(page, "client");
     await page.goto("/dashboard");
     for (const id of ["dd-macro-profile", "dd-comp-profile"]) {
@@ -213,7 +220,8 @@ test.describe("request 70: the Dashboard", () => {
     const comp = page.getByTestId("dd-comp-profile");
     await expect(comp.getByTestId("dd-focus-this-quarter")).toContainText("This quarter");
     await expect(comp.getByTestId("dd-focus-last-quarter")).toContainText("Last quarter");
-    await expect(comp.getByTestId("dd-company-profile")).toContainText("Company Profile");
+    await expect(comp.getByTestId("dd-comp-profile-text")).toContainText("Company profile");
+    await expect(macro.getByTestId("dd-macro-profile-text")).toContainText("Analysis");
     await expect(comp.getByRole("link", { name: "Add a logo" })).toHaveCount(0);
     await expectAccessible(page, "Dashboard Profiles");
     // The Macrotrend Analysis box opens the Macrotrend's analysis page (no knowledge graph).
@@ -244,5 +252,49 @@ test.describe("request 70: the Dashboard", () => {
     await page.goto("/admin#competitor-logos");
     await card.getByTestId("logo-row").filter({ hasText: name }).getByRole("button", { name: `Remove the logo of ${name}` }).click();
     await expect(page.locator(".toast").first()).toContainText(`Logo of ${name} removed`);
+  });
+});
+
+test.describe("request 71: the Dashboard", () => {
+  test("a handle shares the height between the charts and the Profiles, and is remembered", async ({ page }) => {
+    await signInAs(page, "client");
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.addInitScript(() => {
+      if (!sessionStorage.getItem("split-set")) {
+        localStorage.removeItem("eradigm.dashboard.split");
+        sessionStorage.setItem("split-set", "1");
+      }
+    });
+    await page.goto("/dashboard");
+    const chart = page.locator("section.dd-chart.left");
+    const profile = page.getByTestId("dd-macro-profile");
+    await expect(page.getByTestId("dd-mx-row").first()).toBeVisible();
+    const h0 = (await chart.boundingBox())!.height;
+    const p0 = (await profile.boundingBox())!.height;
+    // Drag the handle up: shorter charts, taller Profiles; the page still fits.
+    const split = page.getByRole("separator", { name: "Resize the charts and the profiles" });
+    const s = (await split.boundingBox())!;
+    await page.mouse.move(s.x + s.width / 2, s.y + s.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(s.x + s.width / 2, s.y + s.height / 2 - 120, { steps: 6 });
+    await page.mouse.up();
+    await expect.poll(async () => (await chart.boundingBox())!.height).toBeLessThan(h0 - 80);
+    expect((await profile.boundingBox())!.height).toBeGreaterThan(p0 + 80);
+    // Both columns move together.
+    expect(Math.abs((await page.locator("section.dd-chart.right").boundingBox())!.height - (await chart.boundingBox())!.height)).toBeLessThanOrEqual(1);
+    const dash = page.getByTestId("analytics-dashboard");
+    expect(await dash.evaluate((el) => el.scrollHeight <= el.clientHeight)).toBe(true);
+    // Kept on this computer.
+    const after = (await chart.boundingBox())!.height;
+    await page.reload();
+    await expect(page.getByTestId("dd-mx-row").first()).toBeVisible();
+    expect(Math.abs((await chart.boundingBox())!.height - after)).toBeLessThanOrEqual(2);
+    // With the keyboard: End gives the charts the most room, Enter goes back to the default.
+    await split.focus();
+    await page.keyboard.press("End");
+    await expect(split).toHaveAttribute("aria-valuenow", "75");
+    await page.keyboard.press("Enter");
+    await expect(split).toHaveAttribute("aria-valuenow", "56");
+    await expectAccessible(page, "Dashboard with the handle");
   });
 });

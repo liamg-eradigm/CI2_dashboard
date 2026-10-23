@@ -5,7 +5,7 @@
  * calls onLayer. Colour follows the entity, with its name always beside it.
  */
 import { useId, useMemo, useState } from "react";
-import type { Bucket } from "./model";
+import { smoothSegments, type Bucket } from "./model";
 import { niceTicks, Tip, useSize } from "./ui";
 
 export type Layer = { key: string; values: number[]; colour: string; hatch?: boolean };
@@ -14,9 +14,9 @@ const M = { top: 8, right: 10, bottom: 22, left: 46 };
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 
-/** The x labels: each month's first period (weeks), or every few months, no closer than ~56px. */
+/** The x labels: the first point of each month, no closer than ~56px. */
 function xTicks(buckets: Bucket[], width: number): { i: number; label: string }[] {
-  const months = buckets.map((b, i) => ({ i, m: b.start.slice(0, 7), first: i === 0 || buckets[i - 1]!.start.slice(0, 7) !== b.start.slice(0, 7) })).filter((x) => x.first);
+  const months = buckets.map((b, i) => ({ i, m: b.at.slice(0, 7), first: i === 0 || buckets[i - 1]!.at.slice(0, 7) !== b.at.slice(0, 7) })).filter((x) => x.first);
   const step = Math.max(1, Math.ceil((months.length * 56) / Math.max(1, width)));
   return months
     .filter((_, k) => k % step === 0)
@@ -62,17 +62,19 @@ export function StackedArea({
   const top = ticks[ticks.length - 1] || 1;
   const x = (i: number) => (n <= 1 ? w / 2 : (i / (n - 1)) * w);
   const y = (v: number) => h - (v / top) * h;
+  // Request 71: smooth lines from point to point (monotone, so never above a peak or below zero).
+  const line = (vals: number[]) => vals.map((v, i) => [x(i), y(v)] as [number, number]);
   const area = (lo: number[], hi: number[]) => {
     if (n === 1) return `M0,${y(hi[0]!)}H${w}V${y(lo[0]!)}H0Z`;
-    const up = hi.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join("");
-    const down = lo
-      .map((v, i) => [i, v] as const)
-      .reverse()
-      .map(([i, v]) => `L${x(i).toFixed(1)},${y(v).toFixed(1)}`)
-      .join("");
-    return `${up}${down}Z`;
+    const up = line(hi);
+    const down = line(lo).reverse();
+    return `M${up[0]![0]},${up[0]![1]}${smoothSegments(up)}L${down[0]![0]},${down[0]![1]}${smoothSegments(down)}Z`;
   };
-  const edge = (hi: number[]) => (n === 1 ? `M0,${y(hi[0]!)}H${w}` : hi.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(""));
+  const edge = (hi: number[]) => {
+    if (n === 1) return `M0,${y(hi[0]!)}H${w}`;
+    const up = line(hi);
+    return `M${up[0]![0]},${up[0]![1]}${smoothSegments(up)}`;
+  };
 
   const pick = (e: React.PointerEvent<SVGSVGElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
@@ -151,7 +153,7 @@ export function StackedArea({
           </svg>
         )}
       </div>
-      <ul className="dd-legend" aria-label={`${label}: legend`}>
+      <ul className="dd-legend" aria-label={`${label}: legend`} tabIndex={onLayer ? undefined : 0}>
         {layers.map((l) => {
           const total = l.values.reduce((s, v) => s + v, 0);
           return (

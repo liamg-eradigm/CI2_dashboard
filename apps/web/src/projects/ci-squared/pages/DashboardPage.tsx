@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import type { CompetitorEntry, Me, MegatrendEntry } from "@eradigm/shared";
 import { RecordFromTimeline, useRecordParam } from "../components/analytics/Analytics";
@@ -23,8 +23,9 @@ import {
 import { StackedArea, type Layer } from "../components/dashboard/StackedArea";
 import { ScatterMatrix } from "../components/dashboard/ScatterMatrix";
 import { Analysis, FocusBar, MacroAnalysisLink, ProfileCard } from "../components/dashboard/Profiles";
+import { plural } from "../components/megatrends/model";
 import { CompetitorIcon, MacroIcon } from "../components/dashboard/icons";
-import { Popup } from "../components/dashboard/ui";
+import { InfoTip, Popup, Splitter, useSplit } from "../components/dashboard/ui";
 import "../styles/megatrends.css";
 import "../styles/dashboard.css";
 
@@ -38,8 +39,11 @@ import "../styles/dashboard.css";
  *    across, Growth Intensity up, Impact colour), the same size as the left
  *    chart and level with it.
  *  - Below each, its Profile: the top five as icons and a search, the chosen
- *    one's change in Activity, its analysis, two focus bars, and the full
- *    analysis (a link) or the Company Profile.
+ *    one's change in Activity, its analysis or Company Profile, two focus
+ *    bars, and a footer (the link to the full analysis, or the tier).
+ * Request 71: each point of the Activity chart is a month's total (the 30 days
+ * up to it), drawn as a smooth line; a handle between the rows shares the
+ * height between the charts and the Profiles; a quieter, minimal look.
  */
 export function DashboardPage({ me }: { me: Me }) {
   const mt = useMegatrends("all", null, null);
@@ -53,6 +57,8 @@ export function DashboardPage({ me }: { me: Me }) {
   const [pop, setPop] = useState<string | null>(null);
   const [macroSel, setMacroSel] = useState<string | null>(null);
   const [compSel, setCompSel] = useState<string | null>(null);
+  const [split, setSplit] = useSplit();
+  const layout = useRef<HTMLDivElement>(null);
   const today = todayIso();
 
   const d = useMemo(() => {
@@ -65,7 +71,8 @@ export function DashboardPage({ me }: { me: Me }) {
     const macros = mt.data.macrotrends;
     const names = macros.map((m) => m.name);
     const styles = macroStyles(names);
-    const series = activitySeries(entries.filter(inRange), buckets, (e) => [e.macrotrend]);
+    // Each point sums the month up to it, so it reads entries from a month before the first point too.
+    const series = activitySeries(entries, buckets, (e) => [e.macrotrend]);
     const layers: Layer[] = names.filter((n) => series.has(n)).map((n) => ({ key: n, values: series.get(n)!, ...styles.get(n)! }));
     const compIn = compEntries.filter(inRange);
     const compCount = new Map<string, number>();
@@ -84,7 +91,7 @@ export function DashboardPage({ me }: { me: Me }) {
     };
     const byComp = new Map<string, CompetitorEntry[]>();
     for (const e of compEntries) for (const c of e.competitors) byComp.set(c, [...(byComp.get(c) ?? []), e]);
-    return { from, to, buckets, macros, names, styles, layers, compIn, rows, cols: all ? withSignals : withSignals.filter((n) => top9.has(n)), byMacro: by(entries), byMacroIn: by(entries.filter(inRange)), byComp };
+    return { from, to, buckets, macros, names, styles, layers, compIn, compAll: compEntries, rows, cols: all ? withSignals : withSignals.filter((n) => top9.has(n)), byMacro: by(entries), byMacroIn: by(entries.filter(inRange)), byComp };
   }, [mt.data, cp.data, range, today, all]);
 
   const label = RANGES.find((r) => r.key === range)!.label;
@@ -110,26 +117,28 @@ export function DashboardPage({ me }: { me: Me }) {
       )}
       {loading && <div className="ad-skeleton dd-skeleton" role="status" aria-label="Loading the dashboard" />}
       {d && (
-        <div className="dd-layout">
+        <div className="dd-layout" ref={layout} style={{ "--top": `${split}fr`, "--bottom": `${1 - split}fr` } as React.CSSProperties}>
           <h2 className="dd-col-title left">Macrotrends Analysis</h2>
-          <section className="card dd-card dd-chart left" aria-labelledby="dd-activity-title">
+          <section className="dd-card dd-chart left" aria-labelledby="dd-activity-title">
             <header className="dd-card-head">
               <h3 id="dd-activity-title">Activity by Macrotrend</h3>
-              <span className="dd-sub">
-                {timeFrame}, by {d.buckets.length && d.buckets[0]!.label.startsWith("Week") ? "week" : "month"} · signals × impact × growth intensity · press a layer to break it down
-              </span>
+              <InfoTip label="About this chart">
+                {timeFrame}. Each point is the Activity of the month up to it: its signals × impact (Low 1, Medium 2, High 3) × growth intensity (Stable 1, Slight Increase 2, Strong Increase 3). Press a layer to see its Subtrends and competitors.
+              </InfoTip>
             </header>
             <StackedArea layers={d.layers} buckets={d.buckets} onLayer={setPop} label="Activity by Macrotrend" testId="dd-activity" layerVerb="Open its Subtrends and competitors" />
           </section>
           <MacroProfile d={d} sections={sections.data ?? []} timeFrame={timeFrame} value={macroSel} onChange={setMacroSel} today={today} />
 
           <h2 className="dd-col-title right">Competitor Analysis</h2>
-          <section className="card dd-card dd-chart right" aria-labelledby="dd-matrix-title">
+          <section className="dd-card dd-chart right" aria-labelledby="dd-matrix-title">
             <header className="dd-card-head">
               <h3 id="dd-matrix-title">Signals by competitor and Macrotrend</h3>
-              <span className="dd-sub">{timeFrame} · across: Event Date · up: Growth Intensity · colour: Impact, brighter with more signals</span>
+              <InfoTip label="About this chart">
+                {timeFrame}. One plot per competitor and Macrotrend: each dot a signal, across by Event Date, up by Growth Intensity (larger the stronger), coloured by Impact. Press a plot to open it.
+              </InfoTip>
               {d.rows.length > 9 && (
-                <button type="button" className="btn secondary small dd-showall" aria-pressed={all} onClick={() => setAll((a) => !a)}>
+                <button type="button" className="dd-text-btn dd-showall" aria-pressed={all} onClick={() => setAll((a) => !a)}>
                   {all ? "Show the top 9" : `Show all ${d.rows.length}`}
                 </button>
               )}
@@ -137,6 +146,16 @@ export function DashboardPage({ me }: { me: Me }) {
             <ScatterMatrix entries={d.compIn} competitors={d.rows} macros={d.cols} macroColour={d.styles} from={d.from} to={d.to} all={all} onOpen={rec.open} />
           </section>
           <CompetitorProfile d={d} competitors={cp.data!.competitors} logos={logos.data ?? []} value={compSel} onChange={setCompSel} today={today} me={me} />
+          <Splitter
+            value={split}
+            onChange={setSplit}
+            area={() => {
+              const el = layout.current;
+              const top = el?.querySelector(".dd-chart")?.getBoundingClientRect();
+              const bottom = el?.querySelector(".dd-profile")?.getBoundingClientRect();
+              return top && bottom ? { top: top.top, height: bottom.bottom - top.top } : null;
+            }}
+          />
         </div>
       )}
       {d && pop && <MacroPopup name={pop} d={d} timeFrame={timeFrame} onClose={() => setPop(null)} />}
@@ -153,6 +172,7 @@ type Data = {
   names: string[];
   styles: Map<string, { colour: string; hatch: boolean }>;
   compIn: CompetitorEntry[];
+  compAll: CompetitorEntry[];
   byMacro: Map<string, MegatrendEntry[]>;
   byMacroIn: Map<string, MegatrendEntry[]>;
   byComp: Map<string, CompetitorEntry[]>;
@@ -167,14 +187,14 @@ const tally = (keys: string[]) => {
 /** A Macrotrend's Subtrends and its top six competitors (and the rest as Others), as Activity over the same time frame. */
 function MacroPopup({ name, d, timeFrame, onClose }: { name: string; d: Data; timeFrame: string; onClose: () => void }) {
   const macro = d.macros.find((m) => m.name === name);
-  const list = d.byMacroIn.get(name) ?? [];
+  const list = d.byMacro.get(name) ?? [];
   const subNames = [...(macro?.subtrends.map((s) => s.name) ?? [])];
   const subColour = colourMap(subNames);
   const subs = activitySeries(list, d.buckets, (e) => [e.subtrend ?? "No Subtrend"]);
   const subLayers: Layer[] = [...subNames, "No Subtrend"].filter((s) => subs.has(s)).map((s) => ({ key: s, values: subs.get(s)!, colour: subColour.get(s) ?? NEUTRAL }));
   const comps = topWithOthers(
     activitySeries(
-      d.compIn.filter((e) => e.macrotrend === name),
+      d.compAll.filter((e) => e.macrotrend === name),
       d.buckets,
       (e) => e.competitors,
     ),
@@ -183,7 +203,7 @@ function MacroPopup({ name, d, timeFrame, onClose }: { name: string; d: Data; ti
   const compColour = seriesColours(comps.map((c) => c.key));
   const compLayers: Layer[] = comps.map((c) => ({ key: c.key, values: c.values, colour: compColour.get(c.key)! }));
   return (
-    <Popup title={name} sub={`${timeFrame} · Activity = signals × impact × growth intensity`} onClose={onClose} className="dd-macro-pop" testId="dd-macro-popup">
+    <Popup title={name} sub={`${timeFrame} · each point the Activity of the month up to it`} onClose={onClose} className="dd-macro-pop" testId="dd-macro-popup">
       <div className="dd-pop-charts">
         <section aria-labelledby="dd-pop-subs">
           <h3 id="dd-pop-subs">Subtrends</h3>
@@ -223,20 +243,26 @@ function MacroProfile({ d, sections, timeFrame, value, onChange, today }: { d: D
       iconOf={icon}
       change={change(name)}
       testId="dd-macro-profile"
-      analysis={<Analysis text={text} empty={`No analysis of ${name} yet: add one on New Entry → Input trend analysis.`} testId="dd-macro-analysis" />}
+      textLabel="Analysis"
+      text={<Analysis text={text} empty={`No analysis of ${name} yet: add one on New Entry → Input trend analysis.`} testId="dd-macro-analysis" />}
       bars={
         <>
           <FocusBar
-            label={`Subtrends · ${timeFrame.toLowerCase()}`}
+            label="Subtrends"
             counts={tally(list.map((e) => e.subtrend ?? "No Subtrend"))}
             colourOf={(s) => ({ colour: subColour.get(s) ?? NEUTRAL })}
             empty={macro?.subtrends.length ? "No signals in this time frame" : `${name} has no Subtrends yet`}
             testId="dd-focus-subtrends"
           />
-          <FocusBar label={`Competitors · ${timeFrame.toLowerCase()}`} counts={comp} colourOf={(c) => ({ colour: compColour.get(c) ?? NEUTRAL })} empty="No signals naming a competitor in this time frame" testId="dd-focus-competitors" />
+          <FocusBar label="Competitors" counts={comp} colourOf={(c) => ({ colour: compColour.get(c) ?? NEUTRAL })} empty="No signals naming a competitor in this time frame" testId="dd-focus-competitors" />
         </>
       }
-      bottom={<MacroAnalysisLink name={name} />}
+      footer={
+        <>
+          <span className="dd-foot-note">{timeFrame}</span>
+          <MacroAnalysisLink name={name} />
+        </>
+      }
     />
   );
 }
@@ -262,7 +288,12 @@ function CompetitorProfile({
   const tier = new Map(competitors.map((c) => [c.name, c.tier]));
   const change = (n: string) => activityChange(d.byComp.get(n) ?? [], today);
   const name = value ?? defaultPick(competitors.map((c) => c.name), change) ?? "";
-  if (!name) return <section className="card dd-card dd-profile right empty-profile"><p className="dd-muted">No signals name a competitor yet.</p></section>;
+  if (!name)
+    return (
+      <section className="dd-card dd-profile right">
+        <p className="dd-muted">No signals name a competitor yet.</p>
+      </section>
+    );
   const comp = competitors.find((c) => c.name === name);
   const icon = (n: string) => <CompetitorIcon name={n} tier={tier.get(n) ?? 4} logo={logo.get(n) ?? null} />;
   const q = quarters(today);
@@ -281,29 +312,27 @@ function CompetitorProfile({
       onChange={onChange}
       iconOf={icon}
       change={change(name)}
-      badge={
+      testId="dd-comp-profile"
+      textLabel="Company profile"
+      text={<Analysis text={text} empty={`No Company Profile of ${name} yet: add one on New Entry → Input trend analysis.`} testId="dd-comp-analysis" />}
+      bars={
         <>
-          <span className={`dd-tier t${comp?.tier ?? 4}`}>Tier {comp?.tier ?? 4}</span>
+          <FocusBar label={`This quarter · ${q.current.name.slice(5)}`} counts={split(q.current.start, q.current.end)} colourOf={colourOf} empty="No signals this quarter yet" testId="dd-focus-this-quarter" />
+          <FocusBar label={`Last quarter · ${q.previous.name.slice(5)}`} counts={split(q.previous.start, q.previous.end)} colourOf={colourOf} empty="No signals last quarter" testId="dd-focus-last-quarter" />
+        </>
+      }
+      footer={
+        <>
+          <span className="dd-foot-note">
+            <span className={`dd-tier-dot t${comp?.tier ?? 4}`} aria-hidden="true" />
+            Tier {comp?.tier ?? 4} · {plural(comp?.count ?? 0, "signal")} in all · bars by Macrotrend
+          </span>
           {me.role === "admin" && !logo.has(name) && (
-            <Link className="dd-logo-link" to="/admin#competitor-logos">
-              Add a logo
+            <Link className="dd-open" to="/admin#competitor-logos">
+              Add a logo <span aria-hidden="true">→</span>
             </Link>
           )}
         </>
-      }
-      testId="dd-comp-profile"
-      analysis={<Analysis text={text} clamp empty={`No profile of ${name} yet: add one on New Entry → Input trend analysis.`} testId="dd-comp-analysis" />}
-      bars={
-        <>
-          <FocusBar label={`This quarter (${q.current.name}) by Macrotrend`} counts={split(q.current.start, q.current.end)} colourOf={colourOf} empty="No signals this quarter yet" testId="dd-focus-this-quarter" />
-          <FocusBar label={`Last quarter (${q.previous.name}) by Macrotrend`} counts={split(q.previous.start, q.previous.end)} colourOf={colourOf} empty="No signals last quarter" testId="dd-focus-last-quarter" />
-        </>
-      }
-      bottom={
-        <section className="dd-company" aria-labelledby="dd-company-title" data-testid="dd-company-profile" tabIndex={0}>
-          <b id="dd-company-title">Company Profile</b>
-          <Analysis text={text} empty={`No Company Profile of ${name} yet.`} />
-        </section>
       }
     />
   );

@@ -1,19 +1,19 @@
 /**
  * Request 70: Competitor Analysis. A matrix of small scatter plots, one per
  * competitor (rows) and Macrotrend (columns): in each, a dot per signal at its
- * Event Date (across) and Growth Intensity (up), coloured by Impact. The more
- * signals a plot holds, the brighter its dots. On the right, each competitor's
+ * Event Date (across) and Growth Intensity (up), coloured by Impact (request
+ * 71: every dot at full colour, a little larger the stronger its growth). On
+ * the right, each competitor's
  * signals by Impact. A plot opens larger in a popup (scroll to zoom, drag to
  * move, point at a signal for its title, press it to open the record).
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CompetitorEntry } from "@eradigm/shared";
 import { IMPACT_COLOURS, impactColour, plural } from "../megatrends/model";
-import { brightness, dayLabel, GROWTH_LEVELS, growthLevel, impactCounts, toDay, towards } from "./model";
+import { dayLabel, dotSize, GROWTH_LEVELS, growthLevel, impactCounts, toDay } from "./model";
 import { Popup, Tip, useSize } from "./ui";
 import { MacroIcon } from "./icons";
 
-const BG = "#061a29";
 const DAY = 86_400_000;
 /** A steady small offset per signal, so signals of the same day and growth do not hide one another. */
 function jitter(id: string): number {
@@ -63,7 +63,7 @@ export function ScatterMatrix({
   const [cell, setCell] = useState<{ comp: string; macro: string } | null>(null);
   const t0 = toDay(from);
   const span = Math.max(DAY, toDay(to) + DAY - t0);
-  const { cells, rows, max } = useMemo(() => {
+  const { cells, rows } = useMemo(() => {
     const cells = new Map<string, CompetitorEntry[]>();
     const rows = new Map<string, CompetitorEntry[]>();
     for (const e of entries) {
@@ -73,10 +73,8 @@ export function ScatterMatrix({
         cells.set(k, [...(cells.get(k) ?? []), e]);
       }
     }
-    let max = 0;
-    for (const c of competitors) for (const m of macros) max = Math.max(max, cells.get(`${c}\u0000${m}`)?.length ?? 0);
-    return { cells, rows, max };
-  }, [entries, competitors, macros]);
+    return { cells, rows };
+  }, [entries]);
 
   const shown = all ? competitors : competitors.slice(0, 9);
   const style = { "--cols": macros.length, "--rows": shown.length } as React.CSSProperties;
@@ -95,7 +93,6 @@ export function ScatterMatrix({
               {macros.map((m) => {
                 const list = cells.get(`${c}\u0000${m}`) ?? [];
                 const counts = impactCounts(list);
-                const b = brightness(list.length, max);
                 const label = `${c} · ${m}: ${plural(counts.n, "signal")} (${counts.high} high, ${counts.medium} medium, ${counts.low} low)`;
                 return list.length ? (
                   <button
@@ -106,19 +103,25 @@ export function ScatterMatrix({
                     onClick={() => setCell({ comp: c, macro: m })}
                     onPointerMove={(e) => setTip({ x: e.clientX, y: e.clientY, text: label })}
                     onPointerLeave={() => setTip(null)}
-                    style={{ "--glow": b } as React.CSSProperties}
                   >
-                    {list.map((e) => (
-                      <span
-                        key={e.id}
-                        className="dd-mx-dot"
-                        style={{
-                          left: `${6 + 88 * Math.min(1, Math.max(0, (toDay(e.date) - t0) / span))}%`,
-                          top: `${100 * (yOf(e.growth) + jitter(e.id) * 0.14)}%`,
-                          background: towards(impactColour(e.impact), BG, b),
-                        }}
-                      />
-                    ))}
+                    {list.map((e) => {
+                      const size = dotSize(e.growth);
+                      return (
+                        <span
+                          key={e.id}
+                          className="dd-mx-dot"
+                          data-testid="dd-mx-dot"
+                          style={{
+                            left: `${6 + 88 * Math.min(1, Math.max(0, (toDay(e.date) - t0) / span))}%`,
+                            top: `${100 * (yOf(e.growth) + jitter(e.id) * 0.14)}%`,
+                            width: size,
+                            height: size,
+                            margin: -size / 2,
+                            background: impactColour(e.impact),
+                          }}
+                        />
+                      );
+                    })}
                   </button>
                 ) : (
                   <span key={m} className="dd-mx-cell none" aria-hidden="true" />
@@ -230,6 +233,7 @@ export function ScatterPopup({ comp, macro, entries, from, to, onClose, onOpen }
               <span className="dd-dot" style={{ background: IMPACT_COLOURS[k] }} /> {k[0]!.toUpperCase() + k.slice(1)}
             </li>
           ))}
+          <li className="dd-size-key">Larger dot: stronger growth</li>
         </ul>
         <span className="dd-zoom">
           <button type="button" className="icon-btn sm" onClick={() => zoom(0.7)} aria-label="Zoom in">
@@ -299,7 +303,7 @@ export function ScatterPopup({ comp, macro, entries, from, to, onClose, onOpen }
                       key={e.id}
                       cx={cx}
                       cy={(yOf(e.growth) + jitter(e.id) * 0.12) * h}
-                      r={6}
+                      r={dotSize(e.growth)}
                       fill={impactColour(e.impact)}
                       stroke="#04182a"
                       strokeWidth={2}

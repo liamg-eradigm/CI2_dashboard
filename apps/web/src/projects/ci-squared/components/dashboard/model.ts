@@ -61,34 +61,33 @@ export function rangeDates(key: RangeKey, entries: Pick<Entry, "date">[], today 
   return { from: addMonths(today, -r.months), to: today };
 }
 
-export type Bucket = { start: string; end: string; label: string };
+/** A point of the Activity chart: the month (30 days) up to `at`, i.e. [start, end). */
+export type Bucket = { start: string; end: string; at: string; label: string };
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 export const dayLabel = (iso: string) => `${Number(iso.slice(8, 10))} ${MONTHS[Number(iso.slice(5, 7)) - 1]} ${iso.slice(0, 4)}`;
 export const monthLabel = (iso: string) => `${MONTHS[Number(iso.slice(5, 7)) - 1]} ${iso.slice(0, 4)}`;
+/** The days each point sums: a month. */
+export const WINDOW_DAYS = 30;
 
-/** The periods a span is summed by: weeks (from Monday) up to about seven months, else months. Each is [start, end) and the last ends after `to`. */
+/**
+ * Request 71: the points a span is drawn with. Each is the Activity of the
+ * month (30 days) up to its date, so every point is a month's total and the
+ * line runs smoothly from one to the next. Points every week up to about seven
+ * months, every fortnight up to about fourteen, else every month; the last is
+ * `to`.
+ */
 export function bucketsOf(from: string, to: string): Bucket[] {
+  const span = (toDay(to) - toDay(from)) / DAY;
+  const step = span <= 215 ? 7 : span <= 430 ? 14 : 30;
   const out: Bucket[] = [];
-  if (toDay(to) - toDay(from) <= 215 * DAY) {
-    const f = new Date(toDay(from));
-    let t = toDay(from) - ((f.getUTCDay() + 6) % 7) * DAY;
-    while (t <= toDay(to)) {
-      const start = isoOf(t);
-      out.push({ start, end: isoOf(t + 7 * DAY), label: `Week of ${dayLabel(start)}` });
-      t += 7 * DAY;
-    }
-    return out;
+  for (let t = toDay(to); t >= toDay(from) - (step - 1) * DAY && out.length < 400; t -= step * DAY) {
+    const at = isoOf(t);
+    out.push({ start: isoOf(t - (WINDOW_DAYS - 1) * DAY), end: isoOf(t + DAY), at, label: `Month to ${dayLabel(at)}` });
   }
-  let m = `${from.slice(0, 7)}-01`;
-  while (m <= to) {
-    const next = addMonths(m, 1);
-    out.push({ start: m, end: next, label: monthLabel(m) });
-    m = next;
-  }
-  return out;
+  return out.reverse();
 }
 
-/** Activity per key per period: each entry counts for every key it belongs to (a signal naming two competitors counts for both). */
+/** Activity per key per point: each entry counts in every point whose month holds it, and for every key it belongs to (a signal naming two competitors counts for both). */
 export function activitySeries<E extends Entry>(entries: E[], buckets: Bucket[], keysOf: (e: E) => string[]): Map<string, number[]> {
   const out = new Map<string, number[]>();
   if (!buckets.length) return out;
@@ -96,13 +95,15 @@ export function activitySeries<E extends Entry>(entries: E[], buckets: Bucket[],
   const last = buckets[buckets.length - 1]!.end;
   for (const e of entries) {
     if (e.date < first || e.date >= last) continue;
-    let i = buckets.findIndex((b) => e.date >= b.start && e.date < b.end);
-    if (i < 0) i = buckets.length - 1;
     const a = activityOf(e);
-    for (const k of keysOf(e)) {
-      const row = out.get(k) ?? out.set(k, new Array<number>(buckets.length).fill(0)).get(k)!;
-      row[i] = (row[i] ?? 0) + a;
-    }
+    const keys = keysOf(e);
+    buckets.forEach((b, i) => {
+      if (e.date < b.start || e.date >= b.end) return;
+      for (const k of keys) {
+        const row = out.get(k) ?? out.set(k, new Array<number>(buckets.length).fill(0)).get(k)!;
+        row[i] = (row[i] ?? 0) + a;
+      }
+    });
   }
   return out;
 }
@@ -213,16 +214,6 @@ export function seriesColours(keys: string[]): Map<string, string> {
   return m;
 }
 
-/** A colour mixed toward a background (t = 1: the colour itself; 0: the background). */
-export function towards(hex: string, bg: string, t: number): string {
-  const p = (h: string) => [1, 3, 5].map((i) => parseInt(h.replace("#", "").slice(i - 1, i + 1), 16));
-  const [a, b] = [p(hex), p(bg)];
-  return `#${a.map((c, i) => Math.round(b[i]! + (c - b[i]!) * t).toString(16).padStart(2, "0")).join("")}`;
-}
-
-/** A matrix cell's brightness from its signals (more signals, brighter): 0.35 to 1. */
-export const brightness = (n: number, max: number) => (max > 0 ? 0.35 + 0.65 * Math.sqrt(Math.min(1, n / max)) : 0.35);
-
 export function impactCounts(entries: Pick<Entry, "impact">[]): { n: number; high: number; medium: number; low: number } {
   const c = { n: 0, high: 0, medium: 0, low: 0 };
   for (const e of entries) {
@@ -231,4 +222,44 @@ export function impactCounts(entries: Pick<Entry, "impact">[]): { n: number; hig
     if (k) c[k]++;
   }
   return c;
+}
+
+/** Request 71: a dot's size in the matrix grows a little with its Growth Intensity (Stable, Slight Increase, Strong Increase; none as Stable). */
+export const dotSize = (g: string | null | undefined, base = 5, step = 1.5) => base + step * ((growthLevel(g) ?? 1) - 1);
+
+/**
+ * Request 71: a smooth line through points (x rising), as SVG path commands
+ * after the first point: a monotone cubic (Fritsch–Carlson), so the curve
+ * never overshoots a point (no bumps above a peak or below zero).
+ */
+export function smoothSegments(pts: [number, number][]): string {
+  const n = pts.length;
+  if (n < 2) return "";
+  const dx = pts.slice(1).map((p, i) => p[0] - pts[i]![0]);
+  const slope = pts.slice(1).map((p, i) => (p[1] - pts[i]![1]) / (dx[i] || 1));
+  const m = pts.map((_, i) => (i === 0 ? slope[0]! : i === n - 1 ? slope[n - 2]! : slope[i - 1]! * slope[i]! <= 0 ? 0 : (slope[i - 1]! + slope[i]!) / 2));
+  for (let i = 0; i < n - 1; i++) {
+    if (slope[i] === 0) {
+      m[i] = 0;
+      m[i + 1] = 0;
+      continue;
+    }
+    const a = m[i]! / slope[i]!;
+    const b = m[i + 1]! / slope[i]!;
+    const h = a * a + b * b;
+    if (h > 9) {
+      const t = 3 / Math.sqrt(h);
+      m[i] = t * a * slope[i]!;
+      m[i + 1] = t * b * slope[i]!;
+    }
+  }
+  const f = (v: number) => v.toFixed(1);
+  let d = "";
+  for (let i = 0; i < n - 1; i++) {
+    const [x0, y0] = pts[i]!;
+    const [x1, y1] = pts[i + 1]!;
+    const h = dx[i]! / 3;
+    d += `C${f(x0 + h)},${f(y0 + m[i]! * h)} ${f(x1 - h)},${f(y1 - m[i + 1]! * h)} ${f(x1)},${f(y1)}`;
+  }
+  return d;
 }
