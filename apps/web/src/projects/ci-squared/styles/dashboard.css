@@ -24,7 +24,7 @@
 .dd-card-head { display: flex; align-items: center; gap: 4px 12px; flex-wrap: wrap; }
 .dd-card-head h3 { margin: 0; font: 700 14px/1.3 var(--sans); color: #fff; }
 .dd-sub { flex: 1 1 220px; font-size: 12px; color: var(--mg-ink-3); }
-.dd-showall { margin-left: auto; }
+.dd-showall { margin-left: auto; width: 9.5em; justify-content: center; }
 .dd-muted { margin: 0; font-size: 12.5px; color: var(--mg-ink-3); }
 
 /* Stacked areas */
@@ -56,10 +56,10 @@ g.dd-grid text, .dd-xtick { fill: var(--mg-ink-3); font: 11px var(--sans); }
 
 /* Scatter matrix */
 .dd-matrix { --name-w: 104px; --count-w: 92px; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
-.dd-mx-body { flex: 1 1 auto; min-height: 0; display: grid; grid-template-rows: repeat(var(--rows), minmax(30px, 1fr)); gap: 3px; overflow-y: auto; scrollbar-gutter: stable; }
+.dd-mx-body { flex: 1 1 auto; min-height: 0; display: grid; grid-template-rows: repeat(var(--rows), minmax(24px, 1fr)); gap: 3px; overflow-y: auto; scrollbar-gutter: stable; }
 .dd-matrix.all .dd-mx-body { grid-template-rows: none; grid-auto-rows: 34px; overflow-y: auto; }
 .dd-mx-row, .dd-mx-foot { display: grid; grid-template-columns: var(--name-w) repeat(var(--cols), minmax(0, 1fr)) var(--count-w); gap: 3px; min-height: 0; }
-.dd-mx-foot { padding-top: 5px; overflow: hidden; scrollbar-gutter: stable; }
+.dd-mx-foot { flex: none; height: 31px; padding-top: 5px; overflow: hidden; scrollbar-gutter: stable; }
 .dd-mx-name { align-self: center; padding-right: 6px; text-align: right; font: 12px var(--sans); color: var(--mg-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dd-mx-count { align-self: center; padding-left: 6px; font: 11.5px/1.3 var(--sans); color: var(--mg-ink-2); }
 .dd-mx-count .nb { white-space: nowrap; }
@@ -69,7 +69,7 @@ g.dd-grid text, .dd-xtick { fill: var(--mg-ink-3); font: 11px var(--sans); }
 .dd-mx-cell.none { cursor: default; border-color: rgba(127, 211, 216, 0.06); background: rgba(2, 12, 20, 0.3); }
 .dd-mx-dot { position: absolute; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; box-shadow: 0 0 0 1px #04182a; pointer-events: none; }
 .dd-mx-col { display: grid; place-items: center; min-width: 0; }
-.dd-mx-col .dd-icon { width: 26px; height: 26px; border-radius: 8px; }
+.dd-mx-col .dd-icon { width: min(26px, 100%); height: 26px; border-radius: 8px; }
 .dd-mx-col .dd-icon svg { width: 18px; height: 18px; }
 .dd-empty { margin: auto; color: var(--mg-ink-3); font-size: 13px; }
 

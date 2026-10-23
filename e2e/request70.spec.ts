@@ -158,6 +158,14 @@ test.describe("request 70: the Dashboard", () => {
   test("Show all makes the matrix scroll through every competitor", async ({ page }) => {
     await signInAs(page, "client");
     await page.setViewportSize({ width: 1440, height: 900 });
+    // More competitors than the seed has: six more, each named by one recent signal.
+    await page.route("**/api/competitors?*", async (route) => {
+      const real = await (await route.fetch()).json();
+      const base = real.entries[0];
+      const date = new Date(Date.now() - 5 * 86_400_000).toISOString().slice(0, 10);
+      const extra = ["Bayer", "Takeda", "Amgen", "GSK", "Merck & Co.", "Eli Lilly"].map((c, i) => ({ ...base, id: `extra-${i}`, code: `X-${i}`, title: `${c} news`, date, competitors: [c] }));
+      await route.fulfill({ json: { ...real, entries: [...real.entries, ...extra] } });
+    });
     await page.goto("/dashboard");
     await page.getByRole("group", { name: "Time frame" }).getByRole("button", { name: "All" }).click();
     const show = page.getByRole("button", { name: /^Show all \d+/ });
