@@ -8,11 +8,18 @@ export const USERS = {
   otherTenant: "analyst@northwind.example.com",
 } as const;
 
+/** Request 70: New Entry's sections, opened for the tests written before they were bars (the request 70 tests close them). */
+export const NEW_ENTRY_FOLDS = ["import", "trend-analysis", "earnings-call", "capture-log"];
+
 export async function signInAs(page: Page, who: keyof typeof USERS) {
-  await page.addInitScript((u) => {
-    localStorage.setItem("eradigm.devUser", u);
-    localStorage.removeItem("eradigm.tenant");
-  }, USERS[who]);
+  await page.addInitScript(
+    ([u, folds]) => {
+      localStorage.setItem("eradigm.devUser", u as string);
+      localStorage.removeItem("eradigm.tenant");
+      localStorage.setItem("eradigm.newEntry.open", JSON.stringify(folds));
+    },
+    [USERS[who], NEW_ENTRY_FOLDS] as const,
+  );
   // External fonts are not needed for tests.
   await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
 }

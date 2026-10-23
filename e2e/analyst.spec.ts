@@ -158,11 +158,12 @@ test.describe("Eradigm staff (admin)", () => {
     await expect(card.getByTestId("stream-primary")).toHaveText("Primary Source");
     await expect(card.getByTestId("stream-secondary")).toHaveAttribute("aria-pressed", "true");
     await card.getByTestId("stream-primary").click();
-    await expect(card).toContainText("Sent to the Eradigm Inbox as a Primary entry");
+    // Request 70: no note under the title (the card is concise).
+    await expect(card).not.toContainText("Sent to the Eradigm Inbox as");
     await expect(page.getByRole("textbox", { name: /url/i })).toHaveCount(0);
     await expect(page.getByRole("button", { name: /Capture source|^URL$/ })).toHaveCount(0);
     await card.getByTestId("stream-secondary").click();
-    await expect(card).toContainText("Sent to the Eradigm Inbox as a Secondary entry · Source Tier: Reviewed-Secondary");
+    await expect(card).not.toContainText("Sent to the Eradigm Inbox as");
     await expect(card.getByRole("button", { name: "Process file for Secondary Source" })).toBeVisible();
     await expectAccessible(page, "/input source card");
 

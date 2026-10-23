@@ -741,8 +741,10 @@ app.get("/api/items", async (c) => {
   );
   if (!statuses.length) throw badRequest("Unknown status");
   const stream = c.req.query("stream") ? streamOf(c) : null;
+  // Request 70: the latest few (New Entry → Recent Captures).
+  const limit = Math.max(1, Math.min(200, Number.parseInt(c.req.query("limit") ?? "200", 10) || 200));
   const schemas = await schemasFor(c);
-  return cachedJson(c, () => listItems(c.env, schemas, P(c).tenantId, statuses, stream), "all");
+  return cachedJson(c, () => listItems(c.env, schemas, P(c).tenantId, statuses, stream, limit), "all");
 });
 
 // Registered before "/api/items/:id". Items awaiting the analyst, per inbox (the red badges).

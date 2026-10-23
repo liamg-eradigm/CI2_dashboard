@@ -164,6 +164,15 @@ export const useItems = (statuses: string[], enabled = true, poll = false, strea
     refetchInterval: poll ? (q) => (q.state.data?.some((i) => (IN_PROGRESS_STATUSES as readonly string[]).includes(i.status)) ? 3000 : 8000) : false,
   });
 
+/** Request 70: the latest captures (New Entry → Recent Captures), newest first. */
+export const useRecentCaptures = (enabled = true, n = 8) =>
+  useQuery({
+    queryKey: ["items", "recent", n],
+    queryFn: () => api<ItemSummary[]>(`/api/items?status=queued,fetching,extracting,needs_review,approved&limit=${n}`),
+    enabled,
+    refetchInterval: 15_000,
+  });
+
 export const useItem = (id: string | null, poll = false) =>
   useQuery({
     queryKey: ["item", id],
