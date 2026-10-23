@@ -48,7 +48,7 @@ test.describe("request 34", () => {
     await expect(page.getByRole("heading", { level: 1, name: "Database" })).toBeVisible();
   });
 
-  test("the Macrotrend dashboard: two rows at a time, arrows with the next row's name, then the knowledge graph", async ({ page }) => {
+  test("the Macrotrend dashboard: two rows at a time, arrows with the next row's name, no knowledge graph (request 70)", async ({ page }) => {
     await signInAs(page, "admin");
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/dashboard");
@@ -105,25 +105,9 @@ test.describe("request 34", () => {
     await expect(dash.getByTestId("md-section-next")).toContainText("Agents in the lab.");
     await expect(dash.getByTestId("md-section-why")).toContainText("It changes cycle times.");
     await expect(dash.getByTestId("md-section-abbvie").getByRole("heading", { name: "Impact on AbbVie" })).toBeVisible();
-    await expect(dash.getByTestId("md-down")).toContainText("Explore Signals");
-
-    // Row 5: the whole frame, the knowledge graph of this Macrotrend only.
-    await dash.getByTestId("md-down").click();
-    await expect(dash.getByTestId("md-track")).toHaveAttribute("data-view", "3");
+    // Request 70: the last view; no knowledge graph row below it.
     await expect(dash.getByTestId("md-down")).toHaveCount(0);
-    await expect(dash.getByTestId("md-up")).toContainText("Long-Term Landscape");
-    const graph = dash.getByTestId("md-graph");
-    await expect(graph.getByRole("button", { name: R_AND_D, exact: true })).toBeVisible();
-    await expect(graph.locator(".mg-panel, .mg-rail")).toHaveCount(0);
-    // (once the rows have finished sliding)
-    await expect.poll(async () => (await graph.boundingBox())!.y + (await graph.boundingBox())!.height).toBeLessThanOrEqual(900);
-    const g = (await graph.boundingBox())!;
-    expect(Math.abs(g.x - a.x)).toBeLessThan(2);
-    expect(Math.abs(g.width - (b.x + b.width - a.x))).toBeLessThan(2);
-    // Taller than the four cells (request 36): from the top of the window to the bottom of the page.
-    expect(g.y).toBeLessThan(a.y);
-    expect(g.y + g.height).toBeGreaterThanOrEqual(c.y + c.height);
-    expect(g.y + g.height).toBeLessThanOrEqual(900);
+    await expect(dash.getByTestId("md-graph")).toHaveCount(0);
 
     // And back up.
     await dash.getByTestId("md-up").click();
