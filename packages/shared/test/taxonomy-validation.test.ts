@@ -34,7 +34,7 @@ const valid: ItemValues = {
 };
 
 describe("default taxonomy (3_Frontend_Design)", () => {
-  it("has the eight macrotrends plus Others, in document order", () => {
+  it("has the nine macrotrends (request 70: Manufacturing, with no Subtrends yet) plus Others, in document order", () => {
     expect(DEFAULT_TAXONOMY.map((g) => g.name)).toEqual([
       "AI Investment in R&D",
       "Workforce AI Upskilling",
@@ -44,6 +44,7 @@ describe("default taxonomy (3_Frontend_Design)", () => {
       "Portfolio Restructuring",
       "Medical-grade Intelligence Augmentation",
       "Robotics and Open-source Models for Pharma",
+      "Manufacturing",
       "Others",
     ]);
   });

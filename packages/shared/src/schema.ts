@@ -207,6 +207,8 @@ export const DEFAULT_TAXONOMY: MacrotrendGroup[] = [
     name: "Robotics and Open-source Models for Pharma",
     subtrends: ["Robotics-enabled Labs", "Open-source Models for Pharma"],
   },
+  // Request 70: a new Macrotrend, with no Subtrends to begin with (entries of it need none).
+  { name: "Manufacturing", subtrends: [] },
   { name: "Others", subtrends: ["Others"] },
 ];
 

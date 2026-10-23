@@ -33,28 +33,6 @@ async function pushLong(page: Page, title: string, ci: string) {
 }
 
 test.describe("request 36", () => {
-  test("row 5: 'Explore Signals' as the title, the up arrow at the top, and the graph as tall as the page allows", async ({ page }) => {
-    await signInAs(page, "client");
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto(`/analytics/megatrends?${new URLSearchParams({ m: R_AND_D })}`);
-    const dash = page.getByTestId("macro-dashboard");
-    await expect(dash.getByTestId("ta-name")).toHaveText(R_AND_D);
-    const cell = (await dash.getByTestId("md-section-overview").boundingBox())!;
-    await page.goto(`/analytics/megatrends?${new URLSearchParams({ m: R_AND_D, v: "3" })}`);
-    await expect(dash.getByTestId("ta-name")).toHaveText("Explore Signals");
-    await expect(dash.locator(".md-head .eyebrow")).toHaveText(R_AND_D);
-    const up = (await dash.getByTestId("md-up").boundingBox())!;
-    const title = (await dash.getByTestId("ta-name").boundingBox())!;
-    const graph = (await dash.getByTestId("md-graph").boundingBox())!;
-    // The up arrow and its name in the header, level with the title; the graph starts right below.
-    expect(up.y + up.height).toBeLessThanOrEqual(graph.y + 1);
-    expect(up.y).toBeLessThan(title.y + title.height);
-    expect(graph.y).toBeLessThan(cell.y - 40);
-    expect(900 - (graph.y + graph.height)).toBeLessThan(20);
-    await expect(dash.getByTestId("md-down")).toHaveCount(0);
-    await expectAccessible(page, "Explore Signals");
-  });
-
   test("the signal pop-up: 'Signals', no ID, the title beside the Impact dot, and everything readable above the CI Perspective", async ({ page }) => {
     await signInAs(page, "admin");
     await page.setViewportSize({ width: 1280, height: 720 });
@@ -62,7 +40,8 @@ test.describe("request 36", () => {
     const tag = Math.random().toString(36).slice(2, 8);
     const title = `Long perspective ${tag}`;
     await pushLong(page, title, `Watch this closely ${tag}. ${"A long CI Perspective that runs on. ".repeat(60)}`);
-    await page.goto(`/analytics/megatrends?${new URLSearchParams({ m: R_AND_D, v: "3", s: SUB })}`);
+    // Request 70: the Knowledge Graph page (the Macrotrend page has no graph row any more).
+    await page.goto(`/megatrends?${new URLSearchParams({ m: R_AND_D, s: SUB })}`);
     const sheet = page.getByTestId("mg-sheet");
     const list = sheet.getByTestId("mg-sources");
     await expect(list.locator(".mg-pages-label")).toHaveText("Signals");
@@ -83,7 +62,7 @@ test.describe("request 36", () => {
     expect(Number.parseFloat(await h2.evaluate((el) => getComputedStyle(el).fontSize))).toBeLessThanOrEqual(15);
     // The drawer reaches near the top of the graph.
     const sb = (await sheet.boundingBox())!;
-    const gb = (await page.getByTestId("md-graph").boundingBox())!;
+    const gb = (await page.locator(".mg-stage").boundingBox())!;
     expect(sb.y - gb.y).toBeLessThan(12);
 
     // Fields, then the CI Perspective, in one scroll: the CI Perspective never covers the fields; its text scrolls in its own box.

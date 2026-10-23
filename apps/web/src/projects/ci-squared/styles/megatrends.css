@@ -602,9 +602,11 @@ button.mix-lbl:hover, button.mix-lbl:focus-visible { color: #fff; text-decoratio
 .md-arrow-bar .md-arrow { pointer-events: auto; }
 .md-head { position: relative; }
 .md-head-up { position: absolute; left: 50%; top: 6px; transform: translateX(-50%); }
-.md-window { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; clip-path: inset(var(--bar, 68px) 0 var(--bar, 68px) 0); transition: clip-path 0.65s cubic-bezier(0.65, 0, 0.35, 1); }
+.md-window { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; clip-path: inset(var(--bar, 68px) 0 var(--bar, 68px) 0); transition: clip-path 0.22s cubic-bezier(0.4, 0, 0.2, 1); }
 .md-body.last .md-window { clip-path: inset(0); }
-.md-track { position: absolute; left: 0; right: 0; top: 0; padding-top: var(--bar, 68px); display: flex; flex-direction: column; gap: var(--gap); transition: transform 0.65s cubic-bezier(0.65, 0, 0.35, 1); will-change: transform; }
+.md-track { position: absolute; left: 0; right: 0; top: 0; padding-top: var(--bar, 68px); display: flex; flex-direction: column; gap: var(--gap); transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1); will-change: transform; }
+/* Request 70: a step taken while one is moving jumps there. */
+.md-track.instant, .md-window.instant, .cd-track.instant { transition: none; }
 @media (prefers-reduced-motion: reduce) {
   .md-track, .md-window { transition: none; }
 }
@@ -728,7 +730,7 @@ button.mix-lbl:hover, button.mix-lbl:focus-visible { color: #fff; text-decoratio
 .cd-head { position: relative; flex: none; }
 .cd-head .eyebrow { display: inline-flex; align-items: center; gap: 8px; }
 .cd-window { position: relative; z-index: 1; flex: 1 1 auto; min-height: 0; overflow: hidden; }
-.cd-track { position: absolute; inset: 0; display: flex; flex-direction: column; transition: transform 0.65s cubic-bezier(0.65, 0, 0.35, 1); will-change: transform; }
+.cd-track { position: absolute; inset: 0; display: flex; flex-direction: column; transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1); will-change: transform; }
 .cd-track[data-view="signals"] { transform: translateY(-100%); }
 .cd-panel { flex: none; height: 100%; min-height: 0; }
 .cd-profile { overflow-y: auto; overscroll-behavior: contain; }

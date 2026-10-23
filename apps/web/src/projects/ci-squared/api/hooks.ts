@@ -25,6 +25,7 @@ import {
   type TrackerSchema,
   type TrendAnalysis,
   type TenantSettings,
+  type CompetitorLogo,
 } from "@eradigm/shared";
 import { api, request } from "../../../api/client";
 // The platform's hooks, under the names CI Squared has always used.
@@ -124,6 +125,17 @@ export const useEarningsCallMarkdown = (id: string | null) =>
     enabled: !!id,
   });
 
+/** Request 70: the competitors that have a logo (Admin → Competitor logos). */
+export const useCompetitorLogos = () => useQuery({ queryKey: ["competitor-logos"], queryFn: () => api<CompetitorLogo[]>("/api/competitor-logos"), staleTime: 60_000 });
+/** A competitor's logo as a blob (fetched with the session, so it works with every sign-in); v changes with each new logo. */
+export const useCompetitorLogo = (name: string | null, v: string | null) =>
+  useQuery({
+    queryKey: ["competitor-logos", "image", name, v],
+    queryFn: async () => (await request(`/api/competitor-logos/image?${new URLSearchParams({ name: name ?? "", v: v ?? "" })}`)).blob(),
+    enabled: !!name && !!v,
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+
 /** Every Macrotrend's analysis sections (request 34). */
 export const useMacroSections = () => useQuery({ queryKey: ["macro-sections"], queryFn: () => api<MacroSection[]>("/api/macrotrends/sections") });
 
@@ -162,6 +174,15 @@ export const useItems = (statuses: string[], enabled = true, poll = false, strea
     enabled,
     // Every 3 s while something is being captured (to show it arrive), else every 8 s (unchanged answers cost the API one D1 row).
     refetchInterval: poll ? (q) => (q.state.data?.some((i) => (IN_PROGRESS_STATUSES as readonly string[]).includes(i.status)) ? 3000 : 8000) : false,
+  });
+
+/** Request 70: the latest captures (New Entry → Recent Captures), newest first. */
+export const useRecentCaptures = (enabled = true, n = 8) =>
+  useQuery({
+    queryKey: ["items", "recent", n],
+    queryFn: () => api<ItemSummary[]>(`/api/items?status=queued,fetching,extracting,needs_review,approved&limit=${n}`),
+    enabled,
+    refetchInterval: 15_000,
   });
 
 export const useItem = (id: string | null, poll = false) =>

@@ -1,0 +1,174 @@
+/*
+ * Request 70: the Dashboard, on one page in the night sky. Two columns
+ * (Macrotrends Analysis, Competitor Analysis); the two charts share a row,
+ * so they are the same size and level, and so do the two Profiles.
+ */
+.mg-page.ad-page.dd-page { height: 100vh; min-height: 0; overflow-y: auto; }
+.dd-head { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 10px 16px; flex-wrap: wrap; padding: 12px 24px 2px; }
+.dd-head h1 { margin: 0; font: 700 22px/1.2 var(--sans); color: #fff; }
+.dd-range { display: inline-flex; align-items: center; gap: 2px; padding: 3px; border-radius: 999px; background: rgba(2, 12, 20, 0.55); border: 1px solid var(--mg-line); }
+.dd-range-label { padding: 0 8px 0 10px; font-size: 12px; color: var(--mg-ink-3); }
+.dd-range button { border: 0; background: transparent; color: var(--mg-ink-2); font: 600 12.5px var(--sans); padding: 5px 12px; border-radius: 999px; cursor: pointer; }
+.dd-range button:hover { color: #fff; background: rgba(127, 211, 216, 0.1); }
+.dd-range button[aria-pressed="true"] { color: #fff; background: rgba(127, 211, 216, 0.2); box-shadow: inset 0 0 0 1px rgba(127, 211, 216, 0.55); }
+.dd-range button:focus-visible, .dd-analysis:focus-visible, .dd-company:focus-visible, .dd-pick:focus-visible, .dd-legend-item:focus-visible, .dd-mx-cell:focus-visible, .dd-open:focus-visible { outline: 2px solid var(--cyan-2); outline-offset: 2px; }
+.dd-skeleton { position: relative; z-index: 1; margin: 12px 24px; flex: 1; min-height: 480px; }
+
+.dd-layout { position: relative; z-index: 1; flex: 1 1 auto; min-height: 640px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: auto minmax(220px, 1fr) auto; gap: 8px 16px; padding: 6px 24px 14px; }
+.dd-layout > .left { grid-column: 1; }
+.dd-layout > .right { grid-column: 2; }
+.dd-col-title { grid-row: 1; margin: 0; padding-left: 2px; font: 700 17px/1.3 var(--sans); color: #fff; }
+.dd-chart { grid-row: 2; }
+.dd-profile { grid-row: 3; }
+.ad-page .dd-card { display: flex; flex-direction: column; min-height: 0; min-width: 0; padding: 10px 14px; gap: 6px; }
+.dd-card-head { display: flex; align-items: center; gap: 4px 12px; flex-wrap: wrap; }
+.dd-card-head h3 { margin: 0; font: 700 14px/1.3 var(--sans); color: #fff; }
+.dd-sub { flex: 1 1 220px; font-size: 12px; color: var(--mg-ink-3); }
+.dd-showall { margin-left: auto; width: 9.5em; justify-content: center; }
+.dd-muted { margin: 0; font-size: 12.5px; color: var(--mg-ink-3); }
+
+/* Stacked areas */
+.dd-area { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 6px; }
+.dd-area-plot { position: relative; flex: 1 1 auto; min-height: 120px; }
+.dd-area-plot svg { position: absolute; inset: 0; }
+g.dd-grid line { stroke: rgba(127, 211, 216, 0.12); }
+g.dd-grid text, .dd-xtick { fill: var(--mg-ink-3); font: 11px var(--sans); }
+.dd-axis-title { fill: var(--mg-ink-2); font: 600 11px var(--sans); }
+.dd-cross { stroke: rgba(255, 255, 255, 0.55); stroke-dasharray: 3 3; pointer-events: none; }
+.dd-empty-text { fill: var(--mg-ink-3); font: 13px var(--sans); }
+.dd-layer { transition: fill-opacity 0.12s ease; }
+.dd-legend { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 2px 4px; }
+.dd-legend-item { display: inline-flex; align-items: center; gap: 6px; max-width: 240px; border: 0; padding: 2px 6px; border-radius: 6px; background: transparent; color: var(--mg-ink-2); font: 12px var(--sans); cursor: pointer; }
+.dd-legend-item:hover, .dd-legend-item.on { background: rgba(127, 211, 216, 0.12); color: #fff; }
+.dd-legend-item:disabled { cursor: default; opacity: 1; }
+.dd-legend-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dd-swatch { display: inline-block; flex: none; width: 10px; height: 10px; border-radius: 3px; }
+.dd-swatch.hatch, .dd-seg.hatch { background-image: repeating-linear-gradient(45deg, rgba(4, 24, 42, 0.6) 0 2px, transparent 2px 5px) !important; }
+
+/* Tooltips (on the page body, so plain colours) */
+.dd-tip { position: fixed; z-index: 90; pointer-events: none; max-width: 320px; padding: 8px 10px; border-radius: 8px; background: #061a29; border: 1px solid rgba(127, 211, 216, 0.35); color: #eef6f8; font: 12px/1.4 var(--sans); box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45); }
+.dd-tip-title { display: block; margin-bottom: 3px; color: #fff; font-weight: 700; }
+.dd-tip-list { list-style: none; margin: 0 0 4px; padding: 0; display: grid; gap: 2px; }
+.dd-tip-list li { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; align-items: center; gap: 6px; color: #b5cfda; }
+.dd-tip-list li.on { color: #fff; font-weight: 700; }
+.dd-tip-list b { color: #fff; }
+.dd-tip-foot { display: block; color: #8fb4c4; }
+
+/* Scatter matrix */
+.dd-matrix { --name-w: 104px; --count-w: 92px; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.dd-mx-body { flex: 1 1 auto; min-height: 0; display: grid; grid-template-rows: repeat(var(--rows), minmax(24px, 1fr)); gap: 3px; overflow-y: auto; scrollbar-gutter: stable; }
+.dd-matrix.all .dd-mx-body { grid-template-rows: none; grid-auto-rows: 34px; overflow-y: auto; }
+.dd-mx-row, .dd-mx-foot { display: grid; grid-template-columns: var(--name-w) repeat(var(--cols), minmax(0, 1fr)) var(--count-w); gap: 3px; min-height: 0; }
+.dd-mx-foot { flex: none; height: 31px; padding-top: 5px; overflow: hidden; scrollbar-gutter: stable; }
+.dd-mx-name { align-self: center; padding-right: 6px; text-align: right; font: 12px var(--sans); color: var(--mg-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dd-mx-count { align-self: center; padding-left: 6px; font: 11.5px/1.3 var(--sans); color: var(--mg-ink-2); }
+.dd-mx-count .nb { white-space: nowrap; }
+.dd-mx-count b { font-weight: 700; }
+.dd-mx-cell { position: relative; min-height: 14px; padding: 0; border-radius: 5px; border: 1px solid rgba(127, 211, 216, 0.16); background: rgba(127, 211, 216, calc(0.03 + var(--glow, 0) * 0.07)); cursor: pointer; overflow: hidden; }
+.dd-mx-cell:hover { border-color: var(--cyan-2); background-color: rgba(127, 211, 216, 0.16); }
+.dd-mx-cell.none { cursor: default; border-color: rgba(127, 211, 216, 0.06); background: rgba(2, 12, 20, 0.3); }
+.dd-mx-dot { position: absolute; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; box-shadow: 0 0 0 1px #04182a; pointer-events: none; }
+.dd-mx-col { display: grid; place-items: center; min-width: 0; }
+.dd-mx-col .dd-icon { width: min(26px, 100%); height: 26px; border-radius: 8px; }
+.dd-mx-col .dd-icon svg { width: 18px; height: 18px; }
+.dd-empty { margin: auto; color: var(--mg-ink-3); font-size: 13px; }
+
+/* Popups */
+.dd-popup-root { position: fixed; inset: 0; z-index: 60; }
+.scrim.dd-scrim { z-index: 0; background: rgba(1, 8, 14, 0.62); }
+.dd-popup { position: fixed; z-index: 1; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(1180px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow: auto; display: flex; flex-direction: column; gap: 10px; padding: 16px 20px; border-radius: 16px; background: #061a29; border: 1px solid rgba(127, 211, 216, 0.3); color: var(--mg-ink); box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6); }
+.dd-popup-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.dd-popup-head h2 { margin: 0; font: 700 19px/1.3 var(--sans); color: #fff; }
+.dd-popup-sub { margin: 2px 0 0; font-size: 12.5px; color: var(--mg-ink-3); }
+.dd-pop-charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.dd-pop-charts section { display: flex; flex-direction: column; gap: 6px; height: min(440px, calc(100vh - 200px)); min-width: 0; }
+.dd-pop-charts h3 { margin: 0; font: 700 14px var(--sans); color: #fff; }
+.dd-popup.dd-scatter-pop { width: min(1000px, calc(100vw - 32px)); }
+.dd-scatter { position: relative; height: min(460px, calc(100vh - 250px)); border-radius: 10px; background: rgba(2, 12, 20, 0.45); }
+.dd-scatter svg { position: absolute; inset: 0; cursor: default; touch-action: none; user-select: none; }
+.dd-scatter svg.zoomed { cursor: grab; }
+.dd-scatter svg.zoomed:active { cursor: grabbing; }
+.dd-scatter circle { cursor: pointer; }
+.dd-scatter circle:hover, .dd-scatter circle:focus { stroke: #fff; outline: none; }
+.dd-pop-tools { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.dd-impact-legend { list-style: none; display: flex; gap: 14px; margin: 0; padding: 0; font-size: 12.5px; color: var(--mg-ink-2); }
+.dd-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: -1px; }
+.dd-zoom { display: inline-flex; align-items: center; gap: 6px; }
+.dd-pop-hint { margin: 0; font-size: 12px; color: var(--mg-ink-3); }
+
+/* Profiles */
+.dd-picker { display: flex; gap: 6px; margin-left: auto; }
+.dd-pick { display: grid; place-items: center; width: 38px; height: 38px; padding: 0; border-radius: 11px; border: 1px solid rgba(127, 211, 216, 0.22); background: rgba(2, 12, 20, 0.55); color: var(--mg-ink-2); cursor: pointer; transition: border-color 0.12s ease, box-shadow 0.12s ease; }
+.dd-pick:hover { border-color: rgba(127, 211, 216, 0.6); color: #fff; }
+.dd-pick[aria-pressed="true"] { border-color: var(--cyan-2); box-shadow: 0 0 0 2px rgba(127, 211, 216, 0.35); color: #fff; }
+.dd-icon { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; overflow: hidden; }
+.dd-icon.macro { color: var(--c); background: color-mix(in srgb, var(--c) 20%, transparent); }
+.dd-icon.macro.hatch { background-image: repeating-linear-gradient(45deg, color-mix(in srgb, var(--c) 35%, transparent) 0 2px, transparent 2px 5px); }
+.dd-icon.macro b { font: 800 11px var(--sans); }
+.dd-icon.logo { background: #fff; padding: 3px; }
+.dd-icon.logo img { width: 100%; height: 100%; object-fit: contain; }
+.dd-icon.initials { background: var(--c); color: #04182a; font: 800 11.5px var(--sans); }
+.dd-search { position: relative; flex: none; }
+.dd-search-pop { position: absolute; right: 0; top: calc(100% + 6px); z-index: 25; width: 290px; padding: 8px; border-radius: 10px; background: #fff; color: var(--ink, #0b2a3c); box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45); }
+.dd-profile-name { display: flex; align-items: baseline; gap: 4px 10px; flex-wrap: wrap; }
+.dd-profile-name > b { font: 700 18px/1.25 var(--sans); color: #fff; }
+.dd-change { font: 700 13px var(--sans); }
+.dd-change.up { color: #3fb37f; }
+.dd-change.down { color: #ef6b63; }
+.dd-change.flat { color: var(--mg-ink-3); }
+.dd-tier { padding: 1px 8px; border-radius: 999px; border: 1px solid currentColor; font: 600 11px var(--sans); }
+.dd-tier.t1 { color: #ef6b63; }
+.dd-tier.t2 { color: #e8a33d; }
+.dd-tier.t3 { color: #3fb37f; }
+.dd-tier.t4 { color: #8b9aa6; }
+.dd-logo-link { font-size: 12px; color: var(--cyan-2); }
+.dd-analysis { max-height: calc(1.45em * 3); overflow-y: auto; font-size: 13px; line-height: 1.45; color: var(--mg-ink-2); }
+.dd-analysis-text { margin: 0; }
+.dd-analysis-text.clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.dd-bars { display: grid; gap: 6px; }
+.dd-focus-label { font: 600 12px var(--sans); color: var(--mg-ink-2); }
+.dd-focus-n { font-weight: 400; color: var(--mg-ink-3); }
+.dd-focus-bar { display: flex; gap: 2px; height: 12px; margin-top: 3px; border-radius: 6px; overflow: hidden; }
+.dd-seg { flex-basis: 0; min-width: 3px; }
+.dd-focus-key { list-style: none; display: flex; flex-wrap: wrap; gap: 0 12px; max-height: 2.9em; margin: 3px 0 0; padding: 0; overflow: hidden; font-size: 11.5px; line-height: 1.45; color: var(--mg-ink-2); }
+.dd-focus-key li { display: inline-flex; align-items: center; gap: 5px; min-width: 0; max-width: 240px; }
+.dd-key-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dd-focus-key b { font-weight: 600; color: #fff; }
+.dd-focus-empty { margin: 3px 0 0; font-size: 12px; color: var(--mg-ink-3); }
+.dd-bottom { display: flex; min-height: 0; margin-top: 2px; }
+.dd-open { flex: 1; display: flex; flex-direction: column; gap: 3px; padding: 10px 14px; border-radius: 12px; border: 1px solid rgba(127, 211, 216, 0.3); background: rgba(127, 211, 216, 0.06); color: var(--mg-ink-2); font-size: 12.5px; line-height: 1.4; text-decoration: none; }
+.dd-open b { font-size: 14px; color: #fff; }
+.dd-open b::after { content: " →"; color: var(--cyan-2); }
+.dd-open:hover { border-color: rgba(127, 211, 216, 0.6); background: rgba(127, 211, 216, 0.14); }
+.dd-company { flex: 1; min-height: 0; max-height: 7.6em; overflow-y: auto; padding: 8px 14px; border-radius: 12px; border: 1px solid var(--mg-line); background: rgba(2, 12, 20, 0.45); font-size: 12.5px; line-height: 1.45; color: var(--mg-ink-2); }
+.dd-company > b { display: block; margin-bottom: 2px; font-size: 13px; color: #fff; }
+.dd-company .dd-analysis-text { font-size: 12.5px; }
+
+/* Short windows (a 768px-high laptop): tighter Profiles, so the charts keep their room. */
+@media (max-height: 840px) and (min-width: 1101px) {
+  .dd-head { padding-top: 8px; }
+  .dd-head h1 { font-size: 19px; }
+  .dd-col-title { font-size: 15px; }
+  .dd-layout { gap: 6px 14px; padding-bottom: 8px; min-height: 600px; }
+  .dd-legend { max-height: 42px; overflow-y: auto; }
+  .dd-legend-item { font-size: 11.5px; padding: 1px 5px; }
+  .dd-sub { font-size: 11.5px; }
+  .dd-pick { width: 34px; height: 34px; }
+  .dd-icon { width: 27px; height: 27px; }
+  .dd-profile-name > b { font-size: 16px; }
+  .dd-analysis { max-height: calc(1.45em * 2); font-size: 12.5px; }
+  .dd-analysis-text.clamp { -webkit-line-clamp: 2; }
+  .dd-focus-key { max-height: 1.45em; }
+  .dd-open span { display: none; }
+  .dd-open { padding: 8px 14px; }
+  .dd-company { max-height: 4.6em; padding: 6px 12px; }
+}
+
+/* Narrow windows: one column, the page scrolls. */
+@media (max-width: 1100px) {
+  .mg-page.ad-page.dd-page { height: auto; min-height: 100vh; overflow: visible; }
+  .dd-layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; min-height: 0; }
+  .dd-layout > .left, .dd-layout > .right { grid-column: 1; grid-row: auto; }
+  .dd-chart { height: 440px; }
+  .dd-pop-charts { grid-template-columns: minmax(0, 1fr); }
+}

@@ -23,11 +23,11 @@ import { api, type ApiError } from "../../../../api/client";
 import { useInvalidate } from "../../api/hooks";
 import { useToast } from "../../../../state/toast";
 import { localDateTime } from "../../../../lib/format";
+import { STEP_LOCK_MS, useStepper } from "./stepper";
 
 // The knowledge graph carries three.js: loaded when Explore Signals is first opened.
 const CompetitorsPage = lazy(() => import("../../pages/CompetitorsPage").then((m) => ({ default: m.CompetitorsPage })));
 
-const STEP_LOCK_MS = 750;
 const SIGNALS = "signals";
 
 export function CompetitorDashboard({
@@ -62,6 +62,8 @@ export function CompetitorDashboard({
   );
   const graphRef = useRef(graph);
   graphRef.current = graph;
+  // Request 70: a quick glide; a step while one is moving jumps.
+  const { step, instant } = useStepper(go);
   // The graph is mounted once it is first opened (it is heavy), and kept.
   const [graphOn, setGraphOn] = useState(graph);
   useEffect(() => {
@@ -108,27 +110,27 @@ export function CompetitorDashboard({
       if (Math.abs(acc.current) < 40) return;
       acc.current = 0;
       lock.current = Date.now() + STEP_LOCK_MS;
-      go(!graphRef.current);
+      step(!graphRef.current);
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [go]);
+  }, [step]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (t?.closest("input, textarea, select, [contenteditable], .mg-stage, .mg-timeline, .mg-drawer") || document.querySelector("[role=dialog][aria-modal=true]")) return;
       const p = profile.current;
-      if (e.key === "PageDown" && !graphRef.current && p && p.scrollTop + p.clientHeight >= p.scrollHeight - 1) go(true);
-      else if (e.key === "PageUp" && graphRef.current) go(false);
+      if (e.key === "PageDown" && !graphRef.current && p && p.scrollTop + p.clientHeight >= p.scrollHeight - 1) step(true);
+      else if (e.key === "PageUp" && graphRef.current) step(false);
       else return;
       e.preventDefault();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [go]);
+  }, [step]);
 
   const up = (
-    <button className="md-arrow" onClick={() => go(false)} data-testid="cd-up" aria-label="Back up: Company Profile">
+    <button className="md-arrow" onClick={() => step(false)} data-testid="cd-up" aria-label="Back up: Company Profile">
       <span className="md-chev" aria-hidden="true">
         ⌃
       </span>
@@ -152,7 +154,7 @@ export function CompetitorDashboard({
         {graph && <div className="md-head-up">{up}</div>}
       </header>
       <div className="cd-window" data-testid="cd-window">
-        <div className="cd-track" data-view={graph ? SIGNALS : "profile"}>
+        <div className={`cd-track${instant ? " instant" : ""}`} data-view={graph ? SIGNALS : "profile"}>
           <div className="cd-panel cd-profile" ref={profile} aria-hidden={graph} inert={graph} data-testid="cd-profile">
             <div className="ad-body">
               <CompanyProfile me={me} name={name} summary={summary} />
@@ -170,7 +172,7 @@ export function CompetitorDashboard({
                 !dash.isError && <div className="ad-skeleton" style={{ height: 420 }} role="status" aria-label="Loading the signals" />
               )}
               <div className="cd-explore">
-                <button className="md-arrow" onClick={() => go(true)} data-testid="cd-down" aria-label="Next: Explore Signals">
+                <button className="md-arrow" onClick={() => step(true)} data-testid="cd-down" aria-label="Next: Explore Signals">
                   <span className="md-arrow-label">Explore Signals</span>
                   <span className="md-chev" aria-hidden="true">
                     ⌄

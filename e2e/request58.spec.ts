@@ -41,10 +41,10 @@ const withParam = (page: Page, k: string, v: string | null) => {
 };
 
 test.describe("request 58", () => {
-  test("a Macrotrend's Explore Signals: most recent first (or by Impact), each signal dated; its time frame moves with the Impact Mix's", async ({ page }) => {
+  test("a Subtrend's signals: most recent first (or by Impact), each signal dated (request 70: on the Knowledge Graph page)", async ({ page }) => {
     await signInAs(page, "analyst");
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto(`/analytics/megatrends?${new URLSearchParams({ m: "AI Investment in R&D", v: "3", s: "Computational Infrastructure" })}`);
+    await page.goto(`/megatrends?${new URLSearchParams({ m: "AI Investment in R&D", s: "Computational Infrastructure" })}`);
     const sources = page.getByTestId("mg-sources");
     await expect(sources.locator("li").first()).toBeVisible();
     // Recency is the default, at the list's top right.
@@ -66,32 +66,6 @@ test.describe("request 58", () => {
     expectImpact(await rows(page));
     await order.getByRole("button", { name: "Recency" }).click();
     expectRecency(await rows(page));
-
-    // The time frame bar at the bottom: all dates at first.
-    const frame = page.getByTestId("explore-frame");
-    const label = page.getByTestId("mix-range-label-explore");
-    await expect(label).toContainText("All dates");
-    const graph = (await page.getByTestId("md-graph").boundingBox())!;
-    const bar = (await frame.boundingBox())!;
-    expect(Math.abs(graph.y + graph.height - (bar.y + bar.height))).toBeLessThanOrEqual(14);
-    // A later first month: the address keeps it, and the list shows only signals from then on.
-    await frame.getByLabel(/^First month of /).focus();
-    for (let i = 0; i < 4; i++) await page.keyboard.press("ArrowRight");
-    await expect(page).toHaveURL(/[?&]tf=/);
-    await expect(label).not.toContainText("All dates");
-    const first = new URL(page.url()).searchParams.get("tf")!.split("~")[0]!;
-    await expect.poll(async () => (await rows(page)).every((r) => new Date(r.ms).toISOString().slice(0, 7) >= first)).toBe(true);
-    const chosen = await label.innerText();
-
-    // The Impact Mix (row 2) shows the same time frame…
-    await page.goto(withParam(page, "v", "0"));
-    const mixLabel = page.getByTestId("mix-range-label-sub");
-    await expect(mixLabel).toHaveText(chosen);
-    // …and moving it moves Explore Signals' too.
-    await page.getByTestId("mix-range-sub").getByRole("button", { name: "All dates" }).click();
-    await expect(page).not.toHaveURL(/[?&]tf=/);
-    await page.goto(withParam(page, "v", "3"));
-    await expect(label).toContainText("All dates");
   });
 
   test("a competitor's Explore Signals: the same order toggle, dates and linked time frame", async ({ page }) => {

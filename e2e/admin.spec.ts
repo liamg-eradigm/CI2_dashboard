@@ -71,8 +71,17 @@ test.describe("other tenant", () => {
     await signInAs(page, "otherTenant");
     await page.goto("/dashboard");
     await expect(page.getByText("Northwind Pharma (demo)").first()).toBeVisible();
-    // Its Analytics Dashboard plots only its own few entries.
-    await expect(page.getByTestId("signal-timeline")).toBeVisible();
-    await expect.poll(() => page.locator(".tl-pt").count()).toBeLessThanOrEqual(12);
+    // Its Dashboard plots only its own few entries (request 70: since the first one).
+    await page.getByRole("group", { name: "Time frame" }).getByRole("button", { name: "All" }).click();
+    await expect(page.getByTestId("dd-matrix")).toBeVisible();
+    // Its rows are its own competitors (from its own few entries), nobody else's.
+    const own = await page.evaluate(async () => {
+      const d = await (await fetch("/api/competitors?stream=all", { headers: { "x-dev-user": localStorage.getItem("eradigm.devUser") ?? "" } })).json();
+      return { names: (d.competitors as { name: string }[]).map((c) => c.name), entries: (d.entries as unknown[]).length };
+    });
+    expect(own.entries).toBeLessThanOrEqual(12);
+    const rows = await page.locator(".dd-mx-name").allInnerTexts();
+    expect(rows.length).toBeGreaterThan(0);
+    for (const r of rows) expect(own.names).toContain(r.trim());
   });
 });

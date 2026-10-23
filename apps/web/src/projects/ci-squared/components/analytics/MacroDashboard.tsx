@@ -2,22 +2,20 @@
  * A Macrotrend's dashboard (request 34): Analytics → Megatrends Dashboard →
  * Megatrends → a Macrotrend.
  *
- * Five rows of cells on the lighter panels of the Analytics pages, two rows in
- * view at a time; the arrows (or scrolling, or Page Up / Page Down) glide to
- * the next pair: rows 1 & 2 → 2 & 3 → 3 & 4 → row 5, the full size of the four
- * cells.
+ * Four rows of cells on the lighter panels of the Analytics pages, two rows
+ * in view at a time; the arrows (or scrolling, or Page Up / Page Down) glide
+ * to the next pair: rows 1 & 2 → 2 & 3 → 3 & 4. (Request 70: opened from the
+ * Dashboard's Macrotrend Profile; row 5, the knowledge graph, is gone.)
  *
  * 1. What is {Macrotrend}? · Why does it matter?
  * 2. Current Landscape · Impact Mix by Subtrend (or by Competitor)
  * 3. Long-Term Landscape · Signal Timeline
  * 4. What's Next? · Impact on AbbVie
- * 5. Explore Signals: the knowledge graph of this Macrotrend only (request 58:
- *    with a time frame bar, the same as the Impact Mix's and moving with it)
  *
  * The text cells are the Macrotrend's analysis sections (Input → Input Trend
  * Analysis → Macrotrend, or edited in place by admins).
  */
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { CORE, MACRO_SECTIONS, can, macroSectionCell, type MacroSection, type MacroSectionKey, type Me } from "@eradigm/shared";
 import { api, type ApiError } from "../../../../api/client";
@@ -28,15 +26,12 @@ import { ImpactMix, RecordFromTimeline, SignalTimeline, useAnalytics, useRecordP
 import { RichTextField } from "../../../../components/RichTextField";
 import { RichText } from "../../../../components/BulletText";
 import { SizedHeading } from "../TextSize";
+import { STEP_LOCK_MS, useStepper } from "./stepper";
 
-// The knowledge graph carries three.js: loaded when row 5 is first shown.
-const MegatrendsPage = lazy(() => import("../../pages/MegatrendsPage").then((m) => ({ default: m.MegatrendsPage })));
-
-/** The four views: rows 1 & 2, 2 & 3, 3 & 4, then row 5. */
-const LAST_VIEW = 3;
+/** The three views: rows 1 & 2, 2 & 3, 3 & 4. */
+const LAST_VIEW = 2;
 /** The gap between cells: the vertical gap between the Megatrends Dashboard's boxes. */
 const GAP = 12;
-const STEP_LOCK_MS = 750;
 /** The height of the arrow bars above and below the two rows (less on short windows). */
 const barHeight = () => (typeof window !== "undefined" && window.innerHeight <= 760 ? 58 : 68);
 
@@ -60,17 +55,13 @@ export function MacroDashboard({ me, macro, onBack }: { me: Me; macro: string; o
   );
   const viewRef = useRef(view);
   viewRef.current = view;
+  // Request 70: a quick glide; a step while one is moving jumps.
+  const { step, instant } = useStepper(go);
 
   const { schema, filters, dash } = useAnalytics({ [CORE.macrotrend]: macro }, me);
   const rec = useRecordParam();
   const sections = useMacroSections();
   const [mixKind, setMixKind] = useState<"sub" | "comp">("sub");
-  // Row 5 is mounted once it is first reached (the 3D graph is heavy), and kept.
-  const [graphOn, setGraphOn] = useState(view === LAST_VIEW);
-  useEffect(() => {
-    if (view === LAST_VIEW) setGraphOn(true);
-  }, [view]);
-
   // The cells' height: two rows (and the gap between them) fill the window between the arrow bars.
   // Row 5 fills the whole window (request 36): its up arrow moves into the header and there is no down arrow.
   const win = useRef<HTMLDivElement>(null);
@@ -88,7 +79,7 @@ export function MacroDashboard({ me, macro, onBack }: { me: Me; macro: string; o
   }, []);
   const { winH, bar } = size;
   const rowH = Math.max(140, Math.floor((winH - 2 * bar - GAP) / 2));
-  const offset = view === LAST_VIEW ? bar + 4 * (rowH + GAP) : view * (rowH + GAP);
+  const offset = view * (rowH + GAP);
 
   // Scrolling steps one view at a time (inner scroll areas, the timeline's zoom and the graph keep their own scrolling).
   const lock = useRef(0);
@@ -108,7 +99,6 @@ export function MacroDashboard({ me, macro, onBack }: { me: Me; macro: string; o
     const onWheel = (e: WheelEvent) => {
       if (e.defaultPrevented || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
       const t = e.target as HTMLElement | null;
-      if (viewRef.current === LAST_VIEW && t?.closest(".mg-stage, .mg-timeline, .mg-drawer")) return;
       if (scrollsItself(t, e.deltaY)) return;
       e.preventDefault();
       if (Date.now() < lock.current) return;
@@ -119,34 +109,33 @@ export function MacroDashboard({ me, macro, onBack }: { me: Me; macro: string; o
       const next = viewRef.current + dir;
       if (next < 0 || next > LAST_VIEW) return;
       lock.current = Date.now() + STEP_LOCK_MS;
-      go(next);
+      step(next);
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [go]);
+  }, [step]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (t?.closest("input, textarea, select, [contenteditable], .mg-stage, .mg-timeline, .mg-drawer") || document.querySelector("[role=dialog][aria-modal=true]")) return;
-      if (e.key === "PageDown") go(viewRef.current + 1);
-      else if (e.key === "PageUp") go(viewRef.current - 1);
+      if (e.key === "PageDown") step(viewRef.current + 1);
+      else if (e.key === "PageUp") step(viewRef.current - 1);
       else return;
       e.preventDefault();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [go]);
+  }, [step]);
 
-  const labels = [`${macro} Overview`, "Current Landscape", "Long-Term Landscape", "What's Next?", "Explore Signals"];
+  const labels = [`${macro} Overview`, "Current Landscape", "Long-Term Landscape", "What's Next?"];
   // Down: the row that comes into view; up: the row at the top of the view above.
-  const downLabel = view < LAST_VIEW ? labels[view === LAST_VIEW - 1 ? 4 : view + 2] : null;
-  const upLabel = view > 0 ? labels[view === LAST_VIEW ? 2 : view - 1] : null;
+  const downLabel = view < LAST_VIEW ? labels[view + 2] : null;
+  const upLabel = view > 0 ? labels[view - 1] : null;
   const sectionOf = (k: MacroSectionKey) => sections.data?.find((x) => x.macrotrend === macro && x.section === k);
   const rowStyle = { height: rowH } as CSSProperties;
-  const inView = (row: number) => (view === LAST_VIEW ? row === 4 : row === view || row === view + 1);
-  const last = view === LAST_VIEW;
+  const inView = (row: number) => row === view || row === view + 1;
   const upArrow = upLabel && (
-    <button className="md-arrow" onClick={() => go(view - 1)} data-testid="md-up" aria-label={`Back up: ${upLabel}`}>
+    <button className="md-arrow" onClick={() => step(view - 1)} data-testid="md-up" aria-label={`Back up: ${upLabel}`}>
       <span className="md-chev" aria-hidden="true">
         ⌃
       </span>
@@ -161,25 +150,23 @@ export function MacroDashboard({ me, macro, onBack }: { me: Me; macro: string; o
           <button className="ad-back" onClick={onBack}>
             ← All megatrends
           </button>
-          {/* Row 5: its title where the Macrotrend's name is, the Macrotrend above it. */}
-          <span className="eyebrow">{last ? macro : "Macrotrend"}</span>
-          <h1 data-testid="ta-name">{last ? labels[4] : macro}</h1>
+          <span className="eyebrow">Macrotrend</span>
+          <h1 data-testid="ta-name">{macro}</h1>
         </div>
-        {last && <div className="md-head-up">{upArrow}</div>}
         <div className="head-end">
           <nav className="md-dots" aria-label="Dashboard rows">
-            {[0, 1, 2, 3].map((v) => (
-              <button key={v} aria-current={view === v ? "true" : undefined} onClick={() => go(v)} title={v === 3 ? labels[4] : `${labels[v]} · ${labels[v + 1]}`}>
-                <span className="sr-only">{v === 3 ? labels[4] : `Rows ${v + 1} and ${v + 2}: ${labels[v]} and ${labels[v + 1]}`}</span>
+            {[0, 1, 2].map((v) => (
+              <button key={v} aria-current={view === v ? "true" : undefined} onClick={() => step(v)} title={`${labels[v]} · ${labels[v + 1]}`}>
+                <span className="sr-only">{`Rows ${v + 1} and ${v + 2}: ${labels[v]} and ${labels[v + 1]}`}</span>
               </button>
             ))}
           </nav>
         </div>
       </header>
-      <div className={`md-body${last ? " last" : ""}`} ref={body} style={{ ["--bar" as string]: `${bar}px` }}>
-        <div className="md-arrow-bar up">{!last && upArrow}</div>
-        <div className="md-window" ref={win} data-testid="md-window">
-          <div className="md-track" style={{ transform: `translateY(${-offset}px)`, ["--gap" as string]: `${GAP}px` }} data-view={view} data-testid="md-track">
+      <div className="md-body" ref={body} style={{ ["--bar" as string]: `${bar}px` }}>
+        <div className="md-arrow-bar up">{upArrow}</div>
+        <div className={`md-window${instant ? " instant" : ""}`} ref={win} data-testid="md-window">
+          <div className={`md-track${instant ? " instant" : ""}`} style={{ transform: `translateY(${-offset}px)`, ["--gap" as string]: `${GAP}px` }} data-view={view} data-testid="md-track">
             <div className="md-row" style={rowStyle} data-row="1" aria-hidden={!inView(0)} inert={!inView(0)}>
               <SectionCell me={me} macro={macro} k="overview" s={sectionOf("overview")} />
               <SectionCell me={me} macro={macro} k="why" s={sectionOf("why")} />
@@ -225,22 +212,11 @@ export function MacroDashboard({ me, macro, onBack }: { me: Me; macro: string; o
               <SectionCell me={me} macro={macro} k="next" s={sectionOf("next")} />
               <SectionCell me={me} macro={macro} k="abbvie" s={sectionOf("abbvie")} />
             </div>
-            <div className="md-row md-row5" style={{ height: winH }} data-row="5" aria-hidden={!inView(4)} inert={!inView(4)}>
-              <section className="md-cell md-graph" aria-label={`Explore Signals: the knowledge graph of ${macro}`} data-testid="md-graph">
-                {graphOn ? (
-                  <Suspense fallback={<div className="mg-loading">Loading the knowledge graph…</div>}>
-                    <MegatrendsPage me={me} focusMacro={macro} span={filters ? { from: filters.from, to: filters.to } : undefined} />
-                  </Suspense>
-                ) : (
-                  <div className="mg-loading">The knowledge graph of {macro}</div>
-                )}
-              </section>
-            </div>
           </div>
         </div>
         <div className="md-arrow-bar down">
           {downLabel && (
-            <button className="md-arrow" onClick={() => go(view + 1)} data-testid="md-down" aria-label={`Next: ${downLabel}`}>
+            <button className="md-arrow" onClick={() => step(view + 1)} data-testid="md-down" aria-label={`Next: ${downLabel}`}>
               <span className="md-arrow-label">{downLabel}</span>
               <span className="md-chev" aria-hidden="true">
                 ⌄

@@ -1,21 +1,20 @@
 import { expect, expectAccessible, goTab, menuOf, navOf, signInAs, test } from "./fixtures";
 
 test.describe("request 28", () => {
-  test("the menu is in groups that open their tabs; a closed group shows its badge", async ({ page }) => {
+  test("request 70: every tab is its own (no groups); the Eradigm Inbox shows its count", async ({ page }) => {
     await signInAs(page, "admin");
     await page.goto("/dashboard");
     const nav = navOf(page);
-    // Only the group of the page in view is open (request 56: the Megatrends Dashboard is a tab of its own, current here).
-    await expect(nav.getByRole("link", { name: "Megatrends Dashboard", exact: true })).toHaveAttribute("aria-current", "page");
-    await expect(nav.getByRole("button", { name: /^Inputs\b/ })).toHaveAttribute("aria-expanded", "false");
-    await expect(nav.getByRole("button", { name: /^Inputs\b/ }).locator(".badge")).toBeVisible();
-    await goTab(page, "Inputs", "Input");
+    await expect(nav.getByRole("link", { name: "Dashboard", exact: true })).toHaveAttribute("aria-current", "page");
+    await expect(nav.getByRole("button")).toHaveCount(0);
+    await expect(nav.getByRole("link", { name: /^Eradigm Inbox/ }).locator(".badge")).toBeVisible();
+    await goTab(page, "New Entry");
     await expect(page).toHaveURL(/\/input$/);
-    await expect(nav.getByRole("button", { name: /^Inputs\b/ })).toHaveAttribute("aria-expanded", "true");
+    await expect(nav.getByRole("link", { name: "New Entry", exact: true })).toHaveAttribute("aria-current", "page");
     await navOf(page).getByRole("link", { name: "Admin", exact: true }).click();
     await expect(page).toHaveURL(/\/admin$/);
     // Inputs, and the Megatrends Dashboard, Database and Admin tabs (request 63: the Test group is gone).
-    expect(await menuOf(page)).toEqual(["Inputs: Input, Eradigm Inbox, Client Inbox", "Megatrends Dashboard", "Database", "Admin"]);
+    expect(await menuOf(page)).toEqual(["New Entry", "Eradigm Inbox", "Client Inbox", "Dashboard", "Database", "Admin"]);
     await expectAccessible(page, "Menu with every group open");
   });
 

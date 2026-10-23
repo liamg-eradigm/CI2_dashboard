@@ -1,0 +1,77 @@
+/*
+ * Request 70 (CI SQUARED only): no words in capitals (labels, headings,
+ * eyebrows and buttons are written as they are), and one font throughout
+ * (Nunito Sans; figures keep even widths so columns of numbers still line
+ * up). Code (Markdown source) stays monospace. The Eradigm wordmark keeps its
+ * letter spacing.
+ */
+html[data-project="ci2"] *,
+html[data-project="ci2"] *::before,
+html[data-project="ci2"] *::after {
+  text-transform: none !important;
+}
+html[data-project="ci2"] body *:not(pre):not(code):not(pre *):not(code *):not(.md-raw):not(.md-raw *) {
+  font-family: var(--sans) !important;
+}
+html[data-project="ci2"] body *:not(.wordmark):not(.wordmark *) {
+  letter-spacing: normal !important;
+}
+html[data-project="ci2"] body {
+  font-variant-numeric: tabular-nums;
+}
+/* Headings that were capitals read better a little larger. */
+html[data-project="ci2"] .card-title {
+  font-size: 15px;
+}
+html[data-project="ci2"] .eyebrow {
+  font-size: 12px;
+}
+html[data-project="ci2"] .field > span,
+html[data-project="ci2"] .field-label {
+  font-size: 11.5px;
+}
+
+/* Request 70: New Entry. Process file and Manual entry stacked beside the drop box, level with its top and bottom, the same size. */
+.source-row .source-actions { display: flex; flex-direction: column; justify-content: space-between; gap: 10px; }
+.source-row .source-actions .btn { width: 100%; justify-content: center; align-self: stretch; }
+.source-row .source-actions .btn.lg { align-self: stretch; }
+/* The sections as bars: their name, opening to the full view. */
+.nx-fold { display: flex; flex-direction: column; }
+.nx-bar { display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px 20px; border: 1px solid var(--border); border-radius: 10px; background: #fff; color: var(--navy-700); font: 700 15px var(--sans); text-align: left; cursor: pointer; }
+.nx-bar:hover { border-color: var(--teal); background: var(--tint-3); }
+.nx-fold.open > .nx-bar { border-bottom-left-radius: 0; border-bottom-right-radius: 0; border-bottom-color: var(--rule); background: var(--tint-3); }
+.nx-chev { width: 9px; height: 9px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(-45deg); transition: transform 0.15s ease; flex: none; }
+.nx-fold.open .nx-chev { transform: rotate(45deg); }
+.nx-title { flex: 1 1 auto; }
+.nx-hint { font: 600 12.5px var(--sans); color: var(--muted); }
+.nx-body > .card { border-top-left-radius: 0; border-top-right-radius: 0; border-top: 0; }
+/* The bar names the section: the card's own heading is kept for screen readers only. */
+.nx-body > .card > .card-head .card-title,
+.nx-body > .card > div:first-child > .card-title { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+/* Recent captures. */
+.nx-recent { display: flex; flex-direction: column; gap: 8px; }
+.nx-recent-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.nx-recent-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.nx-recent-row { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; align-items: center; gap: 12px; width: 100%; padding: 8px 6px; border: 0; border-bottom: 1px solid var(--rule); background: none; text-align: left; font: 500 13.5px var(--sans); color: var(--ink); cursor: pointer; }
+.nx-recent-list li:last-child .nx-recent-row { border-bottom: 0; }
+.nx-recent-row:hover { background: var(--tint-3); }
+.nx-recent-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nx-recent-date { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+.nx-dot { width: 10px; height: 10px; border-radius: 50%; background: #c3ced5; }
+.nx-dot.high { background: var(--high, #d9534f); }
+.nx-dot.medium { background: var(--medium, #e8a33d); }
+.nx-dot.low { background: var(--low, #3f9c6f); }
+
+/* Request 70: Admin → Competitor logos. */
+.logo-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: 380px; overflow-y: auto; }
+.logo-list li { display: flex; align-items: center; gap: 10px; padding: 4px 6px; border-radius: 8px; }
+.logo-list li:hover { background: var(--bg-soft, #f4f8fa); }
+.logo-icon .dd-icon { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; overflow: hidden; border: 1px solid var(--border); }
+.logo-icon .dd-icon.logo { background: #fff; padding: 3px; }
+.logo-icon .dd-icon.logo img { width: 100%; height: 100%; object-fit: contain; }
+.logo-icon .dd-icon.initials { background: var(--c); color: #04182a; font: 800 11.5px var(--sans); }
+.logo-name { flex: 1; min-width: 0; }
+.logo-name small { color: var(--muted); margin-left: 6px; }
+.logo-list label.btn { cursor: pointer; }
+.logo-list label.btn.disabled { opacity: 0.5; pointer-events: none; }
+.logo-list label.btn:focus-within { outline: 2px solid var(--cyan, #0c7f88); outline-offset: 2px; }

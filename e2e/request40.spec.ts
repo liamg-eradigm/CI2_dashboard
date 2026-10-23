@@ -76,8 +76,8 @@ test.describe("request 40", () => {
     await expectAccessible(page, "Knowledge graph with a new signal");
 
     // The Macrotrend dashboard's graph too.
-    await page.goto(`/analytics/megatrends?${new URLSearchParams({ m: R_AND_D, v: "3", s: SUB })}`);
-    await expect(page.getByTestId("md-graph").getByTestId("mg-sources").getByRole("button", { name: new RegExp(`Fresh signal ${tag}`) }).getByTestId("new-tag")).toBeVisible();
+    await page.goto(`/megatrends?${new URLSearchParams({ m: R_AND_D, s: SUB })}`);
+    await expect(page.getByTestId("mg-sources").getByRole("button", { name: new RegExp(`Fresh signal ${tag}`) }).getByTestId("new-tag")).toBeVisible();
 
     // Administration: the cutoff (60 days makes the older one new too).
     await page.goto("/admin");

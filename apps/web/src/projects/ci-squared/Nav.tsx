@@ -89,14 +89,19 @@ function NavGroup({
   );
 }
 
-/** A group that is a tab of its own (request 43): one link, named as the group. */
-function SoloTab({ group, item }: { group: MenuGroupSetting; item: MenuItemKey }) {
+/** A group that is a tab of its own (request 43; request 70: every tab): one link, named as the group, with its count. */
+function SoloTab({ group, item, badge }: { group: MenuGroupSetting; item: MenuItemKey; badge?: { n: number; label: string } | null }) {
   const loc = useLocation();
   const here = isHere(item, loc.pathname);
   return (
     <div className={`nav-group solo${here ? " within" : ""}`} data-testid={`nav-group-${group.key}`}>
       <MenuLink className={`nav-solo${here ? " active" : ""}`} path={hrefOf(item)} aria-current={here ? "page" : undefined}>
         <span>{groupLabel(group)}</span>
+        {badge && badge.n > 0 && (
+          <span className="badge" aria-label={badge.label}>
+            {badge.n}
+          </span>
+        )}
       </MenuLink>
     </div>
   );
@@ -113,19 +118,20 @@ export function CiSquaredNav({ me }: { me: Me }) {
   const loc = useLocation();
   const groups = visibleMenu(settings.data?.menu ?? DEFAULT_MENU, me.role);
   const waiting = clientCount.data?.count ?? 0;
+  const badge = (k: MenuItemKey) => (k === "inbox" ? { n, label: `${n} unprocessed` } : k === "clientinbox" ? { n: waiting, label: `${waiting} to check` } : null);
   return (
     <>
       {groups.map((g) =>
-        // A tab of its own (Database, request 43; Admin, request 52): a link straight to its page, no subtabs.
+        // A tab of its own (request 70: every tab): a link straight to its page, no subtabs.
         isStandaloneGroup(g.key) && g.items[0] ? (
-          <SoloTab key={g.key} group={g} item={g.items[0].key} />
+          <SoloTab key={g.key} group={g} item={g.items[0].key} badge={badge(g.items[0].key)} />
         ) : (
           <NavGroup
             key={g.key}
             group={g}
             open={expanded[g.key] ?? g.items.some((it) => isHere(it.key, loc.pathname))}
             onToggle={(o) => setExpanded((e) => ({ ...e, [g.key]: o }))}
-            badge={(k) => (k === "inbox" ? { n, label: `${n} unprocessed` } : k === "clientinbox" ? { n: waiting, label: `${waiting} to check` } : null)}
+            badge={badge}
           />
         ),
       )}

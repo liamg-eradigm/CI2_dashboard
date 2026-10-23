@@ -893,6 +893,42 @@ analyst-entered information distinguishable; in the prototype every value is
   "✓ Data synced" there for a moment when a sync changes the test space. A
   forced run that changes nothing says "Already up to date with the workbook"
   with the workbook's last save time.
+- **Request 70** (CI SQUARED; contract 2.9.0; migrations 0032, 0033):
+  - **Menu**: every tab is its own (New Entry, Eradigm Inbox, Client Inbox,
+    Dashboard, Database, Admin); `normaliseMenu` turns a saved grouped menu
+    into single tabs, keeping names and order. Analysts open **New Entry**
+    (`TAB_ROLES.input`).
+  - **New Macrotrend Manufacturing** (no Subtrends; migration 0032 adds it to
+    each CI Squared workspace; the Subtrend is not required for it).
+  - **CI Squared text**: no all-capitals and one typeface (`styles/ci2.css`,
+    scoped by `html[data-project="ci2"]`, so Epilepsy is unchanged).
+  - **New Entry**: a concise source card (Process file and Manual entry
+    stacked beside the drop box), **Recent captures** (`GET /api/items?limit=`),
+    and the other sections as bars that open and close (kept per browser).
+  - **Trend dashboards**: section steps take 0.22 s, and a second step within
+    that time skips the animation (`useStepper`); the Macrotrend page has no
+    knowledge graph row.
+  - **Dashboard** (`pages/DashboardPage.tsx`, `components/dashboard/`), one
+    page in two columns. *Activity* = Σ impact (Low 1, Medium 2, High 3) ×
+    growth intensity (Stable 1, Slight 2, Strong 3) per signal
+    (`dashboard/model.ts`; entries carry `growth` since contract 2.9),
+    summed by week (by month past ~7 months); three months by default.
+    Left: stacked areas per Macrotrend (a layer opens its Subtrends and its top
+    six competitors + Others). Right: a scatter plot per competitor ×
+    Macrotrend (Event Date across, growth up, Impact colour, brighter with
+    more signals; 9 × 9, Show all scrolls), each opening larger with wheel
+    zoom, drag and titles. Below each, its **Profile**: the top five by
+    signals as icons and a search; by default, of the top three, the one
+    whose Activity grew most over the last 30 days (against the 30 before);
+    its analysis; two focus bars (shares under 5% put together as Other when
+    there are several); and the Macrotrend Analysis link or the Company
+    Profile. A ninth Macrotrend takes the first hue with a hatch (colour and
+    texture), so the eight validated hues stay as they are.
+  - **Competitor logos** (migration 0033, `competitor_logos`): Admin →
+    Competitor logos uploads a PNG, JPEG, WebP or GIF (≤ 256 KB, recognised
+    by its first bytes, never SVG); served with its own type and nosniff
+    (`/api/competitor-logos`). Without one, a competitor shows its initials in
+    its tier's colour.
 - **Request 69** (EPILEPSY; contract 2.8.0; migration 0031): the NSO
   Comparator gains **Evidence** (a row just before the chart) and **x-axis
   name** (the chart's x-axis title, under the bars' own names). Staff can

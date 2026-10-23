@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState, type DragEvent } from "react";
-import { useNavigate } from "react-router-dom";
-import { CAPTURE_LIMITS, IN_PROGRESS_STATUSES, STREAM_LABEL, pipelineSteps, type ItemSummary, type Me, type Stream } from "@eradigm/shared";
+import { useEffect, useRef, useState, type DragEvent, type ReactNode } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { CAPTURE_LIMITS, CORE, IN_PROGRESS_STATUSES, STREAM_LABEL, pipelineSteps, type ItemSummary, type Me, type Stream } from "@eradigm/shared";
 import type { ApiError } from "../../../api/client";
 import { api } from "../../../api/client";
-import { useCaptureLog, useInvalidate, useItem, useSchema } from "../api/hooks";
+import { useCaptureLog, useInvalidate, useItem, useRecentCaptures, useSchema } from "../api/hooks";
 import { ImportCard } from "../components/ImportCard";
 import { TrendAnalysisInput } from "../components/TrendAnalysisInput";
 import { EarningsCallInput } from "../components/EarningsCallInput";
@@ -18,11 +18,6 @@ const DUP_BASIS: Record<"url" | "file" | "content", string> = {
 };
 
 const STAGE_OF_CODE: Record<string, number> = { TOO_LARGE: 0, CONTENT_TYPE: 0, MALICIOUS_CONTENT: 4 };
-
-const SOURCE_NOTE: Record<Stream, string> = {
-  primary: "Sent to the Eradigm Inbox as a Primary entry",
-  secondary: "Sent to the Eradigm Inbox as a Secondary entry · Source Tier: Reviewed-Secondary",
-};
 
 interface LocalRun {
   stream: Stream;
@@ -116,7 +111,6 @@ function SourceCard({
           <h2 className="card-title" id={`${id}-title`}>
             Add a source
           </h2>
-          <span className="card-sub">{SOURCE_NOTE[stream]}</span>
         </div>
         <StreamSwitch
           noun="Source"
@@ -153,17 +147,15 @@ function SourceCard({
             </button>
           )}
         </div>
-        <button className="btn lg" onClick={submit} disabled={!!busy} aria-label={`Process file for ${title}`}>
-          {busy === "file" ? "Uploading…" : "Process file"}
-        </button>
-      </div>
-      <div className="manual-row">
-        <span>
-          <b>No HTML file?</b> Send a blank {STREAM_LABEL[stream]} entry to the Eradigm Inbox and fill in every field there. You can attach the HTML later from the tracker.
-        </span>
-        <button className="btn secondary" onClick={() => void onManual(stream)} disabled={!!busy}>
-          {busy === "manual" ? "Creating…" : "✎ Manual entry"}
-        </button>
+        {/* Request 70: Process file level with the top of the drop box, Manual entry with its bottom, the same size. */}
+        <div className="source-actions">
+          <button className="btn lg" onClick={submit} disabled={!!busy} aria-label={`Process file for ${title}`}>
+            {busy === "file" ? "Uploading…" : "Process file"}
+          </button>
+          <button className="btn secondary lg" onClick={() => void onManual(stream)} disabled={!!busy} title={`A blank ${STREAM_LABEL[stream]} entry in the Eradigm Inbox, every field to fill in there`}>
+            {busy === "manual" ? "Creating…" : "✎ Manual entry"}
+          </button>
+        </div>
       </div>
       {err && (
         <div className="err-msg" id={`${id}-err`} role="alert">
@@ -289,12 +281,12 @@ export function InputPage({ me }: { me: Me }) {
         <div className="band-row">
           <div>
             <span className="eyebrow">Analysts and admins only</span>
-            <h1 id="page-title">Input</h1>
+            <h1 id="page-title">New Entry</h1>
           </div>
           <div className="band-copy">
             {manual
-              ? "Upload an HTML file saved with SingleFile as a Primary or a Secondary source, or send a blank manual entry. Either goes to the Eradigm Inbox with every tracker field empty for an analyst to complete. Nothing is published automatically."
-              : "Upload an HTML file saved with SingleFile as a Primary or a Secondary source. Every extracted draft goes to the Eradigm Inbox for review and is never published automatically."}
+              ? "Add a source (an HTML page saved with SingleFile) or a blank entry: it goes to the Eradigm Inbox to complete. Nothing is published automatically."
+              : "Add a source (an HTML page saved with SingleFile): its draft goes to the Eradigm Inbox for review. Nothing is published automatically."}
           </div>
         </div>
       </section>
@@ -394,10 +386,18 @@ export function InputPage({ me }: { me: Me }) {
               </section>
             )}
           </div>
-          <ImportCard />
-          <TrendAnalysisInput />
-          <EarningsCallInput />
-        </div>
+          <RecentCaptures />
+          {/* Request 70: the rest are bars with their names; each opens to its full view, and closes again. */}
+          <Fold id="import" title="Import spreadsheet">
+            <ImportCard />
+          </Fold>
+          <Fold id="trend-analysis" title="Input trend analysis">
+            <TrendAnalysisInput />
+          </Fold>
+          <Fold id="earnings-call" title="Input earnings call">
+            <EarningsCallInput />
+          </Fold>
+          <Fold id="capture-log" title="Capture log">
         <section className="card flush" aria-labelledby="log-title">
           <div style={{ padding: "16px 20px 12px" }}>
             <h2 className="card-title" id="log-title">
@@ -445,7 +445,101 @@ export function InputPage({ me }: { me: Me }) {
           </div>
           {log.data && !log.data.length && <div className="empty">No submissions yet.</div>}
         </section>
+          </Fold>
+        </div>
       </div>
     </div>
   );
 }
+
+/** The sections opened on this computer (they stay open next time). */
+const FOLD_KEY = "eradigm.newEntry.open";
+const openFolds = (): string[] => {
+  try {
+    return JSON.parse(localStorage.getItem(FOLD_KEY) ?? "[]") as string[];
+  } catch {
+    return [];
+  }
+};
+
+/**
+ * Request 70: a section of New Entry as a bar with its name; pressing it opens
+ * the section's full view (and its bar closes it again). A link to the
+ * section (#its-id) opens it.
+ */
+function Fold({ id, title, children }: { id: string; title: string; children: ReactNode }) {
+  const loc = useLocation();
+  const [open, setOpen] = useState(() => openFolds().includes(id) || loc.hash === `#${id}`);
+  useEffect(() => {
+    if (loc.hash === `#${id}`) setOpen(true);
+  }, [loc.hash, id]);
+  const toggle = () => {
+    const next = !open;
+    setOpen(next);
+    try {
+      const all = new Set(openFolds());
+      if (next) all.add(id);
+      else all.delete(id);
+      localStorage.setItem(FOLD_KEY, JSON.stringify([...all]));
+    } catch {
+      /* not kept: fine */
+    }
+  };
+  const bodyId = `fold-${id}`;
+  return (
+    <div className={`nx-fold${open ? " open" : ""}`} data-testid={`fold-${id}`}>
+      <button type="button" className="nx-bar" aria-expanded={open} aria-controls={bodyId} onClick={toggle}>
+        <span className="nx-chev" aria-hidden="true" />
+        <span className="nx-title">{title}</span>
+        <span className="nx-hint">{open ? "Minimise" : "Open"}</span>
+      </button>
+      {open && (
+        <div className="nx-body" id={bodyId}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const IMPACT_ORDER = ["High", "Medium", "Low"];
+
+/** Request 70: the latest captures: title, impact (a coloured dot) and the date of the event. */
+function RecentCaptures() {
+  const q = useRecentCaptures();
+  const nav = useNavigate();
+  return (
+    <section className="card nx-recent" aria-labelledby="recent-title" data-testid="recent-captures">
+      <div className="nx-recent-head">
+        <h2 className="card-title" id="recent-title">
+          Recent captures
+        </h2>
+        <span className="card-sub">The latest entries in the Eradigm Inbox and the trackers</span>
+      </div>
+      {q.data && !q.data.length && <div className="empty">Nothing captured yet.</div>}
+      <ul className="nx-recent-list">
+        {(q.data ?? []).map((it) => {
+          const title = String(it.draft[CORE.title] ?? it.title ?? "").trim() || `${it.code} · ${it.status === "approved" ? "no title" : "awaiting the analyst"}`;
+          const impact = String(it.draft[CORE.impact] ?? "").trim();
+          const date = String(it.draft[CORE.date] ?? "").trim();
+          const level = IMPACT_ORDER.find((x) => x.toLowerCase() === impact.toLowerCase());
+          return (
+            <li key={it.id}>
+              <button type="button" className="nx-recent-row" onClick={() => nav(it.status === "approved" ? `/database?${new URLSearchParams({ signal: it.id, stream: it.stream, "db.q": title.slice(0, 200) })}` : "/inbox")}
+                title={it.status === "approved" ? "Open it in the Database" : "Open the Eradigm Inbox"}>
+                <span className={`nx-dot ${level ? level.toLowerCase() : "none"}`} role="img" aria-label={level ? `${level} impact` : "No impact yet"} />
+                <span className="nx-recent-title">{title}</span>
+                <span className="nx-recent-date">{date ? shortDate(date) : "No date yet"}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+const shortDate = (iso: string) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  return m ? `${Number(m[3])} ${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][Number(m[2]) - 1]} ${m[1]}` : iso;
+};

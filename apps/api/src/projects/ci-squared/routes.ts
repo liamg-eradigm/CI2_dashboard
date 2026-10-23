@@ -105,6 +105,7 @@ import { primarySources, signalDetail, signalMarkdown } from "./services/signals
 import { attachSnapshot, importRows } from "./services/imports.js";
 import { submitFile, submitManual, submitUrl } from "./services/submissions.js";
 import { competitors, generateSummary, megatrends, writeSummary } from "./services/megatrends.js";
+import { deleteLogo, listLogos, readLogo, saveLogo } from "./services/competitorLogos.js";
 import {
   createTrendAnalysis,
   deleteTrendAnalysis,
@@ -497,6 +498,36 @@ app.get("/api/earnings-calls/:id/markdown", async (c) => {
   });
 });
 
+// Request 70: competitors' logos (the Dashboard's Competitor Profile).
+app.get("/api/competitor-logos", async (c) => {
+  const p = P(c);
+  requirePermission(p, "tracker:read");
+  return c.json(await listLogos(c.env, p.tenantId));
+});
+
+app.get("/api/competitor-logos/image", async (c) => {
+  const p = P(c);
+  requirePermission(p, "tracker:read");
+  const r = await readLogo(c.env, p.tenantId, c.req.query("name") ?? "");
+  // The ?v= of the list (when it was set) changes with each new logo, so it can be kept a day.
+  return new Response(r.bytes, { headers: { "Content-Type": r.mime, "Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "default-src 'none'; sandbox" } });
+});
+
+app.put("/api/competitor-logos", async (c) => {
+  const p = P(c);
+  requirePermission(p, "settings:edit");
+  const form = await c.req.formData().catch(() => null);
+  const file = form?.get("file") as unknown as File | string | null | undefined;
+  if (!file || typeof file === "string") throw badRequest("Attach the logo as the multipart field “file”");
+  return c.json(await saveLogo(c.env, p, c.req.query("name") ?? "", new Uint8Array(await file.arrayBuffer())));
+});
+
+app.delete("/api/competitor-logos", async (c) => {
+  const p = P(c);
+  requirePermission(p, "settings:edit");
+  return c.json(await deleteLogo(c.env, p, c.req.query("name") ?? ""));
+});
+
 app.delete("/api/earnings-calls/:id", async (c) => {
   const p = P(c);
   requirePermission(p, "item:edit");
@@ -741,8 +772,10 @@ app.get("/api/items", async (c) => {
   );
   if (!statuses.length) throw badRequest("Unknown status");
   const stream = c.req.query("stream") ? streamOf(c) : null;
+  // Request 70: the latest few (New Entry → Recent Captures).
+  const limit = Math.max(1, Math.min(200, Number.parseInt(c.req.query("limit") ?? "200", 10) || 200));
   const schemas = await schemasFor(c);
-  return cachedJson(c, () => listItems(c.env, schemas, P(c).tenantId, statuses, stream), "all");
+  return cachedJson(c, () => listItems(c.env, schemas, P(c).tenantId, statuses, stream, limit), "all");
 });
 
 // Registered before "/api/items/:id". Items awaiting the analyst, per inbox (the red badges).

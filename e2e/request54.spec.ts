@@ -54,30 +54,6 @@ test.describe("request 54", () => {
     await expectAccessible(page, "Generate newsletter with a section chosen");
   });
 
-  test("a Macrotrend's knowledge graph says how to use it under its name; the Competitors' graph does not", async ({ page }) => {
-    await signInAs(page, "client");
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto(`/analytics/megatrends?${new URLSearchParams({ m: "Geopolitics", v: "3" })}`);
-    const graph = page.getByTestId("md-graph");
-    const crumbs = graph.locator(".mg-crumbs");
-    const hint = crumbs.getByTestId("mg-hint");
-    await expect(hint).toHaveText("Select a Subtrend to explore signals in this space");
-    // In the same box, just below the Macrotrend's name.
-    // (Both measured at once: the dashboard may still be sliding to its last row.)
-    const { gap, inside } = await crumbs.evaluate((box) => {
-      const name = box.querySelector("button")!.getBoundingClientRect();
-      const h = box.querySelector(".mg-hint")!.getBoundingClientRect();
-      const b = box.getBoundingClientRect();
-      return { gap: h.top - name.bottom, inside: h.bottom <= b.bottom && h.left >= b.left && h.right <= b.right };
-    });
-    expect(gap).toBeGreaterThanOrEqual(-1);
-    expect(gap).toBeLessThan(20);
-    expect(inside).toBe(true);
-    await page.goto("/competitors");
-    await expect(page.locator(".mg-stage")).toBeVisible();
-    await expect(page.getByTestId("mg-hint")).toHaveCount(0);
-  });
-
   test("Database: a row turns blue on hover and opens every field in full from the right, bullets kept", async ({ page }) => {
     await signInAs(page, "admin");
     await page.setViewportSize({ width: 1440, height: 900 });

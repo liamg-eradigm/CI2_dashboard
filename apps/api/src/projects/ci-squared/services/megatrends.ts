@@ -100,7 +100,7 @@ export async function megatrends(env: Env, tenantId: string, q: MegatrendsQuery,
   const [counts, rows, sums] = await env.DB.batch([
     env.DB.prepare(`SELECT i.macrotrend AS macro, i.subtrend AS sub, COUNT(*) AS n FROM intelligence_items i WHERE ${w.sql} GROUP BY i.macrotrend, i.subtrend`).bind(tenantId, ...w.binds),
     env.DB.prepare(
-      `SELECT i.id, i.signal_code, i.record_id, i.stream, i.pub_date, i.title, i.macrotrend, i.subtrend, i.impact, ${CI_EXPR} AS ci,
+      `SELECT i.id, i.signal_code, i.record_id, i.stream, i.pub_date, i.title, i.macrotrend, i.subtrend, i.impact, i.growth, ${CI_EXPR} AS ci,
               (SELECT group_concat(c.competitor, '\u001f') FROM item_competitors c WHERE c.item_id = i.id) AS comps
          FROM intelligence_items i WHERE ${w.sql}
         ORDER BY i.pub_date DESC, i.signal_code DESC LIMIT ${MEGATRENDS_MAX_ENTRIES + 1}`,
@@ -146,6 +146,7 @@ export async function megatrends(env: Env, tenantId: string, q: MegatrendsQuery,
     macrotrend: string;
     subtrend: string | null;
     impact: string | null;
+    growth: string | null;
     ci: number | null;
     comps: string | null;
   }[];
@@ -163,6 +164,7 @@ export async function megatrends(env: Env, tenantId: string, q: MegatrendsQuery,
       macrotrend: r.macrotrend,
       subtrend: r.subtrend || null,
       impact: r.impact,
+      growth: r.growth ?? null,
       ci: !!r.ci,
       competitors: r.comps ? r.comps.split("\u001f").sort() : [],
     }));
@@ -251,7 +253,7 @@ export async function competitors(env: Env, tenantId: string, stream: Stream | "
          JOIN intelligence_items i ON i.id = a.item_id WHERE ${TRACKER}${sw} GROUP BY a.competitor, b.competitor`,
     ).bind(...binds),
     env.DB.prepare(
-      `SELECT i.id, i.signal_code, i.record_id, i.stream, i.pub_date, i.title, i.macrotrend, i.subtrend, i.impact, ${CI_EXPR} AS ci,
+      `SELECT i.id, i.signal_code, i.record_id, i.stream, i.pub_date, i.title, i.macrotrend, i.subtrend, i.impact, i.growth, ${CI_EXPR} AS ci,
               (SELECT group_concat(c.competitor, '') FROM item_competitors c WHERE c.item_id = i.id) AS comps
          FROM intelligence_items i WHERE ${TRACKER}${sw} AND EXISTS (SELECT 1 FROM item_competitors c WHERE c.item_id = i.id)
         ORDER BY i.pub_date DESC, i.signal_code DESC LIMIT ${MEGATRENDS_MAX_ENTRIES + 1}`,
@@ -269,6 +271,7 @@ export async function competitors(env: Env, tenantId: string, stream: Stream | "
     macrotrend: string | null;
     subtrend: string | null;
     impact: string | null;
+    growth: string | null;
     ci: number | null;
     comps: string | null;
   }[];
@@ -288,6 +291,7 @@ export async function competitors(env: Env, tenantId: string, stream: Stream | "
       macrotrend: r.macrotrend ?? "",
       subtrend: r.subtrend || null,
       impact: r.impact,
+      growth: r.growth ?? null,
       ci: !!r.ci,
       competitors: real(r.comps ? r.comps.split("").sort() : []),
     }))

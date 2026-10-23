@@ -79,45 +79,39 @@ test.describe("Megatrends", () => {
 });
 
 test.describe("tab order", () => {
-  test("admin reorders and renames the menu's groups and tabs for everyone (request 28)", async ({ page, browser }) => {
+  test("admin reorders and renames the menu's tabs for everyone (request 28; request 70: every tab its own)", async ({ page, browser }) => {
     await signInAs(page, "admin");
     await page.goto("/admin");
     const card = page.getByTestId("tab-order");
     await expect(card.getByRole("heading", { name: "Menu" })).toBeVisible();
-    // Every group, including the tabs of their own (Database; Admin since request 52; the Megatrends Dashboard since request 56).
-    const groups = () => navOf(page).locator(".nav-group > .nav-parent > span:first-child, .nav-group > .nav-solo > span").allInnerTexts();
-    await expect.poll(groups).toEqual(["Inputs", "Megatrends Dashboard", "Database", "Admin"]);
-    // Groups move; tabs move within their group (Admin moves past the Database tab, then the Megatrends Dashboard).
-    await card.getByRole("button", { name: "Move group Admin up" }).click();
+    const tabs = () => navOf(page).locator(".nav-group > .nav-solo > span:first-child").allInnerTexts();
+    await expect.poll(tabs).toEqual(["New Entry", "Eradigm Inbox", "Client Inbox", "Dashboard", "Database", "Admin"]);
+    // Admin moves up past the Database and the Dashboard.
+    await card.getByRole("button", { name: "Move tab Admin up" }).click();
     await expect(page.locator(".toast").last()).toContainText("Moved");
-    await card.getByRole("button", { name: "Move group Admin up" }).click();
-    await expect.poll(groups).toEqual(["Inputs", "Admin", "Megatrends Dashboard", "Database"]);
-    await card.getByTestId("menu-group-inputs").getByRole("button", { name: "Move tab Inputs: Client Inbox up" }).click();
-    await expect(page.locator(".toast").last()).toContainText("Moved");
-    // Renamed: a group and a tab.
-    await card.getByLabel("Name of the Inputs group").fill("Sources");
-    await card.getByLabel("Name of the Inputs group").press("Enter");
-    await expect(page.locator(".toast").last()).toContainText("Group renamed to “Sources”");
-    await card.getByLabel("Name of the Inputs tab Client Inbox").fill("Client questions");
-    await card.getByLabel("Name of the Inputs tab Client Inbox").press("Tab");
+    await card.getByRole("button", { name: "Move tab Admin up" }).click();
+    await expect.poll(tabs).toEqual(["New Entry", "Eradigm Inbox", "Client Inbox", "Admin", "Dashboard", "Database"]);
+    // Renamed.
+    await card.getByLabel("Name of the Client Inbox tab").fill("Client questions");
+    await card.getByLabel("Name of the Client Inbox tab").press("Tab");
     await expect(page.locator(".toast").last()).toContainText("Tab renamed to “Client questions”");
-    await expect(card.getByTestId("menu-item-clientinbox")).toContainText("was Client Inbox");
+    await expect(card.getByTestId("menu-group-clientinbox")).toContainText("was Client Inbox");
     await expectAccessible(page, "Administration with the menu editor");
-    expect(await menuOf(page)).toEqual(["Sources: Input, Client questions, Eradigm Inbox", "Admin", "Megatrends Dashboard", "Database"]);
-    await goTab(page, "Sources", "Client questions");
+    expect(await menuOf(page)).toEqual(["New Entry", "Eradigm Inbox", "Client questions", "Admin", "Dashboard", "Database"]);
+    await goTab(page, "Client questions");
     await expect(page).toHaveURL(/\/client-inbox/);
-    // A client sees the same order and names (without the staff tabs and the Admin group).
+    // A client sees the same order and names (without the staff tabs and Admin).
     const ctx = await browser.newContext();
     const other = await ctx.newPage();
     await signInAs(other, "client");
     await other.goto("/dashboard");
-    expect(await menuOf(other)).toEqual(["Sources: Client questions", "Megatrends Dashboard", "Database"]);
+    expect(await menuOf(other)).toEqual(["Client questions", "Dashboard", "Database"]);
     await ctx.close();
     // Restore.
     await page.goto("/admin");
     await card.getByRole("button", { name: "Restore the usual menu" }).click();
-    await expect.poll(groups).toEqual(["Inputs", "Megatrends Dashboard", "Database", "Admin"]);
-    await expect(card.getByLabel("Name of the Inputs tab Client Inbox")).toHaveValue("");
+    await expect.poll(tabs).toEqual(["New Entry", "Eradigm Inbox", "Client Inbox", "Dashboard", "Database", "Admin"]);
+    await expect(card.getByLabel("Name of the Client Inbox tab")).toHaveValue("");
   });
 
   test("admin sets how AI summaries are written", async ({ page }) => {

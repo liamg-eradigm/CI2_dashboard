@@ -105,7 +105,7 @@ export const NAV_LABEL: Record<NavTab, string> = {
   competitors: "Competitors",
   inbox: "Eradigm Inbox",
   clientinbox: "Client Inbox",
-  input: "Input",
+  input: "New Entry",
   admin: "Administration",
 };
 export const DEFAULT_NAV_ORDER: NavTab[] = [...NAV_TABS];
@@ -138,7 +138,8 @@ const TAB_ROLES: Record<NavTab, readonly Role[]> = {
   inbox: ["admin", "analyst"],
   clientinbox: ["admin", "client"],
   deliverables: ["admin"],
-  input: ["admin"],
+  // Request 70: analysts add entries too.
+  input: ["admin", "analyst"],
   admin: ["admin"],
 };
 export const canSeeTab = (role: Role | null | undefined, tab: NavTab): boolean => !!role && TAB_ROLES[tab].includes(role);

@@ -210,9 +210,9 @@ test.describe("request 61: the Epilepsy project", () => {
 });
 
 test.describe("request 61: CI SQUARED", () => {
-  test("Explore Signals: the signals list is open before a subtrend is chosen, with a heading per month", async ({ page }) => {
+  test("the signals list has a heading per month (request 70: on the Knowledge Graph page)", async ({ page }) => {
     await signInAs(page, "analyst");
-    await page.goto(`/analytics/megatrends?${new URLSearchParams({ m: "AI Investment in R&D", v: "3" })}`);
+    await page.goto(`/megatrends?${new URLSearchParams({ m: "AI Investment in R&D", s: "Computational Infrastructure" })}`);
     const sources = page.getByTestId("mg-sources");
     await expect(sources.locator("li").first()).toBeVisible();
     const months = sources.getByTestId("signal-month");

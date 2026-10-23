@@ -108,7 +108,9 @@ export function validateValues(
   for (const col of sortedColumns(schema)) {
     const v = values[col.key];
     if (isEmpty(v)) {
-      if (opts.forApproval && col.required) err(col, "required", `${col.label} is required`);
+      // Request 70: a Macrotrend with no Subtrends (Manufacturing, to begin with) needs none.
+      const noSubtrends = col.type === "sub" && typeof values[CORE.macrotrend] === "string" && !!values[CORE.macrotrend] && subtrendsOf(schema, values[CORE.macrotrend] as string).length === 0;
+      if (opts.forApproval && col.required && !noSubtrends) err(col, "required", `${col.label} is required`);
       continue;
     }
     switch (col.type) {
