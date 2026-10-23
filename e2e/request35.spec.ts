@@ -3,7 +3,7 @@ import { expect, expectAccessible, signInAs, test } from "./fixtures";
 const R_AND_D = "AI Investment in R&D";
 
 test.describe("request 35", () => {
-  test("the Macrotrend dashboard's knowledge graph has no timeline and no 'All Tracker entries' globe; the arrows' names are large", async ({ page }) => {
+  test("the Macrotrend dashboard's arrows' names are large, its timeline is simple, and the Knowledge Graph tab keeps its core and timeline", async ({ page }) => {
     await signInAs(page, "client");
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(`/analytics/megatrends?${new URLSearchParams({ m: R_AND_D })}`);
@@ -47,25 +47,13 @@ test.describe("request 35", () => {
     await expect(tl.getByRole("button", { name: "Reset" })).toHaveCount(0);
     await expectAccessible(page, "Macrotrend dashboard: Long-Term Landscape");
 
-    for (let i = 1; i < 3; i++) {
-      await dash.getByTestId("md-down").click();
-      await expect(dash.getByTestId("md-track")).toHaveAttribute("data-view", String(i + 1));
-    }
-    const graph = dash.getByTestId("md-graph");
-    const canvas = graph.getByTestId("mg-canvas");
-    await expect(canvas).toHaveAttribute("data-core", "none");
-    // The Macrotrend and its Subtrends only.
-    expect(Number(await canvas.getAttribute("data-hubs"))).toBeGreaterThan(1);
-    await expect(graph.getByTestId("mg-timeline")).toHaveCount(0);
-    // The graph fills the frame, above its time frame bar (request 58).
-    const g = (await graph.boundingBox())!;
-    const stage = (await graph.locator(".mg-stage").boundingBox())!;
-    const bar = (await graph.getByTestId("explore-frame").locator("xpath=..").boundingBox())!;
-    expect(Math.abs(stage.height + bar.height - g.height)).toBeLessThan(4);
-    expect(bar.height).toBeLessThan(90);
+    // Request 70: the last view is rows 3 and 4; no knowledge graph row below.
+    await dash.getByTestId("md-down").click();
+    await expect(dash.getByTestId("md-track")).toHaveAttribute("data-view", "2");
+    await expect(dash.getByTestId("md-down")).toHaveCount(0);
+    await expect(dash.getByTestId("md-graph")).toHaveCount(0);
     const up = dash.getByTestId("md-up").locator(".md-arrow-label");
     expect(Number.parseFloat(await up.evaluate((el) => getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(18);
-    await expectAccessible(page, "Macrotrend dashboard: Explore Signals");
 
     // The Knowledge Graph tab keeps its core and timeline.
     await page.goto("/megatrends");
