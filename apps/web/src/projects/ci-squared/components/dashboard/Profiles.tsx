@@ -172,7 +172,10 @@ export function ProfileCard({
         {badge}
         <Change c={change} />
       </div>
-      <div className="dd-analysis">{analysis}</div>
+      {/* Scrolls when long: focusable, so it scrolls with the keyboard too. */}
+      <div className="dd-analysis" tabIndex={0} role="region" aria-label={`Analysis of ${value}`}>
+        {analysis}
+      </div>
       <div className="dd-bars">{bars}</div>
       <div className="dd-bottom">{bottom}</div>
     </section>

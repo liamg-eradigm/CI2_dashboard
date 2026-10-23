@@ -300,7 +300,7 @@ function CompetitorProfile({
         </>
       }
       bottom={
-        <section className="dd-company" aria-labelledby="dd-company-title" data-testid="dd-company-profile">
+        <section className="dd-company" aria-labelledby="dd-company-title" data-testid="dd-company-profile" tabIndex={0}>
           <b id="dd-company-title">Company Profile</b>
           <Analysis text={text} empty={`No Company Profile of ${name} yet.`} />
         </section>

@@ -11,7 +11,7 @@
 .dd-range button { border: 0; background: transparent; color: var(--mg-ink-2); font: 600 12.5px var(--sans); padding: 5px 12px; border-radius: 999px; cursor: pointer; }
 .dd-range button:hover { color: #fff; background: rgba(127, 211, 216, 0.1); }
 .dd-range button[aria-pressed="true"] { color: #fff; background: rgba(127, 211, 216, 0.2); box-shadow: inset 0 0 0 1px rgba(127, 211, 216, 0.55); }
-.dd-range button:focus-visible, .dd-pick:focus-visible, .dd-legend-item:focus-visible, .dd-mx-cell:focus-visible, .dd-open:focus-visible { outline: 2px solid var(--cyan-2); outline-offset: 2px; }
+.dd-range button:focus-visible, .dd-analysis:focus-visible, .dd-company:focus-visible, .dd-pick:focus-visible, .dd-legend-item:focus-visible, .dd-mx-cell:focus-visible, .dd-open:focus-visible { outline: 2px solid var(--cyan-2); outline-offset: 2px; }
 .dd-skeleton { position: relative; z-index: 1; margin: 12px 24px; flex: 1; min-height: 480px; }
 
 .dd-layout { position: relative; z-index: 1; flex: 1 1 auto; min-height: 640px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: auto minmax(220px, 1fr) auto; gap: 8px 16px; padding: 6px 24px 14px; }
