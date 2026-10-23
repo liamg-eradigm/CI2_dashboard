@@ -41,7 +41,7 @@ test.describe("request 34", () => {
     await signInAs(page, "admin");
     await page.goto("/dashboard");
     expect(await menuOf(page)).toEqual(["New Entry", "Eradigm Inbox", "Client Inbox", "Dashboard", "Database", "Admin"]);
-    await expect(page.getByRole("heading", { level: 1, name: "Megatrends Dashboard" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible();
     // Request 48: the Databases group is gone; the Database tab has them all.
     await navOf(page).getByRole("link", { name: "Database", exact: true }).click();
     await expect(page).toHaveURL(/\/database/);

@@ -25,6 +25,7 @@ import {
   type TrackerSchema,
   type TrendAnalysis,
   type TenantSettings,
+  type CompetitorLogo,
 } from "@eradigm/shared";
 import { api, request } from "../../../api/client";
 // The platform's hooks, under the names CI Squared has always used.
@@ -122,6 +123,17 @@ export const useEarningsCallMarkdown = (id: string | null) =>
     queryKey: ["earnings-calls", id, "markdown"],
     queryFn: async () => (await request(`/api/earnings-calls/${id}/markdown`)).text(),
     enabled: !!id,
+  });
+
+/** Request 70: the competitors that have a logo (Admin → Competitor logos). */
+export const useCompetitorLogos = () => useQuery({ queryKey: ["competitor-logos"], queryFn: () => api<CompetitorLogo[]>("/api/competitor-logos"), staleTime: 60_000 });
+/** A competitor's logo as a blob (fetched with the session, so it works with every sign-in); v changes with each new logo. */
+export const useCompetitorLogo = (name: string | null, v: string | null) =>
+  useQuery({
+    queryKey: ["competitor-logos", "image", name, v],
+    queryFn: async () => (await request(`/api/competitor-logos/image?${new URLSearchParams({ name: name ?? "", v: v ?? "" })}`)).blob(),
+    enabled: !!name && !!v,
+    staleTime: Number.POSITIVE_INFINITY,
   });
 
 /** Every Macrotrend's analysis sections (request 34). */

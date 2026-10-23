@@ -29,52 +29,6 @@ test.describe("request 31", () => {
     await expect(page).toHaveURL(/\/megatrends$/);
   });
 
-  test("Analytics Dashboard: the timeline at the top (zoomable), the two impact mixes side by side, then Trends Analysis", async ({ page }) => {
-    await signInAs(page, "client");
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto("/dashboard");
-    const dash = page.getByTestId("analytics-dashboard");
-    await expect(dash.getByRole("heading", { name: "Megatrends Dashboard", level: 1 })).toBeVisible();
-    // No figures band, no filter bar.
-    await expect(page.locator(".kpi")).toHaveCount(0);
-    await expect(page.getByRole("region", { name: "Filters", exact: true })).toHaveCount(0);
-    // The knowledge graph's night sky.
-    expect(await dash.evaluate((el) => getComputedStyle(el).backgroundImage)).toContain("gradient");
-    const card = (name: string) => page.locator("section.card", { has: page.getByRole("heading", { name, exact: true }) });
-    const [tl, macro, comp] = [(await card("Signal Timeline").boundingBox())!, (await card("Impact Mix by Macrotrend").boundingBox())!, (await card("Impact Mix by Competitor").boundingBox())!];
-    expect(tl.y).toBeLessThan(macro.y);
-    expect(Math.abs(macro.y - comp.y)).toBeLessThanOrEqual(1);
-    expect(comp.x).toBeGreaterThan(macro.x + macro.width - 1);
-    await expect(card("Impact Mix by Competitor").locator(".bar-row").first()).toBeVisible();
-    // Zoom: scroll on the timeline, then Reset.
-    const range = page.getByTestId("tl-range");
-    await expect(range).toHaveText("All dates");
-    const plot = page.getByTestId("signal-timeline");
-    const before = await plot.locator(".tl-pt").count();
-    const b = (await plot.boundingBox())!;
-    await page.mouse.move(b.x + b.width * 0.8, b.y + b.height / 2);
-    for (let i = 0; i < 5; i++) await page.mouse.wheel(0, -240);
-    await expect(range).not.toHaveText("All dates");
-    expect(await plot.locator(".tl-pt").count()).toBeLessThan(before);
-    // Drag moves across the dates.
-    const zoomed = await range.innerText();
-    await page.mouse.move(b.x + b.width * 0.5, b.y + 20);
-    await page.mouse.down();
-    await page.mouse.move(b.x + b.width * 0.2, b.y + 20, { steps: 6 });
-    await page.mouse.up();
-    await expect(range).not.toHaveText(zoomed);
-    await page.getByRole("button", { name: "Reset" }).click();
-    await expect(range).toHaveText("All dates");
-    // Trends Analysis: a centred subtitle, then Megatrends and Competitors.
-    const title = page.getByRole("heading", { name: "Trends Analysis", level: 2 });
-    await expect(title).toBeVisible();
-    expect(await title.evaluate((el) => getComputedStyle(el).textAlign)).toBe("center");
-    await expectAccessible(page, "Analytics Dashboard");
-    await page.getByTestId("ad-megatrends").click();
-    await expect(page).toHaveURL(/\/analytics\/megatrends$/);
-    await expect(navOf(page).getByRole("link", { name: "Dashboard", exact: true })).toHaveAttribute("aria-current", "page");
-  });
-
   test("Trends Analysis: a Macrotrend opens its own dashboard (request 34)", async ({ page }) => {
     await signInAs(page, "analyst");
     await page.setViewportSize({ width: 1440, height: 900 });

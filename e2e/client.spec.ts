@@ -5,7 +5,7 @@ test.describe("client role", () => {
 
   test("sees only published data and no analyst tools", async ({ page }) => {
     await page.goto("/dashboard");
-    await expect(page.getByRole("heading", { name: "Megatrends Dashboard" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible();
     // Requests 28 and 31: tabs in groups; a client's Inputs group has only the Client Inbox, and there is no Admin group.
     expect(await menuOf(page)).toEqual(["Client Inbox", "Dashboard", "Database"]);
     const nav = navOf(page);
@@ -13,7 +13,7 @@ test.describe("client role", () => {
     for (const path of ["/input", "/inbox", "/admin"]) {
       await page.goto(path);
       await expect(page).toHaveURL(/\/dashboard/);
-      await expect(page.getByRole("heading", { name: "Megatrends Dashboard" })).toBeVisible();
+      await expect(page.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible();
     }
     await expect(nav.getByRole("link", { name: /Eradigm Inbox/ })).toHaveCount(0);
     await expect(nav.getByRole("link", { name: /: Input$/ })).toHaveCount(0);
@@ -94,10 +94,12 @@ test.describe("client role", () => {
   });
 
   test("the Database defaults to everything in view (oldest entry to today) and its two streams add up to the Analytics Dashboard", async ({ page }) => {
-    // The Analytics Dashboard (request 31) has no filters: its timeline shows every Tracker entry.
+    // Every Tracker entry (request 70: the Dashboard's charts read them all).
     await page.goto("/dashboard");
-    await expect(page.locator(".tl-pt").first()).toBeVisible();
-    const all = await page.locator(".tl-pt").count();
+    const all = await page.evaluate(async () => {
+      const d = await (await fetch("/api/megatrends?stream=all", { headers: { "x-dev-user": "client@example.com" } })).json();
+      return (d.entries as unknown[]).length;
+    });
     await page.goto("/database");
     await searchDatabase(page, "");
     const bar = page.getByTestId("db-filters");
@@ -158,11 +160,15 @@ test.describe("client role", () => {
     await expectAccessible(page, "/database with searchable filters");
   });
 
-  test("timeline points are keyboard accessible", async ({ page }) => {
+  test("the Dashboard's signals are keyboard accessible", async ({ page }) => {
+    // Request 70: a scatter plot opens with the keyboard, and so does a signal in it.
     await page.goto("/dashboard");
-    const point = page.locator(".tl-pt").first();
-    await point.focus();
-    await expect(page.locator(".tip")).toBeVisible();
+    const cell = page.getByTestId("dd-matrix").locator("button.dd-mx-cell").first();
+    await cell.focus();
+    await page.keyboard.press("Enter");
+    const dot = page.getByTestId("dd-scatter-dot").first();
+    await dot.focus();
+    await expect(page.locator(".dd-tip")).toBeVisible();
     await page.keyboard.press("Enter");
     await expect(page.getByRole("dialog")).toBeVisible();
     await page.getByRole("button", { name: "Close record" }).click();

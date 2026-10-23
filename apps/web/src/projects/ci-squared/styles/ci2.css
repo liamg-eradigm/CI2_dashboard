@@ -61,3 +61,17 @@ html[data-project="ci2"] .field-label {
 .nx-dot.high { background: var(--high, #d9534f); }
 .nx-dot.medium { background: var(--medium, #e8a33d); }
 .nx-dot.low { background: var(--low, #3f9c6f); }
+
+/* Request 70: Admin → Competitor logos. */
+.logo-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: 380px; overflow-y: auto; }
+.logo-list li { display: flex; align-items: center; gap: 10px; padding: 4px 6px; border-radius: 8px; }
+.logo-list li:hover { background: var(--bg-soft, #f4f8fa); }
+.logo-icon .dd-icon { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; overflow: hidden; border: 1px solid var(--border); }
+.logo-icon .dd-icon.logo { background: #fff; padding: 3px; }
+.logo-icon .dd-icon.logo img { width: 100%; height: 100%; object-fit: contain; }
+.logo-icon .dd-icon.initials { background: var(--c); color: #04182a; font: 800 11.5px var(--sans); }
+.logo-name { flex: 1; min-width: 0; }
+.logo-name small { color: var(--muted); margin-left: 6px; }
+.logo-list label.btn { cursor: pointer; }
+.logo-list label.btn.disabled { opacity: 0.5; pointer-events: none; }
+.logo-list label.btn:focus-within { outline: 2px solid var(--cyan, #0c7f88); outline-offset: 2px; }

@@ -54,3 +54,187 @@ test.describe("request 70: New Entry", () => {
     await expect(page.getByTestId("earnings-call-input")).toBeVisible();
   });
 });
+
+test.describe("request 70: the Dashboard", () => {
+  for (const [w, h] of [
+    [1366, 768],
+    [1440, 900],
+    [1920, 1080],
+  ] as const) {
+    test(`two columns on one page at ${w}×${h}: the two charts level and the same size, then the two Profiles`, async ({ page }) => {
+      await signInAs(page, "client");
+      await page.setViewportSize({ width: w, height: h });
+      await page.goto("/dashboard");
+      const dash = page.getByTestId("analytics-dashboard");
+      await expect(dash.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible();
+      await expect(dash.getByRole("heading", { level: 2 })).toHaveText(["Macrotrends Analysis", "Competitor Analysis"]);
+      await expect(page.getByTestId("dd-mx-row").first()).toBeVisible();
+      // Three months to begin with.
+      await expect(page.getByRole("group", { name: "Time frame" }).getByRole("button", { name: "3 months" })).toHaveAttribute("aria-pressed", "true");
+      const [area, matrix] = [page.locator("section.dd-chart.left"), page.locator("section.dd-chart.right")];
+      const [a, m] = [(await area.boundingBox())!, (await matrix.boundingBox())!];
+      expect(Math.abs(a.y - m.y)).toBeLessThanOrEqual(1);
+      expect(Math.abs(a.height - m.height)).toBeLessThanOrEqual(1);
+      expect(Math.abs(a.width - m.width)).toBeLessThanOrEqual(1);
+      const [mp, cp] = [(await page.getByTestId("dd-macro-profile").boundingBox())!, (await page.getByTestId("dd-comp-profile").boundingBox())!];
+      expect(Math.abs(mp.y - cp.y)).toBeLessThanOrEqual(1);
+      expect(mp.y).toBeGreaterThan(a.y + a.height - 1);
+      // No scrolling.
+      const s = await dash.evaluate((el) => ({ sh: el.scrollHeight, ch: el.clientHeight, doc: document.documentElement.scrollHeight }));
+      expect(s.sh).toBeLessThanOrEqual(s.ch);
+      expect(s.doc).toBeLessThanOrEqual(h);
+      // No capitals-only text.
+      expect(await dash.evaluate((el) => [...el.querySelectorAll("*")].filter((x) => getComputedStyle(x).textTransform === "uppercase").length)).toBe(0);
+    });
+  }
+
+  test("Activity by Macrotrend: stacked areas; a layer opens its Subtrends and its top competitors", async ({ page }) => {
+    await signInAs(page, "analyst");
+    await page.goto("/dashboard");
+    const chart = page.getByTestId("dd-activity");
+    await expect(chart.locator("path.dd-layer").first()).toBeVisible();
+    await expect(chart.locator(".dd-axis-title")).toHaveText("Activity");
+    await expectAccessible(page, "Dashboard");
+    // Pointing at the chart shows the week's Activity.
+    const box = (await chart.locator(".dd-area-plot").boundingBox())!;
+    await page.mouse.move(box.x + box.width * 0.9, box.y + box.height - 30);
+    await expect(page.locator(".dd-tip")).toContainText("Week of");
+    await expect(page.locator(".dd-tip")).toContainText("Total Activity");
+    const legend = chart.getByRole("list", { name: /legend/ });
+    const first = legend.getByRole("button").first();
+    const name = (await first.locator(".dd-legend-name").innerText()).trim();
+    await first.click();
+    const pop = page.getByTestId("dd-macro-popup");
+    await expect(pop.getByRole("heading", { level: 2 })).toHaveText(name);
+    await expect(pop.getByTestId("dd-pop-subtrends")).toBeVisible();
+    const comps = pop.getByTestId("dd-pop-competitors").getByRole("list", { name: /legend/ }).getByRole("button");
+    expect(await comps.count()).toBeLessThanOrEqual(7);
+    await expectAccessible(page, "Dashboard: a Macrotrend's popup");
+    await page.keyboard.press("Escape");
+    await expect(pop).toHaveCount(0);
+    // A longer time frame sums by month.
+    await page.getByRole("group", { name: "Time frame" }).getByRole("button", { name: "1 year" }).click();
+    await expect(page.locator("#dd-activity-title + .dd-sub")).toContainText("by month");
+  });
+
+  test("the scatter matrix: a plot per competitor and Macrotrend, signals counted by Impact; a plot opens larger with zoom, drag and titles", async ({ page }) => {
+    await signInAs(page, "client");
+    await page.goto("/dashboard");
+    const matrix = page.getByTestId("dd-matrix");
+    const rows = matrix.getByTestId("dd-mx-row");
+    await expect(rows.first()).toBeVisible();
+    expect(await rows.count()).toBeLessThanOrEqual(9);
+    expect(await matrix.getByTestId("dd-mx-col").count()).toBeLessThanOrEqual(9);
+    await expect(rows.first().locator(".dd-mx-count")).toHaveText(/^\d+ signals? \(\d+H, \d+M, \d+L\)$/);
+    await rows.first().locator("button.dd-mx-cell").first().click();
+    const pop = page.getByTestId("dd-scatter-popup");
+    await expect(pop).toBeVisible();
+    const dot = pop.getByTestId("dd-scatter-dot").first();
+    await dot.hover();
+    await expect(page.locator(".dd-tip .dd-tip-title")).not.toBeEmpty();
+    // Zoom with the wheel, then drag along time, then Reset.
+    const reset = pop.getByRole("button", { name: "Reset" });
+    await expect(reset).toBeDisabled();
+    const b = (await pop.locator(".dd-scatter").boundingBox())!;
+    await page.mouse.move(b.x + b.width / 2, b.y + 30);
+    await page.mouse.wheel(0, -400);
+    await expect(reset).toBeEnabled();
+    const ticks = async () => (await pop.locator(".dd-xtick").allInnerTexts()).join("|");
+    const before = await ticks();
+    await page.mouse.move(b.x + b.width * 0.7, b.y + 30);
+    await page.mouse.down();
+    await page.mouse.move(b.x + b.width * 0.3, b.y + 30, { steps: 5 });
+    await page.mouse.up();
+    await expect.poll(ticks).not.toBe(before);
+    await reset.click();
+    await expect(reset).toBeDisabled();
+    await expectAccessible(page, "Dashboard: a scatter plot's popup");
+    // Pressing a signal opens its record.
+    await pop.getByTestId("dd-scatter-dot").first().click();
+    await expect(page).toHaveURL(/signal=/);
+    await expect(page.getByRole("dialog")).toBeVisible();
+  });
+
+  test("Show all makes the matrix scroll through every competitor", async ({ page }) => {
+    await signInAs(page, "client");
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/dashboard");
+    await page.getByRole("group", { name: "Time frame" }).getByRole("button", { name: "All" }).click();
+    const show = page.getByRole("button", { name: /^Show all \d+/ });
+    await expect(show).toBeVisible();
+    const n = Number((await show.innerText()).match(/\d+/)![0]);
+    expect(n).toBeGreaterThan(9);
+    const body = page.locator(".dd-mx-body");
+    const h = (await body.boundingBox())!.height;
+    await show.click();
+    await expect(page.getByTestId("dd-mx-row")).toHaveCount(n);
+    expect(await body.evaluate((el) => el.scrollHeight > el.clientHeight && getComputedStyle(el).overflowY === "auto")).toBe(true);
+    expect(Math.abs((await body.boundingBox())!.height - h)).toBeLessThanOrEqual(1);
+    await page.getByRole("button", { name: "Show the top 9" }).click();
+    await expect(page.getByTestId("dd-mx-row")).toHaveCount(9);
+  });
+
+  test("the Profiles: five icons and a search, the change in Activity, the analysis, two focus bars, and the full analysis or the Company Profile", async ({ page }) => {
+    await signInAs(page, "client");
+    await page.goto("/dashboard");
+    for (const id of ["dd-macro-profile", "dd-comp-profile"]) {
+      const p = page.getByTestId(id);
+      const picker = p.getByRole("group", { name: /^Choose a / });
+      await expect(picker.getByRole("button")).toHaveCount(6);
+      await expect(picker.getByRole("button", { pressed: true })).toHaveCount(1);
+      await expect(p.getByTestId("dd-change")).toHaveText(/^(▲ |▼ )?([+-]?\d+%|New|—)/);
+    }
+    const macro = page.getByTestId("dd-macro-profile");
+    await expect(macro.getByTestId("dd-focus-subtrends")).toBeVisible();
+    await expect(macro.getByTestId("dd-focus-competitors")).toBeVisible();
+    // Another Macrotrend from the icons.
+    const second = macro.getByRole("group", { name: /^Choose a / }).getByRole("button").nth(1);
+    const name = await second.getAttribute("aria-label");
+    await second.click();
+    await expect(macro.getByTestId("dd-macro-profile-name")).toHaveText(name!);
+    await expect(second).toHaveAttribute("aria-pressed", "true");
+    // Any Macrotrend from the search, Manufacturing (no Subtrends) among them.
+    await macro.getByRole("button", { name: /^Search every Macrotrend/ }).click();
+    const search = macro.getByLabel("Search for a Macrotrend");
+    await search.fill("manuf");
+    await page.keyboard.press("Enter");
+    await expect(macro.getByTestId("dd-macro-profile-name")).toHaveText("Manufacturing");
+    await expect(macro.getByTestId("dd-focus-subtrends")).toContainText(/no Subtrends yet|No signals/);
+    await expect(macro.getByTestId("dd-macro-open")).toHaveAttribute("href", "/analytics/megatrends?m=Manufacturing");
+    // The competitor's quarters and Company Profile.
+    const comp = page.getByTestId("dd-comp-profile");
+    await expect(comp.getByTestId("dd-focus-this-quarter")).toContainText("This quarter");
+    await expect(comp.getByTestId("dd-focus-last-quarter")).toContainText("Last quarter");
+    await expect(comp.getByTestId("dd-company-profile")).toContainText("Company Profile");
+    await expect(comp.getByRole("link", { name: "Add a logo" })).toHaveCount(0);
+    await expectAccessible(page, "Dashboard Profiles");
+    // The Macrotrend Analysis box opens the Macrotrend's analysis page (no knowledge graph).
+    await macro.getByTestId("dd-macro-open").click();
+    await expect(page).toHaveURL(/\/analytics\/megatrends\?m=Manufacturing/);
+  });
+
+  test("admins set a competitor's logo, and the Competitor Profile shows it", async ({ page }) => {
+    await signInAs(page, "admin");
+    await page.goto("/dashboard");
+    const comp = page.getByTestId("dd-comp-profile");
+    const name = (await comp.getByTestId("dd-comp-profile-name").innerText()).trim();
+    await comp.getByRole("link", { name: "Add a logo" }).click();
+    await expect(page).toHaveURL(/\/admin#competitor-logos$/);
+    const card = page.getByTestId("competitor-logos");
+    await expect(card).toBeInViewport();
+    const row = card.getByTestId("logo-row").filter({ hasText: name });
+    // A 1×1 PNG.
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64");
+    await row.getByLabel(`Upload the logo of ${name}`).setInputFiles({ name: "logo.png", mimeType: "image/png", buffer: png });
+    await expect(page.locator(".toast").first()).toContainText(`Logo of ${name} saved`);
+    await expect(row.locator(".dd-icon.logo img")).toBeVisible();
+    await expectAccessible(page, "Admin with competitor logos");
+    await page.goto("/dashboard");
+    await expect(comp.getByRole("group", { name: /^Choose a / }).getByRole("button", { name, exact: true }).locator(".dd-icon.logo img")).toBeVisible();
+    await expect(comp.getByRole("link", { name: "Add a logo" })).toHaveCount(0);
+    // Remove it again (the other tests see initials).
+    await page.goto("/admin#competitor-logos");
+    await card.getByTestId("logo-row").filter({ hasText: name }).getByRole("button", { name: `Remove the logo of ${name}` }).click();
+    await expect(page.locator(".toast").first()).toContainText(`Logo of ${name} removed`);
+  });
+});

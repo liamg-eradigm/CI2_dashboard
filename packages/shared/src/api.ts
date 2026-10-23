@@ -457,6 +457,8 @@ export const MegatrendEntrySchema = z.object({
   ci: z.boolean().optional(),
   /** Request 61 (contract 2.2): the competitors it names (signals cluster by them in a Subtrend's orbit). */
   competitors: z.array(z.string()).optional(),
+  /** Request 70 (contract 2.9): its Growth Intensity (the Dashboard's Activity: signals × impact × growth). */
+  growth: z.string().nullable().optional(),
 });
 export const MegatrendsSchema = z.object({
   /** "all" = both trackers. */
@@ -563,6 +565,11 @@ export const CompetitorsSchema = z.object({
   truncated: z.boolean(),
 });
 export type CompetitorEntry = z.infer<typeof CompetitorEntrySchema>;
+/** Request 70 (contract 2.9): a competitor's logo (Admin → Competitor logos); the image is at /api/competitor-logos/image?name=. */
+export const CompetitorLogoSchema = z.object({ name: z.string(), updatedAt: isoDateTime });
+export type CompetitorLogo = z.infer<typeof CompetitorLogoSchema>;
+/** A logo is at most 256 KB (PNG, JPEG, WebP or GIF). */
+export const COMPETITOR_LOGO_MAX_BYTES = 256 * 1024;
 export type Competitors = z.infer<typeof CompetitorsSchema>;
 
 /** One-off spreadsheet import into a tracker: rows keyed by the tracker's column labels, already parsed by the dashboard. */
@@ -1082,6 +1089,10 @@ export const ENDPOINTS: EndpointDef[] = [
   { method: "get", path: "/api/earnings-calls/{id}/report", summary: "Request 64: an earnings call's report (.docx); ?download=1 as a file", roles: ALL_ROLES },
   { method: "get", path: "/api/earnings-calls/{id}/markdown", summary: "Request 64: an earnings call's Markdown; ?download=1 as a file", roles: ALL_ROLES },
   { method: "delete", path: "/api/earnings-calls/{id}", summary: "Request 64: remove an earnings call", roles: STAFF },
+  { method: "get", path: "/api/competitor-logos", summary: "Request 70: the competitors that have a logo", roles: ALL_ROLES, response: z.array(CompetitorLogoSchema) },
+  { method: "get", path: "/api/competitor-logos/image", summary: "Request 70: a competitor's logo image (query: name)", roles: ALL_ROLES, query: ["name", "v"] },
+  { method: "put", path: "/api/competitor-logos", summary: "Request 70: set a competitor's logo (query: name; multipart field file: PNG, JPEG, WebP or GIF, at most 256 KB)", roles: ADMIN, query: ["name"], response: z.array(CompetitorLogoSchema), multipart: true },
+  { method: "delete", path: "/api/competitor-logos", summary: "Request 70: remove a competitor's logo (query: name)", roles: ADMIN, query: ["name"], response: z.array(CompetitorLogoSchema) },
   { method: "get", path: "/api/epilepsy/data", summary: "Request 61 (Epilepsy): the workbook's four sheets, the companies' colours and when it was last read", roles: ALL_ROLES, response: EpilepsyDataSchema },
   { method: "get", path: "/api/epilepsy/status", summary: "Request 61 (Epilepsy): the workbook's sync status", roles: ALL_ROLES, response: EpilepsySyncStatusSchema },
   { method: "put", path: "/api/epilepsy/settings", summary: "Request 61 (Epilepsy): the workbook's link and file name, and the companies' colours", roles: ADMIN, request: EpilepsySettingsRequest, response: EpilepsySyncStatusSchema },

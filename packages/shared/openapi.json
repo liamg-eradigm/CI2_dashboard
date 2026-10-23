@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Eradigm Competitive Intelligence API",
-    "version": "2.8.0",
+    "version": "2.9.0",
     "description": "Generated from packages/shared/src/api.ts. Every request is checked for both role and tenant server-side. Send X-Tenant-Id to select a tenant when the user belongs to more than one."
   },
   "components": {
@@ -8890,6 +8890,10 @@
                             "items": {
                               "type": "string"
                             }
+                          },
+                          "growth": {
+                            "nullable": true,
+                            "type": "string"
                           }
                         },
                         "required": [
@@ -9176,6 +9180,10 @@
                             "items": {
                               "type": "string"
                             }
+                          },
+                          "growth": {
+                            "nullable": true,
+                            "type": "string"
                           }
                         },
                         "required": [
@@ -22077,21 +22085,31 @@
                       "default": {
                         "groups": [
                           {
-                            "key": "inputs",
+                            "key": "input",
                             "items": [
                               {
                                 "key": "input"
-                              },
+                              }
+                            ]
+                          },
+                          {
+                            "key": "inbox",
+                            "items": [
                               {
                                 "key": "inbox"
-                              },
+                              }
+                            ]
+                          },
+                          {
+                            "key": "clientinbox",
+                            "items": [
                               {
                                 "key": "clientinbox"
                               }
                             ]
                           },
                           {
-                            "key": "analytics",
+                            "key": "dashboard",
                             "items": [
                               {
                                 "key": "dashboard"
@@ -22119,7 +22137,7 @@
                       "type": "object",
                       "properties": {
                         "groups": {
-                          "maxItems": 4,
+                          "maxItems": 6,
                           "type": "array",
                           "items": {
                             "type": "object",
@@ -22127,8 +22145,10 @@
                               "key": {
                                 "type": "string",
                                 "enum": [
-                                  "inputs",
-                                  "analytics",
+                                  "input",
+                                  "inbox",
+                                  "clientinbox",
+                                  "dashboard",
                                   "database",
                                   "admin"
                                 ]
@@ -22579,21 +22599,31 @@
                       "default": {
                         "groups": [
                           {
-                            "key": "inputs",
+                            "key": "input",
                             "items": [
                               {
                                 "key": "input"
-                              },
+                              }
+                            ]
+                          },
+                          {
+                            "key": "inbox",
+                            "items": [
                               {
                                 "key": "inbox"
-                              },
+                              }
+                            ]
+                          },
+                          {
+                            "key": "clientinbox",
+                            "items": [
                               {
                                 "key": "clientinbox"
                               }
                             ]
                           },
                           {
-                            "key": "analytics",
+                            "key": "dashboard",
                             "items": [
                               {
                                 "key": "dashboard"
@@ -22621,7 +22651,7 @@
                       "type": "object",
                       "properties": {
                         "groups": {
-                          "maxItems": 4,
+                          "maxItems": 6,
                           "type": "array",
                           "items": {
                             "type": "object",
@@ -22629,8 +22659,10 @@
                               "key": {
                                 "type": "string",
                                 "enum": [
-                                  "inputs",
-                                  "analytics",
+                                  "input",
+                                  "inbox",
+                                  "clientinbox",
+                                  "dashboard",
                                   "database",
                                   "admin"
                                 ]
@@ -23055,7 +23087,7 @@
                     "type": "object",
                     "properties": {
                       "groups": {
-                        "maxItems": 4,
+                        "maxItems": 6,
                         "type": "array",
                         "items": {
                           "type": "object",
@@ -23063,8 +23095,10 @@
                             "key": {
                               "type": "string",
                               "enum": [
-                                "inputs",
-                                "analytics",
+                                "input",
+                                "inbox",
+                                "clientinbox",
+                                "dashboard",
                                 "database",
                                 "admin"
                               ]
@@ -23391,21 +23425,31 @@
                       "default": {
                         "groups": [
                           {
-                            "key": "inputs",
+                            "key": "input",
                             "items": [
                               {
                                 "key": "input"
-                              },
+                              }
+                            ]
+                          },
+                          {
+                            "key": "inbox",
+                            "items": [
                               {
                                 "key": "inbox"
-                              },
+                              }
+                            ]
+                          },
+                          {
+                            "key": "clientinbox",
+                            "items": [
                               {
                                 "key": "clientinbox"
                               }
                             ]
                           },
                           {
-                            "key": "analytics",
+                            "key": "dashboard",
                             "items": [
                               {
                                 "key": "dashboard"
@@ -23433,7 +23477,7 @@
                       "type": "object",
                       "properties": {
                         "groups": {
-                          "maxItems": 4,
+                          "maxItems": 6,
                           "type": "array",
                           "items": {
                             "type": "object",
@@ -23441,8 +23485,10 @@
                               "key": {
                                 "type": "string",
                                 "enum": [
-                                  "inputs",
-                                  "analytics",
+                                  "input",
+                                  "inbox",
+                                  "clientinbox",
+                                  "dashboard",
                                   "database",
                                   "admin"
                                 ]
@@ -25497,6 +25543,438 @@
             "name": "id",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/competitor-logos": {
+      "get": {
+        "summary": "Request 70: the competitors that have a logo",
+        "description": "Roles: admin, analyst, client",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "updatedAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "updatedAt"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      },
+      "put": {
+        "summary": "Request 70: set a competitor's logo (query: name; multipart field file: PNG, JPEG, WebP or GIF, at most 256 KB)",
+        "description": "Roles: admin",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "updatedAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "updatedAt"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      },
+      "delete": {
+        "summary": "Request 70: remove a competitor's logo (query: name)",
+        "description": "Roles: admin",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "updatedAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "updatedAt"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "code",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ]
+      }
+    },
+    "/api/competitor-logos/image": {
+      "get": {
+        "summary": "Request 70: a competitor's logo image (query: name)",
+        "description": "Roles: admin, analyst, client",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "v",
+            "in": "query",
+            "required": false,
             "schema": {
               "type": "string"
             }

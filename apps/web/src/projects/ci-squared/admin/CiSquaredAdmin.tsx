@@ -1,6 +1,6 @@
 /**
  * CI Squared's part of the Admin page (request 61: Admin is the platform's;
- * each project brings its own settings): extraction quality, the menu, competitor tiers and the workspace settings.
+ * each project brings its own settings): extraction quality, the menu, competitor tiers and logos, and the workspace settings.
  */
 import { useEffect, useState } from "react";
 import {
@@ -30,6 +30,7 @@ import { ErrorBoundary } from "../../../components/ErrorBoundary";
 import { ReorderList } from "../components/SchemaEditor";
 import { pct } from "../../../lib/format";
 import { useToast } from "../../../state/toast";
+import { CompetitorLogosCard } from "./CompetitorLogos";
 
 /** CI Squared's settings cards on the Admin page (admins see them all; analysts see extraction quality). */
 export function CiSquaredAdmin({ me }: { me: Me }) {
@@ -47,6 +48,11 @@ export function CiSquaredAdmin({ me }: { me: Me }) {
       {isAdmin && (
         <ErrorBoundary label="Competitor tiers">
           <CompetitorTiersCard />
+        </ErrorBoundary>
+      )}
+      {isAdmin && (
+        <ErrorBoundary label="Competitor logos">
+          <CompetitorLogosCard />
         </ErrorBoundary>
       )}
       {isAdmin && (
