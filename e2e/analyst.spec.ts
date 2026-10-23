@@ -442,9 +442,15 @@ test.describe("Eradigm staff (admin)", () => {
     await expect(page.locator("table tbody td.title", { hasText: title })).toBeVisible();
     await expect(page.getByTestId("dates-hint")).toHaveCount(0);
     await expect(page).not.toHaveURL(/from=/);
-    // The Analytics Dashboard plots it too (all dates, no filters).
+    // The Dashboard plots it too, with the time frame on All (request 70): in Sanofi's AI Investment in R&D scatter plot.
     await page.goto("/dashboard");
-    await expect(page.getByTestId("signal-timeline").getByRole("button", { name: new RegExp(`^${title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\.`) })).toHaveCount(1);
+    await page.getByRole("group", { name: "Time frame" }).getByRole("button", { name: "All" }).click();
+    await expect(page.getByTestId("dd-mx-row").first()).toBeVisible();
+    const showAll = page.getByRole("button", { name: /^Show all \d+/ });
+    if (await showAll.count()) await showAll.click();
+    await page.getByTestId("dd-matrix").getByRole("button", { name: /^Sanofi · AI Investment in R&D:/ }).click();
+    await expect(page.getByTestId("dd-scatter-popup").locator(`[data-testid="dd-scatter-dot"][aria-label^="${title} · 12 Mar 2024"]`)).toHaveCount(1);
+    await page.keyboard.press("Escape");
     // From the Inbox: View in Database opens the entry.
     await page.goto("/inbox?stream=secondary");
     await page.getByRole("button", { name: /^Pushed & Rejected/ }).click();
