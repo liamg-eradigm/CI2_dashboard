@@ -57,10 +57,10 @@ test.describe("request 53", () => {
   test("the Knowledge Graph tab is gone; the full-page graphs count as the Megatrends Dashboard", async ({ page }) => {
     await signInAs(page, "analyst");
     await page.goto("/dashboard");
-    expect(await menuOf(page)).toEqual(["Inputs: Eradigm Inbox", "Megatrends Dashboard", "Database"]);
+    expect(await menuOf(page)).toEqual(["New Entry", "Eradigm Inbox", "Dashboard", "Database"]);
     await expect(navOf(page).getByRole("link", { name: /Knowledge Graph/ })).toHaveCount(0);
     await page.goto("/megatrends");
     await expect(page.locator(".mg-stage")).toBeVisible();
-    await expect(navOf(page).getByRole("link", { name: "Megatrends Dashboard", exact: true })).toHaveAttribute("aria-current", "page");
+    await expect(navOf(page).getByRole("link", { name: "Dashboard", exact: true })).toHaveAttribute("aria-current", "page");
   });
 });

@@ -19,7 +19,7 @@ const MegatrendsPage = lazy(() => import("./pages/MegatrendsPage").then((m) => (
 const CompetitorsPage = lazy(() => import("./pages/CompetitorsPage").then((m) => ({ default: m.CompetitorsPage })));
 const TrendAnalysisPage = lazy(() => import("./pages/TrendAnalysisPage").then((m) => ({ default: m.TrendAnalysisPage })));
 
-export const TITLES: Record<string, string> = { "/dashboard": "Megatrends Dashboard", "/database": "Database", "/megatrends": "Knowledge Graph · Megatrends", "/competitors": "Knowledge Graph · Competitors", "/analytics/megatrends": "Trends Analysis · Megatrends", "/analytics/competitors": "Trends Analysis · Competitors", "/inbox": "Eradigm Inbox", "/client-inbox": "Client Inbox", "/input": "Input", "/admin": "Admin" };
+export const TITLES: Record<string, string> = { "/dashboard": "Dashboard", "/database": "Database", "/megatrends": "Knowledge Graph · Megatrends", "/competitors": "Knowledge Graph · Competitors", "/analytics/megatrends": "Trends Analysis · Megatrends", "/analytics/competitors": "Trends Analysis · Competitors", "/inbox": "Eradigm Inbox", "/client-inbox": "Client Inbox", "/input": "New Entry", "/admin": "Admin" };
 
 export function CiSquaredApp({ me }: { me: Me }) {
   const loc = useLocation();

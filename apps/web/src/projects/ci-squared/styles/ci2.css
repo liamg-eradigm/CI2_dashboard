@@ -1,0 +1,32 @@
+/*
+ * Request 70 (CI SQUARED only): no words in capitals (labels, headings,
+ * eyebrows and buttons are written as they are), and one font throughout
+ * (Nunito Sans; figures keep even widths so columns of numbers still line
+ * up). Code (Markdown source) stays monospace. The Eradigm wordmark keeps its
+ * letter spacing.
+ */
+html[data-project="ci2"] *,
+html[data-project="ci2"] *::before,
+html[data-project="ci2"] *::after {
+  text-transform: none !important;
+}
+html[data-project="ci2"] body *:not(pre):not(code):not(pre *):not(code *):not(.md-raw):not(.md-raw *) {
+  font-family: var(--sans) !important;
+}
+html[data-project="ci2"] body *:not(.wordmark):not(.wordmark *) {
+  letter-spacing: normal !important;
+}
+html[data-project="ci2"] body {
+  font-variant-numeric: tabular-nums;
+}
+/* Headings that were capitals read better a little larger. */
+html[data-project="ci2"] .card-title {
+  font-size: 15px;
+}
+html[data-project="ci2"] .eyebrow {
+  font-size: 12px;
+}
+html[data-project="ci2"] .field > span,
+html[data-project="ci2"] .field-label {
+  font-size: 11.5px;
+}

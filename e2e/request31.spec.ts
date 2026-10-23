@@ -6,12 +6,7 @@ test.describe("request 31", () => {
   test("the menu is Inputs, Analytics, Database and Admin (Databases went in request 48)", async ({ page }) => {
     await signInAs(page, "admin");
     await page.goto("/dashboard");
-    expect(await menuOf(page)).toEqual([
-      "Inputs: Input, Eradigm Inbox, Client Inbox",
-      "Megatrends Dashboard",
-      "Database",
-      "Admin",
-    ]);
+    expect(await menuOf(page)).toEqual(["New Entry", "Eradigm Inbox", "Client Inbox", "Dashboard", "Database", "Admin"]);
     await expect(navOf(page).getByRole("link", { name: /Trend analysis$/ })).toHaveCount(0);
   });
 
@@ -28,7 +23,7 @@ test.describe("request 31", () => {
     await expect(page).toHaveURL(/\/competitors$/);
     await expect(toggle.getByRole("button", { name: "Competitors" })).toHaveAttribute("aria-pressed", "true");
     // Request 53: the Megatrends Dashboard tab (the Knowledge Graph tab is gone).
-    await expect(navOf(page).getByRole("link", { name: "Megatrends Dashboard", exact: true })).toHaveAttribute("aria-current", "page");
+    await expect(navOf(page).getByRole("link", { name: "Dashboard", exact: true })).toHaveAttribute("aria-current", "page");
     await expectAccessible(page, "Knowledge Graph on Competitors");
     await toggle.getByRole("button", { name: "Megatrends" }).click();
     await expect(page).toHaveURL(/\/megatrends$/);
@@ -77,7 +72,7 @@ test.describe("request 31", () => {
     await expectAccessible(page, "Analytics Dashboard");
     await page.getByTestId("ad-megatrends").click();
     await expect(page).toHaveURL(/\/analytics\/megatrends$/);
-    await expect(navOf(page).getByRole("link", { name: "Megatrends Dashboard", exact: true })).toHaveAttribute("aria-current", "page");
+    await expect(navOf(page).getByRole("link", { name: "Dashboard", exact: true })).toHaveAttribute("aria-current", "page");
   });
 
   test("Trends Analysis: a Macrotrend opens its own dashboard (request 34)", async ({ page }) => {

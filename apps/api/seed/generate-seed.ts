@@ -25,7 +25,8 @@ import { createHash, createHmac } from "node:crypto";
 // Taxonomy and options are the same in both streams; columns differ (see defaultColumns).
 const schema = defaultSchema("secondary");
 const MAC = Object.fromEntries(schema.taxonomy.map((g) => [g.name, g.subtrends]));
-const MACROS = Object.keys(MAC);
+// Signals are spread over the Macrotrends with Subtrends (request 70: Manufacturing has none yet).
+const MACROS = Object.keys(MAC).filter((m) => (MAC[m] as string[]).length > 0);
 const ALLSUBS = MACROS.flatMap((m) => MAC[m] as string[]);
 const PH = [
   "unveils in-house generative chemistry platform", "commissions new AI supercomputer for R&D", "signs multi-year AI discovery partnership", "restructures R&D sites around an AI-first model", "pilots agentic AI across early research workflows",

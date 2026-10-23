@@ -18,15 +18,8 @@ async function push(stream: "primary" | "secondary", values: Record<string, unkn
 const sections = async (who = w.a.client) => (await json(call(who, "GET", "/api/macrotrends/sections"))) as { macrotrend: string; section: string; text: string; updatedBy: string }[];
 
 describe("request 34", () => {
-  it("renames the menu: Databases (Signals Database, Phantoms Database, CI analyses), Megatrends Dashboard, and adds Analytics → Primary Tracker", () => {
-    expect(visibleMenu(DEFAULT_MENU, "client").map((g) => `${g.key}:${g.items.map((i) => i.key).join(",")}`)).toEqual([
-      "inputs:clientinbox",
-      // Request 56: the Primary Tracker is the Database's.
-      "analytics:dashboard",
-      // Request 43: the Database tab, on its own.
-      "database:database",
-      // Request 48: the Databases group is gone (the Database tab has them all).
-    ]);
+  it("renames the menu (request 70: every tab its own: New Entry, Eradigm Inbox, Client Inbox, Dashboard, Database, Admin)", () => {
+    expect(visibleMenu(DEFAULT_MENU, "client").map((g) => `${g.key}:${g.items.map((i) => i.key).join(",")}`)).toEqual(["clientinbox:clientinbox", "dashboard:dashboard", "database:database"]);
   });
 
   it("submits a Macrotrend's analysis by section: only the sections with text change, each kept in CI analyses", async () => {

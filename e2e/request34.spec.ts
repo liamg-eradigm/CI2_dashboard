@@ -40,12 +40,7 @@ test.describe("request 34", () => {
   test("the menu: Database, Megatrends Dashboard and Primary Tracker (the Databases group went in request 48)", async ({ page }) => {
     await signInAs(page, "admin");
     await page.goto("/dashboard");
-    expect(await menuOf(page)).toEqual([
-      "Inputs: Input, Eradigm Inbox, Client Inbox",
-      "Megatrends Dashboard",
-      "Database",
-      "Admin",
-    ]);
+    expect(await menuOf(page)).toEqual(["New Entry", "Eradigm Inbox", "Client Inbox", "Dashboard", "Database", "Admin"]);
     await expect(page.getByRole("heading", { level: 1, name: "Megatrends Dashboard" })).toBeVisible();
     // Request 48: the Databases group is gone; the Database tab has them all.
     await navOf(page).getByRole("link", { name: "Database", exact: true }).click();

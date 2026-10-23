@@ -99,7 +99,8 @@ describe("tabs by role", async () => {
   it("clients see Dashboard, Tracker, Megatrends, Phantoms and the Client Inbox; analysts the Eradigm Inbox instead; admins all", () => {
     const visible = (role: "admin" | "analyst" | "client") => NAV_TABS.filter((t) => canSeeTab(role, t)).sort();
     expect(visible("client")).toEqual(["clientinbox", "competitors", "dashboard", "megatrends", "phantoms", "tracker"]);
-    expect(visible("analyst")).toEqual(["competitors", "dashboard", "inbox", "megatrends", "phantoms", "tracker"]);
+    // Request 70: analysts open New Entry too.
+    expect(visible("analyst")).toEqual(["competitors", "dashboard", "inbox", "input", "megatrends", "phantoms", "tracker"]);
     expect(visible("admin")).toEqual([...NAV_TABS].sort());
   });
 });

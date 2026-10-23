@@ -3,6 +3,8 @@ import type { WebProject } from "../types";
 import { CiSquaredAdmin } from "./admin/CiSquaredAdmin";
 import { CiSquaredApp, TITLES } from "./CiSquaredApp";
 import { CiSquaredNav } from "./Nav";
+// Request 70: no capitals, one font (CI SQUARED pages only: keyed off the page's project).
+import "./styles/ci2.css";
 
 export const ciSquared: WebProject = {
   kind: "ci2",

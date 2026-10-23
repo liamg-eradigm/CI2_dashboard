@@ -171,22 +171,21 @@ function MenuEditor() {
             Menu
           </h2>
           <span className="card-sub">
-            The groups in the menu and the tabs in each, for everyone in this workspace: drag or use ↑ ↓ to reorder them, and type a new name to rename one (leave it empty for the usual name). People only see the tabs their role allows; a
-            group with none is hidden.
+            The tabs in the menu, for everyone in this workspace: drag or use ↑ ↓ to reorder them, and type a new name to rename one (leave it empty for the usual name). People only see the tabs their role allows.
           </span>
         </div>
-        <button className="btn secondary small" onClick={() => void save(structuredClone(DEFAULT_MENU), "Menu set back to the usual groups, order and names")}>
+        <button className="btn secondary small" onClick={() => void save(structuredClone(DEFAULT_MENU), "Menu set back to the usual tabs, order and names")}>
           Restore the usual menu
         </button>
       </div>
       <div className="table-cols-list menu-editor">
         <ReorderList
           values={menu.groups.map((g) => g.key)}
-          what="Menu groups"
+          what="Menu tabs"
           labelOf={(k) => groupLabel(byKey(k))}
-          itemNoun="group"
+          itemNoun="tab"
           sortable={false}
-          hint="the order of the groups in the menu"
+          hint="the order of the tabs in the menu"
           onSave={(keys, ok) => save({ groups: keys.map(byKey) }, ok)}
           renderRow={(k, cell) => {
             const g = byKey(k);
@@ -197,8 +196,8 @@ function MenuEditor() {
                   <MenuLabel
                     value={g.label}
                     fallback={MENU_GROUP_LABEL[g.key]}
-                    label={`Name of the ${MENU_GROUP_LABEL[g.key]} group`}
-                    onCommit={(label) => void save(withGroup(g.key, (x) => ({ ...x, label })), label ? `Group renamed to “${label}”` : `Group named “${MENU_GROUP_LABEL[g.key]}” again`)}
+                    label={`Name of the ${MENU_GROUP_LABEL[g.key]} tab`}
+                    onCommit={(label) => void save(withGroup(g.key, (x) => ({ ...x, label })), label ? `Tab renamed to “${label}”` : `Tab named “${MENU_GROUP_LABEL[g.key]}” again`)}
                   />
                 </div>
                 {/* A tab of its own (Database, Admin): no tabs inside to order or name. */}

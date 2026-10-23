@@ -37,6 +37,10 @@ function SignedIn() {
     const name = me.data?.project?.name;
     document.title = `${loc.pathname === "/admin" ? "Admin" : (project.title(loc.pathname) ?? "Eradigm")}${name ? ` · ${name}` : ""} · Eradigm Competitive Intelligence`;
   }, [loc.pathname, project, me.data?.project?.name]);
+  // Request 70: the page knows its project (each project's own styles key off it).
+  useEffect(() => {
+    document.documentElement.dataset.project = project.kind;
+  }, [project.kind]);
 
   if (me.isLoading) return <div className="empty" role="status">Loading…</div>;
   if (me.isError || !me.data) {

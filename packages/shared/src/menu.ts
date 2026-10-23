@@ -7,7 +7,12 @@
 import { canSeeTab, type NavTab } from "./megatrends.js";
 import type { Role } from "./permissions.js";
 
-export const MENU_GROUPS = ["inputs", "analytics", "database", "admin"] as const;
+/**
+ * Request 70: no subtabs. Every page is a tab of its own: New Entry, Eradigm
+ * Inbox, Client Inbox, Dashboard, Database and Admin (each a "group" of one,
+ * so menus saved before keep their order and names).
+ */
+export const MENU_GROUPS = ["input", "inbox", "clientinbox", "dashboard", "database", "admin"] as const;
 export type MenuGroupKey = (typeof MENU_GROUPS)[number];
 
 /** Request 53: "knowledge-graph" is in no group any more (the graphs are in the Megatrends Dashboard); kept so menus saved with it still read. */
@@ -34,25 +39,29 @@ export type MenuItemKey = (typeof MENU_ITEMS)[number];
  * is gone; a menu saved with it drops it.
  */
 export const MENU_GROUP_ITEMS: Record<MenuGroupKey, readonly MenuItemKey[]> = {
-  inputs: ["input", "inbox", "clientinbox"],
-  analytics: ["dashboard"],
+  input: ["input"],
+  inbox: ["inbox"],
+  clientinbox: ["clientinbox"],
+  dashboard: ["dashboard"],
   database: ["database"],
   admin: ["admin"],
 };
 
+/** Request 70: Input is New Entry; the Megatrends Dashboard is the Dashboard. */
 export const MENU_GROUP_LABEL: Record<MenuGroupKey, string> = {
-  inputs: "Inputs",
-  // Request 56: a tab of its own (the Megatrends Dashboard is all it holds).
-  analytics: "Megatrends Dashboard",
+  input: "New Entry",
+  inbox: "Eradigm Inbox",
+  clientinbox: "Client Inbox",
+  dashboard: "Dashboard",
   database: "Database",
   admin: "Admin",
 };
 
 export const MENU_ITEM_LABEL: Record<MenuItemKey, string> = {
-  input: "Input",
+  input: "New Entry",
   inbox: "Eradigm Inbox",
   clientinbox: "Client Inbox",
-  dashboard: "Megatrends Dashboard",
+  dashboard: "Dashboard",
   "knowledge-graph": "Knowledge Graph",
   "primary-tracker": "Primary Tracker",
   database: "Database",
@@ -71,7 +80,7 @@ export const MENU_ITEM_PATH: Record<MenuItemKey, string> = {
 };
 
 /** Groups that are a tab of their own: a link straight to their one page, with no subtabs (request 43). */
-export const STANDALONE_GROUPS: readonly MenuGroupKey[] = ["analytics", "database", "admin"];
+export const STANDALONE_GROUPS: readonly MenuGroupKey[] = MENU_GROUPS;
 export const isStandaloneGroup = (key: MenuGroupKey) => STANDALONE_GROUPS.includes(key);
 
 /** Other pages a subtab is current on: the Trends Analysis pages and (request 53) the full-page knowledge graphs, all part of the Megatrends Dashboard. */
@@ -123,6 +132,8 @@ const cleanLabel = (v: unknown): string | undefined => {
 
 /** Groups of the menu before request 31: a menu saved with them is laid out afresh (names kept). */
 const LEGACY_GROUPS = ["megatrends", "competitors"];
+/** Request 70: the groups of requests 31–63 (Inputs with its subtabs, Analytics). */
+const GROUPED: Record<string, readonly string[]> = { inputs: ["input", "inbox", "clientinbox"], analytics: ["dashboard"], database: ["database"], admin: ["admin"] };
 
 /**
  * A stored menu made whole: unknown or repeated groups and subtabs dropped, a
@@ -136,7 +147,23 @@ export function normaliseMenu(menu: unknown): MenuSetting {
   if (raw.some((g) => g && LEGACY_GROUPS.includes(g.key as string))) {
     const groupNames = new Map(raw.filter((g) => g && g.label).map((g) => [g.key as string, g.label]));
     const itemNames = new Map(raw.flatMap((g) => (g && Array.isArray(g.items) ? g.items : [])).filter((it) => it && it.label).map((it) => [it.key as string, it.label]));
-    raw = DEFAULT_MENU.groups.map((g) => ({ key: g.key, label: groupNames.get(g.key), items: g.items.map((it) => ({ key: it.key, label: itemNames.get(it.key) })) }));
+    // (Request 70: every tab is its own group, named as its tab was.)
+    raw = DEFAULT_MENU.groups.map((g) => ({ key: g.key, label: groupNames.get(g.key) ?? itemNames.get(g.items[0]!.key), items: g.items.map((it) => ({ key: it.key })) }));
+  }
+  // Request 70: a menu saved with groups and subtabs: each tab becomes its own, in the same order, keeping its name
+  // (a subtab's own name; a tab of its own, its group's name).
+  if (raw.some((g) => g && ((g.key as string) === "inputs" || (g.key as string) === "analytics"))) {
+    raw = raw.flatMap((g): Partial<MenuGroupSetting>[] => {
+      const members = g && GROUPED[g.key as string];
+      if (!members) return [];
+      const items = (Array.isArray(g.items) ? g.items : []).filter((it) => it && members.includes(it.key as string));
+      const keys = [...items.map((it) => it.key as string), ...members.filter((k) => !items.some((it) => it.key === k))];
+      return keys.map((k) => {
+        const own = items.find((it) => it.key === k)?.label;
+        const label = members.length === 1 ? (g.label ?? own) : own;
+        return { key: k as MenuGroupKey, label, items: [{ key: k as MenuItemKey }] };
+      });
+    });
   }
   const groups: MenuGroupSetting[] = [];
   for (const g of raw) {

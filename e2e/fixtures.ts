@@ -52,17 +52,14 @@ export { expect };
 /** The main menu. */
 export const navOf = (page: Page) => page.getByRole("navigation", { name: "COMPETITIVE INTELLIGENCE" });
 
-/** A tab in the menu, by group and name (request 28: "Trackers" → "Phantoms"). */
-export const navLink = (page: Page, group: string, item: string) => navOf(page).getByRole("link", { name: `${group}: ${item}`, exact: true });
+const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-/** Open a tab from the menu, opening its group first if it is closed. */
-export async function goTab(page: Page, group: string, item: string) {
-  const link = navLink(page, group, item);
-  // Open the group only if it is closed (the menu may still be loading: wait for the group first).
-  const button = navOf(page).getByRole("button", { name: new RegExp(`^${group}\\b`) });
-  await expect(button).toBeVisible();
-  if ((await button.getAttribute("aria-expanded")) !== "true") await button.click();
-  await link.click();
+/** A tab in the menu, by name (request 70: every tab is its own; its count may follow its name). */
+export const navLink = (page: Page, item: string) => navOf(page).getByRole("link", { name: new RegExp(`^${escape(item)}(\\s+\\d+ .*)?$`) });
+
+/** Open a tab from the menu. */
+export async function goTab(page: Page, item: string) {
+  await navLink(page, item).click();
 }
 
 /** The whole menu as a person sees it: "Group: Tab, Tab" per group (every group opened). */
@@ -73,7 +70,7 @@ export async function menuOf(page: Page): Promise<string[]> {
   for (const g of await nav.locator(".nav-group").all()) {
     // A tab of its own (Database, request 43): just its name.
     if (await g.locator(".nav-solo").count()) {
-      out.push((await g.locator(".nav-solo").innerText()).trim());
+      out.push((await g.locator(".nav-solo").innerText()).replace(/\s*\d+$/, "").trim());
       continue;
     }
     const btn = g.locator(".nav-parent");

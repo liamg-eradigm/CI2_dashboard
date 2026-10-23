@@ -7,7 +7,7 @@ test.describe("client role", () => {
     await page.goto("/dashboard");
     await expect(page.getByRole("heading", { name: "Megatrends Dashboard" })).toBeVisible();
     // Requests 28 and 31: tabs in groups; a client's Inputs group has only the Client Inbox, and there is no Admin group.
-    expect(await menuOf(page)).toEqual(["Inputs: Client Inbox", "Megatrends Dashboard", "Database"]);
+    expect(await menuOf(page)).toEqual(["Client Inbox", "Dashboard", "Database"]);
     const nav = navOf(page);
     // The Inbox and Input pages do not exist for clients: direct links go to the dashboard.
     for (const path of ["/input", "/inbox", "/admin"]) {
@@ -60,8 +60,7 @@ test.describe("client role", () => {
     const nav = navOf(page);
     await expect(nav.getByRole("link", { name: /Deliverables|Admin/ })).toHaveCount(0);
     await expect(nav.getByRole("button", { name: /^Admin\b/ })).toHaveCount(0);
-    await nav.getByRole("button", { name: /^Inputs\b/ }).click();
-    await expect(navLink(page, "Inputs", "Client Inbox")).toBeVisible();
+    await expect(navLink(page, "Client Inbox")).toBeVisible();
     for (const path of ["/inbox", "/input", "/admin"]) {
       await page.goto(path);
       await expect(page).toHaveURL(/\/dashboard/);

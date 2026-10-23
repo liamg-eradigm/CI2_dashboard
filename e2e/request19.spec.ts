@@ -35,8 +35,11 @@ test.describe("request 19", () => {
   test("each role sees only its tabs", async ({ page, browser }) => {
     await signInAs(page, "analyst");
     await page.goto("/dashboard");
-    expect(await menuOf(page)).toEqual(["Inputs: Eradigm Inbox", "Megatrends Dashboard", "Database"]);
-    for (const path of ["/input", "/admin", "/client-inbox"]) {
+    expect(await menuOf(page)).toEqual(["New Entry", "Eradigm Inbox", "Dashboard", "Database"]);
+    // Request 70: analysts open New Entry.
+    await page.goto("/input");
+    await expect(page).toHaveURL(/\/input$/);
+    for (const path of ["/admin", "/client-inbox"]) {
       await page.goto(path);
       await expect(page).toHaveURL(/\/dashboard/);
     }
@@ -44,18 +47,13 @@ test.describe("request 19", () => {
     const client = await ctx.newPage();
     await signInAs(client, "client");
     await client.goto("/dashboard");
-    expect(await menuOf(client)).toEqual(["Inputs: Client Inbox", "Megatrends Dashboard", "Database"]);
+    expect(await menuOf(client)).toEqual(["Client Inbox", "Dashboard", "Database"]);
     await ctx.close();
     const actx = await browser.newContext();
     const admin = await actx.newPage();
     await signInAs(admin, "admin");
     await admin.goto("/dashboard");
-    expect(await menuOf(admin)).toEqual([
-      "Inputs: Input, Eradigm Inbox, Client Inbox",
-      "Megatrends Dashboard",
-      "Database",
-      "Admin",
-    ]);
+    expect(await menuOf(admin)).toEqual(["New Entry", "Eradigm Inbox", "Client Inbox", "Dashboard", "Database", "Admin"]);
     await actx.close();
   });
 
@@ -81,7 +79,7 @@ test.describe("request 19", () => {
     const client = await ctx.newPage();
     await signInAs(client, "client");
     await client.goto("/dashboard");
-    await goTab(client, "Inputs", "Client Inbox");
+    await goTab(client, "Client Inbox");
     const cc = client.getByTestId("client-card").filter({ hasText: title });
     await expect(cc).toBeVisible();
     const kd = cc.locator('.ct-text[data-field="key_details"]');
