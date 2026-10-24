@@ -893,6 +893,19 @@ analyst-entered information distinguishable; in the prototype every value is
   "✓ Data synced" there for a moment when a sync changes the test space. A
   forced run that changes nothing says "Already up to date with the workbook"
   with the workbook's last save time.
+- **Request 71** (CI SQUARED, no migration): the Dashboard, calmer.
+  - **Activity chart**: each point is a month's Activity (the 30 days up to
+    it; points a week apart over three months, further apart over longer
+    spans), drawn as a smooth monotone curve (`smoothSegments`, no overshoot).
+  - **Matrix**: every dot in its full Impact colour; its size grows with
+    Growth Intensity (`dotSize`: 5, 6.5, 8 px; the same in the large plot).
+  - **Rows**: a handle between the charts and the Profiles shares the height
+    (30–75%; drag, arrow keys, Home/End, Enter or double click for the
+    default), kept per browser (`eradigm.dashboard.split`).
+  - **Look**: hairline cards without shadows, chart notes behind an "i",
+    Profiles as name, one text (Analysis / Company profile, scrolling in the
+    room left), two slim focus bars and a footer (the full analysis link, or
+    the competitor's tier and signals).
 - **Request 70** (CI SQUARED; contract 2.9.0; migrations 0032, 0033):
   - **Menu**: every tab is its own (New Entry, Eradigm Inbox, Client Inbox,
     Dashboard, Database, Admin); `normaliseMenu` turns a saved grouped menu
