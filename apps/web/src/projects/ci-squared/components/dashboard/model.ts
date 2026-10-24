@@ -1,22 +1,46 @@
 /**
  * Request 70: the Dashboard's sums. Activity is how much is happening in a
- * trend: each signal counts its impact (Low 1, Medium 2, High 3) times its
- * growth intensity (Stable 1, Slight Increase 2, Strong Increase 3), so
+ * trend: each signal counts its impact times its growth intensity, so
  * Activity = signals × impact × growth, summed over the signals of a period.
- * A signal without an impact or a growth intensity counts 1 for it.
+ * Request 72: the weights are Low 1, Medium 1.1, High 1.2 and Stable 1,
+ * Slight Increase 1.1, Strong Increase 1.2 (signals count most; impact and
+ * growth lift them a little). A signal without an impact or a growth
+ * intensity counts 1 for it.
  */
 import type { MegatrendEntry } from "@eradigm/shared";
 import { NEUTRAL, PALETTE } from "../megatrends/model";
 
 const norm = (v: string | null | undefined) => (v ?? "").trim().toLowerCase();
-export const IMPACT_WEIGHT: Readonly<Record<string, number>> = { low: 1, medium: 2, high: 3 };
-export const GROWTH_WEIGHT: Readonly<Record<string, number>> = { stable: 1, "slight increase": 2, "strong increase": 3 };
+export const IMPACT_WEIGHT: Readonly<Record<string, number>> = { low: 1, medium: 1.1, high: 1.2 };
+export const GROWTH_WEIGHT: Readonly<Record<string, number>> = { stable: 1, "slight increase": 1.1, "strong increase": 1.2 };
+const GROWTH_LEVEL: Readonly<Record<string, number>> = { stable: 1, "slight increase": 2, "strong increase": 3 };
 export const GROWTH_LEVELS = ["Stable", "Slight Increase", "Strong Increase"] as const;
 
 export type Entry = MegatrendEntry;
 export const activityOf = (e: Pick<Entry, "impact" | "growth">) => (IMPACT_WEIGHT[norm(e.impact)] ?? 1) * (GROWTH_WEIGHT[norm(e.growth)] ?? 1);
 /** 1 (Stable) to 3 (Strong Increase), or null. */
-export const growthLevel = (g: string | null | undefined): number | null => GROWTH_WEIGHT[norm(g)] ?? null;
+export const growthLevel = (g: string | null | undefined): number | null => GROWTH_LEVEL[norm(g)] ?? null;
+
+/** Request 72: short Macrotrend labels (the matrix's columns, the focus bars); the full name shows on hover. */
+const MACRO_ABBR: [RegExp, string][] = [
+  [/^ai investment in r&d$/i, "AI R&D"],
+  [/workforce ai upskilling/i, "AI Upskill"],
+  [/integrated digital pharma innovation/i, "Dig Innov"],
+  [/^geopolitics$/i, "Geo"],
+  [/portfolio restructuring/i, "Portfolio"],
+  [/direct-to-patient|\bdtp\b/i, "DTP"],
+  [/^manufacturing$/i, "Manufact"],
+  [/medical-grade intelligence/i, "Med AI"],
+  [/robotics/i, "Robotics"],
+  [/^others?$/i, "Others"],
+];
+export function macroAbbr(name: string): string {
+  const hit = MACRO_ABBR.find(([re]) => re.test(name.trim()));
+  if (hit) return hit[1];
+  // Any other: its first word (up to nine letters).
+  const w = name.trim().split(/\s+/)[0] ?? name;
+  return w.length > 9 ? `${w.slice(0, 8)}.` : w;
+}
 export const impactKey = (i: string | null | undefined): "high" | "medium" | "low" | null => {
   const k = norm(i);
   return k === "high" || k === "medium" || k === "low" ? k : null;
@@ -134,6 +158,8 @@ export function activityChange(entries: Entry[], today = todayIso()): { pct: num
     if (e.date > a && e.date <= today) now += activityOf(e);
     else if (e.date > b && e.date <= a) before += activityOf(e);
   }
+  now = Math.round(now * 100) / 100;
+  before = Math.round(before * 100) / 100;
   if (!before) return { pct: null, isNew: now > 0, now, before };
   return { pct: Math.round(((now - before) / before) * 100), isNew: false, now, before };
 }

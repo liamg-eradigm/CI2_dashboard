@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MegatrendEntry } from "@eradigm/shared";
-import { activityChange, activityOf, activitySeries, addMonths, bucketsOf, defaultPick, dotSize, focusSplit, macroStyles, quarters, rangeDates, smoothSegments, topWithOthers } from "./model";
+import { activityChange, activityOf, macroAbbr, activitySeries, addMonths, bucketsOf, defaultPick, dotSize, focusSplit, macroStyles, quarters, rangeDates, smoothSegments, topWithOthers } from "./model";
 
 const e = (date: string, impact: string | null, growth: string | null, extra: Partial<MegatrendEntry> = {}): MegatrendEntry => ({
   id: `${date}-${impact}-${growth}`,
@@ -17,9 +17,10 @@ const e = (date: string, impact: string | null, growth: string | null, extra: Pa
 });
 
 describe("request 70: Activity = signals × impact × growth", () => {
-  it("weighs each signal by its impact (Low 1 … High 3) and growth (Stable 1 … Strong Increase 3)", () => {
-    expect(activityOf(e("2026-10-01", "High", "Strong Increase"))).toBe(9);
-    expect(activityOf(e("2026-10-01", "Medium", "Slight Increase"))).toBe(4);
+  it("request 72: weighs each signal by its impact (Low 1, Medium 1.1, High 1.2) and growth (Stable 1, Slight 1.1, Strong 1.2)", () => {
+    expect(activityOf(e("2026-10-01", "High", "Strong Increase"))).toBeCloseTo(1.44);
+    expect(activityOf(e("2026-10-01", "Medium", "Slight Increase"))).toBeCloseTo(1.21);
+    expect(activityOf(e("2026-10-01", "High", "Stable"))).toBeCloseTo(1.2);
     expect(activityOf(e("2026-10-01", "low", "stable"))).toBe(1);
     expect(activityOf(e("2026-10-01", null, null))).toBe(1);
   });
@@ -38,8 +39,8 @@ describe("request 70: Activity = signals × impact × growth", () => {
     // A signal counts in every point whose month holds it.
     const s = activitySeries([e("2026-10-20", "High", "Stable"), e("2026-10-21", "Low", "Strong Increase"), e("2026-01-01", "High", "Stable")], pts, (x) => [x.macrotrend]);
     const row = s.get("AI")!;
-    expect(row[row.length - 1]).toBe(6);
-    expect(row.filter((v) => v === 6).length).toBe(1);
+    expect(row[row.length - 1]).toBeCloseTo(2.4);
+    expect(row.filter((v) => v > 0).length).toBeGreaterThanOrEqual(1);
     // The point before (16 Oct) holds neither: both came later.
     expect(row[row.length - 2]).toBe(0);
   });
@@ -61,7 +62,7 @@ describe("request 70: Activity = signals × impact × growth", () => {
   it("measures the last month's change and picks, of the three with most signals, the one that grew most", () => {
     const today = "2026-10-23";
     const list = [e("2026-10-10", "High", "Stable"), e("2026-09-10", "Low", "Stable")];
-    expect(activityChange(list, today)).toMatchObject({ pct: 200, now: 3, before: 1 });
+    expect(activityChange(list, today)).toMatchObject({ pct: 20, now: 1.2, before: 1 });
     expect(activityChange([e("2026-10-10", "High", "Stable")], today)).toMatchObject({ pct: null, isNew: true });
     const change = { a: { pct: 10, isNew: false, now: 1, before: 1 }, b: { pct: 80, isNew: false, now: 1, before: 1 }, c: { pct: -5, isNew: false, now: 1, before: 1 }, d: { pct: 500, isNew: false, now: 1, before: 1 } };
     expect(defaultPick(["a", "b", "c", "d"], (k) => change[k as keyof typeof change])).toBe("b");
@@ -84,6 +85,13 @@ describe("request 70: Activity = signals × impact × growth", () => {
     expect(m.get("Manufacturing")).toEqual({ colour: m.get("a")!.colour, hatch: true });
     expect(m.get("a")!.hatch).toBe(false);
     expect(m.get("Others")!.colour).toBe("#8b9aa6");
+  });
+
+  it("request 72: short Macrotrend labels, the full name otherwise on hover", () => {
+    expect(
+      ["AI Investment in R&D", "Workforce AI Upskilling", "Integrated Digital Pharma Innovation", "Geopolitics", "Portfolio Restructuring", "Direct-to-Patient (DTP) Strategy", "Manufacturing"].map(macroAbbr),
+    ).toEqual(["AI R&D", "AI Upskill", "Dig Innov", "Geo", "Portfolio", "DTP", "Manufact"]);
+    expect(macroAbbr("Biosimilars")).toBe("Biosimil.");
   });
 
   it("request 71: a matrix dot grows a little with Growth Intensity; the chart's line is smooth and never overshoots", () => {

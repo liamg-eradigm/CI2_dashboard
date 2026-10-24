@@ -10,9 +10,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CompetitorEntry } from "@eradigm/shared";
 import { IMPACT_COLOURS, impactColour, plural } from "../megatrends/model";
-import { dayLabel, dotSize, GROWTH_LEVELS, growthLevel, impactCounts, toDay } from "./model";
+import { dayLabel, dotSize, GROWTH_LEVELS, growthLevel, impactCounts, macroAbbr, toDay } from "./model";
 import { Popup, Tip, useSize } from "./ui";
-import { MacroIcon } from "./icons";
 
 const DAY = 86_400_000;
 /** A steady small offset per signal, so signals of the same day and growth do not hide one another. */
@@ -26,12 +25,15 @@ const yOf = (g: string | null | undefined) => {
   return lv === 3 ? 0.2 : lv === 2 ? 0.5 : 0.8;
 };
 
+/** Impact colours dark enough for text on the white page (the dots keep the brighter ones). */
+const IMPACT_TEXT = { high: "#c0392f", medium: "#9a6200", low: "#1d7f52" } as const;
+
 function Counts({ c }: { c: ReturnType<typeof impactCounts> }) {
   return (
     <>
       <span className="nb">{plural(c.n, "signal")}</span>{" "}
       <span className="nb">
-        (<b style={{ color: IMPACT_COLOURS.high }}>{c.high}H</b>, <b style={{ color: IMPACT_COLOURS.medium }}>{c.medium}M</b>, <b style={{ color: IMPACT_COLOURS.low }}>{c.low}L</b>)
+        (<b style={{ color: IMPACT_TEXT.high }}>{c.high}H</b>, <b style={{ color: IMPACT_TEXT.medium }}>{c.medium}M</b>, <b style={{ color: IMPACT_TEXT.low }}>{c.low}L</b>)
       </span>
     </>
   );
@@ -41,7 +43,6 @@ export function ScatterMatrix({
   entries,
   competitors,
   macros,
-  macroColour,
   from,
   to,
   all,
@@ -52,7 +53,6 @@ export function ScatterMatrix({
   competitors: string[];
   /** Columns, in the taxonomy's order. */
   macros: string[];
-  macroColour: Map<string, { colour: string; hatch: boolean }>;
   from: string;
   to: string;
   /** Every competitor (scrolls), or the first nine (fits). */
@@ -134,17 +134,15 @@ export function ScatterMatrix({
           ))}
         </div>
       )}
+      {/* Request 72: each column's short name underneath; the full name on hover (and for screen readers). */}
       <div className="dd-mx-foot">
         <span />
-        {macros.map((m) => {
-          const s = macroColour.get(m) ?? { colour: "#8b9aa6", hatch: false };
-          return (
-            <span key={m} className="dd-mx-col" onPointerMove={(e) => setTip({ x: e.clientX, y: e.clientY, text: m })} onPointerLeave={() => setTip(null)} data-testid="dd-mx-col">
-              <MacroIcon name={m} colour={s.colour} hatch={s.hatch} />
-              <span className="sr-only">{m}</span>
-            </span>
-          );
-        })}
+        {macros.map((m) => (
+          <span key={m} className="dd-mx-col" title={m} onPointerMove={(e) => setTip({ x: e.clientX, y: e.clientY, text: m })} onPointerLeave={() => setTip(null)} data-testid="dd-mx-col">
+            <span aria-hidden="true">{macroAbbr(m)}</span>
+            <span className="sr-only">{m}</span>
+          </span>
+        ))}
         <span />
       </div>
       <Tip at={tip}>{tip?.text}</Tip>
@@ -305,7 +303,7 @@ export function ScatterPopup({ comp, macro, entries, from, to, onClose, onOpen }
                       cy={(yOf(e.growth) + jitter(e.id) * 0.12) * h}
                       r={dotSize(e.growth)}
                       fill={impactColour(e.impact)}
-                      stroke="#04182a"
+                      stroke="#fff"
                       strokeWidth={2}
                       tabIndex={0}
                       role="button"
@@ -334,7 +332,7 @@ export function ScatterPopup({ comp, macro, entries, from, to, onClose, onOpen }
           <>
             <b className="dd-tip-title">{tip.e.title}</b>
             <span className="dd-tip-foot">
-              {dayLabel(tip.e.date)} · <span style={{ color: impactColour(tip.e.impact) }}>{tip.e.impact ?? "No"} impact</span>
+              {dayLabel(tip.e.date)} · <span>{tip.e.impact ?? "No"} impact</span>
               {" "}· {tip.e.growth ?? "No growth intensity"}
             </span>
           </>

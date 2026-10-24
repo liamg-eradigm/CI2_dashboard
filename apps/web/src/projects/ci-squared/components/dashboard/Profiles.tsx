@@ -15,6 +15,7 @@ import { plural } from "../megatrends/model";
 import { changeText, focusSplit, type Segment } from "./model";
 import type { activityChange } from "./model";
 import { Tip, useDismiss } from "./ui";
+import { ACCENT, greyOf } from "./StackedArea";
 
 export type PickItem = { name: string; icon: ReactNode };
 
@@ -74,54 +75,64 @@ function Change({ c }: { c: ReturnType<typeof activityChange> }) {
   );
 }
 
-/** A share of signals as one thin straight bar, its label beside it and its two largest parts named below. */
-export function FocusBar({ label, counts, colourOf, empty, testId }: { label: string; counts: [string, number][]; colourOf: (name: string, i: number) => { colour: string; hatch?: boolean }; empty: string; testId?: string }) {
-  const segs = focusSplit(counts);
-  const [tip, setTip] = useState<{ x: number; y: number; s: Segment } | null>(null);
-  const total = segs.reduce((s, x) => s + x.n, 0);
-  const desc = segs.map((s) => `${s.name} ${Math.round(s.pct)}%`).join(", ");
-  const colour = (s: Segment, i: number) => (s.name === "Other" && s.others ? { colour: "#8b9aa6" } : colourOf(s.name, i));
-  const named = segs.slice(0, 2);
+/**
+ * Request 72: focus bars after the reference design: a row per share (Prior /
+ * Now, Subtrends / Competitors), each a straight bar of grey parts with white
+ * gaps and their short names inside, the highlighted one in blue. A part
+ * keeps its grey in every row, so rows compare at a glance. Parts under 5%
+ * are put together as Other when there are several (focusSplit).
+ */
+export function FocusBars({
+  rows,
+  highlight,
+  short = (n) => n,
+  empty,
+  testId,
+}: {
+  rows: { label: string; counts: [string, number][]; testId?: string }[];
+  /** The part in blue (the selected Macrotrend or competitor), when it is there. */
+  highlight: string | null;
+  /** A part's short name (inside the bar); the full name shows on hover. */
+  short?: (name: string) => string;
+  empty: string;
+  testId?: string;
+}) {
+  const [tip, setTip] = useState<{ x: number; y: number; s: Segment; row: string } | null>(null);
+  const split = rows.map((r) => ({ ...r, segs: focusSplit(r.counts) }));
+  // Each part's grey, by its first appearance, the same in every row.
+  const order: string[] = [];
+  for (const r of split) for (const sg of r.segs) if (sg.name !== highlight && !order.includes(sg.name)) order.push(sg.name);
+  const fill = (name: string) => (name === highlight ? ACCENT : greyOf(order.indexOf(name)));
   return (
-    <div className="dd-focus" data-testid={testId}>
-      <span className="dd-focus-label" title={total ? plural(total, "signal") : undefined}>
-        {label}
-      </span>
-      {segs.length ? (
-        <div className="dd-focus-main">
-          <div className="dd-focus-bar" role="img" aria-label={`${label}: ${desc}`}>
-            {segs.map((s, i) => {
-              const c = colour(s, i);
-              return (
+    <div className="dd-fbars" data-testid={testId}>
+      {split.map((r) => (
+        <div key={r.label} className="dd-fbar-row" data-testid={r.testId}>
+          <span className="dd-fbar-label">{r.label}</span>
+          {r.segs.length ? (
+            <div className="dd-fbar" role="img" aria-label={`${r.label}: ${r.segs.map((sg) => `${sg.name} ${Math.round(sg.pct)}%`).join(", ")}`}>
+              {r.segs.map((sg) => (
                 <span
-                  key={s.name}
-                  className={`dd-seg${c.hatch ? " hatch" : ""}`}
-                  style={{ flexGrow: s.pct, background: c.colour }}
-                  onPointerMove={(e) => setTip({ x: e.clientX, y: e.clientY, s })}
+                  key={sg.name}
+                  className={`dd-fseg${sg.name === highlight ? " on" : ""}`}
+                  style={{ flexGrow: sg.pct, background: fill(sg.name) }}
+                  onPointerMove={(e) => setTip({ x: e.clientX, y: e.clientY, s: sg, row: r.label })}
                   onPointerLeave={() => setTip(null)}
-                />
-              );
-            })}
-          </div>
-          <ul className="dd-focus-key" aria-hidden="true">
-            {named.map((s, i) => (
-              <li key={s.name} title={s.others ? `Other: ${s.others.join(", ")}` : s.name}>
-                <span className={`dd-swatch${colour(s, i).hatch ? " hatch" : ""}`} style={{ background: colour(s, i).colour }} />
-                <span className="dd-key-name">{s.name}</span> {Math.round(s.pct)}%
-              </li>
-            ))}
-            {segs.length > 2 && <li className="dd-key-more">+{segs.length - 2} more</li>}
-          </ul>
+                >
+                  {sg.pct >= 7 ? (sg.others ? "Other" : short(sg.name)) : ""}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="dd-focus-empty">{empty}</p>
+          )}
         </div>
-      ) : (
-        <p className="dd-focus-empty">{empty}</p>
-      )}
+      ))}
       <Tip at={tip}>
         {tip && (
           <>
             <b className="dd-tip-title">{tip.s.name}</b>
             <span className="dd-tip-foot">
-              {plural(tip.s.n, "signal")} · {Math.round(tip.s.pct)}%
+              {tip.row}: {plural(tip.s.n, "signal")} · {Math.round(tip.s.pct)}%
             </span>
             {tip.s.others && <span className="dd-tip-foot">{tip.s.others.join(", ")}</span>}
           </>

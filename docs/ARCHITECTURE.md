@@ -893,6 +893,28 @@ analyst-entered information distinguishable; in the prototype every value is
   "✓ Data synced" there for a moment when a sync changes the test space. A
   forced run that changes nothing says "Already up to date with the workbook"
   with the workbook's last save time.
+- **Request 72** (CI SQUARED, no migration): the Dashboard after the
+  client's reference designs.
+  - **Look**: a white page with a hint of blue (`#f5f8fb`), warm greys for
+    the data, one blue (`#0a7fa5`; a darker shade for text) for what is
+    selected, white seams and gaps.
+  - **Activity weights**: impact Low 1, Medium 1.1, High 1.2; growth Stable 1,
+    Slight Increase 1.1, Strong Increase 1.2 (`IMPACT_WEIGHT`,
+    `GROWTH_WEIGHT`; `growthLevel` keeps 1–3 for the matrix).
+  - **Stacked areas**: grey layers, the selected Macrotrend in blue drawn on
+    top, name tabs above (or press a layer); a dotted line where the last 30
+    days start; the selected Macrotrend is also the Macrotrend Analysis'.
+    "Subtrends and competitors →" opens the breakdown (its charts work the
+    same way). The row-height handle of request 71 is gone: the page has two
+    screens instead.
+  - **Two screens**: the charts, then (the arrow below them, or scrolling) the
+    clearly titled Macrotrend Analysis and Competitor Analysis.
+  - **Matrix**: short Macrotrend names under the columns (`macroAbbr`: AI R&D,
+    AI Upskill, Dig Innov, Geo, Portfolio, DTP, Manufact, Med AI, Robotics,
+    Others), slanted to fit; the full name on hover.
+  - **Focus bars**: Prior / Now pairs (the quarter before and this one) of
+    grey parts with their names inside, the selected competitor (in the
+    Macrotrend's bars) or Macrotrend (in the competitor's) in blue.
 - **Request 71** (CI SQUARED, no migration): the Dashboard, calmer.
   - **Activity chart**: each point is a month's Activity (the 30 days up to
     it; points a week apart over three months, further apart over longer
