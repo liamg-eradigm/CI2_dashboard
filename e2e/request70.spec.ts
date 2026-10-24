@@ -69,7 +69,7 @@ test.describe("request 70: the Dashboard", () => {
       await expect(dash.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible();
       await expect(page.getByTestId("dd-mx-row").first()).toBeVisible();
       // White with a hint of blue.
-      expect(await dash.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe("rgb(245, 248, 251)");
+      expect(await dash.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe("rgb(245, 250, 251)");
       // Three months to begin with.
       await expect(page.getByRole("group", { name: "Time frame" }).getByRole("button", { name: "3 months" })).toHaveAttribute("aria-pressed", "true");
       const [area, matrix] = [page.locator("section.dd-chart.left"), page.locator("section.dd-chart.right")];
@@ -96,7 +96,7 @@ test.describe("request 70: the Dashboard", () => {
     });
   }
 
-  test("Activity by Macrotrend: grey stacked areas, the selected Macrotrend in blue on top; it is also the Macrotrend Analysis; its Subtrends and competitors in a popup", async ({ page }) => {
+  test("Activity by Macrotrend: grey stacked areas labelled with short names, the selected Macrotrend in teal in its place; it is also the Macrotrend Analysis; its Subtrends and competitors in a popup", async ({ page }) => {
     await signInAs(page, "analyst");
     await page.goto("/dashboard");
     const chart = page.getByTestId("dd-activity");
@@ -116,10 +116,21 @@ test.describe("request 70: the Dashboard", () => {
     const name = (await pick.innerText()).trim();
     await pick.click();
     await expect(pick).toHaveAttribute("aria-pressed", "true");
+    // Request 73: selecting never reshuffles the layers; only the selected one turns teal, the rest stay grey.
     const layers = chart.locator("path.dd-layer");
-    await expect(layers.last()).toHaveAttribute("data-layer", name);
-    expect(await layers.last().getAttribute("fill")).toBe("#0a7fa5");
-    for (const f of await layers.evaluateAll((els) => els.slice(0, -1).map((e) => e.getAttribute("fill")))) expect(["#d9d6d4", "#bbb7b5", "#e9e7e5", "#cbc7c5"]).toContain(f);
+    const order = await layers.evaluateAll((els) => els.map((e) => e.getAttribute("data-layer")));
+    await expect(chart.locator(`path.dd-layer[data-layer="${name}"]`)).toHaveAttribute("fill", "#0c7f88");
+    expect(await layers.evaluateAll((els) => els.map((e) => e.getAttribute("data-layer")))).toEqual(order);
+    await tabs.nth(2).click();
+    expect(await layers.evaluateAll((els) => els.map((e) => e.getAttribute("data-layer")))).toEqual(order);
+    await expect(chart.locator(`path.dd-layer[data-layer="${name}"]`)).not.toHaveAttribute("fill", "#0c7f88");
+    await pick.click();
+    for (const f of await layers.evaluateAll((els) => els.filter((e) => !e.hasAttribute("data-selected")).map((e) => e.getAttribute("fill")))) expect(["#d3dfe5", "#b7c9d2", "#e6eef2", "#c5d4dc"]).toContain(f);
+    // Each layer wide enough carries its short name, the same as the matrix's.
+    const short = ["AI R&D", "AI Upskill", "Dig Innov", "Geo", "Portfolio", "DTP", "Manufact", "Med AI", "Robotics", "Others"];
+    const labels = await chart.getByTestId("dd-layer-label").evaluateAll((els) => els.map((e) => e.textContent ?? ""));
+    expect(labels.length).toBeGreaterThan(0);
+    for (const l of labels) expect(short).toContain(l);
     // A dotted line where the last 30 days start.
     await expect(chart.getByTestId("dd-marker")).toContainText("Last 30 days");
     // The same Macrotrend in the Macrotrend Analysis below.
@@ -232,7 +243,7 @@ test.describe("request 70: the Dashboard", () => {
     await expect(macro.getByTestId("dd-focus-competitors").locator(".dd-fbar-label")).toHaveText(["Prior", "Now"]);
     const compName = (await page.getByTestId("dd-comp-profile-name").innerText()).trim();
     const blue = macro.getByTestId("dd-focus-competitors").locator(".dd-fseg.on");
-    if (await blue.count()) expect(await blue.first().evaluate((el) => (el as HTMLElement).style.background)).toBe("rgb(10, 127, 165)");
+    if (await blue.count()) expect(await blue.first().evaluate((el) => (el as HTMLElement).style.background)).toBe("rgb(12, 127, 136)");
     if (await blue.count()) await expect(blue.first()).toHaveText(new RegExp(`^(${compName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})?$`));
     // Another Macrotrend from the icons.
     const second = macro.getByRole("group", { name: /^Choose a / }).getByRole("button").nth(1);

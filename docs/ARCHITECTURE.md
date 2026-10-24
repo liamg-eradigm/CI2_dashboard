@@ -893,6 +893,18 @@ analyst-entered information distinguishable; in the prototype every value is
   "✓ Data synced" there for a moment when a sync changes the test space. A
   forced run that changes nothing says "Already up to date with the workbook"
   with the workbook's last save time.
+- **Request 73** (CI SQUARED, no migration):
+  - **Stacked areas**: selecting a Macrotrend only recolours its layer (teal);
+    the layers keep their order and greys. Each layer wide enough carries its
+    short name (`macroAbbr`, as in the matrix), where it stays thickest across
+    the label's width.
+  - **Colours**: Eradigm's own: navy for text and titles, teal (`--teal`) for
+    what is selected (focus bars, tabs, title rules), its cool greys for the
+    data, a faint teal page tint.
+  - **Trend pages**: the lists of all Macrotrends and all competitors are
+    gone; /analytics/megatrends and /analytics/competitors without a trend (and
+    the old /megatrends/analysis) go to the Dashboard, and a trend page's
+    "← Dashboard" goes back there.
 - **Request 72** (CI SQUARED, no migration): the Dashboard after the
   client's reference designs.
   - **Look**: a white page with a hint of blue (`#f5f8fb`), warm greys for

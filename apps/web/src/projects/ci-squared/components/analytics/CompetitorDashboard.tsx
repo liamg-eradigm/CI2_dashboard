@@ -143,7 +143,7 @@ export function CompetitorDashboard({
       <header className="mg-head ta-head ad-detail-head cd-head">
         <div>
           <button className="ad-back" onClick={onBack}>
-            ← All competitors
+            ← Dashboard
           </button>
           {/* Explore Signals: its title where the company's name is, the company above it (as on a Macrotrend's dashboard). */}
           <span className="eyebrow">

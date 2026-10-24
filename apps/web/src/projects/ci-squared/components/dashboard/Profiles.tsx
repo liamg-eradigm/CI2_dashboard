@@ -78,7 +78,7 @@ function Change({ c }: { c: ReturnType<typeof activityChange> }) {
 /**
  * Request 72: focus bars after the reference design: a row per share (Prior /
  * Now, Subtrends / Competitors), each a straight bar of grey parts with white
- * gaps and their short names inside, the highlighted one in blue. A part
+ * gaps and their short names inside, the highlighted one in teal. A part
  * keeps its grey in every row, so rows compare at a glance. Parts under 5%
  * are put together as Other when there are several (focusSplit).
  */
@@ -90,7 +90,7 @@ export function FocusBars({
   testId,
 }: {
   rows: { label: string; counts: [string, number][]; testId?: string }[];
-  /** The part in blue (the selected Macrotrend or competitor), when it is there. */
+  /** The part in teal (the selected Macrotrend or competitor), when it is there. */
   highlight: string | null;
   /** A part's short name (inside the bar); the full name shows on hover. */
   short?: (name: string) => string;

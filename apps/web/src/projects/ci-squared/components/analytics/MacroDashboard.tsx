@@ -148,7 +148,7 @@ export function MacroDashboard({ me, macro, onBack }: { me: Me; macro: string; o
       <header className="mg-head md-head">
         <div>
           <button className="ad-back" onClick={onBack}>
-            ← All megatrends
+            ← Dashboard
           </button>
           <span className="eyebrow">Macrotrend</span>
           <h1 data-testid="ta-name">{macro}</h1>

@@ -1,20 +1,21 @@
 /*
- * The Dashboard (requests 70–72), after the reference design: a white page
- * with a hint of blue, warm greys for the data, one blue (the accent) for what
- * is selected, white seams and gaps, thin rules and quiet labels. Two
+ * The Dashboard (requests 70–73), after the reference design: a white page
+ * with a hint of Eradigm teal, Eradigm's navy for text and titles, its cool
+ * greys for the data and its teal for what is selected (request 73), white
+ * seams and gaps, thin rules and quiet labels. Two
  * screens: the charts, then (the arrow below them) the Macrotrend and
  * Competitor Analysis.
  */
 .dd-page {
-  --dd-bg: #f5f8fb;
-  --dd-ink: #1c2a35;
-  --dd-ink-2: #3c4a55;
-  --dd-quiet: #536576;
-  --dd-line: #e1e7ec;
-  --dd-cell: #e9eef2;
-  --dd-accent: #0a7fa5;
+  --dd-bg: #f5fafb;
+  --dd-ink: var(--navy-900, #072838);
+  --dd-ink-2: var(--ink-2, #35505c);
+  --dd-quiet: #4f6878;
+  --dd-line: var(--border, #dce5ea);
+  --dd-cell: #e8f0f3;
+  --dd-accent: var(--teal, #0c7f88);
   /* The accent as text: a shade darker, for contrast on the page. */
-  --dd-accent-text: #076b8c;
+  --dd-accent-text: var(--teal-hover, #096a72);
   height: 100vh;
   overflow-y: auto;
   scroll-snap-type: y proximity;
@@ -46,7 +47,7 @@
 .dd-showall { margin-left: auto; overflow: hidden; text-overflow: ellipsis; }
 
 /* Down to the analyses, and back up */
-.dd-down { align-self: center; display: inline-flex; flex-direction: column; align-items: center; gap: 0; border: 0; background: none; color: var(--dd-quiet); font: 500 12.5px var(--sans); cursor: pointer; padding: 2px 10px; }
+.dd-down { align-self: center; display: inline-flex; flex-direction: column; align-items: center; gap: 0; border: 0; background: none; color: var(--dd-accent-text); font: 500 12.5px var(--sans); cursor: pointer; padding: 2px 10px; }
 .dd-down svg { animation: dd-nudge 2.4s ease-in-out infinite; }
 .dd-down:hover { color: var(--dd-accent-text); }
 @keyframes dd-nudge {
@@ -63,28 +64,30 @@
 .dd-area { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
 .dd-tabs-row { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .dd-tabs { display: flex; gap: 6px; min-width: 0; overflow-x: auto; padding-bottom: 2px; scrollbar-width: thin; }
-.dd-tab { flex: none; border: 1px solid #d3d7da; border-radius: 3px; background: #f1f2f3; color: #2e2b29; font: 600 12.5px var(--sans); padding: 5px 10px; cursor: pointer; white-space: nowrap; }
-.dd-tab:hover { border-color: #b9bdc0; background: #e9eaeb; }
+.dd-tab { flex: none; border: 1px solid var(--dd-line); border-radius: 3px; background: #fff; color: var(--dd-ink); font: 600 12.5px var(--sans); padding: 5px 10px; cursor: pointer; white-space: nowrap; }
+.dd-tab:hover { border-color: var(--dd-accent); background: var(--tint-2, #f2fafa); }
 .dd-tab[aria-pressed="true"] { border-color: var(--dd-accent); background: var(--dd-accent); color: #fff; }
 .dd-area-plot { position: relative; flex: 1 1 auto; min-height: 140px; }
 .dd-area-plot svg { position: absolute; inset: 0; }
 g.dd-grid line { stroke: var(--dd-line); }
 g.dd-grid text, .dd-xtick { fill: var(--dd-quiet); font: 11px var(--sans); }
 .dd-axis-title { fill: var(--dd-quiet); font: 500 11px var(--sans); }
-.dd-marker line { stroke: #3b3b3b; stroke-width: 1; stroke-dasharray: 2 3; }
-.dd-marker text { fill: #4a4a4a; font: 11px var(--sans); }
+.dd-marker line { stroke: var(--dd-ink); stroke-width: 1; stroke-dasharray: 2 3; }
+.dd-marker text { fill: var(--dd-ink-2); font: 11px var(--sans); }
+.dd-layer-label { fill: var(--dd-ink); font: 600 11px var(--sans); paint-order: stroke; stroke: rgba(255, 255, 255, 0.55); stroke-width: 3px; stroke-linejoin: round; }
+.dd-layer-label.on { fill: #fff; stroke: var(--dd-accent); }
 .dd-cross { stroke: rgba(28, 42, 53, 0.35); stroke-dasharray: 3 3; pointer-events: none; }
 .dd-empty-text { fill: var(--dd-quiet); font: 13px var(--sans); }
 .dd-layer { transition: fill 0.15s ease; }
 .dd-swatch { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 2px; }
 
 /* Tooltips (on the page body: plain colours) */
-.dd-tip { position: fixed; z-index: 90; pointer-events: none; max-width: 320px; padding: 8px 10px; border-radius: 6px; background: #fff; border: 1px solid #dfe5ea; color: #1c2a35; font: 12px/1.45 var(--sans); box-shadow: 0 8px 24px rgba(28, 42, 53, 0.14); }
-.dd-tip-title { display: block; margin-bottom: 3px; color: #1c2a35; font-weight: 600; }
+.dd-tip { position: fixed; z-index: 90; pointer-events: none; max-width: 320px; padding: 8px 10px; border-radius: 6px; background: #fff; border: 1px solid #dfe5ea; color: #072838; font: 12px/1.45 var(--sans); box-shadow: 0 8px 24px rgba(28, 42, 53, 0.14); }
+.dd-tip-title { display: block; margin-bottom: 3px; color: #072838; font-weight: 600; }
 .dd-tip-list { list-style: none; margin: 0 0 4px; padding: 0; display: grid; gap: 2px; }
 .dd-tip-list li { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; align-items: center; gap: 6px; color: #4a5a66; }
-.dd-tip-list li.on { color: #1c2a35; font-weight: 600; }
-.dd-tip-list b { color: #1c2a35; font-weight: 600; }
+.dd-tip-list li.on { color: #072838; font-weight: 600; }
+.dd-tip-list b { color: #072838; font-weight: 600; }
 .dd-tip-foot { display: block; color: #5d6e7c; }
 
 /* Scatter matrix */
@@ -98,8 +101,8 @@ g.dd-grid text, .dd-xtick { fill: var(--dd-quiet); font: 11px var(--sans); }
 .dd-mx-count .nb { white-space: nowrap; }
 .dd-mx-count b { font-weight: 600; }
 .dd-mx-cell { position: relative; min-height: 14px; padding: 0; border-radius: 3px; border: 0; background: var(--dd-cell); cursor: pointer; overflow: hidden; }
-.dd-mx-cell:hover { background: #d7e6ee; }
-.dd-mx-cell.none { cursor: default; background: #f0f3f6; }
+.dd-mx-cell:hover { background: var(--tint, #eaf7f8); box-shadow: inset 0 0 0 1px var(--cyan-2, #7fd3d8); }
+.dd-mx-cell.none { cursor: default; background: #f1f6f8; }
 .dd-mx-dot { position: absolute; border-radius: 50%; pointer-events: none; box-shadow: 0 0 0 1px #fff; }
 .dd-mx-foot { height: 52px; overflow: visible; }
 /* The short names slant down from under each column, so whole words fit however narrow the columns are. */
@@ -134,7 +137,7 @@ g.dd-grid text, .dd-xtick { fill: var(--dd-quiet); font: 11px var(--sans); }
 /* The analyses */
 .dd-analysis-screen .dd-two { flex: 1 1 auto; align-items: stretch; }
 .dd-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-.dd-big-title { margin: 0; padding-bottom: 10px; border-bottom: 2px solid var(--dd-ink); font: 600 22px/1.25 var(--sans); color: var(--dd-ink); }
+.dd-big-title { margin: 0; padding-bottom: 10px; border-bottom: 2px solid var(--dd-accent); font: 600 22px/1.25 var(--sans); color: var(--dd-ink); }
 .dd-card { display: flex; flex-direction: column; gap: 14px; min-width: 0; flex: 0 1 auto; padding: 18px 20px; border-radius: 10px; border: 1px solid var(--dd-line); background: #fff; }
 .dd-card-head { display: flex; align-items: center; gap: 8px; min-height: 30px; }
 .dd-card-head h3 { margin: 0; font: 500 12.5px/1.3 var(--sans); color: var(--dd-quiet); }
@@ -168,7 +171,7 @@ g.dd-grid text, .dd-xtick { fill: var(--dd-quiet); font: 11px var(--sans); }
 .dd-fbar-row { display: grid; grid-template-columns: 52px minmax(0, 1fr); align-items: center; gap: 8px; }
 .dd-fbar-label { font-size: 13px; color: var(--dd-quiet); }
 .dd-fbar { display: flex; gap: 2px; height: 22px; background: #fff; }
-.dd-fseg { flex-basis: 0; min-width: 4px; display: flex; align-items: center; padding: 0 6px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font: 500 11.5px/1 var(--sans); color: #3b3632; }
+.dd-fseg { flex-basis: 0; min-width: 4px; display: flex; align-items: center; padding: 0 6px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font: 500 11.5px/1 var(--sans); color: var(--dd-ink); }
 .dd-fseg.on { color: #fff; font-weight: 600; }
 .dd-focus-empty { margin: 0; font-size: 12px; color: var(--dd-quiet); }
 .dd-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 30px; }
