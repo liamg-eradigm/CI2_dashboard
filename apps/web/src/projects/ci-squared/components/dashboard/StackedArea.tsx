@@ -2,7 +2,8 @@
  * Request 70: a stacked area chart of Activity over time (one layer per
  * Macrotrend, Subtrend or competitor). Request 72, after the reference design:
  * every layer a quiet grey (alternating shades, white seams between them) and
- * the selected one in blue, drawn on top; a row of name tabs above picks it
+ * the selected one in Eradigm teal (request 73: in its own place, so selecting
+ * never reshuffles the chart); a row of name tabs above picks it
  * (so does pressing a layer); a dotted line marks where the last 30 days
  * start. Hovering shows the point's values (crosshair and tooltip).
  */
@@ -12,9 +13,9 @@ import { niceTicks, Tip, useSize } from "./ui";
 
 export type Layer = { key: string; values: number[] };
 
-/** The selected layer's blue, and the greys of the others (from the reference). */
-export const ACCENT = "#0a7fa5";
-export const GREYS = ["#d9d6d4", "#bbb7b5", "#e9e7e5", "#cbc7c5"] as const;
+/** Request 73: the selected layer in Eradigm teal, the others in Eradigm's cool greys. */
+export const ACCENT = "#0c7f88";
+export const GREYS = ["#d3dfe5", "#b7c9d2", "#e6eef2", "#c5d4dc"] as const;
 export const greyOf = (i: number) => GREYS[i % GREYS.length] as string;
 
 const M = { top: 22, right: 8, bottom: 22, left: 40 };
@@ -39,8 +40,9 @@ export function StackedArea({
   label,
   testId,
   tools,
+  short,
 }: {
-  /** In order; the selected one is drawn on top. */
+  /** In order (kept: selecting one only changes its colour). */
   layers: Layer[];
   buckets: Bucket[];
   /** The highlighted layer (controlled); without it, the chart keeps its own (the largest first). */
@@ -53,6 +55,8 @@ export function StackedArea({
   testId?: string;
   /** Beside the tabs (e.g. a button to break the selected layer down). */
   tools?: ReactNode;
+  /** Request 73: a layer's short name, written on it where it is thickest (when it is thick enough). */
+  short?: (key: string) => string;
 }) {
   const uid = useId().replace(/:/g, "");
   const [box, size] = useSize<HTMLDivElement>();
@@ -72,12 +76,8 @@ export function StackedArea({
   const w = Math.max(0, size.w - M.left - M.right);
   const h = Math.max(0, size.h - M.top - M.bottom);
 
-  // The others in order, the selected one last (on top), each others' grey by its place.
-  const ordered = useMemo(() => {
-    const rest = layers.filter((l) => l.key !== selected);
-    const sel = layers.find((l) => l.key === selected);
-    return [...rest.map((l, i) => ({ ...l, colour: greyOf(i) })), ...(sel ? [{ ...sel, colour: ACCENT }] : [])];
-  }, [layers, selected]);
+  // Request 73: every layer keeps its place and its grey; the selected one is teal.
+  const ordered = useMemo(() => layers.map((l, i) => ({ ...l, colour: l.key === selected ? ACCENT : greyOf(i) })), [layers, selected]);
   const { stacks, max } = useMemo(() => {
     const cum = new Array<number>(n).fill(0);
     const stacks = ordered.map((l) => {
@@ -169,6 +169,28 @@ export function StackedArea({
                 {stacks.map(({ layer, hi }) => (
                   <path key={`e-${layer.key}`} d={edge(hi)} fill="none" stroke="#fff" strokeWidth="1.25" pointerEvents="none" />
                 ))}
+                {/* Request 73: each layer's short name where it stays thickest across the label's width, when it has room. */}
+                {short &&
+                  stacks.map(({ layer, lo, hi }) => {
+                    const text = short(layer.key);
+                    const half = text.length * 3.4 + 4;
+                    const thick = (i: number) => ((hi[i] ?? 0) - (lo[i] ?? 0)) * (h / top);
+                    let best = -1;
+                    let room = 0;
+                    for (let i = 0; i < n; i++) {
+                      const cx = Math.min(w - half, Math.max(half, x(i)));
+                      let m = Number.POSITIVE_INFINITY;
+                      for (let j = 0; j < n; j++) if (Math.abs(x(j) - cx) <= half) m = Math.min(m, thick(j));
+                      if (m !== Number.POSITIVE_INFINITY && m > room) [room, best] = [m, i];
+                    }
+                    if (best < 0 || room < 14) return null;
+                    const cx = Math.min(w - half, Math.max(half, x(best)));
+                    return (
+                      <text key={`l-${layer.key}`} className={`dd-layer-label${layer.key === selected ? " on" : ""}`} x={cx} y={y(((lo[best] ?? 0) + (hi[best] ?? 0)) / 2)} dy="0.35em" textAnchor="middle" pointerEvents="none" data-testid="dd-layer-label">
+                        {text}
+                      </text>
+                    );
+                  })}
               </g>
               {mi > 0 && (
                 <g className="dd-marker" data-testid="dd-marker">

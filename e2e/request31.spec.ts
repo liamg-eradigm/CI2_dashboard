@@ -29,28 +29,26 @@ test.describe("request 31", () => {
     await expect(page).toHaveURL(/\/megatrends$/);
   });
 
-  test("Trends Analysis: a Macrotrend opens its own dashboard (request 34)", async ({ page }) => {
+  test("a Macrotrend's analysis opens from the Dashboard and goes back to it; the old list of all Macrotrends is gone (request 73)", async ({ page }) => {
     await signInAs(page, "analyst");
     await page.setViewportSize({ width: 1440, height: 900 });
-    // The old address still works.
-    await page.goto("/megatrends/analysis");
-    await expect(page).toHaveURL(/\/analytics\/megatrends$/);
-    const list = page.getByRole("list", { name: "Macrotrends" });
-    await list.getByRole("button", { name: new RegExp(`^${R_AND_D.replace(/[&]/g, "\\$&")}`) }).click();
-    await expect(page).toHaveURL(/m=AI\+Investment/);
+    // The old addresses (and the list's) now lead to the Dashboard.
+    for (const path of ["/megatrends/analysis", "/analytics/megatrends", "/analytics/competitors"]) {
+      await page.goto(path);
+      await expect(page).toHaveURL(/\/dashboard$/);
+    }
+    await page.goto(`/analytics/megatrends?${new URLSearchParams({ m: R_AND_D })}`);
     await expect(page.getByTestId("ta-name")).toHaveText(R_AND_D);
     await expect(page.getByTestId("md-mix").locator(".bar-row").first()).toBeVisible();
-    // Back to the list.
-    await page.getByRole("button", { name: "← All megatrends" }).click();
-    await expect(list).toBeVisible();
+    // Back to the Dashboard, not a list.
+    await page.getByRole("button", { name: "← Dashboard" }).click();
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(page.getByTestId("analytics-dashboard")).toBeVisible();
   });
 
   test("Trends Analysis: a competitor opens its timeline, impact mix by Macrotrend and its analysis", async ({ page }) => {
     await signInAs(page, "client");
-    await page.goto("/analytics/competitors");
-    await page.getByLabel("Find a competitor").fill("pfiz");
-    await page.getByRole("list", { name: "Competitors" }).getByRole("button", { name: /^Pfizer/ }).click();
-    await expect(page).toHaveURL(/c=Pfizer/);
+    await page.goto("/analytics/competitors?c=Pfizer");
     await expect(page.getByTestId("ta-subtrend")).toHaveCount(0);
     const card = (name: string) => page.locator("section.card", { has: page.getByRole("heading", { name, exact: true }) });
     await expect(card("Impact Mix by Macrotrend").locator(".bar-row").first()).toBeVisible();

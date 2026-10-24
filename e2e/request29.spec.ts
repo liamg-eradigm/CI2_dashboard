@@ -3,40 +3,6 @@ import { expect, expectAccessible, navOf, signInAs, test } from "./fixtures";
 const WORKFORCE = "Workforce AI Upskilling";
 
 test.describe("requests 29 and 30", () => {
-  test("each Trend analysis list row has a bar for its signal count (the largest full width)", async ({ page }) => {
-    await signInAs(page, "analyst");
-    for (const path of ["/analytics/megatrends", "/analytics/competitors"]) {
-      await page.goto(path);
-      const bars = page.locator(".ta-list [data-testid=ta-count] .ta-bar");
-      await expect(bars.first()).toBeVisible();
-      const widths = await bars.evaluateAll((els) => els.map((el) => Number.parseFloat((el as HTMLElement).style.width)));
-      expect(Math.max(...widths), path).toBe(100);
-      expect(Math.min(...widths), path).toBeGreaterThan(0);
-    }
-  });
-
-  test("Competitors trend analysis lists Tier 1 first, then Tiers 2, 3 and 4, each by signal count", async ({ page }) => {
-    await signInAs(page, "analyst");
-    // The seed's competitors are all Tier 1: answer with a mix of tiers (default tiers: Amgen 2, NVIDIA 3, others unlisted 4).
-    await page.route("**/api/competitors?*", async (route) => {
-      const real = await (await route.fetch()).json();
-      const c = (name: string, count: number) => ({ name, count, tier: 4, summary: null });
-      await route.fulfill({ json: { ...real, competitors: [c("Zeta Bio", 99), c("NVIDIA", 50), c("Amgen", 9), c("Pfizer", 5), c("Roche", 7), c("GSK", 60)], pairs: [], entries: [] } });
-    });
-    await page.goto("/analytics/competitors");
-    const cells = page.getByRole("list", { name: "Competitors" }).locator(".ta-cell");
-    await expect(cells).toHaveCount(6);
-    const rows = await cells.evaluateAll((els) => els.map((el) => `${el.querySelector(".nm")?.textContent} · ${el.querySelector(".ta-note")?.textContent} · ${el.querySelector("[data-testid=ta-count]")?.textContent}`));
-    expect(rows).toEqual([
-      "Roche · Tier 1 · 7 signals",
-      "Pfizer · Tier 1 · 5 signals",
-      "Amgen · Tier 2 · 9 signals",
-      "GSK · Tier 3 · 60 signals",
-      "NVIDIA · Tier 3 · 50 signals",
-      "Zeta Bio · Tier 4 · 99 signals",
-    ]);
-  });
-
   test("Input Trend Analysis: a Macrotrend's sections fill its dashboard and are kept in Database → CI Analysis as Markdown", async ({ page }) => {
     await signInAs(page, "admin");
     await page.goto("/input");

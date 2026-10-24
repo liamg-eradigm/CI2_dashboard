@@ -34,7 +34,7 @@ import "../styles/dashboard.css";
  * selected. Two screens, one below the other:
  *  - The charts. Left, the Activity of each Macrotrend over time as smooth
  *    stacked areas (each point a month's Activity: signals × impact × growth
- *    intensity), the selected Macrotrend in blue (tabs above, or press a
+ *    intensity), the selected Macrotrend in teal (tabs above, or press a
  *    layer), a dotted line where the last 30 days start; its Subtrends and
  *    top six competitors open in a popup. Right, a scatter plot per
  *    competitor and Macrotrend (Event Date across, Growth Intensity up, Impact
@@ -42,9 +42,9 @@ import "../styles/dashboard.css";
  *  - Below (the arrow, or scrolling), the Macrotrend Analysis and the
  *    Competitor Analysis: the top five as icons and a search, the chosen one's
  *    change in Activity, its analysis or Company Profile, focus bars (this
- *    quarter against the one before, the selected one in blue) and a footer.
+ *    quarter against the one before, the selected one in teal) and a footer.
  * The Macrotrend picked on the chart and in the Macrotrend Analysis is one and
- * the same; the competitor picked is shown in blue in the Macrotrend's bars.
+ * the same; the competitor picked is shown in teal in the Macrotrend's bars.
  */
 export function DashboardPage({ me }: { me: Me }) {
   const mt = useMegatrends("all", null, null);
@@ -133,7 +133,7 @@ export function DashboardPage({ me }: { me: Me }) {
               <header className="dd-panel-head">
                 <h2 id="dd-activity-title">Macrotrend activity</h2>
                 <InfoTip label="About this chart">
-                  {timeFrame}. Each point is the Activity of the month up to it: its signals × impact (Low 1, Medium 1.1, High 1.2) × growth intensity (Stable 1, Slight Increase 1.1, Strong Increase 1.2). The selected Macrotrend is in blue; press a layer or a name to select another.
+                  {timeFrame}. Each point is the Activity of the month up to it: its signals × impact (Low 1, Medium 1.1, High 1.2) × growth intensity (Stable 1, Slight Increase 1.1, Strong Increase 1.2). The selected Macrotrend is in teal; press a layer or a name to select another.
                 </InfoTip>
                 {macroName && (
                   <button type="button" className="dd-text-btn dd-showall" onClick={() => setPop(macroName)} data-testid="dd-breakdown">
@@ -149,6 +149,7 @@ export function DashboardPage({ me }: { me: Me }) {
                 marker={{ at: addDays(today, -29), label: "Last 30 days" }}
                 label="Activity by Macrotrend"
                 testId="dd-activity"
+                short={macroAbbr}
               />
             </section>
             <section className="dd-panel dd-chart right" aria-labelledby="dd-matrix-title">
@@ -308,7 +309,7 @@ function MacroProfile({
               testId="dd-focus-subtrends"
             />
           </FocusGroup>
-          <FocusGroup title="Competitors" q={q} note={competitor ? `${competitor} in blue` : undefined}>
+          <FocusGroup title="Competitors" q={q} note={competitor ? `${competitor} highlighted` : undefined}>
             <FocusBars
               rows={[
                 { label: "Prior", counts: compPrior, testId: "dd-focus-comp-prior" },
@@ -386,7 +387,7 @@ function CompetitorProfile({
       textLabel="Company profile"
       text={<Analysis text={comp?.summary?.text} empty={`No Company Profile of ${name} yet: add one on New Entry → Input trend analysis.`} testId="dd-comp-analysis" />}
       bars={
-        <FocusGroup title="Macrotrends" q={q} note={macro ? `${macro} in blue` : undefined}>
+        <FocusGroup title="Macrotrends" q={q} note={macro ? `${macro} highlighted` : undefined}>
           <FocusBars
             rows={[
               { label: "Prior", counts: split(q.previous.start, q.previous.end), testId: "dd-focus-last-quarter" },
