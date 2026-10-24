@@ -61,34 +61,42 @@ test.describe("request 70: the Dashboard", () => {
     [1440, 900],
     [1920, 1080],
   ] as const) {
-    test(`two columns on one page at ${w}×${h}: the two charts level and the same size, then the two Profiles`, async ({ page }) => {
+    test(`request 72: at ${w}×${h} the charts fill the first screen, level and the same size; the arrow goes down to the two analyses and back`, async ({ page }) => {
       await signInAs(page, "client");
       await page.setViewportSize({ width: w, height: h });
       await page.goto("/dashboard");
       const dash = page.getByTestId("analytics-dashboard");
       await expect(dash.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible();
-      await expect(dash.getByRole("heading", { level: 2 })).toHaveText(["Macrotrends Analysis", "Competitor Analysis"]);
       await expect(page.getByTestId("dd-mx-row").first()).toBeVisible();
+      // White with a hint of blue.
+      expect(await dash.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe("rgb(245, 248, 251)");
       // Three months to begin with.
       await expect(page.getByRole("group", { name: "Time frame" }).getByRole("button", { name: "3 months" })).toHaveAttribute("aria-pressed", "true");
       const [area, matrix] = [page.locator("section.dd-chart.left"), page.locator("section.dd-chart.right")];
+      await expect(area.getByRole("heading", { level: 2 })).toHaveText("Macrotrend activity");
+      await expect(matrix.getByRole("heading", { level: 2 })).toHaveText("Competitor signals by Macrotrend");
       const [a, m] = [(await area.boundingBox())!, (await matrix.boundingBox())!];
       expect(Math.abs(a.y - m.y)).toBeLessThanOrEqual(1);
       expect(Math.abs(a.height - m.height)).toBeLessThanOrEqual(1);
       expect(Math.abs(a.width - m.width)).toBeLessThanOrEqual(1);
-      const [mp, cp] = [(await page.getByTestId("dd-macro-profile").boundingBox())!, (await page.getByTestId("dd-comp-profile").boundingBox())!];
-      expect(Math.abs(mp.y - cp.y)).toBeLessThanOrEqual(1);
-      expect(mp.y).toBeGreaterThan(a.y + a.height - 1);
-      // No scrolling.
-      const s = await dash.evaluate((el) => ({ sh: el.scrollHeight, ch: el.clientHeight, doc: document.documentElement.scrollHeight }));
-      expect(s.sh).toBeLessThanOrEqual(s.ch);
-      expect(s.doc).toBeLessThanOrEqual(h);
+      // The charts and the arrow on the first screen; the analyses below it.
+      const down = page.getByTestId("dd-down");
+      await expect(down).toBeInViewport({ ratio: 1 });
+      expect(a.y + a.height).toBeLessThanOrEqual(h);
+      const title = page.getByRole("heading", { level: 2, name: "Macrotrend Analysis" });
+      await expect(title).not.toBeInViewport();
+      await down.click();
+      await expect(title).toBeInViewport();
+      await expect(page.getByRole("heading", { level: 2, name: "Competitor Analysis" })).toBeInViewport();
+      await expect(page.locator("section.dd-chart.left")).not.toBeInViewport({ ratio: 0.5 });
+      await page.getByTestId("dd-up").click();
+      await expect(down).toBeInViewport();
       // No capitals-only text.
       expect(await dash.evaluate((el) => [...el.querySelectorAll("*")].filter((x) => getComputedStyle(x).textTransform === "uppercase").length)).toBe(0);
     });
   }
 
-  test("Activity by Macrotrend: stacked areas; a layer opens its Subtrends and its top competitors", async ({ page }) => {
+  test("Activity by Macrotrend: grey stacked areas, the selected Macrotrend in blue on top; it is also the Macrotrend Analysis; its Subtrends and competitors in a popup", async ({ page }) => {
     await signInAs(page, "analyst");
     await page.goto("/dashboard");
     const chart = page.getByTestId("dd-activity");
@@ -99,23 +107,35 @@ test.describe("request 70: the Dashboard", () => {
     const box = (await chart.locator(".dd-area-plot").boundingBox())!;
     await page.mouse.move(box.x + box.width * 0.9, box.y + box.height - 30);
     await expect(page.locator(".dd-tip")).toContainText(/^Month to \d{1,2} \w{3} \d{4}/);
+    await page.mouse.move(0, 0);
     expect(await chart.locator("path.dd-layer").first().getAttribute("d")).toContain("C");
-    await expect(page.locator(".dd-tip")).toContainText("Total Activity");
-    const legend = chart.getByRole("list", { name: /legend/ });
-    const first = legend.getByRole("button").first();
-    const name = (await first.locator(".dd-legend-name").innerText()).trim();
-    await first.click();
+    // Request 72: one tab per Macrotrend; the selected one in blue, drawn last (on top); the others grey.
+    const tabs = chart.getByTestId("dd-tab");
+    await expect(tabs.filter({ has: page.locator(":scope[aria-pressed='true']") })).toHaveCount(1);
+    const pick = tabs.nth(1);
+    const name = (await pick.innerText()).trim();
+    await pick.click();
+    await expect(pick).toHaveAttribute("aria-pressed", "true");
+    const layers = chart.locator("path.dd-layer");
+    await expect(layers.last()).toHaveAttribute("data-layer", name);
+    expect(await layers.last().getAttribute("fill")).toBe("#0a7fa5");
+    for (const f of await layers.evaluateAll((els) => els.slice(0, -1).map((e) => e.getAttribute("fill")))) expect(["#d9d6d4", "#bbb7b5", "#e9e7e5", "#cbc7c5"]).toContain(f);
+    // A dotted line where the last 30 days start.
+    await expect(chart.getByTestId("dd-marker")).toContainText("Last 30 days");
+    // The same Macrotrend in the Macrotrend Analysis below.
+    await expect(page.getByTestId("dd-macro-profile-name")).toHaveText(name);
+    // Its Subtrends and its top six competitors.
+    await page.getByTestId("dd-breakdown").click();
     const pop = page.getByTestId("dd-macro-popup");
     await expect(pop.getByRole("heading", { level: 2 })).toHaveText(name);
     await expect(pop.getByTestId("dd-pop-subtrends")).toBeVisible();
-    const comps = pop.getByTestId("dd-pop-competitors").getByRole("list", { name: /legend/ }).getByRole("button");
-    expect(await comps.count()).toBeLessThanOrEqual(7);
+    expect(await pop.getByTestId("dd-pop-competitors").getByTestId("dd-tab").count()).toBeLessThanOrEqual(7);
     await expectAccessible(page, "Dashboard: a Macrotrend's popup");
     await page.keyboard.press("Escape");
     await expect(pop).toHaveCount(0);
-    // The explanation sits behind the "i".
-    await chart.locator("xpath=ancestor::section[1]").getByRole("button", { name: "About this chart" }).focus();
-    await expect(page.locator(".dd-tip")).toContainText("Activity of the month up to it");
+    // The explanation (and the weights) behind the "i".
+    await page.locator("section.dd-chart.left").getByRole("button", { name: "About this chart" }).focus();
+    await expect(page.locator(".dd-tip")).toContainText("Medium 1.1, High 1.2");
   });
 
   test("the scatter matrix: a plot per competitor and Macrotrend, signals counted by Impact; a plot opens larger with zoom, drag and titles", async ({ page }) => {
@@ -126,6 +146,12 @@ test.describe("request 70: the Dashboard", () => {
     await expect(rows.first()).toBeVisible();
     expect(await rows.count()).toBeLessThanOrEqual(9);
     expect(await matrix.getByTestId("dd-mx-col").count()).toBeLessThanOrEqual(9);
+    // Request 72: short names under the columns, the full name on hover.
+    const short = ["AI R&D", "AI Upskill", "Dig Innov", "Geo", "Portfolio", "DTP", "Manufact", "Med AI", "Robotics", "Others"];
+    for (const t of await matrix.getByTestId("dd-mx-col").locator("span[aria-hidden]").allInnerTexts()) expect(short).toContain(t.trim());
+    const col = matrix.getByTestId("dd-mx-col").first();
+    await col.hover();
+    await expect(page.locator(".dd-tip")).toHaveText((await col.getAttribute("title"))!);
     await expect(rows.first().locator(".dd-mx-count")).toHaveText(/^\d+ signals? \(\d+H, \d+M, \d+L\)$/);
     // Request 71: every dot in its full Impact colour; larger the stronger its growth (5, 6.5 or 8 px).
     const dots = await matrix.getByTestId("dd-mx-dot").evaluateAll((els) => els.map((e) => ({ bg: getComputedStyle(e).backgroundColor, w: e.getBoundingClientRect().width })));
@@ -183,7 +209,8 @@ test.describe("request 70: the Dashboard", () => {
     const h = (await body.boundingBox())!.height;
     await show.click();
     await expect(page.getByTestId("dd-mx-row")).toHaveCount(n);
-    expect(await body.evaluate((el) => el.scrollHeight > el.clientHeight && getComputedStyle(el).overflowY === "auto")).toBe(true);
+    // It scrolls when the rows need more room than the box has.
+    expect(await body.evaluate((el) => getComputedStyle(el).overflowY)).toBe("auto");
     expect(Math.abs((await body.boundingBox())!.height - h)).toBeLessThanOrEqual(1);
     await page.getByRole("button", { name: "Show the top 9" }).click();
     await expect(page.getByTestId("dd-mx-row")).toHaveCount(9);
@@ -200,8 +227,13 @@ test.describe("request 70: the Dashboard", () => {
       await expect(p.getByTestId("dd-change")).toHaveText(/^(▲ |▼ )?([+-]?\d+%|New|—)/);
     }
     const macro = page.getByTestId("dd-macro-profile");
-    await expect(macro.getByTestId("dd-focus-subtrends")).toBeVisible();
-    await expect(macro.getByTestId("dd-focus-competitors")).toBeVisible();
+    // Request 72: focus bars as Prior / Now pairs (the quarter before and this one), grey parts and one in blue.
+    await expect(macro.getByTestId("dd-focus-subtrends").locator(".dd-fbar-label")).toHaveText(["Prior", "Now"]);
+    await expect(macro.getByTestId("dd-focus-competitors").locator(".dd-fbar-label")).toHaveText(["Prior", "Now"]);
+    const compName = (await page.getByTestId("dd-comp-profile-name").innerText()).trim();
+    const blue = macro.getByTestId("dd-focus-competitors").locator(".dd-fseg.on");
+    if (await blue.count()) expect(await blue.first().evaluate((el) => (el as HTMLElement).style.background)).toBe("rgb(10, 127, 165)");
+    if (await blue.count()) await expect(blue.first()).toHaveText(new RegExp(`^(${compName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})?$`));
     // Another Macrotrend from the icons.
     const second = macro.getByRole("group", { name: /^Choose a / }).getByRole("button").nth(1);
     const name = await second.getAttribute("aria-label");
@@ -218,8 +250,10 @@ test.describe("request 70: the Dashboard", () => {
     await expect(macro.getByTestId("dd-macro-open")).toHaveAttribute("href", "/analytics/megatrends?m=Manufacturing");
     // The competitor's quarters and Company Profile.
     const comp = page.getByTestId("dd-comp-profile");
-    await expect(comp.getByTestId("dd-focus-this-quarter")).toContainText("This quarter");
-    await expect(comp.getByTestId("dd-focus-last-quarter")).toContainText("Last quarter");
+    await expect(comp.getByTestId("dd-focus-last-quarter").locator(".dd-fbar-label")).toHaveText("Prior");
+    await expect(comp.getByTestId("dd-focus-this-quarter").locator(".dd-fbar-label")).toHaveText("Now");
+    // The Macrotrend picked (Manufacturing) is the blue part of the competitor's bars, when it has one; the parts are short names.
+    for (const t of await comp.locator(".dd-fseg").allInnerTexts()) expect(t.length).toBeLessThanOrEqual(10);
     await expect(comp.getByTestId("dd-comp-profile-text")).toContainText("Company profile");
     await expect(macro.getByTestId("dd-macro-profile-text")).toContainText("Analysis");
     await expect(comp.getByRole("link", { name: "Add a logo" })).toHaveCount(0);
@@ -252,49 +286,5 @@ test.describe("request 70: the Dashboard", () => {
     await page.goto("/admin#competitor-logos");
     await card.getByTestId("logo-row").filter({ hasText: name }).getByRole("button", { name: `Remove the logo of ${name}` }).click();
     await expect(page.locator(".toast").first()).toContainText(`Logo of ${name} removed`);
-  });
-});
-
-test.describe("request 71: the Dashboard", () => {
-  test("a handle shares the height between the charts and the Profiles, and is remembered", async ({ page }) => {
-    await signInAs(page, "client");
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await page.addInitScript(() => {
-      if (!sessionStorage.getItem("split-set")) {
-        localStorage.removeItem("eradigm.dashboard.split");
-        sessionStorage.setItem("split-set", "1");
-      }
-    });
-    await page.goto("/dashboard");
-    const chart = page.locator("section.dd-chart.left");
-    const profile = page.getByTestId("dd-macro-profile");
-    await expect(page.getByTestId("dd-mx-row").first()).toBeVisible();
-    const h0 = (await chart.boundingBox())!.height;
-    const p0 = (await profile.boundingBox())!.height;
-    // Drag the handle up: shorter charts, taller Profiles; the page still fits.
-    const split = page.getByRole("separator", { name: "Resize the charts and the profiles" });
-    const s = (await split.boundingBox())!;
-    await page.mouse.move(s.x + s.width / 2, s.y + s.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(s.x + s.width / 2, s.y + s.height / 2 - 120, { steps: 6 });
-    await page.mouse.up();
-    await expect.poll(async () => (await chart.boundingBox())!.height).toBeLessThan(h0 - 80);
-    expect((await profile.boundingBox())!.height).toBeGreaterThan(p0 + 80);
-    // Both columns move together.
-    expect(Math.abs((await page.locator("section.dd-chart.right").boundingBox())!.height - (await chart.boundingBox())!.height)).toBeLessThanOrEqual(1);
-    const dash = page.getByTestId("analytics-dashboard");
-    expect(await dash.evaluate((el) => el.scrollHeight <= el.clientHeight)).toBe(true);
-    // Kept on this computer.
-    const after = (await chart.boundingBox())!.height;
-    await page.reload();
-    await expect(page.getByTestId("dd-mx-row").first()).toBeVisible();
-    expect(Math.abs((await chart.boundingBox())!.height - after)).toBeLessThanOrEqual(2);
-    // With the keyboard: End gives the charts the most room, Enter goes back to the default.
-    await split.focus();
-    await page.keyboard.press("End");
-    await expect(split).toHaveAttribute("aria-valuenow", "75");
-    await page.keyboard.press("Enter");
-    await expect(split).toHaveAttribute("aria-valuenow", "56");
-    await expectAccessible(page, "Dashboard with the handle");
   });
 });

@@ -38,7 +38,7 @@ export function Popup({ title, sub, onClose, children, className = "", testId }:
         {children}
       </div>
     </div>,
-    document.querySelector(".mg-page") ?? document.body,
+    document.querySelector(".dd-page") ?? document.body,
   );
 }
 
@@ -115,75 +115,5 @@ export function InfoTip({ label, children }: { label: string; children: ReactNod
         <span className="dd-tip-foot">{children}</span>
       </Tip>
     </>
-  );
-}
-
-const SPLIT_KEY = "eradigm.dashboard.split";
-export const SPLIT_DEFAULT = 0.56;
-export const SPLIT_MIN = 0.3;
-export const SPLIT_MAX = 0.75;
-const clampSplit = (v: number) => Math.min(SPLIT_MAX, Math.max(SPLIT_MIN, v));
-
-/** Request 71: the share of the height the charts take (the Profiles the rest), kept in this browser. */
-export function useSplit(): [number, (v: number) => void] {
-  const [v, setV] = useState(() => {
-    try {
-      const n = Number(localStorage.getItem(SPLIT_KEY));
-      return n ? clampSplit(n) : SPLIT_DEFAULT;
-    } catch {
-      return SPLIT_DEFAULT;
-    }
-  });
-  const set = (n: number) => {
-    const c = clampSplit(n);
-    setV(c);
-    try {
-      localStorage.setItem(SPLIT_KEY, String(c));
-    } catch {
-      // Not kept (private window): it still applies here.
-    }
-  };
-  return [v, set];
-}
-
-/**
- * Request 71: the handle between the charts and the Profiles. Drag it (or use
- * the arrow keys, Home and End) to give either row more height; a double click
- * or Enter goes back to the default.
- */
-export function Splitter({ value, onChange, area }: { value: number; onChange: (v: number) => void; area: () => { top: number; height: number } | null }) {
-  const drag = useRef<{ top: number; height: number } | null>(null);
-  const pct = Math.round(value * 100);
-  return (
-    <div
-      className="dd-split"
-      role="separator"
-      aria-orientation="horizontal"
-      aria-label="Resize the charts and the profiles"
-      aria-valuemin={Math.round(SPLIT_MIN * 100)}
-      aria-valuemax={Math.round(SPLIT_MAX * 100)}
-      aria-valuenow={pct}
-      aria-valuetext={`Charts ${pct}% of the height`}
-      tabIndex={0}
-      data-testid="dd-split"
-      onPointerDown={(e) => {
-        drag.current = area();
-        e.currentTarget.setPointerCapture(e.pointerId);
-      }}
-      onPointerMove={(e) => {
-        const a = drag.current;
-        if (a && a.height > 0) onChange((e.clientY - a.top) / a.height);
-      }}
-      onPointerUp={() => (drag.current = null)}
-      onDoubleClick={() => onChange(SPLIT_DEFAULT)}
-      onKeyDown={(e) => {
-        const next = e.key === "ArrowUp" ? value - 0.04 : e.key === "ArrowDown" ? value + 0.04 : e.key === "Home" ? SPLIT_MIN : e.key === "End" ? SPLIT_MAX : e.key === "Enter" ? SPLIT_DEFAULT : null;
-        if (next == null) return;
-        e.preventDefault();
-        onChange(next);
-      }}
-    >
-      <span aria-hidden="true" />
-    </div>
   );
 }
